@@ -15,6 +15,7 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "./tests.js";
 
 interface AttemptMeta {
   question_ids: string[];
@@ -49,6 +50,20 @@ function toAttempt(row: AttemptRow): Attempt {
     score: row.score,
     total: row.total,
   };
+}
+
+/**
+ * Whether an attempt's test is a current-affairs quiz — those questions are
+ * always is_published=false by design (see tests.ts's
+ * CURRENT_AFFAIRS_PAPER_CODE), so the normal "is_published=true" retracted-
+ * question filter must be skipped for them everywhere a question is re-fetched
+ * mid-attempt (submitAttempt, getAttemptResult).
+ */
+async function isCurrentAffairsTest(testId: string | null): Promise<boolean> {
+  if (!testId) return false;
+  const { data, error } = await supabase().from("tests").select("paper_code").eq("id", testId).maybeSingle();
+  if (error) throw new HttpError(500, `test lookup failed: ${error.message}`);
+  return data?.paper_code === CURRENT_AFFAIRS_PAPER_CODE;
 }
 
 async function getOwnedAttemptRow(userId: string, attemptId: string): Promise<AttemptRow> {
@@ -96,7 +111,7 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
   if (body.test_id) {
     const { data: test, error: testError } = await supabase()
       .from("tests")
-      .select("id, is_published, meta")
+      .select("id, is_published, paper_code, meta")
       .eq("id", body.test_id)
       .maybeSingle();
     if (testError) throw new HttpError(500, `test lookup failed: ${testError.message}`);
@@ -106,13 +121,18 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
 
     // !inner + questions.is_published filters out questions retracted after
     // the test was assembled — a since-unpublished question must not be
-    // served or graded in a new attempt.
-    const { data: tq, error: tqError } = await supabase()
+    // served or graded in a new attempt. EXCEPT current-affairs quizzes,
+    // whose questions are deliberately always is_published=false (see
+    // services/tests.ts's CURRENT_AFFAIRS_PAPER_CODE) — "unpublished" there
+    // never means "retracted".
+    let tqQuery = supabase()
       .from("test_questions")
       .select("question_id, marks, order_index, questions!inner(marks)")
-      .eq("test_id", body.test_id)
-      .eq("questions.is_published", true)
-      .order("order_index", { ascending: true });
+      .eq("test_id", body.test_id);
+    if (test.paper_code !== CURRENT_AFFAIRS_PAPER_CODE) {
+      tqQuery = tqQuery.eq("questions.is_published", true);
+    }
+    const { data: tq, error: tqError } = await tqQuery.order("order_index", { ascending: true });
     if (tqError) throw new HttpError(500, `test questions lookup failed: ${tqError.message}`);
 
     const rows = (tq ?? []) as unknown as {
@@ -222,14 +242,15 @@ export async function submitAttempt(userId: string, attemptId: string): Promise<
   const { question_ids: questionIds, question_marks: questionMarks, marking_scheme: markingScheme } =
     attempt.meta;
   const negativeFraction = markingScheme?.negative_marking ?? 0;
+  const isCurrentAffairsQuiz = await isCurrentAffairsTest(attempt.test_id);
 
   // is_published filter: a question retracted after the attempt started
-  // must not be graded — see the matching filter in startAttempt.
-  const { data: qs, error: qError } = await supabase()
-    .from("questions")
-    .select("id, correct_option_key, explanation_i18n")
-    .in("id", questionIds)
-    .eq("is_published", true);
+  // must not be graded — see the matching filter in startAttempt. Skipped for
+  // current-affairs quizzes, whose questions are deliberately always
+  // is_published=false (never "retracted" — see CURRENT_AFFAIRS_PAPER_CODE).
+  let qQuery = supabase().from("questions").select("id, correct_option_key, explanation_i18n").in("id", questionIds);
+  if (!isCurrentAffairsQuiz) qQuery = qQuery.eq("is_published", true);
+  const { data: qs, error: qError } = await qQuery;
   if (qError) throw new HttpError(500, `question lookup failed: ${qError.message}`);
   const correctById = new Map((qs ?? []).map((q) => [q.id as string, q.correct_option_key as string | null]));
   const explanationById = new Map(
@@ -325,22 +346,27 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
   const { question_ids: questionIds, question_marks: questionMarks, marking_scheme: markingScheme } = attempt.meta;
   const negativeFraction = markingScheme?.negative_marking ?? 0;
 
-  const [testResult, answersResult, questionsResult] = await Promise.all([
-    attempt.test_id
-      ? supabase().from("tests").select("id, title_i18n, kind, paper_code").eq("id", attempt.test_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+  const testResult = attempt.test_id
+    ? await supabase().from("tests").select("id, title_i18n, kind, paper_code").eq("id", attempt.test_id).maybeSingle()
+    : { data: null, error: null };
+  const isCurrentAffairsQuiz = testResult.data?.paper_code === CURRENT_AFFAIRS_PAPER_CODE;
+
+  // is_published filter: a question retracted after this attempt was
+  // submitted must not be shown as authoritative on the result page — same
+  // invariant startAttempt/submitAttempt enforce when serving/grading it.
+  // Skipped for current-affairs quizzes (see CURRENT_AFFAIRS_PAPER_CODE).
+  let questionsQuery = supabase()
+    .from("questions")
+    .select("id, paper_code, syllabus_node_id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
+    .in("id", questionIds);
+  if (!isCurrentAffairsQuiz) questionsQuery = questionsQuery.eq("is_published", true);
+
+  const [answersResult, questionsResult] = await Promise.all([
     supabase()
       .from("attempt_answers")
       .select("question_id, chosen_option_key, is_correct, time_spent_seconds")
       .eq("attempt_id", attemptId),
-    // is_published filter: a question retracted after this attempt was
-    // submitted must not be shown as authoritative on the result page — same
-    // invariant startAttempt/submitAttempt enforce when serving/grading it.
-    supabase()
-      .from("questions")
-      .select("id, paper_code, syllabus_node_id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
-      .in("id", questionIds)
-      .eq("is_published", true),
+    questionsQuery,
   ]);
   if (testResult.error) throw new HttpError(500, `test lookup failed: ${testResult.error.message}`);
   if (answersResult.error) throw new HttpError(500, `answers lookup failed: ${answersResult.error.message}`);

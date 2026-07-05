@@ -11,6 +11,16 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { devUserId } from "../lib/dev-user.js";
 
+/**
+ * The synthetic paper_code for ca:run-generated MCQs and their "Quiz me on
+ * this week" test. Those questions are always is_published=false (never
+ * meant to leak into the general PYQ catalog/search — see
+ * createCustomTestFromCurrentAffairs below) so every place that fetches a
+ * test's questions (here and in services/attempts.ts) must treat THIS one
+ * paper_code as the exception to the normal "is_published=true" gate.
+ */
+export const CURRENT_AFFAIRS_PAPER_CODE = "CURRENT_AFFAIRS";
+
 interface TestListFilters {
   kind?: TestKind;
   paper?: string;
@@ -36,6 +46,16 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
 
   if (filters.kind) query = query.eq("kind", filters.kind);
   if (filters.paper) query = query.eq("paper_code", filters.paper);
+  // pyq_full/sectional are MCQ test-taking surfaces (the Practice tab's
+  // test-player only knows how to run MCQ attempts) — but ingest:tests builds
+  // them for EVERY paper with published PYQs, including the 8 Mains papers,
+  // which are 100% descriptive and belong to the separate Answers feature.
+  // Prelims paper codes are always prefixed "PRE_" (see ingest/_shared.ts's
+  // PAPERS); excluding anything else keeps a Mains "full paper"/"sectional"
+  // test out of a UI that can't render it.
+  if (filters.kind === "pyq_full" || filters.kind === "sectional") {
+    query = query.like("paper_code", "PRE_%");
+  }
 
   const { data, error } = await query;
   if (error) throw new HttpError(500, `tests query failed: ${error.message}`);
@@ -127,7 +147,7 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
       "order_index, marks, questions!inner(id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
     )
     .eq("test_id", testId);
-  if (test.paper_code !== "CURRENT_AFFAIRS") {
+  if (test.paper_code !== CURRENT_AFFAIRS_PAPER_CODE) {
     tqQuery = tqQuery.eq("questions.is_published", true);
   }
   const { data: tq, error: tqError } = await tqQuery.order("order_index", { ascending: true });
@@ -193,16 +213,19 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
   if (!node) throw notFound("Syllabus node not found");
 
+  // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
+  // descriptive PYQs too (Mains topics), which the player can't run.
   let questionsQuery = supabase()
     .from("questions")
     .select("id, marks")
     .eq("syllabus_node_id", body.node_id)
+    .eq("type", "mcq")
     .eq("is_published", true);
   if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);
   const { data: questionRows, error: questionsError } = await questionsQuery;
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];
-  if (available.length === 0) throw badRequest("No published PYQs are mapped to this topic (and difficulty) yet");
+  if (available.length === 0) throw badRequest("No published MCQ PYQs are mapped to this topic (and difficulty) yet");
 
   const selected = shuffled(available).slice(0, body.count);
   const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
@@ -294,7 +317,7 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
     .insert({
       title_i18n: currentAffairsQuizTitle(days),
       kind: "custom",
-      paper_code: "CURRENT_AFFAIRS",
+      paper_code: CURRENT_AFFAIRS_PAPER_CODE,
       total_marks: totalMarks || null,
       is_published: true,
       meta: { source: "current_affairs", days },
