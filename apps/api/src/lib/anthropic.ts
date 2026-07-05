@@ -6,7 +6,9 @@
  * ./models.ts — never inline a model string here or at a call site.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { MODELS, type ModelId } from "./models.js";
+import { MODELS, estimateCostUsd, type ModelId } from "./models.js";
+import { supabase } from "./supabase.js";
+import { logger } from "./logger.js";
 
 let client: Anthropic | null = null;
 
@@ -21,12 +23,37 @@ export function anthropic(): Anthropic {
 }
 
 /**
+ * Records one Anthropic call's usage/cost into llm_calls. Best-effort — a
+ * logging failure never fails the caller's actual LLM request.
+ */
+async function recordLlmCall(opts: {
+  model: ModelId;
+  purpose: string;
+  userId?: string;
+  inputTokens: number;
+  outputTokens: number;
+}): Promise<void> {
+  const { error } = await supabase()
+    .from("llm_calls")
+    .insert({
+      user_id: opts.userId ?? null,
+      model: opts.model,
+      purpose: opts.purpose,
+      input_tokens: opts.inputTokens,
+      output_tokens: opts.outputTokens,
+      cost_usd: estimateCostUsd(opts.model, opts.inputTokens, opts.outputTokens),
+    });
+  if (error) logger.warn({ error, purpose: opts.purpose }, "failed to record llm_calls row");
+}
+
+/**
  * Ask a model for a single JSON object matching `schema` (a JSON Schema).
  * Uses structured outputs (output_config.format) so the response is guaranteed
  * to parse. Streams so large max_tokens never hits an HTTP timeout.
  *
  * `content` is a full user-message content array so callers can mix text with
- * document/image blocks (e.g. a PDF for vision extraction).
+ * document/image blocks (e.g. a PDF for vision extraction). Pass `purpose`
+ * (and `userId` for user-triggered calls) to log tokens + cost to llm_calls.
  */
 export async function structuredJson<T>(opts: {
   model: ModelId;
@@ -35,6 +62,8 @@ export async function structuredJson<T>(opts: {
   schema: Record<string, unknown>;
   maxTokens?: number;
   effort?: "low" | "medium" | "high";
+  purpose?: string;
+  userId?: string;
 }): Promise<T> {
   const stream = anthropic().messages.stream({
     model: opts.model,
@@ -51,6 +80,15 @@ export async function structuredJson<T>(opts: {
   } as Anthropic.MessageStreamParams);
 
   const message = await stream.finalMessage();
+  if (opts.purpose) {
+    await recordLlmCall({
+      model: opts.model,
+      purpose: opts.purpose,
+      userId: opts.userId,
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+    });
+  }
   if (message.stop_reason === "refusal") {
     throw new Error(
       `Model refused (${message.stop_details?.category ?? "unknown"})`,
@@ -64,6 +102,50 @@ export async function structuredJson<T>(opts: {
     throw new Error(`Empty response (stop_reason=${message.stop_reason})`);
   }
   return JSON.parse(text) as T;
+}
+
+/**
+ * Stream plain text from a model, invoking `onDelta` for each text chunk —
+ * the typed wrapper future SSE endpoints (e.g. answer evaluation, doubt chat)
+ * build on. Returns the full text and logs tokens + cost to llm_calls.
+ */
+export async function streamText(opts: {
+  model: ModelId;
+  system?: string;
+  content: Anthropic.MessageParam["content"];
+  maxTokens?: number;
+  effort?: "low" | "medium" | "high";
+  purpose: string;
+  userId?: string;
+  onDelta?: (text: string) => void;
+}): Promise<string> {
+  const stream = anthropic().messages.stream({
+    model: opts.model,
+    max_tokens: opts.maxTokens ?? 8000,
+    ...(opts.system ? { system: opts.system } : {}),
+    ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+    messages: [{ role: "user", content: opts.content }],
+  } as Anthropic.MessageStreamParams);
+
+  stream.on("text", (delta) => opts.onDelta?.(delta));
+
+  const message = await stream.finalMessage();
+  await recordLlmCall({
+    model: opts.model,
+    purpose: opts.purpose,
+    userId: opts.userId,
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+  });
+  if (message.stop_reason === "refusal") {
+    throw new Error(
+      `Model refused (${message.stop_details?.category ?? "unknown"})`,
+    );
+  }
+  return message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
 }
 
 /**
@@ -137,7 +219,7 @@ export async function translateBatch(
         },
         required: ["items"],
       },
-      maxTokens: 8000,
+      maxTokens: 16000,
     });
     for (const it of out.items) {
       const src = batch[it.id - 1];

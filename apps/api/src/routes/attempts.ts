@@ -1,0 +1,47 @@
+import { Router } from "express";
+import { z } from "zod";
+import {
+  attemptAnswersBodySchema,
+  attemptAnswersResponseSchema,
+  attemptResponseSchema,
+  attemptStartBodySchema,
+  attemptSubmitResponseSchema,
+} from "@prayasup/shared";
+import { asyncHandler } from "../lib/async-handler.js";
+import { parse } from "../lib/validation.js";
+import { rateLimit } from "../lib/rate-limit.js";
+import { devUserId } from "../lib/dev-user.js";
+import { startAttempt, submitAttempt, upsertAttemptAnswers } from "../services/attempts.js";
+
+export const attemptsRouter = Router();
+attemptsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
+
+const attemptIdParams = z.object({ id: z.string().uuid() });
+
+attemptsRouter.post(
+  "/attempts",
+  asyncHandler(async (req, res) => {
+    const body = parse(attemptStartBodySchema, req.body);
+    const attempt = await startAttempt(devUserId(), body);
+    res.status(201).json(attemptResponseSchema.parse({ data: attempt, error: null }));
+  }),
+);
+
+attemptsRouter.post(
+  "/attempts/:id/answers",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(attemptIdParams, req.params);
+    const body = parse(attemptAnswersBodySchema, req.body);
+    const upserted = await upsertAttemptAnswers(devUserId(), id, body.answers);
+    res.json(attemptAnswersResponseSchema.parse({ data: { upserted }, error: null }));
+  }),
+);
+
+attemptsRouter.post(
+  "/attempts/:id/submit",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(attemptIdParams, req.params);
+    const result = await submitAttempt(devUserId(), id);
+    res.json(attemptSubmitResponseSchema.parse({ data: result, error: null }));
+  }),
+);
