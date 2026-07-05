@@ -4,7 +4,7 @@ import { apiEnvelopeSchema, bilingualTextSchema } from "./types";
 export const attemptStartBodySchema = z
   .object({
     test_id: z.string().uuid().optional(),
-    question_ids: z.array(z.string().uuid()).min(1).optional(),
+    question_ids: z.array(z.string().uuid()).min(1).max(500).optional(),
   })
   .refine((d) => !!d.test_id || !!d.question_ids, {
     message: "Provide either test_id or question_ids",

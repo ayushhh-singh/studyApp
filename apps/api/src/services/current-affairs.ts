@@ -21,7 +21,10 @@ export async function listCurrentAffairs(
 
   const from = (filters.page - 1) * CURRENT_AFFAIRS_PAGE_SIZE;
   const to = from + CURRENT_AFFAIRS_PAGE_SIZE - 1;
-  query = query.order("date", { ascending: false }).range(from, to);
+  query = query
+    .order("date", { ascending: false })
+    .order("id", { ascending: true })
+    .range(from, to);
 
   const { data, error, count } = await query;
   if (error) throw new HttpError(500, `current affairs query failed: ${error.message}`);

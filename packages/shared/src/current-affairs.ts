@@ -18,7 +18,12 @@ export type CurrentAffairsItem = z.infer<typeof currentAffairsItemSchema>;
 export const currentAffairsQuerySchema = z.object({
   date: z.string().optional(),
   category: z.string().optional(),
-  up_only: z.coerce.boolean().optional(),
+  // z.coerce.boolean() treats ANY non-empty string (including "false") as
+  // true — enumerate the literal query values instead.
+  up_only: z
+    .enum(["true", "false"])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === "true")),
   page: z.coerce.number().int().min(1).default(1),
 });
 export type CurrentAffairsQuery = z.infer<typeof currentAffairsQuerySchema>;

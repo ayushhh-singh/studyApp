@@ -72,10 +72,14 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
     markingScheme = ((test.meta as { marking_scheme?: MarkingScheme } | null)?.marking_scheme ??
       null) as MarkingScheme;
 
+    // !inner + questions.is_published filters out questions retracted after
+    // the test was assembled — a since-unpublished question must not be
+    // served or graded in a new attempt.
     const { data: tq, error: tqError } = await supabase()
       .from("test_questions")
-      .select("question_id, marks, order_index, questions(marks)")
+      .select("question_id, marks, order_index, questions!inner(marks)")
       .eq("test_id", body.test_id)
+      .eq("questions.is_published", true)
       .order("order_index", { ascending: true });
     if (tqError) throw new HttpError(500, `test questions lookup failed: ${tqError.message}`);
 
@@ -90,13 +94,16 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
     }
   } else {
     questionIds = [...new Set(body.question_ids!)];
-    const { data: qs, error: qError, count } = await supabase()
+    const { data: qs, error: qError } = await supabase()
       .from("questions")
-      .select("id, marks", { count: "exact" })
+      .select("id, marks")
       .in("id", questionIds)
       .eq("is_published", true);
     if (qError) throw new HttpError(500, `question lookup failed: ${qError.message}`);
-    if ((count ?? 0) !== questionIds.length) {
+    // Compare against the rows actually returned, not a server-reported count
+    // — a count could still match questionIds.length even if the row set
+    // itself was capped/truncated, silently under-scoring the missing ones.
+    if ((qs ?? []).length !== questionIds.length) {
       throw badRequest("One or more question_ids are invalid or unpublished");
     }
     for (const q of qs ?? []) marksById.set(q.id as string, (q.marks as number | null) ?? 0);
@@ -136,7 +143,11 @@ export async function upsertAttemptAnswers(
     }
   }
 
-  const rows = answers.map((a) => ({
+  // Dedupe by question_id (keep the last occurrence) — a single multi-row
+  // upsert with the same conflict target twice fails in Postgres with
+  // "ON CONFLICT DO UPDATE command cannot affect row a second time".
+  const deduped = new Map(answers.map((a) => [a.question_id, a]));
+  const rows = [...deduped.values()].map((a) => ({
     attempt_id: attemptId,
     question_id: a.question_id,
     chosen_option_key: a.chosen_option_key ?? null,
@@ -157,10 +168,13 @@ export async function submitAttempt(userId: string, attemptId: string): Promise<
     attempt.meta;
   const negativeFraction = markingScheme?.negative_marking ?? 0;
 
+  // is_published filter: a question retracted after the attempt started
+  // must not be graded — see the matching filter in startAttempt.
   const { data: qs, error: qError } = await supabase()
     .from("questions")
     .select("id, correct_option_key, explanation_i18n")
-    .in("id", questionIds);
+    .in("id", questionIds)
+    .eq("is_published", true);
   if (qError) throw new HttpError(500, `question lookup failed: ${qError.message}`);
   const correctById = new Map((qs ?? []).map((q) => [q.id as string, q.correct_option_key as string | null]));
   const explanationById = new Map(
@@ -183,11 +197,15 @@ export async function submitAttempt(userId: string, attemptId: string): Promise<
   for (const qid of questionIds) {
     const marks = questionMarks[qid] ?? 0;
     const chosen = chosenById.get(qid) ?? null;
+    // Not in correctById means the question was retracted (unpublished)
+    // since the attempt started — exclude it from scoring entirely rather
+    // than penalizing the user for content that's no longer live.
+    const isRetracted = !correctById.has(qid);
     const correct = correctById.get(qid) ?? null;
     let isCorrect: boolean | null = null;
     let awarded = 0;
 
-    if (chosen != null) {
+    if (!isRetracted && chosen != null) {
       isCorrect = correct != null && chosen === correct;
       awarded = isCorrect ? marks : negativeFraction * marks;
       gradedAnswers.push({ question_id: qid, is_correct: isCorrect });

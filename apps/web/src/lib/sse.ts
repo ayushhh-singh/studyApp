@@ -15,7 +15,9 @@ export interface StreamOptions {
  * AbortController the caller uses to cancel the stream. `onerror` throws to
  * stop @microsoft/fetch-event-source's built-in retry — each of our stream
  * endpoints is stateful per-request, so silently retrying would replay a
- * dead request rather than recover it.
+ * dead request rather than recover it. The throw rejects the promise
+ * fetchEventSource returns, so `opts.onError` is invoked exactly once, from
+ * the trailing .catch() below — do not also call it inside `onerror`.
  */
 export function streamEvents(opts: StreamOptions): AbortController {
   const controller = new AbortController();
@@ -48,7 +50,6 @@ export function streamEvents(opts: StreamOptions): AbortController {
       opts.onClose?.();
     },
     onerror(err) {
-      opts.onError?.(err);
       throw err;
     },
   }).catch((err) => {
