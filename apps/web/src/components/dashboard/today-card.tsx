@@ -72,7 +72,7 @@ export function TodayCard({ data }: { data: DashboardToday }) {
         <TodayRow
           icon={Sparkles}
           label={data.daily_quiz ? data.daily_quiz.title_i18n[locale] : t("Dashboard.todayDailyQuizNone")}
-          to={data.daily_quiz ? `/${locale}/practice` : undefined}
+          to={data.daily_quiz ? `/${locale}/practice/test/${data.daily_quiz.id}` : undefined}
           cta={data.daily_quiz ? t("Dashboard.todayDailyQuizCta") : undefined}
         />
       </div>

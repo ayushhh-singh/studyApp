@@ -9,6 +9,7 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
+import { devUserId } from "../lib/dev-user.js";
 
 interface TestListFilters {
   kind?: TestKind;
@@ -39,7 +40,10 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
   const { data, error } = await query;
   if (error) throw new HttpError(500, `tests query failed: ${error.message}`);
 
-  return ((data ?? []) as unknown as TestListRow[]).map((row) => ({
+  const rows = (data ?? []) as unknown as TestListRow[];
+  const bestScores = await getBestScoresByTest(rows.map((row) => row.id));
+
+  return rows.map((row) => ({
     id: row.id,
     slug: row.slug,
     title_i18n: row.title_i18n,
@@ -48,7 +52,36 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
     duration_minutes: row.duration_minutes,
     total_marks: row.total_marks,
     question_count: row.test_questions[0]?.count ?? 0,
+    best_score: bestScores.get(row.id)?.best ?? null,
+    attempts_count: bestScores.get(row.id)?.count ?? 0,
   }));
+}
+
+/** Best (max) submitted score + attempt count per test, for the dev user. */
+export async function getBestScoresByTest(testIds: string[]): Promise<Map<string, { best: number; count: number }>> {
+  const out = new Map<string, { best: number; count: number }>();
+  if (testIds.length === 0) return out;
+
+  const { data, error } = await supabase()
+    .from("attempts")
+    .select("test_id, score")
+    .eq("user_id", devUserId())
+    .not("test_id", "is", null)
+    .not("submitted_at", "is", null)
+    .in("test_id", testIds);
+  if (error) throw new HttpError(500, `attempts lookup failed: ${error.message}`);
+
+  for (const row of (data ?? []) as { test_id: string; score: number | null }[]) {
+    const score = row.score ?? 0;
+    const existing = out.get(row.test_id);
+    if (!existing) {
+      out.set(row.test_id, { best: score, count: 1 });
+    } else {
+      existing.best = Math.max(existing.best, score);
+      existing.count += 1;
+    }
+  }
+  return out;
 }
 
 interface TestQuestionJoinRow {
@@ -108,6 +141,7 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
 
   const markingScheme = ((test.meta as { marking_scheme?: MarkingScheme } | null)?.marking_scheme ??
     null) as MarkingScheme;
+  const bestScore = (await getBestScoresByTest([testId])).get(testId);
 
   return {
     id: test.id,
@@ -118,6 +152,8 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
     duration_minutes: test.duration_minutes,
     total_marks: test.total_marks,
     question_count: questions.length,
+    best_score: bestScore?.best ?? null,
+    attempts_count: bestScore?.count ?? 0,
     marking_scheme: markingScheme,
     questions,
   };
@@ -146,14 +182,16 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
   if (!node) throw notFound("Syllabus node not found");
 
-  const { data: questionRows, error: questionsError } = await supabase()
+  let questionsQuery = supabase()
     .from("questions")
     .select("id, marks")
     .eq("syllabus_node_id", body.node_id)
     .eq("is_published", true);
+  if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);
+  const { data: questionRows, error: questionsError } = await questionsQuery;
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];
-  if (available.length === 0) throw badRequest("No published PYQs are mapped to this topic yet");
+  if (available.length === 0) throw badRequest("No published PYQs are mapped to this topic (and difficulty) yet");
 
   const selected = shuffled(available).slice(0, body.count);
   const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);

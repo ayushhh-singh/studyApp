@@ -1,6 +1,8 @@
 import type {
   Attempt,
   AttemptAnswerInput,
+  AttemptAnswerRecord,
+  AttemptDetail,
   AttemptResultItem,
   AttemptStartBody,
   AttemptSubmitResult,
@@ -56,7 +58,32 @@ async function getOwnedAttemptRow(userId: string, attemptId: string): Promise<At
   return row;
 }
 
+/**
+ * Resuming a test means re-clicking "Start Test" for a paper the user already
+ * has an unsubmitted attempt on — return that attempt instead of creating a
+ * second one, so the server-authoritative started_at (and the timer derived
+ * from it) never resets on a page reload.
+ */
+async function findActiveAttempt(userId: string, testId: string): Promise<AttemptRow | null> {
+  const { data, error } = await supabase()
+    .from("attempts")
+    .select(ATTEMPT_COLUMNS)
+    .eq("user_id", userId)
+    .eq("test_id", testId)
+    .is("submitted_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `active attempt lookup failed: ${error.message}`);
+  return data as unknown as AttemptRow | null;
+}
+
 export async function startAttempt(userId: string, body: AttemptStartBody): Promise<Attempt> {
+  if (body.test_id) {
+    const active = await findActiveAttempt(userId, body.test_id);
+    if (active) return toAttempt(active);
+  }
+
   let questionIds: string[];
   let markingScheme: MarkingScheme = null;
   const marksById = new Map<string, number>();
@@ -126,6 +153,18 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
     .single();
   if (error) throw new HttpError(500, `attempt insert failed: ${error.message}`);
   return toAttempt(attempt as unknown as AttemptRow);
+}
+
+export async function getAttemptDetail(userId: string, attemptId: string): Promise<AttemptDetail> {
+  const attempt = await getOwnedAttemptRow(userId, attemptId);
+
+  const { data, error } = await supabase()
+    .from("attempt_answers")
+    .select("question_id, chosen_option_key, time_spent_seconds")
+    .eq("attempt_id", attemptId);
+  if (error) throw new HttpError(500, `answers lookup failed: ${error.message}`);
+
+  return { attempt: toAttempt(attempt), answers: (data ?? []) as unknown as AttemptAnswerRecord[] };
 }
 
 export async function upsertAttemptAnswers(

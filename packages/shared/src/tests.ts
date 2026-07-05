@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema } from "./types";
-import { questionSchema } from "./questions";
+import { difficultySchema, questionSchema } from "./questions";
 
 export const testKindSchema = z.enum(["pyq_full", "sectional", "daily_quiz", "custom"]);
 export type TestKind = z.infer<typeof testKindSchema>;
@@ -23,6 +23,8 @@ export const testSummarySchema = z.object({
   duration_minutes: z.number().int().nullable(),
   total_marks: z.number().nullable(),
   question_count: z.number().int(),
+  best_score: z.number().nullable(),
+  attempts_count: z.number().int(),
 });
 export type TestSummary = z.infer<typeof testSummarySchema>;
 
@@ -50,6 +52,7 @@ export type TestsQuery = z.infer<typeof testsQuerySchema>;
 export const createCustomTestBodySchema = z.object({
   node_id: z.string().uuid(),
   count: z.number().int().min(1).max(100).default(20),
+  difficulty: difficultySchema.optional(),
 });
 export type CreateCustomTestBody = z.infer<typeof createCustomTestBodySchema>;
 

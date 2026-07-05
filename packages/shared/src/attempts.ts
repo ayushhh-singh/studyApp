@@ -53,6 +53,22 @@ export type AttemptSubmitResult = z.infer<typeof attemptSubmitResultSchema>;
 export const attemptResponseSchema = apiEnvelopeSchema(attemptSchema);
 export type AttemptResponse = z.infer<typeof attemptResponseSchema>;
 
+export const attemptAnswerRecordSchema = z.object({
+  question_id: z.string().uuid(),
+  chosen_option_key: z.string().nullable(),
+  time_spent_seconds: z.number().int().nullable(),
+});
+export type AttemptAnswerRecord = z.infer<typeof attemptAnswerRecordSchema>;
+
+export const attemptDetailSchema = z.object({
+  attempt: attemptSchema,
+  answers: z.array(attemptAnswerRecordSchema),
+});
+export type AttemptDetail = z.infer<typeof attemptDetailSchema>;
+
+export const attemptDetailResponseSchema = apiEnvelopeSchema(attemptDetailSchema);
+export type AttemptDetailResponse = z.infer<typeof attemptDetailResponseSchema>;
+
 export const attemptAnswersResponseSchema = apiEnvelopeSchema(z.object({ upserted: z.number().int() }));
 export type AttemptAnswersResponse = z.infer<typeof attemptAnswersResponseSchema>;
 

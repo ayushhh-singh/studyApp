@@ -6,6 +6,7 @@ export type QuestionType = z.infer<typeof questionTypeSchema>;
 
 export const questionSourceSchema = z.enum(["pyq", "generated", "manual"]);
 export const difficultySchema = z.enum(["easy", "medium", "hard"]);
+export type Difficulty = z.infer<typeof difficultySchema>;
 
 export const questionOptionSchema = z.object({
   key: z.string(),

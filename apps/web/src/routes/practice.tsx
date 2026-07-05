@@ -1,17 +1,27 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { PenSquare, Clock, ListChecks, X } from "lucide-react";
+import { PenSquare, X } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PyqList } from "@/components/learn/pyq-list";
+import { TestCard } from "@/components/practice/test-card";
+import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { useTests } from "@/hooks/use-tests";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "Nav.practice" };
+
+const TABS = ["pyq", "sectional", "custom"] as const;
+type Tab = (typeof TABS)[number];
+
+function isTab(value: string | null): value is Tab {
+  return !!value && (TABS as readonly string[]).includes(value);
+}
 
 function PyqFilterView({ nodeId }: { nodeId: string }) {
   const { t } = useTranslation();
@@ -49,12 +59,72 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
   );
 }
 
-export function Component() {
+function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" }) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: tests, isLoading } = useTests();
-  const [searchParams] = useSearchParams();
+  const { data: tests, isLoading } = useTests({ kind });
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <ListRowSkeleton />
+        <ListRowSkeleton />
+        <ListRowSkeleton />
+      </div>
+    );
+  }
+
+  if (!tests || tests.length === 0) {
+    return (
+      <EmptyState icon={PenSquare} title={t("Practice.emptyTitle")} description={t("Practice.emptyDescription")} />
+    );
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {tests.map((test) => (
+        <li key={test.id}>
+          <TestCard test={test} locale={locale} />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CustomTestsPanel() {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const { data: tests, isLoading } = useTests({ kind: "custom" });
+
+  return (
+    <div className="flex flex-col gap-4">
+      <SectionCard title={t("Practice.customBuilderTitle")}>
+        <CustomTestBuilder locale={locale} />
+      </SectionCard>
+      <SectionCard title={t("Practice.customYourSets")}>
+        {isLoading ? (
+          <ListRowSkeleton />
+        ) : !tests || tests.length === 0 ? (
+          <EmptyState icon={PenSquare} title={t("Practice.customEmptyTitle")} />
+        ) : (
+          <ul className="flex flex-col gap-2">
+            {tests.map((test) => (
+              <li key={test.id}>
+                <TestCard test={test} locale={locale} />
+              </li>
+            ))}
+          </ul>
+        )}
+      </SectionCard>
+    </div>
+  );
+}
+
+export function Component() {
+  const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const nodeFilter = searchParams.get("node");
+  const tab: Tab = isTab(searchParams.get("tab")) ? (searchParams.get("tab") as Tab) : "pyq";
 
   if (nodeFilter) {
     return (
@@ -65,51 +135,42 @@ export function Component() {
     );
   }
 
+  function setTab(next: Tab) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "pyq") params.delete("tab");
+        else params.set("tab", next);
+        return params;
+      },
+      { replace: true },
+    );
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("Practice.title")} description={t("Practice.description")} />
 
-      <SectionCard title={t("Practice.available")}>
-        {isLoading ? (
-          <div className="flex flex-col gap-2">
-            <ListRowSkeleton />
-            <ListRowSkeleton />
-            <ListRowSkeleton />
-          </div>
-        ) : !tests || tests.length === 0 ? (
-          <EmptyState
-            icon={PenSquare}
-            title={t("Practice.emptyTitle")}
-            description={t("Practice.emptyDescription")}
-          />
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {tests.map((test) => (
-              <li
-                key={test.id}
-                className="flex min-h-11 items-center justify-between gap-3 rounded-lg border border-border bg-background px-3 py-2.5"
-              >
-                <div className="flex min-w-0 flex-col gap-0.5">
-                  <span className="truncate text-sm font-medium">{test.title_i18n[locale]}</span>
-                  <span className="text-xs text-muted-foreground">{test.paper_code ?? t("Practice.mixed")}</span>
-                </div>
-                <div className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <ListChecks className="size-3.5" aria-hidden />
-                    {test.question_count}
-                  </span>
-                  {test.duration_minutes && (
-                    <span className="flex items-center gap-1">
-                      <Clock className="size-3.5" aria-hidden />
-                      {t("Practice.minutes", { count: test.duration_minutes })}
-                    </span>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </SectionCard>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
+        <TabsList>
+          <TabsTrigger value="pyq">{t("Practice.tabPyq")}</TabsTrigger>
+          <TabsTrigger value="sectional">{t("Practice.tabSectional")}</TabsTrigger>
+          <TabsTrigger value="custom">{t("Practice.tabCustom")}</TabsTrigger>
+        </TabsList>
+        <TabsContent value="pyq">
+          <SectionCard title={t("Practice.available")}>
+            <TestListPanel kind="pyq_full" />
+          </SectionCard>
+        </TabsContent>
+        <TabsContent value="sectional">
+          <SectionCard title={t("Practice.available")}>
+            <TestListPanel kind="sectional" />
+          </SectionCard>
+        </TabsContent>
+        <TabsContent value="custom">
+          <CustomTestsPanel />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

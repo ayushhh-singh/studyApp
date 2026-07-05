@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   attemptAnswersBodySchema,
   attemptAnswersResponseSchema,
+  attemptDetailResponseSchema,
   attemptResponseSchema,
   attemptStartBodySchema,
   attemptSubmitResponseSchema,
@@ -11,7 +12,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
-import { startAttempt, submitAttempt, upsertAttemptAnswers } from "../services/attempts.js";
+import { getAttemptDetail, startAttempt, submitAttempt, upsertAttemptAnswers } from "../services/attempts.js";
 
 export const attemptsRouter = Router();
 attemptsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -24,6 +25,15 @@ attemptsRouter.post(
     const body = parse(attemptStartBodySchema, req.body);
     const attempt = await startAttempt(devUserId(), body);
     res.status(201).json(attemptResponseSchema.parse({ data: attempt, error: null }));
+  }),
+);
+
+attemptsRouter.get(
+  "/attempts/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(attemptIdParams, req.params);
+    const detail = await getAttemptDetail(devUserId(), id);
+    res.json(attemptDetailResponseSchema.parse({ data: detail, error: null }));
   }),
 );
 

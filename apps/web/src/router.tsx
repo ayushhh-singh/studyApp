@@ -39,6 +39,10 @@ export const router = createBrowserRouter([
           { path: "profile", lazy: () => import("@/routes/profile") },
         ],
       },
+      // Outside app-shell, deliberately: the test player is a distraction-free
+      // full-screen experience with its own minimal header, not the normal
+      // sidebar/bottom-tab chrome.
+      { path: "practice/test/:testId", lazy: () => import("@/routes/practice-test") },
     ],
   },
   {

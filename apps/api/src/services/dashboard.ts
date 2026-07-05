@@ -14,6 +14,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
+import { getBestScoresByTest } from "./tests.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -206,6 +207,7 @@ async function getToday(userId: string, today: string): Promise<DashboardToday> 
     test_questions: { count: number }[];
   } | null;
 
+  const quizBestScore = quizRow ? (await getBestScoresByTest([quizRow.id])).get(quizRow.id) : undefined;
   const dailyQuiz: TestSummary | null = quizRow
     ? {
         id: quizRow.id,
@@ -216,6 +218,8 @@ async function getToday(userId: string, today: string): Promise<DashboardToday> 
         duration_minutes: quizRow.duration_minutes,
         total_marks: quizRow.total_marks,
         question_count: quizRow.test_questions[0]?.count ?? 0,
+        best_score: quizBestScore?.best ?? null,
+        attempts_count: quizBestScore?.count ?? 0,
       }
     : null;
 
