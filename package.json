@@ -3,7 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "dev": "echo \"dev script placeholder — will run web + api concurrently once scaffolded (Session 1)\" && exit 1"
+    "dev": "concurrently -n web,api -c blue,green \"pnpm --filter web dev\" \"pnpm --filter api dev\"",
+    "build": "pnpm --filter web build && pnpm --filter api build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.1"
   },
   "engines": {
     "node": ">=20"
