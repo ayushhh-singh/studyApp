@@ -1,4 +1,5 @@
 import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
 import { Target } from "lucide-react";
 import type { DashboardWeaknessNode } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -24,7 +25,12 @@ export function WeaknessCard({ nodes }: { nodes: DashboardWeaknessNode[] }) {
           {nodes.map((node) => (
             <div key={node.syllabus_node_id} className="flex flex-col gap-1">
               <div className="flex items-center justify-between gap-2">
-                <span className="truncate text-sm font-medium">{node.title_i18n[locale]}</span>
+                <Link
+                  to={`/${locale}/learn/${node.paper_code}/${node.syllabus_node_id}`}
+                  className="truncate rounded-sm text-sm font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {node.title_i18n[locale]}
+                </Link>
                 <span
                   className="shrink-0 text-sm font-semibold tabular-nums"
                   style={{ color: scoreBandColor(node.accuracy_pct) }}

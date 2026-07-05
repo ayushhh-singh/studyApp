@@ -30,6 +30,8 @@ export const router = createBrowserRouter([
         children: [
           { path: "dashboard", lazy: () => import("@/routes/dashboard") },
           { path: "learn", lazy: () => import("@/routes/learn") },
+          { path: "learn/:paperCode", lazy: () => import("@/routes/learn-paper") },
+          { path: "learn/:paperCode/:nodeId", lazy: () => import("@/routes/learn-node") },
           { path: "practice", lazy: () => import("@/routes/practice") },
           { path: "answers", lazy: () => import("@/routes/answers") },
           { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },

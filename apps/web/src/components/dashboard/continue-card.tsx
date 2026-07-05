@@ -70,7 +70,7 @@ export function ContinueCard({ data }: { data: DashboardContinue }) {
             </div>
           </div>
           <Link
-            to={`/${locale}/learn?node=${data.syllabus_node_id}`}
+            to={`/${locale}/learn/${data.paper_code}/${data.syllabus_node_id}`}
             className="inline-flex h-9 w-fit items-center gap-1.5 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             {t("Dashboard.continueSyllabusCta")}

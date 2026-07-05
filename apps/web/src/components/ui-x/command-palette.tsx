@@ -28,7 +28,9 @@ export function CommandPalette() {
   const { data: syllabus } = useSyllabusTree();
 
   const syllabusResults = useMemo(
-    () => (syllabus ? flattenSyllabus(syllabus).slice(0, 60) : []),
+    // depth 0 rows are paper roots, not real topics — surfaced via the Learn
+    // grid instead, so exclude them from the flattened search results.
+    () => (syllabus ? flattenSyllabus(syllabus).filter((node) => node.depth > 0).slice(0, 60) : []),
     [syllabus],
   );
 
@@ -83,7 +85,7 @@ export function CommandPalette() {
               <CommandItem
                 key={node.id}
                 value={`${node.title_i18n.en} ${node.title_i18n.hi}`}
-                onSelect={() => go(`/${locale}/learn?node=${node.id}`)}
+                onSelect={() => go(`/${locale}/learn/${node.paper_code}/${node.id}`)}
                 className={RESULT_ITEM_CLASS}
               >
                 <span className="flex flex-col">

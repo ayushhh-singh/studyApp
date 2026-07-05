@@ -32,6 +32,7 @@ export const dashboardContinueSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("syllabus_node"),
     syllabus_node_id: z.string().uuid(),
+    paper_code: z.string(),
     title_i18n: bilingualTextSchema,
     last_activity_at: z.string(),
   }),
@@ -66,6 +67,7 @@ export type DashboardPerformance = z.infer<typeof dashboardPerformanceSchema>;
 
 export const dashboardWeaknessNodeSchema = z.object({
   syllabus_node_id: z.string().uuid(),
+  paper_code: z.string(),
   title_i18n: bilingualTextSchema,
   accuracy_pct: z.number(),
   answered_count: z.number().int(),

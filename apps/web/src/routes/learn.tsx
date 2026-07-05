@@ -1,142 +1,74 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router";
-import { ChevronRight, BookOpen } from "lucide-react";
-import type { SyllabusNode } from "@prayasup/shared";
+import { Link } from "react-router";
+import { BookOpen, ListChecks } from "lucide-react";
+import type { PaperSummary } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
-import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
-import { ListRowSkeleton } from "@/components/ui-x/skeleton";
-import { useSyllabusTree } from "@/hooks/use-syllabus-tree";
-import { useRecordEvent } from "@/hooks/use-record-event";
+import { StatCardSkeleton } from "@/components/ui-x/skeleton";
+import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { useLocale } from "@/hooks/use-locale";
-import { cn } from "@/lib/utils";
+import { scoreBandColor } from "@/lib/score-band";
 
 export const handle = { titleKey: "Nav.learn" };
 
-function findAncestorPath(nodes: SyllabusNode[], targetId: string, path: string[] = []): string[] | null {
-  for (const node of nodes) {
-    const nextPath = [...path, node.id];
-    if (node.id === targetId) return nextPath;
-    const found = findAncestorPath(node.children, targetId, nextPath);
-    if (found) return found;
-  }
-  return null;
-}
-
-function SyllabusNodeRow({
-  node,
-  depth,
-  expanded,
-  onToggle,
-  onView,
-  locale,
-  highlightId,
-}: {
-  node: SyllabusNode;
-  depth: number;
-  expanded: Set<string>;
-  onToggle: (id: string) => void;
-  onView: (id: string) => void;
-  locale: "hi" | "en";
-  highlightId: string | null;
-}) {
-  const isExpanded = expanded.has(node.id);
-  const hasChildren = node.children.length > 0;
+function PaperCard({ paper }: { paper: PaperSummary }) {
+  const { t } = useTranslation();
+  const locale = useLocale();
 
   return (
-    <div>
-      <div
-        id={`syllabus-node-${node.id}`}
-        className={cn(
-          "flex min-h-11 items-center gap-2 rounded-lg px-2 text-sm transition-colors",
-          node.id === highlightId && "bg-accent text-accent-foreground",
-        )}
-        style={{ marginInlineStart: depth * 16 }}
-      >
-        {hasChildren ? (
-          <button
-            type="button"
-            onClick={() => onToggle(node.id)}
-            aria-expanded={isExpanded}
-            className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    <Link
+      to={`/${locale}/learn/${paper.paper_code}`}
+      className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <div className="flex items-start justify-between gap-2">
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+          <BookOpen className="size-4" aria-hidden />
+        </span>
+        {paper.accuracy_pct !== null && (
+          <span
+            className="shrink-0 text-sm font-semibold tabular-nums"
+            style={{ color: scoreBandColor(paper.accuracy_pct) }}
           >
-            <ChevronRight className={cn("size-4 transition-transform", isExpanded && "rotate-90")} aria-hidden />
-          </button>
-        ) : (
-          <span className="size-7 shrink-0" />
+            {Math.round(paper.accuracy_pct)}%
+          </span>
         )}
-        <button
-          type="button"
-          onClick={() => onView(node.id)}
-          className={cn(
-            "rounded-sm text-start hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            depth === 0 && "font-semibold",
-          )}
-        >
-          {node.title_i18n[locale]}
-        </button>
       </div>
-      {hasChildren && isExpanded && (
-        <div className="flex flex-col gap-0.5">
-          {node.children.map((child) => (
-            <SyllabusNodeRow
-              key={child.id}
-              node={child}
-              depth={depth + 1}
-              expanded={expanded}
-              onToggle={onToggle}
-              onView={onView}
-              locale={locale}
-              highlightId={highlightId}
-            />
-          ))}
-        </div>
-      )}
-    </div>
+      <span className="text-sm font-semibold text-balance">{paper.title_i18n[locale]}</span>
+      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+        <span>{t("Learn.topicsCount", { count: paper.topics_count })}</span>
+        <span className="flex items-center gap-1">
+          <ListChecks className="size-3.5" aria-hidden />
+          {t("Learn.pyqCount", { count: paper.pyq_count })}
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function PaperGroup({ title, papers }: { title: string; papers: PaperSummary[] }) {
+  if (papers.length === 0) return null;
+  return (
+    <section className="flex flex-col gap-3">
+      <h2 className="text-base font-semibold">{title}</h2>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {papers.map((paper) => (
+          <PaperCard key={paper.paper_code} paper={paper} />
+        ))}
+      </div>
+    </section>
   );
 }
 
 export function Component() {
   const { t } = useTranslation();
-  const locale = useLocale();
-  const { data, isLoading } = useSyllabusTree();
-  const recordEvent = useRecordEvent();
-  const [searchParams] = useSearchParams();
-  const targetNodeId = searchParams.get("node");
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  const viewNode = (id: string) => {
-    recordEvent.mutate({ name: "syllabus_node_view", props: { node_id: id } });
-  };
-
-  useEffect(() => {
-    if (!data || !targetNodeId) return;
-    const path = findAncestorPath(data, targetNodeId);
-    if (!path) return;
-    setExpanded((prev) => new Set([...prev, ...path]));
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    requestAnimationFrame(() => {
-      document
-        .getElementById(`syllabus-node-${targetNodeId}`)
-        ?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "center" });
-    });
-  }, [data, targetNodeId]);
-
-  const toggleNode = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
+  const { data, isLoading } = usePaperSummaries();
 
   const grouped = useMemo(() => {
-    if (!data) return { prelims: [] as SyllabusNode[], mains: [] as SyllabusNode[] };
+    if (!data) return { prelims: [] as PaperSummary[], mains: [] as PaperSummary[] };
     return {
-      prelims: data.filter((node) => node.exam_stage === "prelims"),
-      mains: data.filter((node) => node.exam_stage === "mains"),
+      prelims: data.filter((paper) => paper.exam_stage === "prelims"),
+      mains: data.filter((paper) => paper.exam_stage === "mains"),
     };
   }, [data]);
 
@@ -145,52 +77,19 @@ export function Component() {
       <PageHeader title={t("Learn.title")} description={t("Learn.description")} />
 
       {isLoading || !data ? (
-        <div className="flex flex-col gap-2">
-          <ListRowSkeleton />
-          <ListRowSkeleton />
-          <ListRowSkeleton />
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
+          <StatCardSkeleton />
         </div>
       ) : data.length === 0 ? (
-        <EmptyState
-          icon={BookOpen}
-          title={t("Learn.emptyTitle")}
-          description={t("Learn.emptyDescription")}
-        />
+        <EmptyState icon={BookOpen} title={t("Learn.emptyTitle")} description={t("Learn.emptyDescription")} />
       ) : (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <SectionCard title={t("Learn.prelims")}>
-            <div className="flex flex-col gap-0.5">
-              {grouped.prelims.map((node) => (
-                <SyllabusNodeRow
-                  key={node.id}
-                  node={node}
-                  depth={0}
-                  expanded={expanded}
-                  onToggle={toggleNode}
-                  onView={viewNode}
-                  locale={locale}
-                  highlightId={targetNodeId}
-                />
-              ))}
-            </div>
-          </SectionCard>
-          <SectionCard title={t("Learn.mains")}>
-            <div className="flex flex-col gap-0.5">
-              {grouped.mains.map((node) => (
-                <SyllabusNodeRow
-                  key={node.id}
-                  node={node}
-                  depth={0}
-                  expanded={expanded}
-                  onToggle={toggleNode}
-                  onView={viewNode}
-                  locale={locale}
-                  highlightId={targetNodeId}
-                />
-              ))}
-            </div>
-          </SectionCard>
-        </div>
+        <>
+          <PaperGroup title={t("Learn.prelims")} papers={grouped.prelims} />
+          <PaperGroup title={t("Learn.mains")} papers={grouped.mains} />
+        </>
       )}
     </div>
   );

@@ -1,6 +1,14 @@
-import type { MarkingScheme, TestDetail, TestKind, TestQuestionPublic, TestSummary } from "@prayasup/shared";
+import type {
+  BilingualText,
+  CreateCustomTestBody,
+  MarkingScheme,
+  TestDetail,
+  TestKind,
+  TestQuestionPublic,
+  TestSummary,
+} from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError, notFound } from "../lib/http-error.js";
+import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 
 interface TestListFilters {
   kind?: TestKind;
@@ -113,4 +121,68 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
     marking_scheme: markingScheme,
     questions,
   };
+}
+
+function customTestTitle(nodeTitle: BilingualText): BilingualText {
+  return { en: `Practice: ${nodeTitle.en}`, hi: `अभ्यास: ${nodeTitle.hi}` };
+}
+
+/** Fisher-Yates shuffle so repeated "Practice this topic" clicks don't always surface the same subset. */
+function shuffled<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+export async function createCustomTestFromNode(body: CreateCustomTestBody): Promise<TestDetail> {
+  const { data: node, error: nodeError } = await supabase()
+    .from("syllabus_nodes")
+    .select("id, paper_code, title_i18n")
+    .eq("id", body.node_id)
+    .maybeSingle();
+  if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
+  if (!node) throw notFound("Syllabus node not found");
+
+  const { data: questionRows, error: questionsError } = await supabase()
+    .from("questions")
+    .select("id, marks")
+    .eq("syllabus_node_id", body.node_id)
+    .eq("is_published", true);
+  if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
+  const available = (questionRows ?? []) as { id: string; marks: number | null }[];
+  if (available.length === 0) throw badRequest("No published PYQs are mapped to this topic yet");
+
+  const selected = shuffled(available).slice(0, body.count);
+  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+
+  const { data: test, error: testError } = await supabase()
+    .from("tests")
+    .insert({
+      title_i18n: customTestTitle(node.title_i18n as BilingualText),
+      kind: "custom",
+      paper_code: node.paper_code,
+      total_marks: totalMarks || null,
+      is_published: true,
+      meta: { source_syllabus_node_id: body.node_id },
+    })
+    .select("id")
+    .single();
+  if (testError) throw new HttpError(500, `custom test insert failed: ${testError.message}`);
+
+  const { error: tqError } = await supabase()
+    .from("test_questions")
+    .insert(
+      selected.map((q, index) => ({
+        test_id: test.id as string,
+        question_id: q.id,
+        order_index: index,
+        marks: q.marks,
+      })),
+    );
+  if (tqError) throw new HttpError(500, `custom test questions insert failed: ${tqError.message}`);
+
+  return getTestDetail(test.id as string);
 }

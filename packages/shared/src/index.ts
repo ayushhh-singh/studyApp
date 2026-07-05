@@ -7,3 +7,5 @@ export * from "./dashboard";
 export * from "./current-affairs";
 export * from "./profile";
 export * from "./events";
+export * from "./learn";
+export * from "./srs";

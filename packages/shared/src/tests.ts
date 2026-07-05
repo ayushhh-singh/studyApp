@@ -47,6 +47,12 @@ export const testsQuerySchema = z.object({
 });
 export type TestsQuery = z.infer<typeof testsQuerySchema>;
 
+export const createCustomTestBodySchema = z.object({
+  node_id: z.string().uuid(),
+  count: z.number().int().min(1).max(100).default(20),
+});
+export type CreateCustomTestBody = z.infer<typeof createCustomTestBodySchema>;
+
 export const testsListResponseSchema = apiEnvelopeSchema(z.array(testSummarySchema));
 export type TestsListResponse = z.infer<typeof testsListResponseSchema>;
 

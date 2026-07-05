@@ -13,6 +13,7 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
+import { getGradedAnswers } from "../lib/graded-answers.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -141,7 +142,7 @@ async function getContinue(userId: string): Promise<DashboardContinue> {
     if (nodeId) {
       const { data: node, error: nodeError } = await supabase()
         .from("syllabus_nodes")
-        .select("title_i18n")
+        .select("title_i18n, paper_code")
         .eq("id", nodeId)
         .maybeSingle();
       if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
@@ -149,6 +150,7 @@ async function getContinue(userId: string): Promise<DashboardContinue> {
         syllabusCandidate = {
           type: "syllabus_node",
           syllabus_node_id: nodeId,
+          paper_code: node.paper_code as string,
           title_i18n: node.title_i18n as BilingualText,
           last_activity_at: viewEvent.created_at as string,
         };
@@ -224,11 +226,6 @@ async function getToday(userId: string, today: string): Promise<DashboardToday> 
   };
 }
 
-interface GradedAnswerRow {
-  is_correct: boolean | null;
-  questions: { paper_code: string; syllabus_node_id: string | null } | null;
-}
-
 async function getPerformanceAndWeakness(
   userId: string,
 ): Promise<{ performance: DashboardPerformance; weakness_radar: DashboardWeaknessNode[] }> {
@@ -251,24 +248,7 @@ async function getPerformanceAndWeakness(
     }))
     .reverse();
 
-  const { data: attemptIdRows, error: attemptIdsError } = await supabase()
-    .from("attempts")
-    .select("id")
-    .eq("user_id", userId)
-    .not("submitted_at", "is", null);
-  if (attemptIdsError) throw new HttpError(500, `attempt id lookup failed: ${attemptIdsError.message}`);
-  const attemptIds = (attemptIdRows ?? []).map((r) => r.id as string);
-
-  let graded: GradedAnswerRow[] = [];
-  if (attemptIds.length > 0) {
-    const { data: gradedRows, error: gradedError } = await supabase()
-      .from("attempt_answers")
-      .select("is_correct, questions(paper_code, syllabus_node_id)")
-      .in("attempt_id", attemptIds)
-      .not("is_correct", "is", null);
-    if (gradedError) throw new HttpError(500, `graded answers lookup failed: ${gradedError.message}`);
-    graded = (gradedRows ?? []) as unknown as GradedAnswerRow[];
-  }
+  const graded = await getGradedAnswers(userId);
 
   const byPaper = new Map<string, { correct: number; total: number }>();
   const nodeIdsWithAnswers = new Set<string>();
@@ -309,7 +289,10 @@ async function getPerformanceAndWeakness(
       nodeRows.filter((n) => n.depth === 1).map((n) => [`${n.paper_code}::${n.path}`, n]),
     );
 
-    const byTopNode = new Map<string, { title: BilingualText; correct: number; total: number }>();
+    const byTopNode = new Map<
+      string,
+      { title: BilingualText; paperCode: string; correct: number; total: number }
+    >();
     for (const row of graded) {
       const syllabusNodeId = row.questions?.syllabus_node_id;
       if (!syllabusNodeId) continue;
@@ -318,15 +301,18 @@ async function getPerformanceAndWeakness(
       const topSegment = node.path.split("/")[0];
       const topNode = topNodeByKey.get(`${node.paper_code}::${topSegment}`);
       if (!topNode) continue;
-      const bucket = byTopNode.get(topNode.id) ?? { title: topNode.title_i18n, correct: 0, total: 0 };
+      const bucket =
+        byTopNode.get(topNode.id) ??
+        { title: topNode.title_i18n, paperCode: topNode.paper_code, correct: 0, total: 0 };
       bucket.total += 1;
       if (row.is_correct) bucket.correct += 1;
       byTopNode.set(topNode.id, bucket);
     }
 
     weaknessRadar = [...byTopNode.entries()]
-      .map(([syllabus_node_id, { title, correct, total }]) => ({
+      .map(([syllabus_node_id, { title, paperCode, correct, total }]) => ({
         syllabus_node_id,
+        paper_code: paperCode,
         title_i18n: title,
         accuracy_pct: round2((correct / total) * 100),
         answered_count: total,
