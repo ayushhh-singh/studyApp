@@ -1,4 +1,4 @@
-import type { ExamStage } from "@prayasup/shared";
+import type { ExamStage, QuestionType } from "@prayasup/shared";
 
 export const queryKeys = {
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,
@@ -13,6 +13,15 @@ export const queryKeys = {
       filters?.date ?? "all",
       filters?.category ?? "all",
       filters?.up_only ?? "all",
+      filters?.page ?? 1,
+    ] as const,
+  questions: (filters?: { type?: QuestionType; paper?: string; node?: string; year?: number; page?: number }) =>
+    [
+      "questions",
+      filters?.type ?? "all",
+      filters?.paper ?? "all",
+      filters?.node ?? "all",
+      filters?.year ?? "all",
       filters?.page ?? 1,
     ] as const,
 };

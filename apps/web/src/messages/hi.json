@@ -1,11 +1,102 @@
 {
-  "Landing": {
-    "title": "प्रयासUP",
-    "subtitle": "UPPSC परीक्षा की तैयारी, सही दिशा में",
-    "description": "AI द्वारा मुख्य परीक्षा के उत्तरों का मूल्यांकन, PYQ आधारित अभ्यास, और करेंट अफेयर्स — सब एक जगह।",
-    "cta": "शुरू करें"
-  },
   "Nav": {
-    "language": "भाषा"
+    "dashboard": "डैशबोर्ड",
+    "learn": "अध्ययन",
+    "practice": "अभ्यास",
+    "answers": "उत्तर लेखन",
+    "currentAffairs": "करेंट अफेयर्स",
+    "revision": "पुनरावृत्ति",
+    "profile": "प्रोफ़ाइल",
+    "more": "और",
+    "sectionsLabel": "विभाग"
+  },
+  "TopBar": {
+    "search": "खोजें",
+    "searchShortcut": "Ctrl K",
+    "toggleTheme": "थीम बदलें"
+  },
+  "CommandPalette": {
+    "label": "कमांड पैलेट",
+    "placeholder": "विभाग और पाठ्यक्रम विषय खोजें...",
+    "empty": "कोई परिणाम नहीं मिला।",
+    "navigate": "जाएँ",
+    "syllabus": "पाठ्यक्रम विषय"
+  },
+  "Dashboard": {
+    "title": "डैशबोर्ड",
+    "description": "आपकी तैयारी एक नज़र में।",
+    "attempts": "प्रयास",
+    "streak": "स्ट्रीक",
+    "streakHint": "लगातार दिन",
+    "srsDue": "पुनरावृत्ति हेतु देय",
+    "currentAffairs": "नवीनतम करेंट अफेयर्स",
+    "noData": "अभी डेटा नहीं",
+    "avgScore": "औसत स्कोर",
+    "avgScoreHint": "मूल्यांकित उत्तरों में",
+    "weeklyActivity": "इस सप्ताह की गतिविधि",
+    "noActivityTitle": "अभी कोई गतिविधि नहीं",
+    "noActivityDescription": "अपनी गतिविधि यहाँ देखने के लिए अभ्यास शुरू करें या उत्तर लिखें।"
+  },
+  "Learn": {
+    "title": "अध्ययन",
+    "description": "UPPSC पाठ्यक्रम को पेपर-दर-पेपर देखें।",
+    "emptyTitle": "पाठ्यक्रम लोड नहीं हुआ",
+    "emptyDescription": "अभी कोई पाठ्यक्रम विषय नहीं मिला।",
+    "prelims": "प्रारंभिक परीक्षा",
+    "mains": "मुख्य परीक्षा"
+  },
+  "Practice": {
+    "title": "अभ्यास",
+    "description": "PYQ आधारित MCQ अभ्यास सेट।",
+    "available": "उपलब्ध टेस्ट",
+    "emptyTitle": "अभी कोई टेस्ट उपलब्ध नहीं",
+    "emptyDescription": "नए अभ्यास सेट नियमित रूप से जोड़े जाते हैं — जल्द ही फिर देखें।",
+    "mixed": "मिश्रित पेपर",
+    "minutes": "{{count}} मिनट"
+  },
+  "Answers": {
+    "title": "उत्तर लेखन",
+    "description": "मुख्य परीक्षा शैली के उत्तर लिखें और AI मूल्यांकन पाएँ।",
+    "flagshipBadge": "प्रमुख फीचर",
+    "available": "अभ्यास प्रश्न",
+    "totalCount_one": "{{count}} प्रश्न",
+    "totalCount_other": "{{count}} प्रश्न",
+    "emptyTitle": "अभी कोई प्रश्न उपलब्ध नहीं",
+    "emptyDescription": "प्रकाशित होते ही वर्णनात्मक प्रश्न यहाँ दिखेंगे।",
+    "marks": "अंक: {{count}}",
+    "wordLimit": "शब्द सीमा: {{count}}"
+  },
+  "CurrentAffairs": {
+    "title": "करेंट अफेयर्स",
+    "description": "UP-केंद्रित दैनिक करेंट अफेयर्स, संक्षेप में।",
+    "latest": "नवीनतम",
+    "emptyTitle": "अभी कोई करेंट अफेयर्स नहीं",
+    "emptyDescription": "प्रकाशित होते ही आज का सारांश यहाँ दिखेगा।",
+    "upSpecific": "UP"
+  },
+  "Revision": {
+    "title": "पुनरावृत्ति",
+    "description": "जो सीखा है उसे याद रखने के लिए स्पेस्ड रिपिटिशन।",
+    "due": "आज देय",
+    "dueHint": "समीक्षा हेतु तैयार कार्ड",
+    "emptyTitle": "समीक्षा सूची जल्द आ रही है",
+    "emptyDescription": "स्पेस्ड रिपिटिशन फ्लैशकार्ड जल्द आएंगे — आपकी देय संख्या ऊपर पहले से लाइव है।"
+  },
+  "Profile": {
+    "title": "प्रोफ़ाइल",
+    "description": "आपका खाता और परीक्षा प्राथमिकताएँ।",
+    "plan": "प्लान",
+    "streak": "स्ट्रीक",
+    "settings": "सेटिंग्स",
+    "displayName": "प्रदर्शित नाम",
+    "displayNamePlaceholder": "आपका नाम",
+    "targetYear": "लक्ष्य परीक्षा वर्ष",
+    "targetYearPlaceholder": "जैसे 2027",
+    "medium": "उत्तर माध्यम",
+    "mediumHi": "हिंदी",
+    "mediumEn": "अंग्रेज़ी",
+    "save": "बदलाव सहेजें",
+    "saving": "सहेजा जा रहा है…",
+    "saved": "सहेज लिया गया।"
   }
 }

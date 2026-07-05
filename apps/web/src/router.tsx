@@ -22,13 +22,26 @@ export const router = createBrowserRouter([
     children: [
       {
         index: true,
-        lazy: () => import("@/routes/landing"),
+        loader: ({ params }) => redirect(`/${params.locale}/dashboard`),
+        Component: RedirectPending,
+      },
+      {
+        lazy: () => import("@/routes/app-shell"),
+        children: [
+          { path: "dashboard", lazy: () => import("@/routes/dashboard") },
+          { path: "learn", lazy: () => import("@/routes/learn") },
+          { path: "practice", lazy: () => import("@/routes/practice") },
+          { path: "answers", lazy: () => import("@/routes/answers") },
+          { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
+          { path: "revision", lazy: () => import("@/routes/revision") },
+          { path: "profile", lazy: () => import("@/routes/profile") },
+        ],
       },
     ],
   },
   {
     path: "*",
-    loader: () => redirect(`/${DEFAULT_LOCALE}`),
+    loader: () => redirect(`/${DEFAULT_LOCALE}/dashboard`),
     Component: RedirectPending,
     HydrateFallback: RedirectPending,
   },

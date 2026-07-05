@@ -1,11 +1,102 @@
 {
-  "Landing": {
-    "title": "PrayasUP",
-    "subtitle": "UPPSC exam prep, done right",
-    "description": "AI-evaluated Mains answer writing, PYQ-based practice, and current affairs — all in one place.",
-    "cta": "Get started"
-  },
   "Nav": {
-    "language": "Language"
+    "dashboard": "Dashboard",
+    "learn": "Learn",
+    "practice": "Practice",
+    "answers": "Answers",
+    "currentAffairs": "Current Affairs",
+    "revision": "Revision",
+    "profile": "Profile",
+    "more": "More",
+    "sectionsLabel": "Sections"
+  },
+  "TopBar": {
+    "search": "Search",
+    "searchShortcut": "Ctrl K",
+    "toggleTheme": "Toggle theme"
+  },
+  "CommandPalette": {
+    "label": "Command palette",
+    "placeholder": "Search sections and syllabus topics...",
+    "empty": "No results found.",
+    "navigate": "Go to",
+    "syllabus": "Syllabus topics"
+  },
+  "Dashboard": {
+    "title": "Dashboard",
+    "description": "Your prep at a glance.",
+    "attempts": "Attempts",
+    "streak": "Streak",
+    "streakHint": "days in a row",
+    "srsDue": "Due for revision",
+    "currentAffairs": "Latest current affairs",
+    "noData": "No data yet",
+    "avgScore": "Average score",
+    "avgScoreHint": "across evaluated answers",
+    "weeklyActivity": "This week's activity",
+    "noActivityTitle": "No activity yet",
+    "noActivityDescription": "Start a practice set or write an answer to see your activity here."
+  },
+  "Learn": {
+    "title": "Learn",
+    "description": "Browse the UPPSC syllabus, mapped paper by paper.",
+    "emptyTitle": "Syllabus not loaded",
+    "emptyDescription": "We couldn't find any syllabus topics right now.",
+    "prelims": "Prelims",
+    "mains": "Mains"
+  },
+  "Practice": {
+    "title": "Practice",
+    "description": "PYQ-based MCQ practice sets.",
+    "available": "Available tests",
+    "emptyTitle": "No tests available yet",
+    "emptyDescription": "New practice sets are added regularly — check back soon.",
+    "mixed": "Mixed papers",
+    "minutes": "{{count}} min"
+  },
+  "Answers": {
+    "title": "Answer Writing",
+    "description": "Write Mains-style answers and get AI-evaluated feedback.",
+    "flagshipBadge": "Flagship",
+    "available": "Practice questions",
+    "totalCount_one": "{{count}} question",
+    "totalCount_other": "{{count}} questions",
+    "emptyTitle": "No questions available yet",
+    "emptyDescription": "Descriptive questions will appear here once they're published.",
+    "marks": "Marks: {{count}}",
+    "wordLimit": "Word limit: {{count}}"
+  },
+  "CurrentAffairs": {
+    "title": "Current Affairs",
+    "description": "UP-focused daily current affairs, summarized.",
+    "latest": "Latest",
+    "emptyTitle": "No current affairs yet",
+    "emptyDescription": "Today's roundup will appear here once it's published.",
+    "upSpecific": "UP"
+  },
+  "Revision": {
+    "title": "Revision",
+    "description": "Spaced repetition to lock in what you've learned.",
+    "due": "Due today",
+    "dueHint": "cards ready for review",
+    "emptyTitle": "Review queue coming soon",
+    "emptyDescription": "Spaced repetition flashcards are on the way — your due count above is already live."
+  },
+  "Profile": {
+    "title": "Profile",
+    "description": "Your account and exam preferences.",
+    "plan": "Plan",
+    "streak": "Streak",
+    "settings": "Settings",
+    "displayName": "Display name",
+    "displayNamePlaceholder": "Your name",
+    "targetYear": "Target exam year",
+    "targetYearPlaceholder": "e.g. 2027",
+    "medium": "Answer medium",
+    "mediumHi": "Hindi",
+    "mediumEn": "English",
+    "save": "Save changes",
+    "saving": "Saving…",
+    "saved": "Saved."
   }
 }
