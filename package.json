@@ -4,11 +4,17 @@
   "version": "0.0.0",
   "scripts": {
     "dev": "concurrently -n web,api -c blue,green \"pnpm --filter web dev\" \"pnpm --filter api dev\"",
-    "build": "pnpm --filter web build && pnpm --filter api build"
+    "build": "pnpm --filter web build && pnpm --filter api build",
+    "content:fetch": "tsx scripts/fetch-content.ts"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
+    "@types/pdf-parse": "^1.1.5",
     "concurrently": "^9.0.1",
-    "supabase": "^2.109.0"
+    "js-yaml": "^5.2.1",
+    "pdf-parse": "^2.4.5",
+    "supabase": "^2.109.0",
+    "tsx": "^4.19.1"
   },
   "engines": {
     "node": ">=20"

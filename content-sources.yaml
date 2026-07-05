@@ -1,0 +1,329 @@
+# PrayasUP — content acquisition source list
+# ---------------------------------------------------------------------------
+# Every URL under `verified:` was fetched and confirmed to serve a real PDF
+# (%PDF magic bytes / Content-Type: application/pdf) before being added.
+# `pnpm content:fetch` reads this file and downloads each source to
+# content-raw/<section>/<id>.pdf. See docs/content-pipeline.md.
+#
+# Entry shape:
+#   id       unique slug -> content-raw/<section>/<id>.pdf
+#   section  syllabus | pyq_prelims | pyq_mains | answer_key
+#   url      direct PDF URL (verified)
+#   lang     hi | en | both
+#   year     (optional)
+#   paper    (optional) label, e.g. prelims_gs1, csat, gs1..gs6, essay, general_hindi
+#   notes    (optional)
+#   # session-gated ASP.NET (uppsc.up.nic.in) sources also carry:
+#   needs_cookie / warmup / referer
+#
+# Government domains (uppsc.up.nic.in) are primary + authoritative. Coaching
+# mirrors (Drishti IAS) are included only as resilient fallbacks / clean copies
+# and are marked domain_is_government: false.
+# ---------------------------------------------------------------------------
+
+verified:
+  # ===================== SYLLABUS (current / reformed) =====================
+  # Official 2026 detailed advertisement (ADVT A-1/E-1/2026). One bilingual-ish
+  # PDF per language covers Prelims (GS-I + CSAT, Appendix-3) and the reformed
+  # Mains — General Hindi, Essay, GS I-VI incl. UP-specific GS-V/VI (Appendix-4).
+  # View_Enclosure.aspx 302s to the homepage without a session cookie.
+  - id: uppsc_syllabus_2026_en
+    section: syllabus
+    url: https://uppsc.up.nic.in/OuterPages/View_Enclosure.aspx?ID=114&flag=E&FID=929
+    lang: en
+    paper: all
+    notes: Official 2026 advt; Prelims GS-I+CSAT & reformed Mains 8 papers incl UP GS-V/VI.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/Default.aspx
+    referer: https://uppsc.up.nic.in/Default.aspx
+  - id: uppsc_syllabus_2026_hi
+    section: syllabus
+    url: https://uppsc.up.nic.in/OuterPages/View_Enclosure.aspx?ID=114&flag=H&FID=928
+    lang: hi
+    paper: all
+    notes: Official 2026 advt (Hindi); same structure as EN.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/Default.aspx
+    referer: https://uppsc.up.nic.in/Default.aspx
+  # Coaching-mirror fallback (Drishti IAS) — clean direct PDF, no cookie. NOTE:
+  # reflects the classic 4-GS pattern, kept only as a resilient backup copy.
+  - id: uppsc_syllabus_drishti_en
+    section: syllabus
+    url: https://www.drishtiias.com/pdf/1593776909-uttar-pradesh-pcs-preliminary-mains-syllabus.pdf
+    lang: en
+    paper: all
+    notes: Fallback (non-gov, Drishti). Classic 4-GS pattern, not reformed 6-GS.
+  - id: uppsc_syllabus_drishti_hi
+    section: syllabus
+    url: https://www.drishtiias.com/hindi/pdf/uppsc-upper-services-pravar-syllabus.pdf
+    lang: hi
+    paper: all
+    notes: Fallback (non-gov, Drishti). Bilingual combined-services, classic pattern.
+
+  # ===================== MAINS previous-year papers =======================
+  # Official uppsc.up.nic.in — only 2024 & 2025 are currently live (older files
+  # age out). All 8 papers/year. Open_PDF.aspx 302s to homepage without a
+  # session cookie; some tokens contain literal '/' or '+' (stored raw, not
+  # re-encoded). UPPSC publishes NO official mains answer keys.
+  - id: uppsc_mains_2025_general_hindi
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMSLS9fgLrCrG
+    lang: hi
+    year: 2025
+    paper: general_hindi
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_essay
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMaf5AyAhknxO
+    lang: both
+    year: 2025
+    paper: essay
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_gs1
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMeEOcXX5fXRQ
+    lang: both
+    year: 2025
+    paper: gs1
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_gs2
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMcrWBm1xc0qu
+    lang: both
+    year: 2025
+    paper: gs2
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_gs3
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMY8XR2QQwkL/
+    lang: both
+    year: 2025
+    paper: gs3
+    notes: Token ends with literal '/', do not URL-encode.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_gs4
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMUB5jOIIY042
+    lang: both
+    year: 2025
+    paper: gs4
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_gs5
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagl6lUEN3gefMdFQTZHshuCb
+    lang: both
+    year: 2025
+    paper: gs5
+    notes: UP-specific GS paper.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2025_gs6
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBagkMf7I19LrklZnGHtZ8ECK4
+    lang: both
+    year: 2025
+    paper: gs6
+    notes: UP-specific GS paper.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_general_hindi
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcjG+8Y2HzSYM
+    lang: hi
+    year: 2024
+    paper: general_hindi
+    notes: Token has literal '+', do not URL-encode.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_essay
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcmtMwvge/YCC
+    lang: both
+    year: 2024
+    paper: essay
+    notes: Token has literal '/', do not URL-encode.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_gs1
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcuUzIfoMEeVk
+    lang: both
+    year: 2024
+    paper: gs1
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_gs2
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcvWUukMOHh0A
+    lang: both
+    year: 2024
+    paper: gs2
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_gs3
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcrJsUHYwH9aH
+    lang: both
+    year: 2024
+    paper: gs3
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_gs4
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcgK8T5s3Rcqu
+    lang: both
+    year: 2024
+    paper: gs4
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_gs5
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtcsuvTe2jgQiJ
+    lang: both
+    year: 2024
+    paper: gs5
+    notes: UP-specific GS paper.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  - id: uppsc_mains_2024_gs6
+    section: pyq_mains
+    url: https://uppsc.up.nic.in/Open_PDF.aspx?I4PnQ0tBaglSzPGzJrXtco3HStCOhJ1x
+    lang: both
+    year: 2024
+    paper: gs6
+    notes: UP-specific GS paper.
+    needs_cookie: true
+    warmup: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+    referer: https://uppsc.up.nic.in/OuterPages/PreQuesPapers.aspx?ID=PrevQues
+  # Coaching-mirror fallbacks (Drishti IAS) — clean direct PDFs, no cookie.
+  - id: uppsc_mains_2024_gs1_mirror
+    section: pyq_mains
+    url: https://www.drishtiias.com/images/pdf/UP%20Mains%202024%20GS%20Paper%20I.pdf
+    lang: both
+    year: 2024
+    paper: gs1
+    notes: Fallback (non-gov, Drishti). Scanned.
+  - id: uppsc_mains_2024_gs2_mirror
+    section: pyq_mains
+    url: https://www.drishtiias.com/images/pdf/UP%20Mains%202024%20GS%20Paper%20II.pdf
+    lang: both
+    year: 2024
+    paper: gs2
+    notes: Fallback (non-gov, Drishti). Scanned.
+  - id: uppsc_mains_2024_essay_mirror
+    section: pyq_mains
+    url: https://www.drishtiias.com/images/pdf/UP%20Mains%202024%20Essay.pdf
+    lang: both
+    year: 2024
+    paper: essay
+    notes: Fallback (non-gov, Drishti). Scanned.
+  - id: uppsc_mains_2024_general_hindi_mirror
+    section: pyq_mains
+    url: https://www.drishtiias.com/images/pdf/UP%20Mains%202024%20General%20Hindi.pdf
+    lang: hi
+    year: 2024
+    paper: general_hindi
+    notes: Fallback (non-gov, Drishti). Scanned.
+  - id: uppsc_mains_2025_gs1_mirror
+    section: pyq_mains
+    url: https://www.drishtiias.com/images/pdf/UPPSC%20Mains%202025%20GS%20Paper%201%20.pdf
+    lang: both
+    year: 2025
+    paper: gs1
+    notes: Fallback (non-gov, Drishti). Scanned; URL has a space before .pdf.
+  - id: uppsc_mains_2025_gs2_mirror
+    section: pyq_mains
+    url: https://www.drishtiias.com/images/pdf/UPPCS%20MAINS%202025%20GS%202.pdf
+    lang: both
+    year: 2025
+    paper: gs2
+    notes: Fallback (non-gov, Drishti). Scanned.
+
+  # ===================== PRELIMS papers + answer keys =====================
+  # Coaching mirrors, all clean direct-fetch PDFs (no cookie). Official
+  # uppsc.up.nic.in prelims keys are session-gated aspx; mirrors used instead.
+  # 2023 papers bilingual Set-C (PendulumEdu); 2024 papers (Drishti); 2024
+  # answer keys are paper+key combined PDFs (CareerPower); 2025 papers
+  # (CareerPower). No clean standalone 2025 answer-key PDF was found.
+  - id: uppsc_prelims_2023_gs1
+    section: pyq_prelims
+    url: https://pendulumedu.com/uploads/pdf/uppsc-prelims-2023-gs-paper-1-question-paper-set-c-in-english-and-hindi.pdf
+    lang: both
+    year: 2023
+    paper: gs1
+    notes: Set C, bilingual (non-gov, PendulumEdu).
+  - id: uppsc_prelims_2023_csat
+    section: pyq_prelims
+    url: https://pendulumedu.com/uploads/pdf/uppsc-prelims-2023-gs-paper-2-csat-question-paper-set-c-in-english-and-hindi.pdf
+    lang: both
+    year: 2023
+    paper: csat
+    notes: Set C, bilingual (non-gov, PendulumEdu).
+  - id: uppsc_prelims_2024_gs1
+    section: pyq_prelims
+    url: https://www.drishtiias.com/images/pdf/UPPCS_2024_Prelims_GS1_Question_Paper.pdf
+    lang: both
+    year: 2024
+    paper: gs1
+    notes: Non-gov (Drishti).
+  - id: uppsc_prelims_2024_csat
+    section: pyq_prelims
+    url: https://www.drishtiias.com/images/pdf/UPPCS_2024_Prelims_CSAT_Question_Paper.pdf
+    lang: both
+    year: 2024
+    paper: csat
+    notes: Non-gov (Drishti).
+  - id: uppsc_prelims_2025_gs1
+    section: pyq_prelims
+    url: https://www.careerpower.in/blog/wp-content/uploads/2025/10/12125418/UP.pdf
+    lang: both
+    year: 2025
+    paper: gs1
+    notes: Non-gov (CareerPower). Image-scan, generic filename.
+  - id: uppsc_prelims_2025_csat
+    section: pyq_prelims
+    url: https://www.careerpower.in/blog/wp-content/uploads/2025/10/12184151/UPPCS.pdf
+    lang: both
+    year: 2025
+    paper: csat
+    notes: Non-gov (CareerPower). Image-scan, generic filename.
+  - id: uppsc_answerkey_2024_prelims_gs1
+    section: answer_key
+    url: https://www.careerpower.in/blog/wp-content/uploads/2024/12/25190055/UP-PCS-2024-Prelims-GS-1-Paper-with-Answer-Key.pdf
+    lang: both
+    year: 2024
+    paper: prelims_gs1
+    notes: Non-gov (CareerPower). Paper + answer key combined.
+  - id: uppsc_answerkey_2024_prelims_csat
+    section: answer_key
+    url: https://www.careerpower.in/blog/wp-content/uploads/2024/12/25190008/UP-PCS-2024-Prelims-GS-2-Paper-with-Answer-Key.pdf
+    lang: both
+    year: 2024
+    paper: prelims_csat
+    notes: Non-gov (CareerPower). Paper + answer key combined.
+
+# Sources that are clearly useful but live ONLY on a non-government domain and
+# need an explicit human copyright decision before download. The fetcher IGNORES
+# this section. Promote an entry into `verified:` to enable it.
+needs_my_approval: []
