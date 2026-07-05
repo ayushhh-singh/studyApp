@@ -13,7 +13,7 @@ analytics, RAG doubt-solving chatbot.
 - DB: Supabase cloud Postgres + pgvector. SAME project for local dev and production. All schema changes via SQL migration files in /supabase/migrations, applied with supabase CLI (db push).
 - UI: shadcn/ui + Tailwind. Server state: TanStack Query. Client state: Zustand. i18n: next-intl (hi + en, hi is default locale).
 - LLM: Anthropic API. claude-sonnet-4-6 for answer evaluation + doubt chat; claude-haiku-4-5 for high-volume tasks (summaries, MCQ explanations, translations draft). All AI responses stream via SSE from the Express API.
-- Embeddings: for pgvector RAG (pick one cost-effective embedding provider in Session 3 and record the decision here).
+- Embeddings: OpenAI `text-embedding-3-small` (1536-dim, matches the `vector(1536)` schema column). Decided early since we already have an OpenAI key available.
 - NO mock data anywhere. Every screen reads real rows from Supabase. Seed real UPPSC content via ingestion scripts.
 
 ## Dev conventions
@@ -29,4 +29,5 @@ analytics, RAG doubt-solving chatbot.
 Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 1440px, both locales render (language toggle), no console errors.
 
 ## Session log
-- Session 0 (2026-07-05): repo initialized, CLAUDE.md created, empty workspace skeleton committed.
+- Session 0 (2026-07-05): repo initialized, CLAUDE.md created, empty workspace skeleton committed. Pushed to private GitHub repo github.com/ayushhh-singh/studyApp.
+- Pre-Session-1 (2026-07-05): apps/api/.env and apps/web/.env.local created (gitignored). ANTHROPIC_API_KEY and OPENAI_API_KEY reused from the same account's nyay-sahayak project. SUPABASE_URL/keys still need a NEW cloud Supabase project — not reused, since nyay-sahayak's is a local-only instance with an unrelated schema.
