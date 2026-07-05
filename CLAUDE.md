@@ -20,7 +20,7 @@ analytics, RAG doubt-solving chatbot.
 - pnpm workspaces. `pnpm dev` runs web (:3000) + api (:4000) concurrently.
 - Env: /apps/web/.env.local and /apps/api/.env (gitignored). .env.example kept updated.
 - Until auth exists (Session 15): all API calls act as the seeded dev user (id in env: DEV_USER_ID). Express reads it from env; never hardcode.
-- Every table bilingual pattern: content columns are JSONB {"hi": "...", "en": "..."} OR paired columns *_hi / *_en (decide once in Session 2, record here).
+- Bilingual pattern (DECIDED Session 2, 2026-07-05): all human-facing content columns are **JSONB** shaped `{"hi": "...", "en": "..."}` and **named with a `_i18n` suffix** (e.g. `title_i18n`, `stem_i18n`, `summary_i18n`). No paired `*_hi`/`*_en` columns. Rich structures nest i18n at the leaf (e.g. options: `[{"key":"A","text_i18n":{"hi":"...","en":"..."}}]`). A row is "publish-ready" when its core content i18n has both non-empty `hi` and `en` — enforced in SQL via the immutable helper `public.i18n_complete(jsonb)` (checks both keys present + non-blank). `questions.publish_gate_ok` is a STORED generated column from `i18n_complete(stem_i18n)`, and a trigger blocks `is_published = true` unless the gate passes.
 - API: Express routes under /api/v1/*, zod-validated inputs, consistent {data, error} envelope. SSE endpoints under /api/v1/stream/*.
 - Commit after every working feature. Never commit secrets.
 - Mobile-first responsive: most users are on phones. Test every screen at 390px width.
@@ -41,3 +41,10 @@ Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 144
   - SSE helper at apps/api/src/lib/sse.ts (`createSseConnection` → `{send, close}`), demo route `/api/v1/stream/ping` streams 5 one-second ticks then closes.
   - Root `pnpm dev` uses `concurrently` to run both apps with prefixed/colored logs.
   - Verified: `pnpm dev` boots web (:3000) + api (:4000); `curl /api/v1/health` → `{"data":{"ok":true},"error":null}`; SSE ticks stream correctly; `/hi` and `/en` both render with correct copy; language switcher works.
+- Session 2 (2026-07-05): full database schema.
+  - Supabase CLI added as a workspace dev dependency (`pnpm supabase …`); `supabase init` committed (`supabase/config.toml`). Linking (`supabase link --project-ref …`) is a per-machine step; the ref lives in `supabase/.temp/` (gitignored).
+  - Complete schema in `supabase/migrations/0001`–`0014`: `pgcrypto` + `vector` (in the `extensions` schema, so vector types/opclasses are schema-qualified as `extensions.vector` / `extensions.vector_cosine_ops`); 17 tables; enums; `set_updated_at()` trigger on every table; pgvector `embeddings` with an HNSW cosine index.
+  - Bilingual convention DECIDED — see the Dev conventions section: JSONB `*_i18n` columns, `i18n_complete()` helper, `questions.publish_gate_ok` generated column + publish-gate trigger.
+  - RLS ENABLED on all tables with wide-open dev policies in `0013_dev_permissive_rls.sql` (marked "REPLACED IN AUTH PHASE") — strict per-user policies land in Session 15.
+  - Dev user seeded with fixed id `00000000-0000-4000-8000-000000000001` (`0014_seed_dev_user.sql`) → set as `DEV_USER_ID` in apps/api/.env.
+  - `@supabase/supabase-js` added to apps/api; `pnpm --filter api verify:schema` (apps/api/scripts/verify-schema.ts) HEAD-counts every table via the service-role key. Docs in `supabase/README.md`.
