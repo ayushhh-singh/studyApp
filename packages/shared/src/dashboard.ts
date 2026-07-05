@@ -1,13 +1,97 @@
 import { z } from "zod";
-import { apiEnvelopeSchema } from "./types";
+import { apiEnvelopeSchema, bilingualTextSchema, examStageSchema } from "./types";
+import { testSummarySchema } from "./tests";
+
+export const dashboardNextExamSchema = z
+  .object({
+    exam_stage: examStageSchema,
+    title_i18n: bilingualTextSchema,
+    exam_date: z.string(),
+    days_until: z.number().int(),
+    is_tentative: z.boolean(),
+  })
+  .nullable();
+export type DashboardNextExam = z.infer<typeof dashboardNextExamSchema>;
+
+export const dashboardGreetingSchema = z.object({
+  display_name: z.string().nullable(),
+  streak_count: z.number().int(),
+  next_exam: dashboardNextExamSchema,
+});
+export type DashboardGreeting = z.infer<typeof dashboardGreetingSchema>;
+
+export const dashboardContinueSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("attempt"),
+    attempt_id: z.string().uuid(),
+    test_title_i18n: bilingualTextSchema.nullable(),
+    answered_count: z.number().int(),
+    total_count: z.number().int(),
+    last_activity_at: z.string(),
+  }),
+  z.object({
+    type: z.literal("syllabus_node"),
+    syllabus_node_id: z.string().uuid(),
+    title_i18n: bilingualTextSchema,
+    last_activity_at: z.string(),
+  }),
+  z.object({ type: z.literal("none") }),
+]);
+export type DashboardContinue = z.infer<typeof dashboardContinueSchema>;
+
+export const dashboardTodaySchema = z.object({
+  srs_due_count: z.number().int(),
+  current_affairs_today_count: z.number().int(),
+  daily_quiz: testSummarySchema.nullable(),
+});
+export type DashboardToday = z.infer<typeof dashboardTodaySchema>;
+
+export const dashboardRecentScoreSchema = z.object({
+  attempt_id: z.string().uuid(),
+  submitted_at: z.string(),
+  score_pct: z.number(),
+});
+
+export const dashboardPaperAccuracySchema = z.object({
+  paper_code: z.string(),
+  accuracy_pct: z.number(),
+  answered_count: z.number().int(),
+});
+
+export const dashboardPerformanceSchema = z.object({
+  recent_scores: z.array(dashboardRecentScoreSchema),
+  accuracy_by_paper: z.array(dashboardPaperAccuracySchema),
+});
+export type DashboardPerformance = z.infer<typeof dashboardPerformanceSchema>;
+
+export const dashboardWeaknessNodeSchema = z.object({
+  syllabus_node_id: z.string().uuid(),
+  title_i18n: bilingualTextSchema,
+  accuracy_pct: z.number(),
+  answered_count: z.number().int(),
+});
+export type DashboardWeaknessNode = z.infer<typeof dashboardWeaknessNodeSchema>;
+
+export const dashboardAnswerSpotlightSchema = z.object({
+  latest: z
+    .object({
+      submission_id: z.string().uuid(),
+      overall_score: z.number().nullable(),
+      max_score: z.number().nullable(),
+      created_at: z.string(),
+      question_stem_i18n: bilingualTextSchema.nullable(),
+    })
+    .nullable(),
+});
+export type DashboardAnswerSpotlight = z.infer<typeof dashboardAnswerSpotlightSchema>;
 
 export const dashboardSummarySchema = z.object({
-  attempts_count: z.number().int(),
-  avg_score_pct: z.number().nullable(),
-  streak_count: z.number().int(),
-  srs_due_count: z.number().int(),
-  latest_current_affairs_date: z.string().nullable(),
-  weekly_activity: z.array(z.object({ date: z.string(), attempts: z.number().int() })),
+  greeting: dashboardGreetingSchema,
+  continue: dashboardContinueSchema,
+  today: dashboardTodaySchema,
+  performance: dashboardPerformanceSchema,
+  weakness_radar: z.array(dashboardWeaknessNodeSchema),
+  answer_spotlight: dashboardAnswerSpotlightSchema,
 });
 export type DashboardSummary = z.infer<typeof dashboardSummarySchema>;
 

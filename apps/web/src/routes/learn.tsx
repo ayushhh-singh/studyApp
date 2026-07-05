@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { useSyllabusTree } from "@/hooks/use-syllabus-tree";
+import { useRecordEvent } from "@/hooks/use-record-event";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 
@@ -28,6 +29,7 @@ function SyllabusNodeRow({
   depth,
   expanded,
   onToggle,
+  onView,
   locale,
   highlightId,
 }: {
@@ -35,6 +37,7 @@ function SyllabusNodeRow({
   depth: number;
   expanded: Set<string>;
   onToggle: (id: string) => void;
+  onView: (id: string) => void;
   locale: "hi" | "en";
   highlightId: string | null;
 }) {
@@ -63,7 +66,16 @@ function SyllabusNodeRow({
         ) : (
           <span className="size-7 shrink-0" />
         )}
-        <span className={cn(depth === 0 && "font-semibold")}>{node.title_i18n[locale]}</span>
+        <button
+          type="button"
+          onClick={() => onView(node.id)}
+          className={cn(
+            "rounded-sm text-start hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            depth === 0 && "font-semibold",
+          )}
+        >
+          {node.title_i18n[locale]}
+        </button>
       </div>
       {hasChildren && isExpanded && (
         <div className="flex flex-col gap-0.5">
@@ -74,6 +86,7 @@ function SyllabusNodeRow({
               depth={depth + 1}
               expanded={expanded}
               onToggle={onToggle}
+              onView={onView}
               locale={locale}
               highlightId={highlightId}
             />
@@ -88,9 +101,14 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { data, isLoading } = useSyllabusTree();
+  const recordEvent = useRecordEvent();
   const [searchParams] = useSearchParams();
   const targetNodeId = searchParams.get("node");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  const viewNode = (id: string) => {
+    recordEvent.mutate({ name: "syllabus_node_view", props: { node_id: id } });
+  };
 
   useEffect(() => {
     if (!data || !targetNodeId) return;
@@ -149,6 +167,7 @@ export function Component() {
                   depth={0}
                   expanded={expanded}
                   onToggle={toggleNode}
+                  onView={viewNode}
                   locale={locale}
                   highlightId={targetNodeId}
                 />
@@ -164,6 +183,7 @@ export function Component() {
                   depth={0}
                   expanded={expanded}
                   onToggle={toggleNode}
+                  onView={viewNode}
                   locale={locale}
                   highlightId={targetNodeId}
                 />

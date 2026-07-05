@@ -37,6 +37,7 @@ const EXPECTED_TABLES = [
   "doubt_messages",
   "embeddings",
   "events",
+  "exam_calendar",
 ] as const;
 
 const supabase = createClient(url, serviceKey, {

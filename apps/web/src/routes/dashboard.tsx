@@ -1,85 +1,67 @@
 import { useTranslation } from "react-i18next";
-import { CheckCircle2, Clock, Flame, Newspaper } from "lucide-react";
-import { PageHeader } from "@/components/ui-x/page-header";
-import { StatCard } from "@/components/ui-x/stat-card";
-import { StatCardSkeleton } from "@/components/ui-x/skeleton";
-import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { SectionCard } from "@/components/ui-x/section-card";
-import { EmptyState } from "@/components/ui-x/empty-state";
+import { Skeleton } from "@/components/ui-x/skeleton";
+import { GreetingHeader } from "@/components/dashboard/greeting-header";
+import { ContinueCard } from "@/components/dashboard/continue-card";
+import { TodayCard } from "@/components/dashboard/today-card";
+import { PerformanceCard } from "@/components/dashboard/performance-card";
+import { WeaknessCard } from "@/components/dashboard/weakness-card";
+import { AnswerSpotlightCard } from "@/components/dashboard/answer-spotlight-card";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 
 export const handle = { titleKey: "Nav.dashboard" };
+
+function CardSkeleton({ title }: { title: string }) {
+  return (
+    <SectionCard title={title}>
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-4 w-1/2" />
+        <Skeleton className="h-20 w-full" />
+      </div>
+    </SectionCard>
+  );
+}
 
 export function Component() {
   const { t } = useTranslation();
   const { data, isLoading } = useDashboardSummary();
 
-  const maxAttempts = data ? Math.max(1, ...data.weekly_activity.map((day) => day.attempts)) : 1;
+  if (isLoading || !data) {
+    return (
+      <div className="flex flex-col gap-6">
+        <div className="flex flex-col gap-3 border-b border-border pb-4">
+          <Skeleton className="h-8 w-64" />
+          <Skeleton className="h-4 w-40" />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <CardSkeleton title={t("Dashboard.continueTitle")} />
+          <CardSkeleton title={t("Dashboard.todayTitle")} />
+        </div>
+        <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+          <CardSkeleton title={t("Dashboard.performanceTitle")} />
+          <CardSkeleton title={t("Dashboard.weaknessTitle")} />
+        </div>
+        <CardSkeleton title={t("Dashboard.spotlightTitle")} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("Dashboard.title")} description={t("Dashboard.description")} />
+      <GreetingHeader greeting={data.greeting} />
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {isLoading || !data ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <StatCard label={t("Dashboard.attempts")} value={data.attempts_count} icon={CheckCircle2} />
-            <StatCard
-              label={t("Dashboard.streak")}
-              value={data.streak_count}
-              hint={t("Dashboard.streakHint")}
-              icon={Flame}
-            />
-            <StatCard label={t("Dashboard.srsDue")} value={data.srs_due_count} icon={Clock} />
-            <StatCard
-              label={t("Dashboard.currentAffairs")}
-              value={data.latest_current_affairs_date ?? t("Dashboard.noData")}
-              icon={Newspaper}
-            />
-          </>
-        )}
+      <div className="grid gap-4 md:grid-cols-2">
+        <ContinueCard data={data.continue} />
+        <TodayCard data={data.today} />
       </div>
 
-      <div className="grid gap-4 md:grid-cols-[minmax(0,220px)_1fr]">
-        <SectionCard title={t("Dashboard.avgScore")} className="items-center">
-          {isLoading || !data ? (
-            <StatCardSkeleton />
-          ) : (
-            <ScoreGauge value={data.avg_score_pct} label={t("Dashboard.avgScoreHint")} />
-          )}
-        </SectionCard>
-
-        <SectionCard title={t("Dashboard.weeklyActivity")}>
-          {isLoading || !data ? (
-            <StatCardSkeleton />
-          ) : data.weekly_activity.length === 0 ? (
-            <EmptyState title={t("Dashboard.noActivityTitle")} description={t("Dashboard.noActivityDescription")} />
-          ) : (
-            <div className="flex items-end gap-2">
-              {data.weekly_activity.map((day) => (
-                <div key={day.date} className="flex flex-1 flex-col items-center gap-1.5">
-                  <div className="flex h-28 w-full items-end">
-                    <div
-                      className="w-full rounded-t-md bg-primary/80"
-                      style={{ height: `${Math.max(4, (day.attempts / maxAttempts) * 100)}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">
-                    {new Date(day.date).toLocaleDateString(undefined, { weekday: "narrow" })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionCard>
+      <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
+        <PerformanceCard data={data.performance} />
+        <WeaknessCard nodes={data.weakness_radar} />
       </div>
+
+      <AnswerSpotlightCard data={data.answer_spotlight} />
     </div>
   );
 }

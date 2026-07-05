@@ -20,7 +20,12 @@ export function Component() {
         {isLoading || !data ? (
           <StatCardSkeleton />
         ) : (
-          <StatCard label={t("Revision.due")} value={data.srs_due_count} icon={Brain} hint={t("Revision.dueHint")} />
+          <StatCard
+            label={t("Revision.due")}
+            value={data.today.srs_due_count}
+            icon={Brain}
+            hint={t("Revision.dueHint")}
+          />
         )}
       </div>
 

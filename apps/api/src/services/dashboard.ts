@@ -1,4 +1,16 @@
-import type { DashboardSummary } from "@prayasup/shared";
+import type {
+  BilingualText,
+  DashboardAnswerSpotlight,
+  DashboardContinue,
+  DashboardGreeting,
+  DashboardPerformance,
+  DashboardSummary,
+  DashboardToday,
+  DashboardWeaknessNode,
+  ExamStage,
+  TestKind,
+  TestSummary,
+} from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 
@@ -6,33 +18,147 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export async function getDashboardSummary(userId: string): Promise<DashboardSummary> {
+function todayDateString(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysBetween(fromDateStr: string, toDateStr: string): number {
+  const from = Date.parse(`${fromDateStr}T00:00:00Z`);
+  const to = Date.parse(`${toDateStr}T00:00:00Z`);
+  return Math.round((to - from) / (24 * 3600 * 1000));
+}
+
+async function getGreeting(userId: string, today: string): Promise<DashboardGreeting> {
   const { data: profile, error: profileError } = await supabase()
     .from("users_profile")
-    .select("streak_count")
+    .select("display_name, streak_count")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw new HttpError(500, `profile lookup failed: ${profileError.message}`);
 
-  const { count: attemptsCount, error: attemptsError } = await supabase()
-    .from("attempts")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .not("submitted_at", "is", null);
-  if (attemptsError) throw new HttpError(500, `attempts count failed: ${attemptsError.message}`);
+  const { data: exam, error: examError } = await supabase()
+    .from("exam_calendar")
+    .select("exam_stage, title_i18n, exam_date, is_tentative")
+    .eq("exam_stage", "prelims")
+    .gte("exam_date", today)
+    .order("exam_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (examError) throw new HttpError(500, `exam calendar lookup failed: ${examError.message}`);
+  const examRow = exam as {
+    exam_stage: ExamStage;
+    title_i18n: BilingualText;
+    exam_date: string;
+    is_tentative: boolean;
+  } | null;
 
-  const { data: scored, error: scoredError } = await supabase()
-    .from("attempts")
-    .select("score, total")
-    .eq("user_id", userId)
-    .not("submitted_at", "is", null)
-    .not("total", "is", null);
-  if (scoredError) throw new HttpError(500, `attempts score lookup failed: ${scoredError.message}`);
-  const pcts = (scored ?? [])
-    .filter((a) => (a.total as number | null) && (a.total as number) > 0)
-    .map((a) => ((a.score as number | null) ?? 0) / (a.total as number) * 100);
-  const avgScorePct = pcts.length > 0 ? round2(pcts.reduce((s, x) => s + x, 0) / pcts.length) : null;
+  return {
+    display_name: profile?.display_name ?? null,
+    streak_count: profile?.streak_count ?? 0,
+    next_exam: examRow
+      ? {
+          exam_stage: examRow.exam_stage,
+          title_i18n: examRow.title_i18n,
+          exam_date: examRow.exam_date,
+          days_until: daysBetween(today, examRow.exam_date),
+          is_tentative: examRow.is_tentative,
+        }
+      : null,
+  };
+}
 
+async function getContinue(userId: string): Promise<DashboardContinue> {
+  const { data: attempt, error: attemptError } = await supabase()
+    .from("attempts")
+    .select("id, test_id, started_at, meta")
+    .eq("user_id", userId)
+    .is("submitted_at", null)
+    .order("started_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (attemptError) throw new HttpError(500, `unfinished attempt lookup failed: ${attemptError.message}`);
+
+  let attemptCandidate: (Extract<DashboardContinue, { type: "attempt" }>) | null = null;
+  if (attempt) {
+    const meta = attempt.meta as { question_ids?: string[] } | null;
+    const totalCount = meta?.question_ids?.length ?? 0;
+
+    const { count: answeredCount, error: answeredError } = await supabase()
+      .from("attempt_answers")
+      .select("id", { count: "exact", head: true })
+      .eq("attempt_id", attempt.id);
+    if (answeredError) throw new HttpError(500, `attempt answers count failed: ${answeredError.message}`);
+
+    const { data: lastAnswer, error: lastAnswerError } = await supabase()
+      .from("attempt_answers")
+      .select("created_at")
+      .eq("attempt_id", attempt.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (lastAnswerError) throw new HttpError(500, `last answer lookup failed: ${lastAnswerError.message}`);
+
+    let testTitle: BilingualText | null = null;
+    if (attempt.test_id) {
+      const { data: test, error: testError } = await supabase()
+        .from("tests")
+        .select("title_i18n")
+        .eq("id", attempt.test_id)
+        .maybeSingle();
+      if (testError) throw new HttpError(500, `test lookup failed: ${testError.message}`);
+      testTitle = (test?.title_i18n as BilingualText | undefined) ?? null;
+    }
+
+    attemptCandidate = {
+      type: "attempt",
+      attempt_id: attempt.id as string,
+      test_title_i18n: testTitle,
+      answered_count: answeredCount ?? 0,
+      total_count: totalCount,
+      last_activity_at: (lastAnswer?.created_at as string | undefined) ?? (attempt.started_at as string),
+    };
+  }
+
+  const { data: viewEvent, error: viewEventError } = await supabase()
+    .from("events")
+    .select("props, created_at")
+    .eq("user_id", userId)
+    .eq("name", "syllabus_node_view")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (viewEventError) throw new HttpError(500, `syllabus view event lookup failed: ${viewEventError.message}`);
+
+  let syllabusCandidate: (Extract<DashboardContinue, { type: "syllabus_node" }>) | null = null;
+  if (viewEvent) {
+    const nodeId = (viewEvent.props as { node_id?: string } | null)?.node_id;
+    if (nodeId) {
+      const { data: node, error: nodeError } = await supabase()
+        .from("syllabus_nodes")
+        .select("title_i18n")
+        .eq("id", nodeId)
+        .maybeSingle();
+      if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
+      if (node) {
+        syllabusCandidate = {
+          type: "syllabus_node",
+          syllabus_node_id: nodeId,
+          title_i18n: node.title_i18n as BilingualText,
+          last_activity_at: viewEvent.created_at as string,
+        };
+      }
+    }
+  }
+
+  if (attemptCandidate && syllabusCandidate) {
+    return Date.parse(attemptCandidate.last_activity_at) >= Date.parse(syllabusCandidate.last_activity_at)
+      ? attemptCandidate
+      : syllabusCandidate;
+  }
+  return attemptCandidate ?? syllabusCandidate ?? { type: "none" };
+}
+
+async function getToday(userId: string, today: string): Promise<DashboardToday> {
   const nowIso = new Date().toISOString();
   const { count: srsDue, error: srsError } = await supabase()
     .from("srs_cards")
@@ -41,38 +167,216 @@ export async function getDashboardSummary(userId: string): Promise<DashboardSumm
     .lte("fsrs_state->>due_at", nowIso);
   if (srsError) throw new HttpError(500, `srs due count failed: ${srsError.message}`);
 
-  const { data: latestCa, error: caError } = await supabase()
+  const { count: caToday, error: caError } = await supabase()
     .from("current_affairs_items")
-    .select("date")
+    .select("id", { count: "exact", head: true })
     .eq("is_published", true)
-    .order("date", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (caError) throw new HttpError(500, `current affairs lookup failed: ${caError.message}`);
+    .eq("date", today);
+  if (caError) throw new HttpError(500, `current affairs today count failed: ${caError.message}`);
 
-  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
-  const { data: recent, error: recentError } = await supabase()
-    .from("attempts")
-    .select("submitted_at")
-    .eq("user_id", userId)
-    .not("submitted_at", "is", null)
-    .gte("submitted_at", sevenDaysAgo);
-  if (recentError) throw new HttpError(500, `weekly activity lookup failed: ${recentError.message}`);
-  const byDay = new Map<string, number>();
-  for (const r of recent ?? []) {
-    const day = (r.submitted_at as string).slice(0, 10);
-    byDay.set(day, (byDay.get(day) ?? 0) + 1);
-  }
-  const weeklyActivity = [...byDay.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([date, attempts]) => ({ date, attempts }));
+  const { data: quiz, error: quizError } = await supabase()
+    .from("tests")
+    .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)")
+    .eq("kind", "daily_quiz")
+    .eq("is_published", true)
+    .eq("scheduled_date", today)
+    .maybeSingle();
+  if (quizError) throw new HttpError(500, `daily quiz lookup failed: ${quizError.message}`);
+  const quizRow = quiz as {
+    id: string;
+    slug: string | null;
+    title_i18n: BilingualText;
+    kind: TestKind;
+    paper_code: string | null;
+    duration_minutes: number | null;
+    total_marks: number | null;
+    test_questions: { count: number }[];
+  } | null;
+
+  const dailyQuiz: TestSummary | null = quizRow
+    ? {
+        id: quizRow.id,
+        slug: quizRow.slug,
+        title_i18n: quizRow.title_i18n,
+        kind: quizRow.kind,
+        paper_code: quizRow.paper_code,
+        duration_minutes: quizRow.duration_minutes,
+        total_marks: quizRow.total_marks,
+        question_count: quizRow.test_questions[0]?.count ?? 0,
+      }
+    : null;
 
   return {
-    attempts_count: attemptsCount ?? 0,
-    avg_score_pct: avgScorePct,
-    streak_count: profile?.streak_count ?? 0,
     srs_due_count: srsDue ?? 0,
-    latest_current_affairs_date: (latestCa as { date: string } | null)?.date ?? null,
-    weekly_activity: weeklyActivity,
+    current_affairs_today_count: caToday ?? 0,
+    daily_quiz: dailyQuiz,
+  };
+}
+
+interface GradedAnswerRow {
+  is_correct: boolean | null;
+  questions: { paper_code: string; syllabus_node_id: string | null } | null;
+}
+
+async function getPerformanceAndWeakness(
+  userId: string,
+): Promise<{ performance: DashboardPerformance; weakness_radar: DashboardWeaknessNode[] }> {
+  const { data: submitted, error: submittedError } = await supabase()
+    .from("attempts")
+    .select("id, submitted_at, score, total")
+    .eq("user_id", userId)
+    .not("submitted_at", "is", null)
+    .not("total", "is", null)
+    .order("submitted_at", { ascending: false })
+    .limit(5);
+  if (submittedError) throw new HttpError(500, `recent attempts lookup failed: ${submittedError.message}`);
+
+  const recentScores = (submitted ?? [])
+    .filter((a) => (a.total as number | null) && (a.total as number) > 0)
+    .map((a) => ({
+      attempt_id: a.id as string,
+      submitted_at: a.submitted_at as string,
+      score_pct: round2(((a.score as number | null) ?? 0) / (a.total as number) * 100),
+    }))
+    .reverse();
+
+  const { data: attemptIdRows, error: attemptIdsError } = await supabase()
+    .from("attempts")
+    .select("id")
+    .eq("user_id", userId)
+    .not("submitted_at", "is", null);
+  if (attemptIdsError) throw new HttpError(500, `attempt id lookup failed: ${attemptIdsError.message}`);
+  const attemptIds = (attemptIdRows ?? []).map((r) => r.id as string);
+
+  let graded: GradedAnswerRow[] = [];
+  if (attemptIds.length > 0) {
+    const { data: gradedRows, error: gradedError } = await supabase()
+      .from("attempt_answers")
+      .select("is_correct, questions(paper_code, syllabus_node_id)")
+      .in("attempt_id", attemptIds)
+      .not("is_correct", "is", null);
+    if (gradedError) throw new HttpError(500, `graded answers lookup failed: ${gradedError.message}`);
+    graded = (gradedRows ?? []) as unknown as GradedAnswerRow[];
+  }
+
+  const byPaper = new Map<string, { correct: number; total: number }>();
+  const nodeIdsWithAnswers = new Set<string>();
+  for (const row of graded) {
+    const paperCode = row.questions?.paper_code;
+    if (paperCode) {
+      const bucket = byPaper.get(paperCode) ?? { correct: 0, total: 0 };
+      bucket.total += 1;
+      if (row.is_correct) bucket.correct += 1;
+      byPaper.set(paperCode, bucket);
+    }
+    if (row.questions?.syllabus_node_id) nodeIdsWithAnswers.add(row.questions.syllabus_node_id);
+  }
+  const accuracyByPaper = [...byPaper.entries()]
+    .map(([paper_code, { correct, total }]) => ({
+      paper_code,
+      accuracy_pct: round2((correct / total) * 100),
+      answered_count: total,
+    }))
+    .sort((a, b) => a.paper_code.localeCompare(b.paper_code));
+
+  let weaknessRadar: DashboardWeaknessNode[] = [];
+  if (nodeIdsWithAnswers.size > 0) {
+    const { data: nodes, error: nodesError } = await supabase()
+      .from("syllabus_nodes")
+      .select("id, paper_code, path, depth, title_i18n");
+    if (nodesError) throw new HttpError(500, `syllabus nodes lookup failed: ${nodesError.message}`);
+    const nodeRows = (nodes ?? []) as {
+      id: string;
+      paper_code: string;
+      path: string;
+      depth: number;
+      title_i18n: BilingualText;
+    }[];
+
+    const nodeById = new Map(nodeRows.map((n) => [n.id, n]));
+    const topNodeByKey = new Map(
+      nodeRows.filter((n) => n.depth === 1).map((n) => [`${n.paper_code}::${n.path}`, n]),
+    );
+
+    const byTopNode = new Map<string, { title: BilingualText; correct: number; total: number }>();
+    for (const row of graded) {
+      const syllabusNodeId = row.questions?.syllabus_node_id;
+      if (!syllabusNodeId) continue;
+      const node = nodeById.get(syllabusNodeId);
+      if (!node) continue;
+      const topSegment = node.path.split("/")[0];
+      const topNode = topNodeByKey.get(`${node.paper_code}::${topSegment}`);
+      if (!topNode) continue;
+      const bucket = byTopNode.get(topNode.id) ?? { title: topNode.title_i18n, correct: 0, total: 0 };
+      bucket.total += 1;
+      if (row.is_correct) bucket.correct += 1;
+      byTopNode.set(topNode.id, bucket);
+    }
+
+    weaknessRadar = [...byTopNode.entries()]
+      .map(([syllabus_node_id, { title, correct, total }]) => ({
+        syllabus_node_id,
+        title_i18n: title,
+        accuracy_pct: round2((correct / total) * 100),
+        answered_count: total,
+      }))
+      .sort((a, b) => a.accuracy_pct - b.accuracy_pct);
+  }
+
+  return {
+    performance: { recent_scores: recentScores, accuracy_by_paper: accuracyByPaper },
+    weakness_radar: weaknessRadar,
+  };
+}
+
+async function getAnswerSpotlight(userId: string): Promise<DashboardAnswerSpotlight> {
+  const { data, error } = await supabase()
+    .from("evaluations")
+    .select(
+      "id, submission_id, overall_score, max_score, created_at, answer_submissions!inner(user_id, questions(stem_i18n))",
+    )
+    .eq("answer_submissions.user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `evaluation lookup failed: ${error.message}`);
+  const row = data as unknown as {
+    submission_id: string;
+    overall_score: number | null;
+    max_score: number | null;
+    created_at: string;
+    answer_submissions: { questions: { stem_i18n: BilingualText } | null } | null;
+  } | null;
+
+  return {
+    latest: row
+      ? {
+          submission_id: row.submission_id,
+          overall_score: row.overall_score,
+          max_score: row.max_score,
+          created_at: row.created_at,
+          question_stem_i18n: row.answer_submissions?.questions?.stem_i18n ?? null,
+        }
+      : null,
+  };
+}
+
+export async function getDashboardSummary(userId: string): Promise<DashboardSummary> {
+  const today = todayDateString();
+  const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
+    getGreeting(userId, today),
+    getContinue(userId),
+    getToday(userId, today),
+    getPerformanceAndWeakness(userId),
+    getAnswerSpotlight(userId),
+  ]);
+
+  return {
+    greeting,
+    continue: continueItem,
+    today: todayCard,
+    performance: performanceAndWeakness.performance,
+    weakness_radar: performanceAndWeakness.weakness_radar,
+    answer_spotlight: answerSpotlight,
   };
 }
