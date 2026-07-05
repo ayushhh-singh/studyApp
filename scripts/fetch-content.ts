@@ -25,20 +25,27 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join, relative } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import yaml from "js-yaml";
 import { PDFParse } from "pdf-parse";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const SOURCES_YAML = join(ROOT, "content-sources.yaml");
-const CONTENT_RAW = join(ROOT, "content-raw");
+// Paths are overridable via env so the pipeline can be exercised in isolation
+// (edge-case tests, alternate content roots) without touching committed data.
+const SOURCES_YAML = process.env.CONTENT_SOURCES_YAML
+  ? resolve(process.env.CONTENT_SOURCES_YAML)
+  : join(ROOT, "content-sources.yaml");
+const CONTENT_RAW = process.env.CONTENT_RAW_DIR
+  ? resolve(process.env.CONTENT_RAW_DIR)
+  : join(ROOT, "content-raw");
 const MANIFEST_PATH = join(CONTENT_RAW, "manifest.json");
 
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-const REQUEST_SPACING_MS = 2000; // 1 request / 2s
+const REQUEST_SPACING_MS = Number(process.env.CONTENT_SPACING_MS ?? 2000); // 1 req / 2s
+const REQUEST_TIMEOUT_MS = Number(process.env.CONTENT_TIMEOUT_MS ?? 60_000);
 const MAX_RETRIES = 3;
 const FETCHABLE_SECTIONS = new Set([
   "syllabus",
@@ -86,6 +93,25 @@ interface ManifestEntry {
 // ---------- small utils ----------
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const nowIso = () => new Date().toISOString();
+
+/** fetch() with a hard timeout so a hanging server can't stall the whole run. */
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: ctrl.signal });
+  } catch (err) {
+    if ((err as Error).name === "AbortError") {
+      throw new Error(`timed out after ${REQUEST_TIMEOUT_MS}ms`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function sha256(buf: Buffer): string {
   return createHash("sha256").update(buf).digest("hex");
@@ -151,7 +177,7 @@ async function warmup(source: Source): Promise<void> {
   const key = `${host}|${source.warmup ?? ""}`;
   if (warmedHosts.has(key)) return;
   try {
-    const res = await fetch(target, {
+    const res = await fetchWithTimeout(target, {
       headers: { "User-Agent": USER_AGENT, Accept: "text/html,*/*" },
       redirect: "follow",
     });
@@ -175,7 +201,7 @@ async function downloadOnce(source: Source): Promise<Buffer> {
   if (cookie) headers["Cookie"] = cookie;
   if (source.referer) headers["Referer"] = source.referer;
 
-  const res = await fetch(source.url, { headers, redirect: "follow" });
+  const res = await fetchWithTimeout(source.url, { headers, redirect: "follow" });
   storeSetCookies(source.url, res);
 
   const ct = res.headers.get("content-type") ?? "";
@@ -271,11 +297,49 @@ async function main() {
     console.error(`Missing ${relative(ROOT, SOURCES_YAML)}`);
     process.exit(1);
   }
-  const doc = (yaml.load(await readFile(SOURCES_YAML, "utf8")) ??
-    {}) as SourcesFile;
-  const sources = (doc.verified ?? []).filter((s) =>
-    FETCHABLE_SECTIONS.has(s.section),
-  );
+  let doc: SourcesFile;
+  try {
+    doc = (yaml.load(await readFile(SOURCES_YAML, "utf8")) ?? {}) as SourcesFile;
+  } catch (err) {
+    console.error(`Malformed YAML in ${relative(ROOT, SOURCES_YAML)}: ${(err as Error).message}`);
+    process.exit(1);
+  }
+  const verified = doc.verified ?? [];
+  if (!Array.isArray(verified)) {
+    console.error(`\`verified:\` must be a list in ${relative(ROOT, SOURCES_YAML)}`);
+    process.exit(1);
+  }
+
+  // Validate each entry's required fields up front, with a clear pointer to the
+  // offending entry, rather than throwing cryptically mid-download.
+  const problems: string[] = [];
+  verified.forEach((s, i) => {
+    const where = s?.id ? `id "${s.id}"` : `entry #${i + 1}`;
+    if (!s || typeof s !== "object") problems.push(`${where}: not a mapping`);
+    else {
+      if (!s.id || typeof s.id !== "string") problems.push(`${where}: missing/invalid \`id\``);
+      if (!s.url || typeof s.url !== "string") problems.push(`${where}: missing/invalid \`url\``);
+      else {
+        try {
+          new URL(s.url);
+        } catch {
+          problems.push(`${where}: \`url\` is not a valid URL (${s.url})`);
+        }
+      }
+      if (!s.section || typeof s.section !== "string") problems.push(`${where}: missing \`section\``);
+      else if (!FETCHABLE_SECTIONS.has(s.section))
+        problems.push(
+          `${where}: unknown section "${s.section}" (expected ${[...FETCHABLE_SECTIONS].join("|")})`,
+        );
+    }
+  });
+  if (problems.length) {
+    console.error(`Invalid entries in ${relative(ROOT, SOURCES_YAML)}:`);
+    for (const p of problems) console.error(`  - ${p}`);
+    process.exit(1);
+  }
+
+  const sources = verified.filter((s) => FETCHABLE_SECTIONS.has(s.section));
 
   // Guard: duplicate ids collide on disk and in the manifest.
   const seen = new Set<string>();
