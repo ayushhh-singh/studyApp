@@ -18,3 +18,8 @@ content-raw/**/*.zip
 content-raw/**/*.doc
 content-raw/**/*.docx
 !content-raw/manifest.json
+
+# ingest:pyq / ingest:syllabus --dry-run write review artifacts here. They are
+# regenerated from the source PDFs on demand; the reviewed content lands in
+# Supabase via ingest:*:load, so the JSON itself is not committed.
+content-raw/parsed/

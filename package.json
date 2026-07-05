@@ -5,7 +5,13 @@
   "scripts": {
     "dev": "concurrently -n web,api -c blue,green \"pnpm --filter web dev\" \"pnpm --filter api dev\"",
     "build": "pnpm --filter web build && pnpm --filter api build",
-    "content:fetch": "tsx scripts/fetch-content.ts"
+    "content:fetch": "tsx scripts/fetch-content.ts",
+    "ingest:syllabus": "pnpm --filter api ingest:syllabus",
+    "ingest:pyq": "pnpm --filter api ingest:pyq",
+    "ingest:pyq:load": "pnpm --filter api ingest:pyq:load",
+    "ingest:tests": "pnpm --filter api ingest:tests",
+    "ingest:embed": "pnpm --filter api ingest:embed",
+    "ingest:verify": "pnpm --filter api ingest:verify"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
