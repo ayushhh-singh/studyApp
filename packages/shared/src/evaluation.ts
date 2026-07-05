@@ -63,6 +63,7 @@ export type SubmissionMode = z.infer<typeof submissionModeSchema>;
 
 export const submissionStatusSchema = z.enum([
   "pending",
+  "ocr_processing",
   "ocr_done",
   "evaluating",
   "complete",
@@ -104,6 +105,12 @@ export const createSubmissionBodySchema = z
   })
   .refine((b) => (b.mode === "handwritten" ? !!b.image_paths?.length : true), {
     message: "image_paths: at least one page image is required for a handwritten submission",
+  })
+  .refine((b) => (b.mode === "typed" ? !b.image_paths?.length : true), {
+    message: "image_paths must not be supplied for a typed submission",
+  })
+  .refine((b) => (b.mode === "handwritten" ? !b.typed_text : true), {
+    message: "typed_text must not be supplied for a handwritten submission (confirm the OCR transcription instead)",
   });
 export type CreateSubmissionBody = z.infer<typeof createSubmissionBodySchema>;
 

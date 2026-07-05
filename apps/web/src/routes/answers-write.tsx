@@ -84,11 +84,15 @@ export function Component() {
 
     setIsUploading(true);
     try {
-      const imagePaths: string[] = [];
-      for (let i = 0; i < pages.length; i++) {
-        const prepared = await prepareAnswerImage(pages[i].file, pages[i].rotation);
-        imagePaths.push(await uploadAnswerImage(prepared, draftIdRef.current, i));
-      }
+      // Each page's compress+upload is independent — paths are index-keyed, so
+      // out-of-order completion is safe — running them in parallel keeps total
+      // wait time close to the slowest single page instead of scaling linearly.
+      const imagePaths = await Promise.all(
+        pages.map(async (page, i) => {
+          const prepared = await prepareAnswerImage(page.file, page.rotation);
+          return uploadAnswerImage(prepared, draftIdRef.current, i);
+        }),
+      );
       createSubmission.mutate(
         { ...questionFields, mode: "handwritten", image_paths: imagePaths },
         {

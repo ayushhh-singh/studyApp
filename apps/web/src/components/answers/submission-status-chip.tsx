@@ -5,6 +5,11 @@ import { cn } from "@/lib/utils";
 
 const STATUS_STYLE: Record<SubmissionStatus, { icon: typeof Clock; className: string; labelKey: string }> = {
   pending: { icon: Clock, className: "bg-muted text-muted-foreground", labelKey: "Answers.statusPending" },
+  ocr_processing: {
+    icon: Loader2,
+    className: "bg-marigold/15 text-marigold-foreground",
+    labelKey: "Answers.statusTranscribing",
+  },
   ocr_done: { icon: Clock, className: "bg-muted text-muted-foreground", labelKey: "Answers.statusPending" },
   evaluating: {
     icon: Loader2,
@@ -21,7 +26,7 @@ export function SubmissionStatusChip({ status }: { status: SubmissionStatus }) {
   const Icon = style.icon;
   return (
     <span className={cn("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold", style.className)}>
-      <Icon className={cn("size-3.5", status === "evaluating" && "animate-spin")} aria-hidden />
+      <Icon className={cn("size-3.5", (status === "evaluating" || status === "ocr_processing") && "animate-spin")} aria-hidden />
       {t(style.labelKey)}
     </span>
   );

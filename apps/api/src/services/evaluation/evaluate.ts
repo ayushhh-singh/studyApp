@@ -50,7 +50,7 @@ import {
   type EvalContext,
   type Pass1Result,
 } from "./prompts.js";
-import { downloadImageAsBase64, getOcrProvider, type OcrResult } from "../ocr/index.js";
+import { assertImagesExist, downloadImageAsBase64, getOcrProvider, type OcrResult } from "../ocr/index.js";
 
 /** SSE-style emitter: (event, payload). Route wraps res.write; harness captures. */
 export type EvalEmit = (event: string, data: unknown) => void;
@@ -61,6 +61,13 @@ export type EvalEmit = (event: string, data: unknown) => void;
  * reclaimable — well above the ~1 min a real evaluation takes.
  */
 const STALE_EVALUATION_MS = 5 * 60 * 1000;
+
+/**
+ * A submission left in 'ocr_processing' longer than this is treated as
+ * stranded (a crashed run, a disconnect mid-transcription) and is
+ * reclaimable — well above the time a real transcription takes.
+ */
+const STALE_OCR_MS = 3 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // DB row shapes
@@ -125,6 +132,15 @@ export async function createSubmission(userId: string, body: CreateSubmissionBod
     // Custom prompt: store the user's typed question in their language only.
     const text = body.custom_question_text!.trim();
     custom_question_text_i18n = body.language === "hi" ? { hi: text, en: "" } : { hi: "", en: text };
+  }
+
+  if (body.mode === "handwritten") {
+    // Fail fast with a clear 400 if any uploaded path doesn't actually exist in
+    // the bucket, rather than accepting a garbage/guessed path that only
+    // surfaces as a confusing 500 later, mid-OCR. This does not scope paths to
+    // the uploading user — real per-user Storage scoping needs auth (Session
+    // 15, matching the RLS policy's own "REPLACED IN AUTH PHASE" note).
+    await assertImagesExist(body.image_paths!);
   }
 
   const meta: Record<string, number> = {};
@@ -414,6 +430,7 @@ export async function executeEvaluation(
     const ctx: EvalContext = {
       questionText: plan.questionText,
       answerText,
+      mode: submission.mode,
       language,
       wordLimit: plan.wordLimit,
       maxScore: plan.maxScore,
@@ -606,6 +623,13 @@ export async function runEvaluation(
 // ---------------------------------------------------------------------------
 export type OcrEmit = (event: string, data: unknown) => void;
 
+/** Postgres `numeric` columns can come back from supabase-js as strings — mirrors mapSubmission's cast. */
+function coerceConfidence(v: number | string | null): number {
+  if (v === null) return 0;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
+}
+
 export type OcrPlan =
   | { kind: "replay"; ocrText: string; confidence: number }
   | { kind: "run"; submission: SubmissionRow };
@@ -621,9 +645,45 @@ export async function planOcr(userId: string, submissionId: string): Promise<Ocr
   // A persisted transcription is the source of truth for "done": replay it
   // instead of re-billing the model, the same contract as evaluation replay.
   if (submission.ocr_text) {
-    return { kind: "replay", ocrText: submission.ocr_text, confidence: submission.ocr_confidence ?? 0 };
+    return { kind: "replay", ocrText: submission.ocr_text, confidence: coerceConfidence(submission.ocr_confidence) };
   }
-  return { kind: "run", submission };
+
+  // Reclaim a submission stranded in 'ocr_processing' (a crashed run, a lost
+  // disconnect-release) so a stuck row can never lock the user out permanently.
+  const staleCutoff = new Date(Date.now() - STALE_OCR_MS).toISOString();
+  const { error: reclaimError } = await supabase()
+    .from("answer_submissions")
+    .update({ status: "failed" })
+    .eq("id", submissionId)
+    .eq("status", "ocr_processing")
+    .lt("updated_at", staleCutoff);
+  if (reclaimError) logger.warn({ err: reclaimError, submissionId }, "stale-OCR reclaim failed");
+
+  // Atomically claim this submission for transcription — the same
+  // status-guarded-UPDATE pattern planEvaluation uses for 'evaluating'. This
+  // closes the race where two concurrent requests (two open tabs, or a
+  // confirm-screen remount) would otherwise both call the vision model and
+  // race on which transcription gets persisted.
+  const { data: claimed, error: claimError } = await supabase()
+    .from("answer_submissions")
+    .update({ status: "ocr_processing" })
+    .eq("id", submissionId)
+    .in("status", ["pending", "failed"])
+    .select("id")
+    .maybeSingle();
+  if (claimError) throw new HttpError(500, `failed to claim submission for OCR: ${claimError.message}`);
+  if (!claimed) {
+    // Not claimable — either a genuine concurrent run is already in flight, or
+    // it finished and persisted between our initial fetch and this claim
+    // attempt. Re-check for that second case before reporting a conflict.
+    const fresh = await fetchSubmission(userId, submissionId);
+    if (fresh.ocr_text) {
+      return { kind: "replay", ocrText: fresh.ocr_text, confidence: coerceConfidence(fresh.ocr_confidence) };
+    }
+    throw conflict("This answer is already being transcribed. Please wait for it to finish.");
+  }
+
+  return { kind: "run", submission: { ...submission, status: "ocr_processing" } };
 }
 
 export async function executeOcr(
@@ -712,6 +772,25 @@ export async function releaseStuckEvaluation(submissionId: string): Promise<void
     .update({ status: "failed" })
     .eq("id", submissionId)
     .eq("status", "evaluating");
+}
+
+/**
+ * Release a submission stuck in 'ocr_processing' (the SSE client disconnected
+ * or aborted mid-transcription) back to 'failed', but ONLY if it is still
+ * 'ocr_processing' — same conditional-guard shape as releaseStuckEvaluation,
+ * so a disconnect can never clobber a status the run itself already advanced
+ * to 'ocr_done'. Without this, planOcr's atomic claim would strand a
+ * submission for the full STALE_OCR_MS window on every abort — including the
+ * harmless case of React StrictMode's dev-mode double effect invocation
+ * aborting the first of two back-to-back stream opens. Best-effort; never
+ * throws.
+ */
+export async function releaseStuckOcr(submissionId: string): Promise<void> {
+  await supabase()
+    .from("answer_submissions")
+    .update({ status: "failed" })
+    .eq("id", submissionId)
+    .eq("status", "ocr_processing");
 }
 
 async function persistEvaluation(input: {

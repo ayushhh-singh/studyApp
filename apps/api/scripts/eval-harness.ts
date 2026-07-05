@@ -159,6 +159,7 @@ async function main(): Promise<void> {
     for (const sample of SAMPLES) {
       const body: CreateSubmissionBody = {
         custom_question_text: QUESTION,
+        mode: "typed",
         typed_text: sample.text,
         language: lang,
         word_limit: WORD_LIMIT,

@@ -6,7 +6,7 @@
  * RLS regardless of the bucket's policies.
  */
 import { supabase } from "../../lib/supabase.js";
-import { HttpError } from "../../lib/http-error.js";
+import { badRequest, HttpError } from "../../lib/http-error.js";
 
 export const ANSWER_IMAGES_BUCKET = "answer-images";
 
@@ -25,6 +25,28 @@ function guessMediaType(path: string, blobType: string): ImageMediaType {
   if (ext === "png") return "image/png";
   if (ext === "webp") return "image/webp";
   return "image/jpeg";
+}
+
+/**
+ * Fails fast with a 400 if any of the given paths doesn't actually exist in
+ * the bucket, so a garbage/guessed `image_paths` entry is rejected at
+ * submission-creation time rather than surfacing as a confusing 500 later,
+ * mid-OCR (or silently billing a vision call against a path that was never a
+ * real upload).
+ */
+export async function assertImagesExist(paths: string[]): Promise<void> {
+  await Promise.all(
+    paths.map(async (path) => {
+      const slash = path.lastIndexOf("/");
+      const dir = slash >= 0 ? path.slice(0, slash) : "";
+      const name = slash >= 0 ? path.slice(slash + 1) : path;
+      const { data, error } = await supabase().storage.from(ANSWER_IMAGES_BUCKET).list(dir, { search: name });
+      if (error) throw new HttpError(500, `storage lookup failed: ${error.message}`);
+      if (!data?.some((f) => f.name === name)) {
+        throw badRequest(`Uploaded image not found: ${path}`);
+      }
+    }),
+  );
 }
 
 export async function downloadImageAsBase64(path: string): Promise<ImageBase64> {

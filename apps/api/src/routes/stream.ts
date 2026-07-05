@@ -14,6 +14,7 @@ import {
   planEvaluation,
   planOcr,
   releaseStuckEvaluation,
+  releaseStuckOcr,
   replayEvaluation,
   type EvalEmit,
   type OcrEmit,
@@ -133,8 +134,20 @@ streamRouter.get(
       if (!res.writableEnded) send(event, data);
     };
 
+    let finished = false;
     const abort = new AbortController();
-    req.on("close", () => abort.abort());
+    req.on("close", () => {
+      // Cancel the in-flight sonnet stream so a closed tab/aborted request
+      // stops billing tokens.
+      abort.abort();
+      // A 'run' plan already claimed the submission ('ocr_processing'); if the
+      // client vanished (or, in dev, React StrictMode's double-effect aborted
+      // the first of two back-to-back opens) before we finished, release it so
+      // it isn't stuck for the full stale-reclaim window.
+      if (plan.kind === "run" && !finished) {
+        void releaseStuckOcr(submissionId);
+      }
+    });
 
     try {
       if (plan.kind === "replay") {
@@ -142,6 +155,7 @@ streamRouter.get(
       } else {
         await executeOcr(plan, emit, abort.signal);
       }
+      finished = true;
     } catch (err) {
       emit("error", { message: err instanceof Error ? err.message : "Transcription failed" });
     } finally {

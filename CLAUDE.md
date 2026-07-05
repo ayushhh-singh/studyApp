@@ -12,7 +12,12 @@ analytics, RAG doubt-solving chatbot.
 - Monorepo: /apps/web (Vite + React 19 SPA, TypeScript, React Router v7),
   /apps/api (Express, TypeScript), /packages/shared (types, zod schemas).
 - NO Next.js anywhere. The web app is a pure SPA; the ONLY backend is the
-  Express API.
+  Express API. ONE explicit exception: binary blob storage. The browser
+  uploads/reads handwritten-answer page photos directly against Supabase
+  Storage with the anon key (apps/web/src/lib/supabase.ts), behind the
+  bucket's own dev-permissive RLS policy — this avoids proxying multi-MB
+  images through Express. Every other read/write, including the submission
+  row itself, still goes through the API with zero exceptions.
 - DB: Supabase cloud Postgres + pgvector. SAME project for local dev and
   production. All schema changes via SQL migration files in
   /supabase/migrations, applied with supabase CLI (db push).

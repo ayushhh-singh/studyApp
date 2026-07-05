@@ -10,7 +10,7 @@
  *
  * All model-facing copy lives here so prompt tuning is one file.
  */
-import type { Locale, RubricDimensionKey } from "@prayasup/shared";
+import type { Locale, RubricDimensionKey, SubmissionMode } from "@prayasup/shared";
 import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt } from "./rubric.js";
 import type { GroundingResult } from "./grounding.js";
 
@@ -28,6 +28,8 @@ export interface EvalContext {
   /** Question text in the answer's language (directive words preserved). */
   questionText: string;
   answerText: string;
+  /** Drives the "typed" vs "transcribed from handwriting" framing below — not derived from pageImage presence, which can be absent even for a handwritten submission on a download failure. */
+  mode: SubmissionMode;
   language: Locale;
   wordLimit: number;
   maxScore: number;
@@ -129,7 +131,7 @@ export function buildAnalysisUserContent(
     `${ctx.questionText}\n\n` +
     `Marks: ${ctx.maxScore} | Word limit: ${ctx.wordLimit} words | Answer language: ${langName(ctx.language)}\n\n` +
     `REFERENCE POINTS:\n${groundingBlock(ctx.grounding)}\n\n` +
-    `CANDIDATE'S ANSWER (${pageImage ? "transcribed from handwriting" : "typed"}, approx. ${ctx.wordCount} words):\n<<<\n${neutralizeFence(ctx.answerText)}\n>>>\n\n` +
+    `CANDIDATE'S ANSWER (${ctx.mode === "handwritten" ? "transcribed from handwriting" : "typed"}, approx. ${ctx.wordCount} words):\n<<<\n${neutralizeFence(ctx.answerText)}\n>>>\n\n` +
     `Score all six rubric dimensions and return JSON only. reference_points should list 4-8 key ` +
     `points a strong answer would cover; missed_key_points are those the candidate did not.`;
   if (!pageImage) return text;

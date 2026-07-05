@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Camera, ChevronDown, ChevronUp, ImagePlus, RotateCw, X } from "lucide-react";
 import { MAX_ANSWER_IMAGES } from "@prayasup/shared";
@@ -25,11 +25,19 @@ export function HandwrittenUpload({
   const { t } = useTranslation();
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [rejectedCount, setRejectedCount] = useState(0);
 
   function addFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
+    const selected = Array.from(fileList);
+    // `accept="image/*"` on the input is only a UI hint — some pickers (e.g. a
+    // desktop "All Files" override) can still hand back a non-image, which
+    // would otherwise only fail late, inside the canvas rotation step at
+    // submit time. Filter here so the rejection is immediate and visible.
+    const images = selected.filter((f) => f.type.startsWith("image/"));
+    setRejectedCount(selected.length - images.length);
     const room = MAX_ANSWER_IMAGES - pages.length;
-    const files = Array.from(fileList).slice(0, room);
+    const files = images.slice(0, room);
     const added: AnswerPageImage[] = files.map((file) => ({
       id: crypto.randomUUID(),
       file,
@@ -175,6 +183,11 @@ export function HandwrittenUpload({
           {t("Answers.handwrittenPageCount", { count: pages.length, max: MAX_ANSWER_IMAGES })}
         </span>
       </div>
+      {rejectedCount > 0 && (
+        <p className="text-xs text-coral">
+          {t("Answers.handwrittenRejectedFiles", { count: rejectedCount })}
+        </p>
+      )}
     </div>
   );
 }

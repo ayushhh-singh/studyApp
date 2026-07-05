@@ -42,5 +42,5 @@ export function getOcrProvider(): OcrProvider {
   return claudeVisionProvider;
 }
 
-export { ANSWER_IMAGES_BUCKET, downloadImageAsBase64 } from "./storage.js";
+export { ANSWER_IMAGES_BUCKET, assertImagesExist, downloadImageAsBase64 } from "./storage.js";
 export type { ImageMediaType } from "./storage.js";

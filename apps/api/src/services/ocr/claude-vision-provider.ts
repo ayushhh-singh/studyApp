@@ -7,6 +7,7 @@
  */
 import type { Locale } from "@prayasup/shared";
 import { MODELS, streamText, structuredJson } from "../../lib/anthropic.js";
+import { logger } from "../../lib/logger.js";
 import type { OcrPage, OcrProvider, OcrResult } from "./index.js";
 
 function langName(locale: Locale): string {
@@ -45,6 +46,19 @@ function imageBlocks(pages: OcrPage[]) {
   }));
 }
 
+/**
+ * Heuristic confidence fallback if the self-rating call itself fails — derived
+ * from how much of the transcription had to be marked illegible, so a
+ * transient API error on the (cheap, secondary) rating call never discards a
+ * transcription the user already watched stream in successfully.
+ */
+function estimateConfidenceFromMarkers(text: string): number {
+  const words = text.split(/\s+/).filter(Boolean);
+  if (words.length === 0) return 0;
+  const markers = (text.match(/\[अस्पष्ट\]|\[illegible\]/g) ?? []).length;
+  return Math.max(0, Math.min(1, 1 - markers / words.length));
+}
+
 export const claudeVisionProvider: OcrProvider = {
   name: "claude-vision",
   async transcribe({ pages, language, userId, onDelta, signal }): Promise<OcrResult> {
@@ -74,23 +88,33 @@ export const claudeVisionProvider: OcrProvider = {
     const trimmed = text.trim();
     if (!trimmed) return { text: "", confidence: 0 };
 
-    const confidenceResult = await structuredJson<{ confidence: number }>({
-      model: MODELS.sonnet,
-      effort: "low",
-      system: buildConfidenceSystem(),
-      content: `TRANSCRIPTION:\n<<<\n${trimmed}\n>>>`,
-      schema: {
-        type: "object",
-        additionalProperties: false,
-        properties: { confidence: { type: "number" } },
-        required: ["confidence"],
-      },
-      maxTokens: 200,
-      purpose: "answer_ocr_confidence",
-      userId,
-      signal,
-    });
+    // A successful transcription must never be lost because of the secondary
+    // confidence call — fall back to a marker-density heuristic on failure
+    // rather than letting the whole transcribe() promise reject.
+    let confidence: number;
+    try {
+      const confidenceResult = await structuredJson<{ confidence: number }>({
+        model: MODELS.sonnet,
+        effort: "low",
+        system: buildConfidenceSystem(),
+        content: `TRANSCRIPTION:\n<<<\n${trimmed}\n>>>`,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: { confidence: { type: "number" } },
+          required: ["confidence"],
+        },
+        maxTokens: 200,
+        purpose: "answer_ocr_confidence",
+        userId,
+        signal,
+      });
+      confidence = Math.min(1, Math.max(0, confidenceResult.confidence));
+    } catch (err) {
+      logger.warn({ err }, "OCR confidence self-rating failed; using marker-density heuristic instead");
+      confidence = estimateConfidenceFromMarkers(trimmed);
+    }
 
-    return { text: trimmed, confidence: Math.min(1, Math.max(0, confidenceResult.confidence)) };
+    return { text: trimmed, confidence };
   },
 };
