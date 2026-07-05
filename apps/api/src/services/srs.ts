@@ -67,6 +67,7 @@ export async function addQuestionToRevision(userId: string, questionId: string):
     .from("questions")
     .select("stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
+    .eq("is_published", true)
     .maybeSingle();
   if (questionError) throw new HttpError(500, `question lookup failed: ${questionError.message}`);
   if (!question) throw notFound("Question not found");

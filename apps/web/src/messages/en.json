@@ -173,6 +173,7 @@
     "resultNoTopicsDescription": "None of these questions were mapped to a syllabus topic.",
     "resultReviewTitle": "Full review",
     "resultGenerateExplanation": "Generate AI explanation",
+    "resultRetryExplanation": "Retry generating explanation",
     "resultAskDoubt": "Ask a doubt",
     "resultNotFoundTitle": "Couldn't load this result",
     "resultNotFoundDescription": "This attempt doesn't exist, isn't yours, or hasn't been submitted yet.",

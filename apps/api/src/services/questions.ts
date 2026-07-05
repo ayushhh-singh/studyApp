@@ -42,13 +42,20 @@ export async function getQuestionForExplain(questionId: string): Promise<Questio
     .from("questions")
     .select("id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
+    .eq("is_published", true)
     .maybeSingle();
   if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
   if (!data) throw notFound("Question not found");
   return data as unknown as QuestionForExplain;
 }
 
-/** Persists an AI-generated explanation once — an ingested explanation is never overwritten by this path. */
+/**
+ * Persists an AI-generated explanation once. The `is("explanation_i18n", null)`
+ * filter enforces "never overwrite existing content" at the write layer rather
+ * than trusting the caller's read-then-write check — it also makes two
+ * concurrent generations for the same question converge on one winner instead
+ * of the second clobbering the first.
+ */
 export async function persistQuestionExplanation(
   questionId: string,
   explanationI18n: BilingualText,
@@ -56,6 +63,7 @@ export async function persistQuestionExplanation(
   const { error } = await supabase()
     .from("questions")
     .update({ explanation_i18n: explanationI18n })
-    .eq("id", questionId);
+    .eq("id", questionId)
+    .is("explanation_i18n", null);
   if (error) throw new HttpError(500, `explanation persist failed: ${error.message}`);
 }

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { BilingualText, Locale } from "@prayasup/shared";
 import { streamEvents } from "@/lib/sse";
 
@@ -45,6 +45,11 @@ export function useExplainQuestion(questionId: string) {
     },
     [questionId],
   );
+
+  // Abort an in-flight stream when the owning row unmounts (e.g. the user
+  // navigates away mid-generation) — otherwise the SSE connection and the
+  // server-side LLM call it's driving keep running for no one.
+  useEffect(() => () => controllerRef.current?.abort(), []);
 
   return { ...state, explain };
 }

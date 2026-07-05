@@ -47,7 +47,11 @@ streamRouter.get(
     const { send, close } = createSseConnection(req, res);
     try {
       const question = await getQuestionForExplain(questionId);
-      if (question.explanation_i18n?.hi && question.explanation_i18n?.en) {
+      if (question.explanation_i18n) {
+        // Any existing explanation_i18n — even one with only a single locale
+        // filled in from ingestion — is returned as-is. Regenerating here
+        // would silently overwrite content persistQuestionExplanation's own
+        // write-layer guard is meant to protect.
         send("done", { explanation_i18n: question.explanation_i18n });
         return;
       }

@@ -333,10 +333,14 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
       .from("attempt_answers")
       .select("question_id, chosen_option_key, is_correct, time_spent_seconds")
       .eq("attempt_id", attemptId),
+    // is_published filter: a question retracted after this attempt was
+    // submitted must not be shown as authoritative on the result page — same
+    // invariant startAttempt/submitAttempt enforce when serving/grading it.
     supabase()
       .from("questions")
       .select("id, paper_code, syllabus_node_id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
-      .in("id", questionIds),
+      .in("id", questionIds)
+      .eq("is_published", true),
   ]);
   if (testResult.error) throw new HttpError(500, `test lookup failed: ${testResult.error.message}`);
   if (answersResult.error) throw new HttpError(500, `answers lookup failed: ${answersResult.error.message}`);
@@ -372,8 +376,17 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
   const review: AttemptReviewItem[] = [];
   const breakdownByNode = new Map<string, TopicBucket>();
 
-  for (const qid of questionIds) {
-    const question = questionById.get(qid);
+  // A question retracted since this attempt was submitted has no row in
+  // questionById (is_published filter above) — submitAttempt already left its
+  // attempt_answers.is_correct null and excluded it from scoring, so it's
+  // dropped here too rather than counted as an ungraded "miss": otherwise it
+  // would inflate attempted/topic-breakdown denominators for something that
+  // was never gradable, and correct+incorrect+skipped would fall short of
+  // the total question count.
+  const liveQuestionIds = questionIds.filter((qid) => questionById.has(qid));
+
+  for (const qid of liveQuestionIds) {
+    const question = questionById.get(qid)!;
     const answer = answerByQuestion.get(qid);
     const marks = questionMarks[qid] ?? 0;
     const chosen = answer?.chosen_option_key ?? null;
@@ -393,10 +406,10 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
       }
     }
 
-    const nodeId = question?.syllabus_node_id ?? null;
+    const nodeId = question.syllabus_node_id;
     const bucketKey = nodeId ?? UNMAPPED_KEY;
     const bucket = breakdownByNode.get(bucketKey) ?? {
-      paper_code: question?.paper_code ?? null,
+      paper_code: question.paper_code,
       title_i18n: nodeId ? (nodeTitleById.get(nodeId) ?? null) : null,
       attempted: 0,
       correct: 0,
@@ -409,20 +422,20 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
 
     review.push({
       question_id: qid,
-      stem_i18n: question?.stem_i18n ?? { hi: "", en: "" },
-      options_i18n: question?.options_i18n ?? null,
+      stem_i18n: question.stem_i18n,
+      options_i18n: question.options_i18n,
       chosen_option_key: chosen,
-      correct_option_key: question?.correct_option_key ?? null,
+      correct_option_key: question.correct_option_key,
       is_correct: isCorrect,
       marks_awarded: round2(awarded),
-      explanation_i18n: question?.explanation_i18n ?? null,
+      explanation_i18n: question.explanation_i18n,
       time_spent_seconds: timeSpent,
       syllabus_node_id: nodeId,
-      paper_code: question?.paper_code ?? null,
+      paper_code: question.paper_code,
     });
   }
 
-  const skippedCount = questionIds.length - attemptedCount;
+  const skippedCount = liveQuestionIds.length - attemptedCount;
   const scorePct = attempt.total ? round2(((attempt.score ?? 0) / attempt.total) * 100) : null;
   const accuracyPct = attemptedCount > 0 ? round2((correctCount / attemptedCount) * 100) : null;
   const avgSecondsPerQuestion = totalSecondsCount > 0 ? round2(totalSeconds / totalSecondsCount) : null;

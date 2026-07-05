@@ -39,6 +39,34 @@ function ExplanationBlock({
     );
   }
 
+  // Checked before the streaming branch below: once generation errors out
+  // (mid-stream or otherwise), `text` may already hold a partial fragment
+  // from the deltas that did arrive — without this branch running first,
+  // `isStreaming || text` would stay true forever and the retry button below
+  // would never become reachable again.
+  if (error) {
+    return (
+      <div className="flex flex-col gap-1.5">
+        <p className="text-xs text-coral">{error}</p>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          onClick={() =>
+            explain(locale, (explanationI18n) => {
+              setExplanation(explanationI18n);
+              onGenerated(explanationI18n);
+            })
+          }
+        >
+          <Sparkles aria-hidden />
+          {t("Practice.resultRetryExplanation")}
+        </Button>
+      </div>
+    );
+  }
+
   if (isStreaming || text) {
     return (
       <div className="rounded-md bg-muted/50 p-2.5 text-xs" lang={locale}>
@@ -49,24 +77,21 @@ function ExplanationBlock({
   }
 
   return (
-    <div className="flex flex-col gap-1.5">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="self-start"
-        onClick={() =>
-          explain(locale, (explanationI18n) => {
-            setExplanation(explanationI18n);
-            onGenerated(explanationI18n);
-          })
-        }
-      >
-        <Sparkles aria-hidden />
-        {t("Practice.resultGenerateExplanation")}
-      </Button>
-      {error && <p className="text-xs text-coral">{error}</p>}
-    </div>
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="self-start"
+      onClick={() =>
+        explain(locale, (explanationI18n) => {
+          setExplanation(explanationI18n);
+          onGenerated(explanationI18n);
+        })
+      }
+    >
+      <Sparkles aria-hidden />
+      {t("Practice.resultGenerateExplanation")}
+    </Button>
   );
 }
 

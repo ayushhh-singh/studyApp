@@ -173,6 +173,7 @@
     "resultNoTopicsDescription": "इनमें से कोई भी प्रश्न पाठ्यक्रम के किसी विषय से मैप नहीं है।",
     "resultReviewTitle": "पूर्ण समीक्षा",
     "resultGenerateExplanation": "AI व्याख्या बनाएं",
+    "resultRetryExplanation": "फिर से व्याख्या बनाएं",
     "resultAskDoubt": "शंका पूछें",
     "resultNotFoundTitle": "यह परिणाम लोड नहीं हो सका",
     "resultNotFoundDescription": "यह प्रयास मौजूद नहीं है, आपका नहीं है, या अभी सबमिट नहीं हुआ है।",
