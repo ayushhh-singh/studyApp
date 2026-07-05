@@ -4,13 +4,11 @@ export type Theme = "light" | "dark";
 
 const STORAGE_KEY = "prayasup-theme";
 
-function getSystemTheme(): Theme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-}
-
+// Light is the default mode regardless of OS preference — only an explicit
+// user toggle (persisted below) switches to dark.
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY);
-  return stored === "light" || stored === "dark" ? stored : getSystemTheme();
+  return stored === "dark" ? "dark" : "light";
 }
 
 function applyTheme(theme: Theme) {

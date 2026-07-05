@@ -55,88 +55,90 @@
 
 /*
  * PrayasUP palette — see .claude/skills/frontend-design/SKILL.md.
- * Ink/Chalk replace shadcn's neutral oklch grays; Rajdhani Blue is the
- * primary brand hue; Marigold/Tulsi/Coral are the Rubric Dial score bands.
+ * Light is the default mode. Bg/foreground/card/primary carry the
+ * Ink/Chalk/Rajdhani-Blue concept through shadcn's standard slot names;
+ * --marigold/--tulsi/--coral are the Rubric Dial score bands, kept vivid
+ * (not pastel) for contrast against both a white card and a dark card.
  */
 :root {
     --radius: 0.75rem;
-    --background: oklch(0.975 0.004 275);
-    --foreground: oklch(0.145 0.02 275);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0.02 275);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0.02 275);
-    --primary: oklch(0.45 0.19 265);
-    --primary-foreground: oklch(0.99 0.005 275);
-    --secondary: oklch(0.94 0.008 275);
-    --secondary-foreground: oklch(0.25 0.03 275);
-    --muted: oklch(0.94 0.008 275);
-    --muted-foreground: oklch(0.47 0.02 275);
-    --accent: oklch(0.91 0.03 265);
-    --accent-foreground: oklch(0.3 0.08 265);
-    --destructive: oklch(0.58 0.21 25);
-    --border: oklch(0.89 0.008 275);
-    --input: oklch(0.89 0.008 275);
-    --ring: oklch(0.45 0.19 265 / 50%);
-    --marigold: oklch(0.79 0.14 75);
-    --marigold-foreground: oklch(0.24 0.05 75);
-    --tulsi: oklch(0.56 0.13 165);
-    --tulsi-foreground: oklch(0.99 0.005 165);
-    --coral: oklch(0.6 0.21 25);
-    --coral-foreground: oklch(0.99 0.005 25);
+    --background: #F7F9FC;
+    --foreground: #0F172A;
+    --card: #FFFFFF;
+    --card-foreground: #0F172A;
+    --popover: #FFFFFF;
+    --popover-foreground: #0F172A;
+    --primary: #2563EB;
+    --primary-foreground: #FFFFFF;
+    --secondary: #EEF2FA;
+    --secondary-foreground: #1E293B;
+    --muted: #F1F5F9;
+    --muted-foreground: #5B6B84;
+    --accent: #DBE7FF;
+    --accent-foreground: #1E3A8A;
+    --destructive: #E11D48;
+    --border: #E2E8F0;
+    --input: #E2E8F0;
+    --ring: #2563EB;
+    --marigold: #F59E0B;
+    --marigold-foreground: #7C4A03;
+    --tulsi: #10B981;
+    --tulsi-foreground: #06603F;
+    --coral: #F43F5E;
+    --coral-foreground: #9F1239;
     --chart-1: var(--coral);
     --chart-2: var(--marigold);
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
-    --chart-5: oklch(0.6 0.1 275);
-    --sidebar: oklch(0.965 0.006 275);
-    --sidebar-foreground: oklch(0.145 0.02 275);
-    --sidebar-primary: oklch(0.45 0.19 265);
-    --sidebar-primary-foreground: oklch(0.99 0.005 275);
-    --sidebar-accent: oklch(0.91 0.03 265);
-    --sidebar-accent-foreground: oklch(0.3 0.08 265);
-    --sidebar-border: oklch(0.89 0.008 275);
-    --sidebar-ring: oklch(0.45 0.19 265 / 50%);
+    --chart-5: #7C3AED;
+    --sidebar: #EEF2F9;
+    --sidebar-foreground: #0F172A;
+    --sidebar-primary: #2563EB;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: #DBE7FF;
+    --sidebar-accent-foreground: #1E3A8A;
+    --sidebar-border: #E2E8F0;
+    --sidebar-ring: #2563EB;
 }
 
 .dark {
-    --background: oklch(0.16 0.018 268);
-    --foreground: oklch(0.96 0.006 275);
-    --card: oklch(0.205 0.02 268);
-    --card-foreground: oklch(0.96 0.006 275);
-    --popover: oklch(0.205 0.02 268);
-    --popover-foreground: oklch(0.96 0.006 275);
-    --primary: oklch(0.72 0.15 265);
-    --primary-foreground: oklch(0.16 0.03 268);
-    --secondary: oklch(0.27 0.02 268);
-    --secondary-foreground: oklch(0.96 0.006 275);
-    --muted: oklch(0.27 0.02 268);
-    --muted-foreground: oklch(0.68 0.015 275);
-    --accent: oklch(0.3 0.05 265);
-    --accent-foreground: oklch(0.92 0.02 265);
-    --destructive: oklch(0.7 0.19 22);
+    --background: #0D1526;
+    --foreground: #F1F5F9;
+    --card: #16213A;
+    --card-foreground: #F1F5F9;
+    --popover: #16213A;
+    --popover-foreground: #F1F5F9;
+    --primary: #60A5FA;
+    --primary-foreground: #0B1220;
+    --secondary: #1B2540;
+    --secondary-foreground: #F1F5F9;
+    --muted: #1B2540;
+    --muted-foreground: #94A3B8;
+    --accent: #22314F;
+    --accent-foreground: #BFD7FF;
+    --destructive: #FB7185;
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.72 0.15 265 / 50%);
-    --marigold: oklch(0.79 0.14 75);
-    --marigold-foreground: oklch(0.2 0.04 75);
-    --tulsi: oklch(0.68 0.14 165);
-    --tulsi-foreground: oklch(0.16 0.03 165);
-    --coral: oklch(0.68 0.18 25);
-    --coral-foreground: oklch(0.16 0.03 25);
+    --ring: #60A5FA;
+    --marigold: #FBBF24;
+    --marigold-foreground: #FDE68A;
+    --tulsi: #34D399;
+    --tulsi-foreground: #A7F3D0;
+    --coral: #FB7185;
+    --coral-foreground: #FECDD3;
     --chart-1: var(--coral);
     --chart-2: var(--marigold);
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
-    --chart-5: oklch(0.7 0.08 275);
-    --sidebar: oklch(0.19 0.02 268);
-    --sidebar-foreground: oklch(0.96 0.006 275);
-    --sidebar-primary: oklch(0.72 0.15 265);
-    --sidebar-primary-foreground: oklch(0.16 0.03 268);
-    --sidebar-accent: oklch(0.3 0.05 265);
-    --sidebar-accent-foreground: oklch(0.92 0.02 265);
+    --chart-5: #A78BFA;
+    --sidebar: #0F1728;
+    --sidebar-foreground: #F1F5F9;
+    --sidebar-primary: #60A5FA;
+    --sidebar-primary-foreground: #0B1220;
+    --sidebar-accent: #22314F;
+    --sidebar-accent-foreground: #BFD7FF;
     --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.72 0.15 265 / 50%);
+    --sidebar-ring: #60A5FA;
 }
 
 @layer base {
