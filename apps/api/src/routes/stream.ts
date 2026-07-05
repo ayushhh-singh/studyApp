@@ -8,6 +8,13 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
 import { MODELS, streamText, translate } from "../lib/anthropic.js";
 import { getQuestionForExplain, persistQuestionExplanation } from "../services/questions.js";
+import {
+  executeEvaluation,
+  planEvaluation,
+  releaseStuckEvaluation,
+  replayEvaluation,
+  type EvalEmit,
+} from "../services/evaluation/evaluate.js";
 
 export const streamRouter = Router();
 
@@ -91,6 +98,58 @@ streamRouter.get(
       send("done", { explanation_i18n });
     } catch (err) {
       send("error", { message: err instanceof Error ? err.message : "Failed to generate explanation" });
+    } finally {
+      close();
+    }
+  }),
+);
+
+const evaluationParamsSchema = z.object({ submissionId: z.string().uuid() });
+
+/**
+ * Two-pass AI evaluation of a descriptive answer submission, streamed as SSE.
+ *
+ * Guardrails (existence 404, one-concurrent-per-user 409, off-topic honesty)
+ * run in planEvaluation BEFORE the stream opens, so they surface as real JSON
+ * HTTP errors. Event order: status -> dimension_score (x6) -> analysis ->
+ * feedback_delta (strengths, then improvements) -> model_answer_delta -> done.
+ * A completed submission replays its stored evaluation instead of re-billing.
+ */
+streamRouter.get(
+  "/stream/evaluations/:submissionId",
+  rateLimit({ windowMs: 60_000, max: 20 }),
+  asyncHandler(async (req, res) => {
+    const { submissionId } = parse(evaluationParamsSchema, req.params);
+
+    // Pre-flight before opening SSE so 404/409/400 return as JSON, not a stream.
+    const plan = await planEvaluation(devUserId(), submissionId);
+
+    const { send, close } = createSseConnection(req, res);
+    const emit: EvalEmit = (event, data) => {
+      if (!res.writableEnded) send(event, data);
+    };
+
+    let finished = false;
+    const abort = new AbortController();
+    req.on("close", () => {
+      // Cancel the in-flight sonnet stream so a closed tab stops billing tokens.
+      abort.abort();
+      // A 'run' plan already claimed the submission ('evaluating'); if the client
+      // vanished before we finished, release it so it isn't stuck forever.
+      if (plan.kind === "run" && !finished) {
+        void releaseStuckEvaluation(submissionId);
+      }
+    });
+
+    try {
+      if (plan.kind === "replay") {
+        replayEvaluation(plan.evaluation, emit);
+      } else {
+        await executeEvaluation(plan, emit, abort.signal);
+      }
+      finished = true;
+    } catch (err) {
+      emit("error", { message: err instanceof Error ? err.message : "Evaluation failed" });
     } finally {
       close();
     }

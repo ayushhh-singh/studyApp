@@ -11,7 +11,8 @@
     "ingest:pyq:load": "pnpm --filter api ingest:pyq:load",
     "ingest:tests": "pnpm --filter api ingest:tests",
     "ingest:embed": "pnpm --filter api ingest:embed",
-    "ingest:verify": "pnpm --filter api ingest:verify"
+    "ingest:verify": "pnpm --filter api ingest:verify",
+    "eval:answers": "pnpm --filter api eval:answers"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

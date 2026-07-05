@@ -1,0 +1,40 @@
+import { Router } from "express";
+import { z } from "zod";
+import {
+  createSubmissionBodySchema,
+  submissionDetailResponseSchema,
+  submissionResponseSchema,
+} from "@prayasup/shared";
+import { asyncHandler } from "../lib/async-handler.js";
+import { parse } from "../lib/validation.js";
+import { rateLimit } from "../lib/rate-limit.js";
+import { devUserId } from "../lib/dev-user.js";
+import { createSubmission, getSubmissionDetail } from "../services/evaluation/evaluate.js";
+
+/**
+ * Answer-writing evaluation (flagship). Submissions are created here; the
+ * two-pass evaluation itself streams over SSE at
+ * GET /api/v1/stream/evaluations/:submissionId (see routes/stream.ts).
+ */
+export const answersRouter = Router();
+answersRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
+
+const submissionIdParams = z.object({ submissionId: z.string().uuid() });
+
+answersRouter.post(
+  "/answers/submissions",
+  asyncHandler(async (req, res) => {
+    const body = parse(createSubmissionBodySchema, req.body);
+    const submission = await createSubmission(devUserId(), body);
+    res.status(201).json(submissionResponseSchema.parse({ data: submission, error: null }));
+  }),
+);
+
+answersRouter.get(
+  "/answers/submissions/:submissionId",
+  asyncHandler(async (req, res) => {
+    const { submissionId } = parse(submissionIdParams, req.params);
+    const detail = await getSubmissionDetail(devUserId(), submissionId);
+    res.json(submissionDetailResponseSchema.parse({ data: detail, error: null }));
+  }),
+);

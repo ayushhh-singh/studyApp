@@ -12,6 +12,14 @@ import { logger } from "./logger.js";
 
 let client: Anthropic | null = null;
 
+/** Usage/cost for a single Anthropic call, surfaced to callers via `onUsage`. */
+export interface LlmUsage {
+  model: ModelId;
+  inputTokens: number;
+  outputTokens: number;
+  costUsd: number;
+}
+
 export function anthropic(): Anthropic {
   if (!client) {
     if (!process.env.ANTHROPIC_API_KEY) {
@@ -46,6 +54,23 @@ async function recordLlmCall(opts: {
   if (error) logger.warn({ error, purpose: opts.purpose }, "failed to record llm_calls row");
 }
 
+/** Fire the optional per-call usage callback with tokens + estimated cost. */
+function emitUsage(
+  model: ModelId,
+  message: Anthropic.Message,
+  onUsage?: (usage: LlmUsage) => void,
+): void {
+  if (!onUsage) return;
+  const inputTokens = message.usage.input_tokens;
+  const outputTokens = message.usage.output_tokens;
+  onUsage({
+    model,
+    inputTokens,
+    outputTokens,
+    costUsd: estimateCostUsd(model, inputTokens, outputTokens),
+  });
+}
+
 /**
  * Ask a model for a single JSON object matching `schema` (a JSON Schema).
  * Uses structured outputs (output_config.format) so the response is guaranteed
@@ -64,22 +89,29 @@ export async function structuredJson<T>(opts: {
   effort?: "low" | "medium" | "high";
   purpose?: string;
   userId?: string;
+  onUsage?: (usage: LlmUsage) => void;
+  /** Abort the in-flight request (e.g. the SSE client disconnected). */
+  signal?: AbortSignal;
 }): Promise<T> {
-  const stream = anthropic().messages.stream({
-    model: opts.model,
-    max_tokens: opts.maxTokens ?? 32000,
-    ...(opts.system ? { system: opts.system } : {}),
-    output_config: {
-      ...(opts.effort ? { effort: opts.effort } : {}),
-      format: {
-        type: "json_schema",
-        schema: opts.schema,
+  const stream = anthropic().messages.stream(
+    {
+      model: opts.model,
+      max_tokens: opts.maxTokens ?? 32000,
+      ...(opts.system ? { system: opts.system } : {}),
+      output_config: {
+        ...(opts.effort ? { effort: opts.effort } : {}),
+        format: {
+          type: "json_schema",
+          schema: opts.schema,
+        },
       },
-    },
-    messages: [{ role: "user", content: opts.content }],
-  } as Anthropic.MessageStreamParams);
+      messages: [{ role: "user", content: opts.content }],
+    } as Anthropic.MessageStreamParams,
+    opts.signal ? { signal: opts.signal } : undefined,
+  );
 
   const message = await stream.finalMessage();
+  emitUsage(opts.model, message, opts.onUsage);
   if (opts.purpose) {
     await recordLlmCall({
       model: opts.model,
@@ -118,18 +150,25 @@ export async function streamText(opts: {
   purpose: string;
   userId?: string;
   onDelta?: (text: string) => void;
+  onUsage?: (usage: LlmUsage) => void;
+  /** Abort the in-flight request (e.g. the SSE client disconnected). */
+  signal?: AbortSignal;
 }): Promise<string> {
-  const stream = anthropic().messages.stream({
-    model: opts.model,
-    max_tokens: opts.maxTokens ?? 8000,
-    ...(opts.system ? { system: opts.system } : {}),
-    ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
-    messages: [{ role: "user", content: opts.content }],
-  } as Anthropic.MessageStreamParams);
+  const stream = anthropic().messages.stream(
+    {
+      model: opts.model,
+      max_tokens: opts.maxTokens ?? 8000,
+      ...(opts.system ? { system: opts.system } : {}),
+      ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+      messages: [{ role: "user", content: opts.content }],
+    } as Anthropic.MessageStreamParams,
+    opts.signal ? { signal: opts.signal } : undefined,
+  );
 
   stream.on("text", (delta) => opts.onDelta?.(delta));
 
   const message = await stream.finalMessage();
+  emitUsage(opts.model, message, opts.onUsage);
   await recordLlmCall({
     model: opts.model,
     purpose: opts.purpose,
