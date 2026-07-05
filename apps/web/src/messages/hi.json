@@ -328,7 +328,32 @@
     "latest": "नवीनतम",
     "emptyTitle": "अभी कोई करेंट अफेयर्स नहीं",
     "emptyDescription": "प्रकाशित होते ही आज का सारांश यहाँ दिखेगा।",
-    "upSpecific": "UP"
+    "upSpecific": "UP",
+    "filterAllCategories": "सभी श्रेणियाँ",
+    "filterCategoryLabel": "श्रेणी",
+    "upOnlyToggle": "केवल UP-विशिष्ट",
+    "quizMeButton": "इस सप्ताह पर क्विज़ लें",
+    "quizCreating": "क्विज़ बन रहा है…",
+    "quizError": "इस अवधि के लिए अभी कोई अभ्यास प्रश्न उपलब्ध नहीं हैं।",
+    "today": "आज",
+    "yesterday": "कल",
+    "whatHappened": "क्या हुआ",
+    "whyItMatters": "यह क्यों महत्वपूर्ण है",
+    "keyFacts": "याद रखने योग्य मुख्य तथ्य",
+    "questionAngle": "संभावित प्रश्न कोण",
+    "relatedTopics": "संबंधित पाठ्यक्रम विषय",
+    "sourceLink": "स्रोत",
+    "category": {
+      "polity_governance": "राजव्यवस्था एवं शासन",
+      "economy": "अर्थव्यवस्था",
+      "environment_ecology": "पर्यावरण एवं पारिस्थितिकी",
+      "science_tech": "विज्ञान एवं प्रौद्योगिकी",
+      "schemes_welfare": "योजनाएँ एवं कल्याण",
+      "up_state_affairs": "उत्तर प्रदेश राज्य मामले",
+      "national": "राष्ट्रीय",
+      "international": "अंतरराष्ट्रीय",
+      "awards_sports_misc": "पुरस्कार, खेल एवं विविध"
+    }
   },
   "Revision": {
     "title": "पुनरावृत्ति",

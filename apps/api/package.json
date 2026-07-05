@@ -14,7 +14,8 @@
     "ingest:tests": "tsx --env-file=.env src/ingest/tests.ts",
     "ingest:embed": "tsx --env-file=.env src/ingest/embed.ts",
     "ingest:verify": "tsx --env-file=.env src/ingest/verify.ts",
-    "eval:answers": "tsx --env-file=.env scripts/eval-harness.ts"
+    "eval:answers": "tsx --env-file=.env scripts/eval-harness.ts",
+    "ca:run": "tsx --env-file=.env src/ca/run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
@@ -23,15 +24,18 @@
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "helmet": "^7.1.0",
+    "node-cron": "^4.6.0",
     "openai": "^6.45.0",
     "pino": "^9.4.0",
     "pino-http": "^10.3.0",
+    "rss-parser": "^3.13.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^20.19.0",
+    "@types/node-cron": "^3.0.11",
     "pino-pretty": "^11.2.2",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3"

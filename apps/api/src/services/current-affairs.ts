@@ -1,6 +1,6 @@
 import type { CurrentAffairsItem, CurrentAffairsQuery } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError } from "../lib/http-error.js";
+import { HttpError, notFound } from "../lib/http-error.js";
 
 export const CURRENT_AFFAIRS_PAGE_SIZE = 20;
 
@@ -29,4 +29,16 @@ export async function listCurrentAffairs(
   const { data, error, count } = await query;
   if (error) throw new HttpError(500, `current affairs query failed: ${error.message}`);
   return { items: (data ?? []) as unknown as CurrentAffairsItem[], total: count ?? 0 };
+}
+
+export async function getCurrentAffairsItemById(id: string): Promise<CurrentAffairsItem> {
+  const { data, error } = await supabase()
+    .from("current_affairs_items")
+    .select(CURRENT_AFFAIRS_COLUMNS)
+    .eq("id", id)
+    .eq("is_published", true)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `current affairs item lookup failed: ${error.message}`);
+  if (!data) throw notFound("Current affairs item not found");
+  return data as unknown as CurrentAffairsItem;
 }

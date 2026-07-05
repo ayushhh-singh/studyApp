@@ -20,6 +20,7 @@ export const queryKeys = {
       filters?.up_only ?? "all",
       filters?.page ?? 1,
     ] as const,
+  currentAffairsItem: (id: string) => ["current-affairs", "detail", id] as const,
   questions: (filters?: { type?: QuestionType; paper?: string; node?: string; year?: number; page?: number }) =>
     [
       "questions",

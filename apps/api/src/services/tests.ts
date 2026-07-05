@@ -116,15 +116,21 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   // !inner + questions.is_published filters out questions retracted after the
   // test was assembled — must match the same filter in startAttempt/
   // submitAttempt, or the player would show (and let a user answer) a
-  // question that can never be scored.
-  const { data: tq, error: tqError } = await supabase()
+  // question that can never be scored. EXCEPT current-affairs quizzes: their
+  // questions are deliberately always is_published=false (the ca:run
+  // pipeline's review gate keeps AI-generated MCQs out of the general PYQ
+  // catalog/search) — for this one paper_code, "unpublished" doesn't mean
+  // "retracted", so the filter would make every such quiz permanently empty.
+  let tqQuery = supabase()
     .from("test_questions")
     .select(
       "order_index, marks, questions!inner(id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
     )
-    .eq("test_id", testId)
-    .eq("questions.is_published", true)
-    .order("order_index", { ascending: true });
+    .eq("test_id", testId);
+  if (test.paper_code !== "CURRENT_AFFAIRS") {
+    tqQuery = tqQuery.eq("questions.is_published", true);
+  }
+  const { data: tq, error: tqError } = await tqQuery.order("order_index", { ascending: true });
   if (tqError) throw new HttpError(500, `test questions lookup failed: ${tqError.message}`);
 
   const rows = (tq ?? []) as unknown as TestQuestionJoinRow[];
@@ -231,6 +237,85 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     // test permanently visible in the shared /practice list.
     await supabase().from("tests").delete().eq("id", test.id as string);
     throw new HttpError(500, `custom test questions insert failed: ${tqError.message}`);
+  }
+
+  return getTestDetail(test.id as string);
+}
+
+function currentAffairsQuizTitle(days: number): BilingualText {
+  return { en: `Current Affairs — Last ${days} Days`, hi: `करेंट अफेयर्स — पिछले ${days} दिन` };
+}
+
+/**
+ * "Quiz me on this week" — a custom test built from every generated MCQ
+ * linked off a current_affairs_items row dated within the last `days` days
+ * (mcq_question_ids, populated by the ca:run pipeline for "important"
+ * items). Mirrors createCustomTestFromNode's shape/behaviour (shuffle,
+ * compensating delete on a partial insert failure) but pools questions
+ * across many source items instead of one syllabus node.
+ *
+ * Deliberately does NOT filter questions.is_published — CA-generated MCQs
+ * are always inserted with is_published=false (see ca/pipeline.ts's
+ * insertMcqsForItem) so they never leak into the general PYQ catalog/search,
+ * NOT because they're pending some review step that would later flip it (no
+ * such reviewer role/UI exists in this pre-auth app). This quiz IS their
+ * intended distribution surface — gated instead by the classify step's
+ * "important" bar and the fact-constrained generation prompt.
+ */
+export async function createCustomTestFromCurrentAffairs(days: number): Promise<TestDetail> {
+  const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const { data: items, error: itemsError } = await supabase()
+    .from("current_affairs_items")
+    .select("mcq_question_ids")
+    .eq("is_published", true)
+    .gte("date", cutoff);
+  if (itemsError) throw new HttpError(500, `current affairs lookup failed: ${itemsError.message}`);
+
+  const questionIds = [...new Set((items ?? []).flatMap((i) => (i.mcq_question_ids ?? []) as string[]))];
+  if (questionIds.length === 0) {
+    throw badRequest(`No current-affairs practice MCQs are available for the last ${days} days yet`);
+  }
+
+  const { data: questionRows, error: questionsError } = await supabase()
+    .from("questions")
+    .select("id, marks")
+    .in("id", questionIds);
+  if (questionsError) throw new HttpError(500, `question lookup failed: ${questionsError.message}`);
+  const available = (questionRows ?? []) as { id: string; marks: number | null }[];
+  if (available.length === 0) {
+    throw badRequest(`No current-affairs practice MCQs are available for the last ${days} days yet`);
+  }
+
+  const selected = shuffled(available);
+  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+
+  const { data: test, error: testError } = await supabase()
+    .from("tests")
+    .insert({
+      title_i18n: currentAffairsQuizTitle(days),
+      kind: "custom",
+      paper_code: "CURRENT_AFFAIRS",
+      total_marks: totalMarks || null,
+      is_published: true,
+      meta: { source: "current_affairs", days },
+    })
+    .select("id")
+    .single();
+  if (testError) throw new HttpError(500, `current affairs quiz insert failed: ${testError.message}`);
+
+  const { error: tqError } = await supabase()
+    .from("test_questions")
+    .insert(
+      selected.map((q, index) => ({
+        test_id: test.id as string,
+        question_id: q.id,
+        order_index: index,
+        marks: q.marks,
+      })),
+    );
+  if (tqError) {
+    await supabase().from("tests").delete().eq("id", test.id as string);
+    throw new HttpError(500, `current affairs quiz questions insert failed: ${tqError.message}`);
   }
 
   return getTestDetail(test.id as string);

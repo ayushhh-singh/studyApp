@@ -16,6 +16,7 @@ import { profileRouter } from "./routes/profile.js";
 import { eventsRouter } from "./routes/events.js";
 import { srsRouter } from "./routes/srs.js";
 import { answersRouter } from "./routes/answers.js";
+import { startDevCaScheduler } from "./ca/scheduler.js";
 
 const app = express();
 const port = process.env.PORT ?? 4000;
@@ -47,4 +48,5 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   logger.info(`api listening on http://localhost:${port}`);
+  if (process.env.NODE_ENV !== "production") startDevCaScheduler();
 });

@@ -29,5 +29,13 @@ export const createSrsCardFromEvaluationBodySchema = z.object({
 });
 export type CreateSrsCardFromEvaluationBody = z.infer<typeof createSrsCardFromEvaluationBodySchema>;
 
+export const createSrsCardFromCurrentAffairsFactBodySchema = z.object({
+  item_id: z.string().uuid(),
+  fact_index: z.number().int().min(0),
+});
+export type CreateSrsCardFromCurrentAffairsFactBody = z.infer<
+  typeof createSrsCardFromCurrentAffairsFactBodySchema
+>;
+
 export const srsCardResponseSchema = apiEnvelopeSchema(srsCardSchema);
 export type SrsCardResponse = z.infer<typeof srsCardResponseSchema>;

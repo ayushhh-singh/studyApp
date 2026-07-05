@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import type { BilingualText, EvaluationAnalysis, Locale, SrsCard } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
@@ -166,5 +167,69 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
     .select(SRS_CARD_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
+  return card as unknown as SrsCardRow;
+}
+
+interface CurrentAffairsItemForFactRow {
+  title_i18n: BilingualText;
+  key_facts_i18n: { hi: string[]; en: string[] } | null;
+}
+
+/**
+ * source_id is a `uuid` column, but "one card per fact" needs a distinct key
+ * per (item, fact index) — not just per item. Rather than widen the column
+ * (source_id is already "FK-by-convention", never a real FK per the srs_cards
+ * comment), derive a stable, deterministic uuid-shaped id from the pair. Same
+ * (itemId, factIndex) always hashes to the same id, so the existing
+ * (user_id, source_type, source_id) unique index still makes re-adding the
+ * same fact idempotent, while different facts on the same item get distinct
+ * cards.
+ */
+function currentAffairsFactSourceId(itemId: string, factIndex: number): string {
+  const hash = createHash("sha256").update(`${itemId}:${factIndex}`).digest("hex");
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-${hash.slice(12, 16)}-${hash.slice(16, 20)}-${hash.slice(20, 32)}`;
+}
+
+/**
+ * Add one current-affairs "key fact" bullet to revision. front = the item's
+ * title, back = that single fact (both locales) — deliberately not the whole
+ * item, so a later FSRS review is one focused, memorizable claim rather than
+ * a wall of bullets.
+ */
+export async function addCurrentAffairsFactToRevision(
+  userId: string,
+  itemId: string,
+  factIndex: number,
+): Promise<SrsCard> {
+  const { data: item, error: itemError } = await supabase()
+    .from("current_affairs_items")
+    .select("title_i18n, detail_i18n->key_facts_i18n")
+    .eq("id", itemId)
+    .eq("is_published", true)
+    .maybeSingle();
+  if (itemError) throw new HttpError(500, `current affairs item lookup failed: ${itemError.message}`);
+  const row = item as unknown as CurrentAffairsItemForFactRow | null;
+  if (!row) throw notFound("Current affairs item not found");
+
+  const facts = row.key_facts_i18n;
+  const hi = facts?.hi?.[factIndex];
+  const en = facts?.en?.[factIndex];
+  if (!hi && !en) throw badRequest("This item has no key fact at that index");
+
+  const { data: card, error: upsertError } = await supabase()
+    .from("srs_cards")
+    .upsert(
+      {
+        user_id: userId,
+        front_i18n: row.title_i18n,
+        back_i18n: { hi: hi ?? "", en: en ?? "" },
+        source_type: "current_affairs",
+        source_id: currentAffairsFactSourceId(itemId, factIndex),
+      },
+      { onConflict: "user_id,source_type,source_id" },
+    )
+    .select(SRS_CARD_COLUMNS)
+    .single();
+  if (upsertError) throw new HttpError(500, `srs card upsert failed: ${upsertError.message}`);
   return card as unknown as SrsCardRow;
 }

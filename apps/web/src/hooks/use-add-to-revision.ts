@@ -22,3 +22,13 @@ export function useAddEvaluationToRevision() {
       api.post("/api/v1/srs/cards/from-evaluation", srsCardResponseSchema, { submission_id: submissionId }),
   });
 }
+
+export function useAddCurrentAffairsFactToRevision() {
+  return useMutation({
+    mutationFn: ({ itemId, factIndex }: { itemId: string; factIndex: number }) =>
+      api.post("/api/v1/srs/cards/from-current-affairs-fact", srsCardResponseSchema, {
+        item_id: itemId,
+        fact_index: factIndex,
+      }),
+  });
+}

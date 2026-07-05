@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  createSrsCardFromCurrentAffairsFactBodySchema,
   createSrsCardFromEvaluationBodySchema,
   createSrsCardFromNodeBodySchema,
   createSrsCardFromQuestionBodySchema,
@@ -9,7 +10,12 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
-import { addEvaluationToRevision, addNodeToRevision, addQuestionToRevision } from "../services/srs.js";
+import {
+  addCurrentAffairsFactToRevision,
+  addEvaluationToRevision,
+  addNodeToRevision,
+  addQuestionToRevision,
+} from "../services/srs.js";
 
 export const srsRouter = Router();
 srsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -37,6 +43,15 @@ srsRouter.post(
   asyncHandler(async (req, res) => {
     const body = parse(createSrsCardFromEvaluationBodySchema, req.body);
     const card = await addEvaluationToRevision(devUserId(), body.submission_id);
+    res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
+  }),
+);
+
+srsRouter.post(
+  "/srs/cards/from-current-affairs-fact",
+  asyncHandler(async (req, res) => {
+    const body = parse(createSrsCardFromCurrentAffairsFactBodySchema, req.body);
+    const card = await addCurrentAffairsFactToRevision(devUserId(), body.item_id, body.fact_index);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );

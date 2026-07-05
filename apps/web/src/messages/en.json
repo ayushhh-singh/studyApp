@@ -328,7 +328,32 @@
     "latest": "Latest",
     "emptyTitle": "No current affairs yet",
     "emptyDescription": "Today's roundup will appear here once it's published.",
-    "upSpecific": "UP"
+    "upSpecific": "UP",
+    "filterAllCategories": "All categories",
+    "filterCategoryLabel": "Category",
+    "upOnlyToggle": "UP-specific only",
+    "quizMeButton": "Quiz me on this week",
+    "quizCreating": "Creating quiz…",
+    "quizError": "No practice questions available yet for this period.",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "whatHappened": "What happened",
+    "whyItMatters": "Why it matters",
+    "keyFacts": "Key facts to remember",
+    "questionAngle": "Possible question angle",
+    "relatedTopics": "Related syllabus topics",
+    "sourceLink": "Source",
+    "category": {
+      "polity_governance": "Polity & Governance",
+      "economy": "Economy",
+      "environment_ecology": "Environment & Ecology",
+      "science_tech": "Science & Technology",
+      "schemes_welfare": "Schemes & Welfare",
+      "up_state_affairs": "UP State Affairs",
+      "national": "National",
+      "international": "International",
+      "awards_sports_misc": "Awards, Sports & Misc"
+    }
   },
   "Revision": {
     "title": "Revision",
