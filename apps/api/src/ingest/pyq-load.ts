@@ -15,7 +15,7 @@
 import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { supabase } from "../lib/supabase.js";
-import { listParsed, parseArgs, report } from "./_shared.js";
+import { listParsed, parseArgs, questionPublishable, report } from "./_shared.js";
 
 interface ParsedQuestion {
   external_id: string;
@@ -59,14 +59,18 @@ async function resolveSyllabusId(paperCode: string, path: string | null): Promis
   return syllabusCache.get(paperCode)!.get(path) ?? null;
 }
 
-async function loadFile(file: string): Promise<{ loaded: number; published: number }> {
+async function loadFile(file: string): Promise<{ loaded: number; published: number; failed: number }> {
   const data = JSON.parse(await readFile(file, "utf8")) as ParsedFile;
   let loaded = 0;
   let published = 0;
+  let failed = 0;
 
   for (const q of data.questions) {
     const syllabusNodeId = await resolveSyllabusId(q.syllabus_paper_code, q.syllabus_path);
-    const isPublished = q.is_bilingual_complete;
+    // Recompute publishability from the row itself (mirrors the DB gate) rather
+    // than trusting the parse-time flag — so a stale/over-optimistic flag can
+    // never trip the trigger and abort the whole load.
+    const isPublished = questionPublishable(q.type, q.stem_i18n, q.options_i18n, q.correct_option_key);
     const row = {
       external_id: q.external_id,
       type: q.type,
@@ -88,11 +92,16 @@ async function loadFile(file: string): Promise<{ loaded: number; published: numb
     const { error } = await supabase()
       .from("questions")
       .upsert(row, { onConflict: "external_id" });
-    if (error) throw new Error(`upsert ${q.external_id}: ${error.message}`);
+    if (error) {
+      // Don't abort the batch on one bad row — report and continue.
+      report.fail(`${q.external_id}: ${error.message}`);
+      failed++;
+      continue;
+    }
     loaded++;
     if (isPublished) published++;
   }
-  return { loaded, published };
+  return { loaded, published, failed };
 }
 
 async function main(): Promise<void> {
@@ -111,17 +120,20 @@ async function main(): Promise<void> {
 
   let totalLoaded = 0;
   let totalPublished = 0;
+  let totalFailed = 0;
   for (const f of files) {
-    const { loaded, published } = await loadFile(f);
-    report.ok(`${basename(f)}: loaded ${loaded} (${published} published)`);
+    const { loaded, published, failed } = await loadFile(f);
+    report.ok(`${basename(f)}: loaded ${loaded} (${published} published${failed ? `, ${failed} failed` : ""})`);
     totalLoaded += loaded;
     totalPublished += published;
+    totalFailed += failed;
   }
 
   report.section("Summary");
   report.ok(`files: ${files.length}`);
   report.ok(`questions upserted: ${totalLoaded}`);
   report.ok(`published (bilingual complete): ${totalPublished}`);
+  if (totalFailed) report.warn(`rows failed (see above): ${totalFailed}`);
 }
 
 main().catch((err) => {

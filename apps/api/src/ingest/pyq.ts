@@ -35,8 +35,8 @@ import {
   PARSED_DIR,
   parseArgs,
   report,
-  i18nComplete,
   isMojibakeHindi,
+  questionPublishable,
   type ManifestEntry,
 } from "./_shared.js";
 
@@ -139,10 +139,13 @@ async function extractRange(
 ): Promise<RawQuestion[]> {
   const doc = await pdfDocumentBlock(absPath(entry));
   const kind = isMcq
-    ? "This is a Prelims MCQ paper. Each question has a stem and options " +
-      "(A/B/C/D). Extract each option's key + bilingual text. Set type='mcq', " +
-      "word_limit=0. Leave correct_option_key='' (the answer key is applied " +
-      "separately)."
+    ? "This is a Prelims MCQ paper. Each question has a stem and options. " +
+      "Each option's `key` MUST be the single printed option letter A, B, C, or " +
+      "D (uppercase) — NEVER put statement text, commas, numbers, or Match-List " +
+      "answer codes in `key`; those belong in the option's text. For Match-List " +
+      "/ statement questions, the four answer combinations are the options A-D. " +
+      "Set type='mcq', word_limit=0, and leave correct_option_key='' (the answer " +
+      "key is applied separately)."
     : "This is a Mains descriptive paper. Questions have NO options. Set " +
       "type='descriptive', options=[], correct_option_key='', and set " +
       "word_limit from the paper's instructions when stated (else 0).";
@@ -418,10 +421,12 @@ function assemble(
 
   if (machine) meta.machine_translated = true;
 
-  const bilingualComplete =
-    i18nComplete(stem.v) &&
-    (raw.type !== "mcq" ||
-      (!!options && options.length >= 2 && options.every((o) => i18nComplete(o.text_i18n)) && !!correct));
+  // Mirror the DB publish gate exactly (bilingual stem; MCQ also needs >=2
+  // clean bilingual options and a correct key that matches one of them). This
+  // keeps noisy extractions (mis-keyed Match-List options, blank keys) out of
+  // is_published so the load never trips the trigger.
+  const bilingualComplete = questionPublishable(raw.type, stem.v, options, correct);
+  if (raw.type === "mcq" && !bilingualComplete) meta.needs_review = true;
 
   return {
     external_id: `pyq:${ctx.manifestId}:q${raw.q_no}`,

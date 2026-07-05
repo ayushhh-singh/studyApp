@@ -118,6 +118,29 @@ export function i18nComplete(v: Partial<I18n> | null | undefined): v is I18n {
 }
 
 /**
+ * Mirror of the DB `public.question_publishable` gate (migration 0017), so the
+ * ingest side agrees with the trigger and never sets is_published on a row the
+ * DB would reject (which would abort the load). ALL questions need a bilingual
+ * stem; MCQ additionally needs >=2 options, every option with a non-blank key +
+ * bilingual text, and a correct_option_key that matches one of the keys.
+ */
+export function questionPublishable(
+  type: "mcq" | "descriptive",
+  stem: Partial<I18n> | null | undefined,
+  options: { key: string; text_i18n: Partial<I18n> }[] | null | undefined,
+  correct: string | null | undefined,
+): boolean {
+  if (!i18nComplete(stem)) return false;
+  if (type !== "mcq") return true;
+  if (!options || options.length < 2) return false;
+  const keys = options.map((o) => (o.key ?? "").trim());
+  if (keys.some((k) => !k)) return false;
+  if (options.some((o) => !i18nComplete(o.text_i18n))) return false;
+  if (!correct || !keys.includes(correct.trim())) return false;
+  return true;
+}
+
+/**
  * Detect mojibake Hindi: a field that should be Devanagari but came through as
  * garbled Latin (the legacy non-Unicode font in many UPPSC PDFs). True when the
  * Hindi field has Latin letters, zero Devanagari codepoints, and differs from
