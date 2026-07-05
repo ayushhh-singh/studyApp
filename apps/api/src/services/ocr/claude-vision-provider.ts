@@ -73,7 +73,9 @@ export const claudeVisionProvider: OcrProvider = {
     let text = "";
     await streamText({
       model: MODELS.sonnet,
-      system: buildTranscribeSystem(language),
+      // Fixed per language — cached so it's a cache read, not a fresh input
+      // token cost, for every other student's transcription in that language.
+      system: [{ text: buildTranscribeSystem(language), cache: true }],
       content,
       maxTokens: 4000,
       purpose: "answer_ocr_transcribe",

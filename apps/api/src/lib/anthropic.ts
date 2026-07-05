@@ -17,7 +17,32 @@ export interface LlmUsage {
   model: ModelId;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
   costUsd: number;
+}
+
+/**
+ * A system-prompt segment. Set `cache: true` on a segment that is
+ * byte-identical across many calls (e.g. a fixed rubric, or a shared
+ * question+answer context reused by sibling calls) to mark an ephemeral
+ * (5-minute) prompt-cache breakpoint after it. Cache hits require the exact
+ * same segment text AND every segment before it — order matters.
+ */
+export interface PromptSegment {
+  text: string;
+  cache?: boolean;
+}
+
+type SystemParam = string | PromptSegment[];
+
+function toSystemParam(system: SystemParam | undefined): string | Anthropic.TextBlockParam[] | undefined {
+  if (system === undefined || typeof system === "string") return system;
+  return system.map((seg) => ({
+    type: "text" as const,
+    text: seg.text,
+    ...(seg.cache ? { cache_control: { type: "ephemeral" as const } } : {}),
+  }));
 }
 
 export function anthropic(): Anthropic {
@@ -40,6 +65,8 @@ async function recordLlmCall(opts: {
   userId?: string;
   inputTokens: number;
   outputTokens: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
 }): Promise<void> {
   const { error } = await supabase()
     .from("llm_calls")
@@ -49,7 +76,9 @@ async function recordLlmCall(opts: {
       purpose: opts.purpose,
       input_tokens: opts.inputTokens,
       output_tokens: opts.outputTokens,
-      cost_usd: estimateCostUsd(opts.model, opts.inputTokens, opts.outputTokens),
+      cache_read_tokens: opts.cacheReadTokens,
+      cache_write_tokens: opts.cacheWriteTokens,
+      cost_usd: estimateCostUsd(opts.model, opts.inputTokens, opts.outputTokens, opts.cacheReadTokens, opts.cacheWriteTokens),
     });
   if (error) logger.warn({ error, purpose: opts.purpose }, "failed to record llm_calls row");
 }
@@ -63,11 +92,15 @@ function emitUsage(
   if (!onUsage) return;
   const inputTokens = message.usage.input_tokens;
   const outputTokens = message.usage.output_tokens;
+  const cacheReadTokens = message.usage.cache_read_input_tokens ?? 0;
+  const cacheWriteTokens = message.usage.cache_creation_input_tokens ?? 0;
   onUsage({
     model,
     inputTokens,
     outputTokens,
-    costUsd: estimateCostUsd(model, inputTokens, outputTokens),
+    cacheReadTokens,
+    cacheWriteTokens,
+    costUsd: estimateCostUsd(model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens),
   });
 }
 
@@ -82,7 +115,7 @@ function emitUsage(
  */
 export async function structuredJson<T>(opts: {
   model: ModelId;
-  system?: string;
+  system?: SystemParam;
   content: Anthropic.MessageParam["content"];
   schema: Record<string, unknown>;
   maxTokens?: number;
@@ -97,7 +130,7 @@ export async function structuredJson<T>(opts: {
     {
       model: opts.model,
       max_tokens: opts.maxTokens ?? 32000,
-      ...(opts.system ? { system: opts.system } : {}),
+      ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
       output_config: {
         ...(opts.effort ? { effort: opts.effort } : {}),
         format: {
@@ -119,6 +152,8 @@ export async function structuredJson<T>(opts: {
       userId: opts.userId,
       inputTokens: message.usage.input_tokens,
       outputTokens: message.usage.output_tokens,
+      cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+      cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
     });
   }
   if (message.stop_reason === "refusal") {
@@ -143,7 +178,7 @@ export async function structuredJson<T>(opts: {
  */
 export async function streamText(opts: {
   model: ModelId;
-  system?: string;
+  system?: SystemParam;
   content: Anthropic.MessageParam["content"];
   maxTokens?: number;
   effort?: "low" | "medium" | "high";
@@ -158,7 +193,7 @@ export async function streamText(opts: {
     {
       model: opts.model,
       max_tokens: opts.maxTokens ?? 8000,
-      ...(opts.system ? { system: opts.system } : {}),
+      ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
       ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
       messages: [{ role: "user", content: opts.content }],
     } as Anthropic.MessageStreamParams,
@@ -175,6 +210,8 @@ export async function streamText(opts: {
     userId: opts.userId,
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
+    cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
   });
   if (message.stop_reason === "refusal") {
     throw new Error(

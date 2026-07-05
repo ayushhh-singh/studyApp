@@ -13,6 +13,7 @@
     "ingest:embed": "pnpm --filter api ingest:embed",
     "ingest:verify": "pnpm --filter api ingest:verify",
     "eval:answers": "pnpm --filter api eval:answers",
+    "cost:report": "pnpm --filter api cost:report",
     "ca:run": "pnpm --filter api ca:run"
   },
   "devDependencies": {

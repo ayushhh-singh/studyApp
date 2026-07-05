@@ -10,16 +10,9 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { devUserId } from "../lib/dev-user.js";
+import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
 
-/**
- * The synthetic paper_code for ca:run-generated MCQs and their "Quiz me on
- * this week" test. Those questions are always is_published=false (never
- * meant to leak into the general PYQ catalog/search — see
- * createCustomTestFromCurrentAffairs below) so every place that fetches a
- * test's questions (here and in services/attempts.ts) must treat THIS one
- * paper_code as the exception to the normal "is_published=true" gate.
- */
-export const CURRENT_AFFAIRS_PAPER_CODE = "CURRENT_AFFAIRS";
+export { CURRENT_AFFAIRS_PAPER_CODE };
 
 interface TestListFilters {
   kind?: TestKind;
@@ -133,24 +126,21 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   if (error) throw new HttpError(500, `test lookup failed: ${error.message}`);
   if (!test) throw notFound("Test not found");
 
-  // !inner + questions.is_published filters out questions retracted after the
-  // test was assembled — must match the same filter in startAttempt/
-  // submitAttempt, or the player would show (and let a user answer) a
-  // question that can never be scored. EXCEPT current-affairs quizzes: their
-  // questions are deliberately always is_published=false (the ca:run
-  // pipeline's review gate keeps AI-generated MCQs out of the general PYQ
-  // catalog/search) — for this one paper_code, "unpublished" doesn't mean
-  // "retracted", so the filter would make every such quiz permanently empty.
-  let tqQuery = supabase()
+  // !inner + the question-visibility filter excludes questions retracted
+  // after the test was assembled — must match the same filter in
+  // startAttempt/submitAttempt, or the player would show (and let a user
+  // answer) a question that can never be scored. The "test" scope's
+  // current-affairs exception keeps that one quiz's always-unpublished
+  // AI-generated MCQs visible without letting them leak anywhere else (see
+  // lib/question-visibility.ts).
+  const { data: tq, error: tqError } = await supabase()
     .from("test_questions")
     .select(
       "order_index, marks, questions!inner(id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
     )
-    .eq("test_id", testId);
-  if (test.paper_code !== CURRENT_AFFAIRS_PAPER_CODE) {
-    tqQuery = tqQuery.eq("questions.is_published", true);
-  }
-  const { data: tq, error: tqError } = await tqQuery.order("order_index", { ascending: true });
+    .eq("test_id", testId)
+    .or(questionVisibilityOrFilter("test"), { referencedTable: "questions" })
+    .order("order_index", { ascending: true });
   if (tqError) throw new HttpError(500, `test questions lookup failed: ${tqError.message}`);
 
   const rows = (tq ?? []) as unknown as TestQuestionJoinRow[];
@@ -214,13 +204,16 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   if (!node) throw notFound("Syllabus node not found");
 
   // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
-  // descriptive PYQs too (Mains topics), which the player can't run.
+  // descriptive PYQs too (Mains topics), which the player can't run. "catalog"
+  // scope (not "test"): a syllabus node's own topic-practice set must never
+  // pull in the current-affairs pool's always-unpublished MCQs, even though
+  // ca:run does map them to a syllabus_node_id.
   let questionsQuery = supabase()
     .from("questions")
     .select("id, marks")
     .eq("syllabus_node_id", body.node_id)
     .eq("type", "mcq")
-    .eq("is_published", true);
+    .or(questionVisibilityOrFilter("catalog"));
   if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);
   const { data: questionRows, error: questionsError } = await questionsQuery;
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
@@ -277,13 +270,16 @@ function currentAffairsQuizTitle(days: number): BilingualText {
  * compensating delete on a partial insert failure) but pools questions
  * across many source items instead of one syllabus node.
  *
- * Deliberately does NOT filter questions.is_published — CA-generated MCQs
- * are always inserted with is_published=false (see ca/pipeline.ts's
+ * Uses "test" scope (lib/question-visibility.ts): CA-generated MCQs are
+ * always inserted with is_published=false (see ca/pipeline.ts's
  * insertMcqsForItem) so they never leak into the general PYQ catalog/search,
  * NOT because they're pending some review step that would later flip it (no
- * such reviewer role/UI exists in this pre-auth app). This quiz IS their
- * intended distribution surface — gated instead by the classify step's
- * "important" bar and the fact-constrained generation prompt.
+ * such reviewer role/UI exists in this pre-auth app) — this quiz IS their
+ * intended distribution surface, gated instead by the classify step's
+ * "important" bar and the fact-constrained generation prompt. The scoped
+ * filter is a defense-in-depth no-op here (every id already comes from a
+ * current-affairs item's own mcq_question_ids) rather than a behaviour
+ * change.
  */
 export async function createCustomTestFromCurrentAffairs(days: number): Promise<TestDetail> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
@@ -302,7 +298,8 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
   const { data: questionRows, error: questionsError } = await supabase()
     .from("questions")
     .select("id, marks")
-    .in("id", questionIds);
+    .in("id", questionIds)
+    .or(questionVisibilityOrFilter("test"));
   if (questionsError) throw new HttpError(500, `question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];
   if (available.length === 0) {

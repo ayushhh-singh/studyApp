@@ -40,12 +40,13 @@ import {
   analysisJsonSchema,
   buildAnalysisSystem,
   buildAnalysisUserContent,
-  buildFeedbackUserContent,
+  buildFeedbackSharedContext,
   buildImprovementsSystem,
   buildModelAnswerSystem,
   buildModelAnswerUserContent,
   buildStrengthsSystem,
   countWords,
+  FEEDBACK_WRITE_NOW,
   type AnalysisPageImage,
   type EvalContext,
   type Pass1Result,
@@ -449,7 +450,10 @@ export async function executeEvaluation(
       // keeping repeatability within ±5% of full marks. The clear rubric + the
       // huge ranking margins mean low effort loses no accuracy here.
       effort: "low",
-      system: buildAnalysisSystem(!!plan.pageImage),
+      // Fixed per (locale, hasPageImage) — cached so the rubric + examiner
+      // framing is a cache read, not a fresh input token, for every OTHER
+      // student's submission that shares those two axes.
+      system: [{ text: buildAnalysisSystem(!!plan.pageImage), cache: true }],
       content: buildAnalysisUserContent(ctx, plan.pageImage),
       schema: analysisJsonSchema(),
       maxTokens: 8000,
@@ -480,13 +484,20 @@ export async function executeEvaluation(
     for (const ds of dimensionScores) emit("dimension_score", { ...ds, max: 10 });
     emit("analysis", { ...analysis, overall_score: overallScore, max_score: plan.maxScore });
 
-    // 3. Pass 2 — streamed feedback: strengths, then improvements
+    // 3. Pass 2 — streamed feedback: strengths, then improvements. Both calls
+    // share one system segment (question + answer + pass-1 analysis) — it is
+    // built ONCE here and marked cache:true on both calls so they land on the
+    // same cache entry; only the second (persona/task) segment differs.
     emit("status", { phase: "feedback" });
+    const sharedFeedbackContext = buildFeedbackSharedContext(ctx, pass1);
     let strengths = "";
     await streamText({
       model: MODELS.sonnet,
-      system: buildStrengthsSystem(language),
-      content: buildFeedbackUserContent(ctx, pass1),
+      system: [
+        { text: sharedFeedbackContext, cache: true },
+        { text: buildStrengthsSystem(language) },
+      ],
+      content: FEEDBACK_WRITE_NOW,
       maxTokens: 1500,
       purpose: "answer_eval_strengths",
       userId,
@@ -502,8 +513,11 @@ export async function executeEvaluation(
     let improvements = "";
     await streamText({
       model: MODELS.sonnet,
-      system: buildImprovementsSystem(language),
-      content: buildFeedbackUserContent(ctx, pass1),
+      system: [
+        { text: sharedFeedbackContext, cache: true },
+        { text: buildImprovementsSystem(language) },
+      ],
+      content: FEEDBACK_WRITE_NOW,
       maxTokens: 2000,
       purpose: "answer_eval_improvements",
       userId,
@@ -516,24 +530,52 @@ export async function executeEvaluation(
     });
     if (signal?.aborted) return;
 
-    // 4. Pass 2 — streamed model answer
+    // 4. Pass 2 — streamed model answer. For a catalogued question, the
+    // rubric-conformant model answer is the same for every candidate in a
+    // given language/rubric version — reuse a stored one instead of re-billing
+    // the model. Custom-prompt submissions (no question_id) always generate.
     emit("status", { phase: "model_answer" });
     let modelAnswer = "";
-    await streamText({
-      model: MODELS.sonnet,
-      system: buildModelAnswerSystem(ctx),
-      content: buildModelAnswerUserContent(ctx, pass1),
-      maxTokens: 4000,
-      purpose: "answer_eval_model",
-      userId,
-      onUsage,
-      signal,
-      onDelta: (t) => {
-        modelAnswer += t;
-        emit("model_answer_delta", { text: t });
-      },
-    });
-    if (signal?.aborted) return;
+    const reused = submission.question_id
+      ? await fetchStoredModelAnswer(submission.question_id, language).catch((err) => {
+          logger.warn({ err, submissionId: submission.id }, "model-answer reuse lookup failed; generating fresh");
+          return null;
+        })
+      : null;
+    if (reused) {
+      modelAnswer = reused.modelAnswer;
+      emit("model_answer_delta", { text: modelAnswer });
+    } else {
+      const modelAnswerUsage = { tokens: 0, cost: 0 };
+      await streamText({
+        model: MODELS.sonnet,
+        system: buildModelAnswerSystem(ctx),
+        content: buildModelAnswerUserContent(ctx, pass1),
+        maxTokens: 4000,
+        purpose: "answer_eval_model",
+        userId,
+        signal,
+        onUsage: (u) => {
+          onUsage(u);
+          modelAnswerUsage.tokens += u.inputTokens + u.outputTokens;
+          modelAnswerUsage.cost += u.costUsd;
+        },
+        onDelta: (t) => {
+          modelAnswer += t;
+          emit("model_answer_delta", { text: t });
+        },
+      });
+      if (signal?.aborted) return;
+      if (submission.question_id) {
+        await persistStoredModelAnswer(
+          submission.question_id,
+          language,
+          modelAnswer,
+          modelAnswerUsage.tokens,
+          modelAnswerUsage.cost,
+        );
+      }
+    }
 
     // 5. Persist everything
     emit("status", { phase: "persisting" });
@@ -791,6 +833,43 @@ export async function releaseStuckOcr(submissionId: string): Promise<void> {
     .update({ status: "failed" })
     .eq("id", submissionId)
     .eq("status", "ocr_processing");
+}
+
+/**
+ * Model-answer reuse (catalogued questions only): the rubric-conformant model
+ * answer for a given (question, locale, rubric_version) is the same for
+ * every candidate, so it is generated once and replayed for everyone after.
+ */
+async function fetchStoredModelAnswer(
+  questionId: string,
+  locale: Locale,
+): Promise<{ modelAnswer: string } | null> {
+  const { data, error } = await supabase()
+    .from("question_model_answers")
+    .select("model_answer")
+    .eq("question_id", questionId)
+    .eq("locale", locale)
+    .eq("rubric_version", RUBRIC_VERSION)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `model answer lookup failed: ${error.message}`);
+  return data ? { modelAnswer: data.model_answer as string } : null;
+}
+
+/** Best-effort: a persist race between two concurrent first-evaluations of the same question just keeps whichever wrote first. */
+async function persistStoredModelAnswer(
+  questionId: string,
+  locale: Locale,
+  modelAnswer: string,
+  tokens: number,
+  costUsd: number,
+): Promise<void> {
+  const { error } = await supabase()
+    .from("question_model_answers")
+    .upsert(
+      { question_id: questionId, locale, rubric_version: RUBRIC_VERSION, model_answer: modelAnswer, tokens, cost_usd: costUsd },
+      { onConflict: "question_id,locale,rubric_version", ignoreDuplicates: true },
+    );
+  if (error) logger.warn({ error, questionId }, "failed to persist reusable model answer");
 }
 
 async function persistEvaluation(input: {

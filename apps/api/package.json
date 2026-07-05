@@ -15,6 +15,7 @@
     "ingest:embed": "tsx --env-file=.env src/ingest/embed.ts",
     "ingest:verify": "tsx --env-file=.env src/ingest/verify.ts",
     "eval:answers": "tsx --env-file=.env scripts/eval-harness.ts",
+    "cost:report": "tsx --env-file=.env scripts/cost-report.ts",
     "ca:run": "tsx --env-file=.env src/ca/run.ts"
   },
   "dependencies": {

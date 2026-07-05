@@ -17,6 +17,7 @@ import Parser from "rss-parser";
 import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
 import { i18nComplete } from "../ingest/_shared.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { CA_SOURCES } from "./sources.js";
 import {
   classifyItem,
@@ -108,7 +109,7 @@ async function insertMcqsForItem(opts: {
   const rows = mcqs.map((q) => ({
     type: "mcq" as const,
     stage: "prelims" as const,
-    paper_code: "CURRENT_AFFAIRS",
+    paper_code: CURRENT_AFFAIRS_PAPER_CODE,
     syllabus_node_id: opts.syllabusNodeId,
     year: null,
     source: "generated" as const,

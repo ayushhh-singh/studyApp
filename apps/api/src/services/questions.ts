@@ -1,6 +1,7 @@
 import type { BilingualText, Question, QuestionsQuery } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
+import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 
 export const QUESTIONS_PAGE_SIZE = 20;
 
@@ -20,7 +21,7 @@ export async function listQuestions(
   let query = supabase()
     .from("questions")
     .select(QUESTION_COLUMNS, { count: "exact" })
-    .eq("is_published", true);
+    .or(questionVisibilityOrFilter("catalog"));
 
   if (filters.paper) query = query.eq("paper_code", filters.paper);
   if (filters.node) query = query.eq("syllabus_node_id", filters.node);
@@ -46,7 +47,7 @@ export async function getTodaysQuestion(): Promise<Question | null> {
   const { count, error: countError } = await supabase()
     .from("questions")
     .select("id", { count: "exact", head: true })
-    .eq("is_published", true)
+    .or(questionVisibilityOrFilter("catalog"))
     .eq("type", "descriptive");
   if (countError) throw new HttpError(500, `descriptive question count failed: ${countError.message}`);
   if (!count) return null;
@@ -55,7 +56,7 @@ export async function getTodaysQuestion(): Promise<Question | null> {
   const { data, error } = await supabase()
     .from("questions")
     .select(QUESTION_COLUMNS)
-    .eq("is_published", true)
+    .or(questionVisibilityOrFilter("catalog"))
     .eq("type", "descriptive")
     .order("id", { ascending: true })
     .range(index, index)
@@ -69,7 +70,7 @@ export async function getQuestionById(id: string): Promise<Question> {
     .from("questions")
     .select(QUESTION_COLUMNS)
     .eq("id", id)
-    .eq("is_published", true)
+    .or(questionVisibilityOrFilter("catalog"))
     .maybeSingle();
   if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
   if (!data) throw notFound("Question not found");
@@ -89,7 +90,7 @@ export async function getQuestionForExplain(questionId: string): Promise<Questio
     .from("questions")
     .select("id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
-    .eq("is_published", true)
+    .or(questionVisibilityOrFilter("catalog"))
     .maybeSingle();
   if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
   if (!data) throw notFound("Question not found");

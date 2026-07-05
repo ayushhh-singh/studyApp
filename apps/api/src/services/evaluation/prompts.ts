@@ -196,6 +196,14 @@ export function analysisJsonSchema(): Record<string, unknown> {
 // ---------------------------------------------------------------------------
 // Pass 2 — feedback (streamed): strengths, then improvements
 // ---------------------------------------------------------------------------
+/**
+ * The shared question+answer+examiner-analysis context for the strengths and
+ * improvements calls. Placed as the FIRST system segment (marked cache:true
+ * by evaluate.ts) for BOTH calls so they share one prompt-cache entry — the
+ * persona/task instruction that differs between them goes in a second,
+ * uncached segment after it. Must stay byte-identical between the two calls;
+ * do not interpolate anything call-specific here.
+ */
 function analysisSummaryForFeedback(ctx: EvalContext, pass1: Pass1Result): string {
   const scores = RUBRIC_DIMENSION_KEYS.map((k) => `${k} ${pass1.dimensions[k].score}/10`).join(", ");
   const missed = pass1.missed_key_points.length
@@ -242,7 +250,7 @@ export function buildImprovementsSystem(language: Locale): string {
   );
 }
 
-export function buildFeedbackUserContent(ctx: EvalContext, pass1: Pass1Result): string {
+export function buildFeedbackSharedContext(ctx: EvalContext, pass1: Pass1Result): string {
   return (
     `QUESTION:\n${ctx.questionText}\n\n` +
     `CANDIDATE'S ANSWER (approx. ${ctx.wordCount} words):\n<<<\n${neutralizeFence(ctx.answerText)}\n>>>\n\n` +
@@ -250,6 +258,9 @@ export function buildFeedbackUserContent(ctx: EvalContext, pass1: Pass1Result): 
     `${analysisSummaryForFeedback(ctx, pass1)}`
   );
 }
+
+/** The trailing user turn once the shared context lives in the cached system segment. */
+export const FEEDBACK_WRITE_NOW = "Write your response now, following the instructions above.";
 
 // ---------------------------------------------------------------------------
 // Pass 2 — model answer (streamed)
