@@ -18,8 +18,14 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
+// IST is a fixed UTC+5:30 offset (no DST). This app is India/UP-specific, so
+// "today" must follow IST, not server UTC — otherwise there's a ~5.5h daily
+// window (from 18:30 UTC to midnight UTC) where current-affairs/daily-quiz/
+// exam-countdown resolve to the wrong calendar day.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+
 function todayDateString(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() + IST_OFFSET_MS).toISOString().slice(0, 10);
 }
 
 function daysBetween(fromDateStr: string, toDateStr: string): number {
@@ -174,12 +180,17 @@ async function getToday(userId: string, today: string): Promise<DashboardToday> 
     .eq("date", today);
   if (caError) throw new HttpError(500, `current affairs today count failed: ${caError.message}`);
 
+  // order + limit(1) before maybeSingle() so a data slip (two daily_quiz
+  // tests accidentally sharing a scheduled_date — nothing but the partial
+  // unique index in 0024 prevents that) can't 500 the whole dashboard.
   const { data: quiz, error: quizError } = await supabase()
     .from("tests")
     .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)")
     .eq("kind", "daily_quiz")
     .eq("is_published", true)
     .eq("scheduled_date", today)
+    .order("created_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
   if (quizError) throw new HttpError(500, `daily quiz lookup failed: ${quizError.message}`);
   const quizRow = quiz as {
@@ -333,7 +344,7 @@ async function getAnswerSpotlight(userId: string): Promise<DashboardAnswerSpotli
   const { data, error } = await supabase()
     .from("evaluations")
     .select(
-      "id, submission_id, overall_score, max_score, created_at, answer_submissions!inner(user_id, questions(stem_i18n))",
+      "id, submission_id, overall_score, max_score, created_at, answer_submissions!inner(user_id, custom_question_text_i18n, questions(stem_i18n))",
     )
     .eq("answer_submissions.user_id", userId)
     .order("created_at", { ascending: false })
@@ -345,7 +356,10 @@ async function getAnswerSpotlight(userId: string): Promise<DashboardAnswerSpotli
     overall_score: number | null;
     max_score: number | null;
     created_at: string;
-    answer_submissions: { questions: { stem_i18n: BilingualText } | null } | null;
+    answer_submissions: {
+      custom_question_text_i18n: BilingualText | null;
+      questions: { stem_i18n: BilingualText } | null;
+    } | null;
   } | null;
 
   return {
@@ -355,7 +369,12 @@ async function getAnswerSpotlight(userId: string): Promise<DashboardAnswerSpotli
           overall_score: row.overall_score,
           max_score: row.max_score,
           created_at: row.created_at,
-          question_stem_i18n: row.answer_submissions?.questions?.stem_i18n ?? null,
+          // custom prompts (no catalogued question_id) have no `questions`
+          // row to embed — fall back to the submission's own stem text.
+          question_stem_i18n:
+            row.answer_submissions?.questions?.stem_i18n ??
+            row.answer_submissions?.custom_question_text_i18n ??
+            null,
         }
       : null,
   };

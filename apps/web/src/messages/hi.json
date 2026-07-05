@@ -29,6 +29,7 @@
     "description": "आपकी तैयारी एक नज़र में।",
     "examCountdown_one": "{{title}} में {{count}} दिन शेष",
     "examCountdown_other": "{{title}} में {{count}} दिन शेष",
+    "examToday": "{{title}} आज है",
     "examTentative": "अस्थायी",
     "noExamDate": "अभी कोई परीक्षा तिथि घोषित नहीं",
     "continueTitle": "जहाँ से छोड़ा था वहाँ से जारी रखें",

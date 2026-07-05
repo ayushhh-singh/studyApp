@@ -29,6 +29,7 @@
     "description": "Your prep at a glance.",
     "examCountdown_one": "{{count}} day to {{title}}",
     "examCountdown_other": "{{count}} days to {{title}}",
+    "examToday": "{{title}} is today",
     "examTentative": "provisional",
     "noExamDate": "No exam date announced yet",
     "continueTitle": "Continue where you left off",

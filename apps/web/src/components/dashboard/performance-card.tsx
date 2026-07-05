@@ -6,10 +6,14 @@ import { scoreBandColor } from "@/lib/score-band";
 
 function Sparkline({ data }: { data: DashboardPerformance["recent_scores"] }) {
   const chartData = data.map((d, i) => ({ index: i, score: d.score_pct }));
+  // Negative marking can push score_pct below 0 — clamping the domain to
+  // [0, 100] would silently flatten/clip those points instead of showing
+  // the (meaningful) negative score.
+  const minScore = Math.min(0, ...chartData.map((d) => d.score));
   return (
     <ResponsiveContainer width="100%" height={96}>
       <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
-        <YAxis domain={[0, 100]} hide />
+        <YAxis domain={[minScore, 100]} hide />
         <Tooltip
           formatter={(value) => [`${Math.round(Number(value))}%`, ""]}
           labelFormatter={() => ""}

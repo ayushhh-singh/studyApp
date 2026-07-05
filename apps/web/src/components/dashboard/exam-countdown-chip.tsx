@@ -30,7 +30,9 @@ export function ExamCountdownChip({ exam, className }: { exam: DashboardNextExam
       )}
     >
       <CalendarClock className="size-4" aria-hidden />
-      {t("Dashboard.examCountdown", { count: exam.days_until, title: exam.title_i18n[locale] })}
+      {exam.days_until === 0
+        ? t("Dashboard.examToday", { title: exam.title_i18n[locale] })
+        : t("Dashboard.examCountdown", { count: exam.days_until, title: exam.title_i18n[locale] })}
       {exam.is_tentative && (
         <span className="text-xs font-normal text-muted-foreground">({t("Dashboard.examTentative")})</span>
       )}
