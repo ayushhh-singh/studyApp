@@ -9,21 +9,50 @@ AI-summarized current affairs (UP-specific focus), FSRS spaced repetition,
 analytics, RAG doubt-solving chatbot.
 
 ## Architecture (FIXED — never deviate)
-- Monorepo: /apps/web (Next.js 15 App Router, TypeScript), /apps/api (Express, TypeScript), /packages/shared (types, zod schemas)
-- DB: Supabase cloud Postgres + pgvector. SAME project for local dev and production. All schema changes via SQL migration files in /supabase/migrations, applied with supabase CLI (db push).
-- UI: shadcn/ui + Tailwind. Server state: TanStack Query. Client state: Zustand. i18n: next-intl (hi + en, hi is default locale).
-- LLM: Anthropic API. claude-sonnet-4-6 for answer evaluation + doubt chat; claude-haiku-4-5 for high-volume tasks (summaries, MCQ explanations, translations draft). All AI responses stream via SSE from the Express API.
-- Embeddings: OpenAI `text-embedding-3-small` (1536-dim, matches the `vector(1536)` schema column). Decided early since we already have an OpenAI key available.
-- NO mock data anywhere. Every screen reads real rows from Supabase. Seed real UPPSC content via ingestion scripts.
+- Monorepo: /apps/web (Vite + React 19 SPA, TypeScript, React Router v7),
+  /apps/api (Express, TypeScript), /packages/shared (types, zod schemas).
+- NO Next.js anywhere. The web app is a pure SPA; the ONLY backend is the
+  Express API.
+- DB: Supabase cloud Postgres + pgvector. SAME project for local dev and
+  production. All schema changes via SQL migration files in
+  /supabase/migrations, applied with supabase CLI (db push).
+- UI: shadcn/ui + Tailwind v4. Server state: TanStack Query. Client state:
+  Zustand (minimal). i18n: react-i18next; all app URLs are /:locale/* with en
+  as default.
+- Fonts: Inter (latin) + Noto Sans Devanagari via Fontsource. Hindi typography
+  is first-class, never a fallback.
+- LLM (app runtime): Anthropic API — claude-sonnet-5 for answer evaluation +
+  doubt chat; claude-haiku-4-5 for high-volume tasks (summaries, MCQ
+  explanations, translation drafts). Model ids live in ONE constants module,
+  never inline.
+- Embeddings: OpenAI text-embedding-3-small (1536-dim, matches vector(1536)),
+  behind src/lib/embeddings.ts so the provider is swappable.
+- All AI responses stream via SSE from Express under /api/v1/stream/*. The web
+  app consumes SSE ONLY through src/lib/sse.ts built on
+  @microsoft/fetch-event-source (POST + Authorization headers — required once
+  auth lands in Session 15).
+- NO mock data anywhere. Every screen reads real rows from Supabase.
 
 ## Dev conventions
 - pnpm workspaces. `pnpm dev` runs web (:3000) + api (:4000) concurrently.
-- Env: /apps/web/.env.local and /apps/api/.env (gitignored). .env.example kept updated.
-- Until auth exists (Session 15): all API calls act as the seeded dev user (id in env: DEV_USER_ID). Express reads it from env; never hardcode.
-- Bilingual pattern (DECIDED Session 2, 2026-07-05): all human-facing content columns are **JSONB** shaped `{"hi": "...", "en": "..."}` and **named with a `_i18n` suffix** (e.g. `title_i18n`, `stem_i18n`, `summary_i18n`). No paired `*_hi`/`*_en` columns. Rich structures nest i18n at the leaf (e.g. options: `[{"key":"A","text_i18n":{"hi":"...","en":"..."}}]`). Publish-readiness is enforced in SQL. `questions.publish_gate_ok` is a STORED generated column computed by the immutable helper `public.question_publishable(type, stem_i18n, options_i18n, correct_option_key)`: **descriptive** needs a bilingual-complete stem; **MCQ** additionally needs `options_i18n` = array of ≥2 options, each with a non-blank `key` and a bilingual-complete `text_i18n`, plus a `correct_option_key` that matches an option. A trigger blocks `is_published = true` unless the gate passes. The leaf helper `public.i18n_complete(jsonb)` checks both keys present + non-blank. (`tests`/`current_affairs_items` have no DB publish gate yet; `*_i18n` shape is validated by zod at the API layer.)
-- API: Express routes under /api/v1/*, zod-validated inputs, consistent {data, error} envelope. SSE endpoints under /api/v1/stream/*.
-- Commit after every working feature. Never commit secrets.
-- Mobile-first responsive: most users are on phones. Test every screen at 390px width.
+- Env: /apps/web/.env.local uses VITE_* and holds browser-safe values ONLY
+  (Supabase URL, anon key, API URL). /apps/api/.env holds all secrets (service
+  role, ANTHROPIC_API_KEY, OPENAI_API_KEY). .env.example files always current.
+- Until auth exists (Session 15): all API calls act as the seeded dev user
+  (DEV_USER_ID in api env; never hardcode).
+- Bilingual content: JSONB {"hi","en"} columns named *_i18n. Publish gate =
+  both languages present.
+- API: Express routes under /api/v1/*, zod-validated inputs, {data,error}
+  envelope. SSE endpoints under /api/v1/stream/*.
+- Routing: app pages under /:locale/*; route modules lazy; anything shareable
+  (filters, tabs) lives in URL/search params.
+- Content acquisition is automated: /content-sources.yaml + `pnpm
+  content:fetch` download real UPPSC files into /content-raw (binaries
+  gitignored; manifest committed). NEVER ask the user to manually download
+  something the script can fetch; on fetch failure, print the exact URL for a
+  one-click manual grab.
+- Commit after every working feature. Never commit secrets. Mobile-first:
+  verify every screen at 390px.
 
 ## Definition of done for any UI session
 Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 1440px, both locales render (language toggle), no console errors.
@@ -49,3 +78,13 @@ Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 144
   - Dev user seeded with fixed id `00000000-0000-4000-8000-000000000001` (`0014_seed_dev_user.sql`) → set as `DEV_USER_ID` in apps/api/.env.
   - `@supabase/supabase-js` added to apps/api; `pnpm --filter api verify:schema` (apps/api/scripts/verify-schema.ts) HEAD-counts every table via the service-role key. Docs in `supabase/README.md`.
   - Edge-case audit (live-tested): fixed one latent bug — `answer_submissions.question_id` was `ON DELETE SET NULL` which collided with the `has_prompt` CHECK (deleting a referenced question failed with a cryptic 23514); now `ON DELETE RESTRICT` (`0016`). Strengthened the MCQ publish gate (`0017`) via `question_publishable(...)` — MCQ now requires ≥2 bilingual options + a matching `correct_option_key`; descriptive stays stem-only. Accepted-for-now (revisit Session 15): `tests`/`current_affairs` have no publish gate; `*_i18n` shape validated by zod at the API layer; the public anon key has full RW under permissive RLS.
+- Session 2.5 (2026-07-05): migrated apps/web from Next.js to a Vite + React SPA. Express API, packages/shared, and the Supabase schema/data are untouched.
+  - apps/web rebuilt from scratch: `pnpm create vite@latest`/`create-vite` react-ts template, React 19. `server.port: 3000` in vite.config.ts (unchanged CORS contract with the API) plus a `@/ -> src` alias mirrored in tsconfig.json/tsconfig.app.json and vite.config.ts.
+  - Styling: Tailwind v4 via `@tailwindcss/vite`, then `shadcn@3.8.5 init --base-color neutral` (same 3.x-pin rationale as Session 1 — `shadcn@latest`'s `--base` flag now means component-library preset, not Tailwind base color).
+  - Routing: react-router v7 (pinned explicitly — `pnpm add react-router` resolves v8 by default now), `createBrowserRouter` in `src/router.tsx`. `/` and unmatched paths redirect (loader-based) to `/${DEFAULT_LOCALE}`; `/:locale` is a lazy layout route (`src/routes/locale-layout.tsx`) that 404-redirects invalid locales and syncs `i18n.changeLanguage` + `document.documentElement.lang`/`dataset.locale` via effect; `/:locale` index is a lazy `src/routes/landing.tsx`. Redirect-only routes need an explicit `Component`/`HydrateFallback` (even if it returns `null`) or react-router logs dev-mode console warnings about the empty leaf route — this trips the "no console errors" DoD if left default.
+  - i18n: i18next + react-i18next, resources ported verbatim from the old `messages/{hi,en}.json` into `src/messages/{hi,en}.json`. `src/lib/locale.ts` holds `SUPPORTED_LOCALES`/`isLocale`/`switchLocale` (pure path-rewrite helper); `src/hooks/use-locale.ts` reads the `:locale` URL param as source of truth.
+  - DECIDED mid-session: default locale is **`en`**, not `hi` (overrides the Session-1 next-intl default and this task's original brief) — `DEFAULT_LOCALE` in `src/lib/locale.ts` is the single place this lives; everything else (router redirects, i18next `lng`/`fallbackLng`) derives from it.
+  - Fonts: `@fontsource-variable/inter` + `@fontsource/noto-sans-devanagari` (400/500/700), both imported as side effects in `main.tsx`; needed ambient `declare module` entries in `src/vite-env.d.ts` since bare-specifier CSS package imports have no shipped types. Single font-family stack (Inter, Noto Sans Devanagari) in `body`; `line-height: 1.75` gated on `:root[data-locale="hi"]`.
+  - Data/state: `@tanstack/react-query` provider in `main.tsx` (`retry: 1`, `staleTime: 30_000`); `zustand` installed, no store yet. `@microsoft/fetch-event-source` installed for the future `src/lib/sse.ts` (not built yet — no stream consumer on this landing page).
+  - Env: `apps/web/.env.example`/`.env.local` now `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`/`VITE_API_URL`, read only via `import.meta.env`. Repo-wide grep for `NEXT_PUBLIC_`/`next/*` confirmed clean — nothing left to remove.
+  - Verified with a headless-browser pass (Playwright, no `chromium-cli` on this machine): `/` client-redirects to `/en`, `/hi` ⇄ `/en` toggle rewrites the URL and swaps copy (Devanagari renders correctly with the taller line-height), API health box shows live `{"data":{"ok":true},"error":null}`, zero console errors/warnings, no horizontal overflow at 390px or 1440px.
