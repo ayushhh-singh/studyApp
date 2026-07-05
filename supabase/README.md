@@ -80,13 +80,21 @@ Nested/rich content keeps i18n at the leaf, e.g. MCQ options:
 
 ### Publish gate
 
-A row is publishable only when its core bilingual content has **both** a
-non-blank `hi` and a non-blank `en`. This is encoded by the immutable helper
-`public.i18n_complete(jsonb)`:
+A question is publishable only when the immutable helper
+`public.question_publishable(type, stem_i18n, options_i18n, correct_option_key)`
+returns true:
 
-- `questions.publish_gate_ok` is a **STORED generated column** = `i18n_complete(stem_i18n)`.
+- **All types**: `stem_i18n` bilingual-complete (both `hi` + `en` non-blank, via
+  the leaf helper `public.i18n_complete(jsonb)`).
+- **MCQ** additionally: `options_i18n` is an array of **≥2** options, each with a
+  non-blank `key` and a bilingual-complete `text_i18n`, and `correct_option_key`
+  matches one of those keys.
+- `questions.publish_gate_ok` is a **STORED generated column** = that helper.
 - A `BEFORE INSERT/UPDATE` trigger raises if `is_published = true` while the gate
-  is false, so you cannot publish a half-translated question.
+  is false, so you cannot publish a half-translated or unanswerable question.
+
+`tests` and `current_affairs_items` have no DB-level publish gate yet; `*_i18n`
+shape is validated by zod at the API layer.
 
 ### RLS
 
