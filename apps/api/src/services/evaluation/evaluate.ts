@@ -22,6 +22,7 @@ import type {
   Locale,
   Submission,
   SubmissionDetail,
+  SubmissionListItem,
 } from "@prayasup/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
@@ -173,6 +174,50 @@ export async function getSubmissionDetail(userId: string, submissionId: string):
   const submission = await fetchSubmission(userId, submissionId);
   const evaluation = await fetchEvaluation(submissionId);
   return { submission: mapSubmission(submission), evaluation: evaluation ? mapEvaluation(evaluation) : null };
+}
+
+export const SUBMISSIONS_PAGE_SIZE = 10;
+
+interface SubmissionListRow {
+  id: string;
+  status: Submission["status"];
+  language: Locale;
+  created_at: string;
+  question_id: string | null;
+  custom_question_text_i18n: BilingualText | null;
+  questions: { stem_i18n: BilingualText } | null;
+  evaluations: { overall_score: number | null; max_score: number | null } | null;
+}
+
+/** GET /answers/submissions — the Answers hub's history list, newest first. */
+export async function listSubmissions(
+  userId: string,
+  page: number,
+): Promise<{ items: SubmissionListItem[]; total: number }> {
+  const from = (page - 1) * SUBMISSIONS_PAGE_SIZE;
+  const to = from + SUBMISSIONS_PAGE_SIZE - 1;
+  const { data, error, count } = await supabase()
+    .from("answer_submissions")
+    .select(
+      "id, status, language, created_at, question_id, custom_question_text_i18n, questions(stem_i18n), evaluations(overall_score, max_score)",
+      { count: "exact" },
+    )
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .range(from, to);
+  if (error) throw new HttpError(500, `submissions query failed: ${error.message}`);
+
+  const items = ((data ?? []) as unknown as SubmissionListRow[]).map((row) => ({
+    id: row.id,
+    status: row.status,
+    language: row.language,
+    created_at: row.created_at,
+    question_id: row.question_id,
+    question_stem_i18n: row.questions?.stem_i18n ?? row.custom_question_text_i18n ?? null,
+    overall_score: row.evaluations?.overall_score ?? null,
+    max_score: row.evaluations?.max_score ?? null,
+  }));
+  return { items, total: count ?? 0 };
 }
 
 // ---------------------------------------------------------------------------

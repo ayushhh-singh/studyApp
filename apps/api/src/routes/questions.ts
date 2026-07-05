@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { questionsQuerySchema, questionsResponseSchema } from "@prayasup/shared";
+import { z } from "zod";
+import { questionResponseSchema, questionsQuerySchema, questionsResponseSchema } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { listQuestions, QUESTIONS_PAGE_SIZE } from "../services/questions.js";
+import { getQuestionById, listQuestions, QUESTIONS_PAGE_SIZE } from "../services/questions.js";
 
 export const questionsRouter = Router();
 questionsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -27,5 +28,16 @@ questionsRouter.get(
         error: null,
       }),
     );
+  }),
+);
+
+const questionIdParams = z.object({ id: z.string().uuid() });
+
+questionsRouter.get(
+  "/questions/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(questionIdParams, req.params);
+    const question = await getQuestionById(id);
+    res.json(questionResponseSchema.parse({ data: question, error: null }));
   }),
 );

@@ -1,6 +1,6 @@
-import type { BilingualText, SrsCard } from "@prayasup/shared";
+import type { BilingualText, EvaluationAnalysis, Locale, SrsCard } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError, notFound } from "../lib/http-error.js";
+import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 
 interface SrsCardRow {
   id: string;
@@ -98,6 +98,68 @@ export async function addQuestionToRevision(userId: string, questionId: string):
         back_i18n,
         source_type: "question",
         source_id: questionId,
+      },
+      { onConflict: "user_id,source_type,source_id" },
+    )
+    .select(SRS_CARD_COLUMNS)
+    .single();
+  if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
+  return card as unknown as SrsCardRow;
+}
+
+interface SubmissionForRevisionRow {
+  user_id: string;
+  language: Locale;
+  custom_question_text_i18n: BilingualText | null;
+  questions: { stem_i18n: BilingualText } | null;
+}
+
+interface EvaluationForRevisionRow {
+  raw_response: { analysis?: EvaluationAnalysis } | null;
+}
+
+/**
+ * Save an evaluated answer's key points to revision. front = the question
+ * text (catalogued stem or the user's own prompt), back = the reference
+ * points + missed key points from the analysis, in whichever locale the
+ * submission was written in (evaluation feedback is single-locale, same as
+ * strengths/improvements/model_answer). Reuses source_type='manual' (like
+ * addNodeToRevision) keyed by the submission id, rather than adding a new
+ * enum value for a one-off source.
+ */
+export async function addEvaluationToRevision(userId: string, submissionId: string): Promise<SrsCard> {
+  const { data: submission, error: subError } = await supabase()
+    .from("answer_submissions")
+    .select("user_id, language, custom_question_text_i18n, questions(stem_i18n)")
+    .eq("id", submissionId)
+    .maybeSingle();
+  if (subError) throw new HttpError(500, `submission lookup failed: ${subError.message}`);
+  const row = submission as unknown as SubmissionForRevisionRow | null;
+  if (!row || row.user_id !== userId) throw notFound("Submission not found");
+
+  const { data: evaluation, error: evalError } = await supabase()
+    .from("evaluations")
+    .select("raw_response")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  if (evalError) throw new HttpError(500, `evaluation lookup failed: ${evalError.message}`);
+  const analysis = (evaluation as unknown as EvaluationForRevisionRow | null)?.raw_response?.analysis;
+  if (!analysis) throw badRequest("This submission has no evaluation to save yet");
+
+  const front_i18n = row.questions?.stem_i18n ?? row.custom_question_text_i18n ?? { hi: "", en: "" };
+  const points = [...analysis.reference_points, ...analysis.missed_key_points];
+  const backText = points.length ? points.map((p) => `- ${p}`).join("\n") : "";
+  const back_i18n: BilingualText = row.language === "hi" ? { hi: backText, en: "" } : { hi: "", en: backText };
+
+  const { data: card, error } = await supabase()
+    .from("srs_cards")
+    .upsert(
+      {
+        user_id: userId,
+        front_i18n,
+        back_i18n,
+        source_type: "manual",
+        source_id: submissionId,
       },
       { onConflict: "user_id,source_type,source_id" },
     )

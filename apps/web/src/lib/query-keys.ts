@@ -29,4 +29,7 @@ export const queryKeys = {
       filters?.year ?? "all",
       filters?.page ?? 1,
     ] as const,
+  todaysQuestion: () => ["answers", "today"] as const,
+  submissions: (page?: number) => ["answers", "submissions", page ?? 1] as const,
+  submissionDetail: (id: string) => ["answers", "submissions", "detail", id] as const,
 };

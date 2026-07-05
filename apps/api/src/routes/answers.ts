@@ -3,13 +3,21 @@ import { z } from "zod";
 import {
   createSubmissionBodySchema,
   submissionDetailResponseSchema,
+  submissionListResponseSchema,
   submissionResponseSchema,
+  todaysQuestionResponseSchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
-import { createSubmission, getSubmissionDetail } from "../services/evaluation/evaluate.js";
+import {
+  createSubmission,
+  getSubmissionDetail,
+  listSubmissions,
+  SUBMISSIONS_PAGE_SIZE,
+} from "../services/evaluation/evaluate.js";
+import { getTodaysQuestion } from "../services/questions.js";
 
 /**
  * Answer-writing evaluation (flagship). Submissions are created here; the
@@ -20,6 +28,37 @@ export const answersRouter = Router();
 answersRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
 const submissionIdParams = z.object({ submissionId: z.string().uuid() });
+const listQuerySchema = z.object({ page: z.coerce.number().int().min(1).default(1) });
+
+answersRouter.get(
+  "/answers/today",
+  asyncHandler(async (_req, res) => {
+    const question = await getTodaysQuestion();
+    res.json(todaysQuestionResponseSchema.parse({ data: question, error: null }));
+  }),
+);
+
+answersRouter.get(
+  "/answers/submissions",
+  asyncHandler(async (req, res) => {
+    const { page } = parse(listQuerySchema, req.query);
+    const { items, total } = await listSubmissions(devUserId(), page);
+    res.json(
+      submissionListResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: SUBMISSIONS_PAGE_SIZE,
+            total,
+            total_pages: Math.ceil(total / SUBMISSIONS_PAGE_SIZE),
+          },
+        },
+        error: null,
+      }),
+    );
+  }),
+);
 
 answersRouter.post(
   "/answers/submissions",

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  createSrsCardFromEvaluationBodySchema,
   createSrsCardFromNodeBodySchema,
   createSrsCardFromQuestionBodySchema,
   srsCardResponseSchema,
@@ -8,7 +9,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
-import { addNodeToRevision, addQuestionToRevision } from "../services/srs.js";
+import { addEvaluationToRevision, addNodeToRevision, addQuestionToRevision } from "../services/srs.js";
 
 export const srsRouter = Router();
 srsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -27,6 +28,15 @@ srsRouter.post(
   asyncHandler(async (req, res) => {
     const body = parse(createSrsCardFromQuestionBodySchema, req.body);
     const card = await addQuestionToRevision(devUserId(), body.question_id);
+    res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
+  }),
+);
+
+srsRouter.post(
+  "/srs/cards/from-evaluation",
+  asyncHandler(async (req, res) => {
+    const body = parse(createSrsCardFromEvaluationBodySchema, req.body);
+    const card = await addEvaluationToRevision(devUserId(), body.submission_id);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );

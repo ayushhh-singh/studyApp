@@ -43,3 +43,11 @@ export type QuestionsQuery = z.infer<typeof questionsQuerySchema>;
 
 export const questionsResponseSchema = apiEnvelopeSchema(paginatedSchema(questionSchema));
 export type QuestionsResponse = z.infer<typeof questionsResponseSchema>;
+
+/** GET /questions/:id — a single published question (e.g. to hydrate the Writing Room from ?question=). */
+export const questionResponseSchema = apiEnvelopeSchema(questionSchema);
+export type QuestionResponse = z.infer<typeof questionResponseSchema>;
+
+/** GET /answers/today — a daily-rotated descriptive question; null if none published yet. */
+export const todaysQuestionResponseSchema = apiEnvelopeSchema(questionSchema.nullable());
+export type TodaysQuestionResponse = z.infer<typeof todaysQuestionResponseSchema>;

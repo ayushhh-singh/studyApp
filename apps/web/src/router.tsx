@@ -38,6 +38,11 @@ export const router = createBrowserRouter([
             lazy: () => import("@/routes/practice-attempt-result"),
           },
           { path: "answers", lazy: () => import("@/routes/answers") },
+          { path: "answers/write", lazy: () => import("@/routes/answers-write") },
+          {
+            path: "answers/evaluation/:submissionId",
+            lazy: () => import("@/routes/answers-evaluation"),
+          },
           { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
           { path: "revision", lazy: () => import("@/routes/revision") },
           { path: "profile", lazy: () => import("@/routes/profile") },

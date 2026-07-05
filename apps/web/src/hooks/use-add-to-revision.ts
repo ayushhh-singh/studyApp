@@ -15,3 +15,10 @@ export function useAddQuestionToRevision() {
       api.post("/api/v1/srs/cards/from-question", srsCardResponseSchema, { question_id: questionId }),
   });
 }
+
+export function useAddEvaluationToRevision() {
+  return useMutation({
+    mutationFn: (submissionId: string) =>
+      api.post("/api/v1/srs/cards/from-evaluation", srsCardResponseSchema, { submission_id: submissionId }),
+  });
+}

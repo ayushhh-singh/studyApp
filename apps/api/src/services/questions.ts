@@ -4,6 +4,13 @@ import { HttpError, notFound } from "../lib/http-error.js";
 
 export const QUESTIONS_PAGE_SIZE = 20;
 
+// This app is India/UP-specific, so "today" follows IST (fixed UTC+5:30, no
+// DST) rather than server UTC — same convention as the dashboard's greeting.
+const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+function istDayNumber(): number {
+  return Math.floor((Date.now() + IST_OFFSET_MS) / (24 * 3600 * 1000));
+}
+
 const QUESTION_COLUMNS =
   "id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, correct_option_key, explanation_i18n, difficulty, word_limit, marks";
 
@@ -27,6 +34,46 @@ export async function listQuestions(
   const { data, error, count } = await query;
   if (error) throw new HttpError(500, `questions query failed: ${error.message}`);
   return { items: (data ?? []) as unknown as Question[], total: count ?? 0 };
+}
+
+/**
+ * A daily-rotated descriptive question for the Answers hub's "today's
+ * practice question" — a deterministic pick (IST day number mod the published
+ * count) so every user sees the same question on a given day and it changes
+ * once every 24h, without needing a dedicated schedule/table.
+ */
+export async function getTodaysQuestion(): Promise<Question | null> {
+  const { count, error: countError } = await supabase()
+    .from("questions")
+    .select("id", { count: "exact", head: true })
+    .eq("is_published", true)
+    .eq("type", "descriptive");
+  if (countError) throw new HttpError(500, `descriptive question count failed: ${countError.message}`);
+  if (!count) return null;
+
+  const index = istDayNumber() % count;
+  const { data, error } = await supabase()
+    .from("questions")
+    .select(QUESTION_COLUMNS)
+    .eq("is_published", true)
+    .eq("type", "descriptive")
+    .order("id", { ascending: true })
+    .range(index, index)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `today's question query failed: ${error.message}`);
+  return (data as unknown as Question) ?? null;
+}
+
+export async function getQuestionById(id: string): Promise<Question> {
+  const { data, error } = await supabase()
+    .from("questions")
+    .select(QUESTION_COLUMNS)
+    .eq("id", id)
+    .eq("is_published", true)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
+  if (!data) throw notFound("Question not found");
+  return data as unknown as Question;
 }
 
 export interface QuestionForExplain {

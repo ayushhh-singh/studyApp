@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, bilingualTextSchema, localeSchema } from "./types";
+import { apiEnvelopeSchema, bilingualTextSchema, localeSchema, paginatedSchema } from "./types";
 
 /**
  * AI Answer-Writing Evaluation — the flagship feature.
@@ -198,3 +198,23 @@ export type EvalDoneEvent = z.infer<typeof evalDoneEventSchema>;
 
 export const evalErrorEventSchema = z.object({ message: z.string() });
 export type EvalErrorEvent = z.infer<typeof evalErrorEventSchema>;
+
+// ---------------------------------------------------------------------------
+// Submission history (GET /answers/submissions) — one row per past submission,
+// with just enough of its evaluation (if any) to render a score/status chip
+// without a second round-trip per row.
+// ---------------------------------------------------------------------------
+export const submissionListItemSchema = z.object({
+  id: z.string().uuid(),
+  status: submissionStatusSchema,
+  language: localeSchema,
+  created_at: z.string(),
+  question_id: z.string().uuid().nullable(),
+  question_stem_i18n: bilingualTextSchema.nullable(),
+  overall_score: z.number().nullable(),
+  max_score: z.number().nullable(),
+});
+export type SubmissionListItem = z.infer<typeof submissionListItemSchema>;
+
+export const submissionListResponseSchema = apiEnvelopeSchema(paginatedSchema(submissionListItemSchema));
+export type SubmissionListResponse = z.infer<typeof submissionListResponseSchema>;
