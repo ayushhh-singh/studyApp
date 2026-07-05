@@ -46,9 +46,11 @@ import {
   buildModelAnswerUserContent,
   buildStrengthsSystem,
   countWords,
+  type AnalysisPageImage,
   type EvalContext,
   type Pass1Result,
 } from "./prompts.js";
+import { downloadImageAsBase64, getOcrProvider, type OcrResult } from "../ocr/index.js";
 
 /** SSE-style emitter: (event, payload). Route wraps res.write; harness captures. */
 export type EvalEmit = (event: string, data: unknown) => void;
@@ -70,6 +72,9 @@ interface SubmissionRow {
   custom_question_text_i18n: BilingualText | null;
   mode: Submission["mode"];
   typed_text: string | null;
+  image_paths: string[] | null;
+  ocr_text: string | null;
+  ocr_confidence: number | null;
   status: Submission["status"];
   language: Locale;
   meta: { word_limit?: number; marks?: number } | null;
@@ -94,7 +99,7 @@ interface EvaluationRow {
 }
 
 const SUBMISSION_COLUMNS =
-  "id, user_id, question_id, custom_question_text_i18n, mode, typed_text, status, language, meta, created_at";
+  "id, user_id, question_id, custom_question_text_i18n, mode, typed_text, image_paths, ocr_text, ocr_confidence, status, language, meta, created_at";
 const EVALUATION_COLUMNS =
   "id, submission_id, model, rubric_version, overall_score, max_score, dimension_scores, strengths_i18n, improvements_i18n, model_answer_i18n, raw_response, tokens_used, cost_usd, created_at";
 
@@ -102,8 +107,6 @@ const EVALUATION_COLUMNS =
 // Create submission
 // ---------------------------------------------------------------------------
 export async function createSubmission(userId: string, body: CreateSubmissionBody): Promise<Submission> {
-  if (!body.typed_text.trim()) throw badRequest("typed_text: answer text is required");
-
   let question_id: string | null = null;
   let custom_question_text_i18n: BilingualText | null = null;
 
@@ -134,8 +137,9 @@ export async function createSubmission(userId: string, body: CreateSubmissionBod
       user_id: userId,
       question_id,
       custom_question_text_i18n,
-      mode: "typed",
-      typed_text: body.typed_text,
+      mode: body.mode,
+      typed_text: body.mode === "typed" ? body.typed_text : null,
+      image_paths: body.mode === "handwritten" ? body.image_paths : null,
       status: "pending",
       language: body.language,
       meta,
@@ -181,6 +185,7 @@ export const SUBMISSIONS_PAGE_SIZE = 10;
 interface SubmissionListRow {
   id: string;
   status: Submission["status"];
+  mode: Submission["mode"];
   language: Locale;
   created_at: string;
   question_id: string | null;
@@ -199,7 +204,7 @@ export async function listSubmissions(
   const { data, error, count } = await supabase()
     .from("answer_submissions")
     .select(
-      "id, status, language, created_at, question_id, custom_question_text_i18n, questions(stem_i18n), evaluations(overall_score, max_score)",
+      "id, status, mode, language, created_at, question_id, custom_question_text_i18n, questions(stem_i18n), evaluations(overall_score, max_score)",
       { count: "exact" },
     )
     .eq("user_id", userId)
@@ -210,6 +215,7 @@ export async function listSubmissions(
   const items = ((data ?? []) as unknown as SubmissionListRow[]).map((row) => ({
     id: row.id,
     status: row.status,
+    mode: row.mode,
     language: row.language,
     created_at: row.created_at,
     question_id: row.question_id,
@@ -232,6 +238,8 @@ export type EvaluationPlan =
       syllabusNodeId: string | null;
       wordLimit: number;
       maxScore: number;
+      /** First page photo (handwritten mode only), fed to pass 1 for the presentation dimension. */
+      pageImage?: AnalysisPageImage;
     };
 
 async function resolveQuestionContext(submission: SubmissionRow): Promise<{
@@ -278,6 +286,13 @@ export async function planEvaluation(userId: string, submissionId: string): Prom
   const existing = await fetchEvaluation(submissionId);
   if (existing) return { kind: "replay", submission, evaluation: existing };
 
+  // A handwritten submission has no typed_text until the user reviews and
+  // confirms its OCR transcription (PATCH .../confirm-ocr) — never fall back to
+  // evaluating the raw, unconfirmed ocr_text.
+  if (submission.mode === "handwritten" && !submission.typed_text?.trim()) {
+    throw badRequest("Please confirm the transcription before evaluating this answer");
+  }
+
   // Resolve the question context BEFORE any status mutation. It only reads (the
   // already-fetched submission + a questions lookup) and can throw on a
   // transient DB error; doing it first means a throw here can never strand the
@@ -285,6 +300,18 @@ export async function planEvaluation(userId: string, submissionId: string): Prom
   const ctx = await resolveQuestionContext(submission);
   if (!ctx.questionText) {
     throw badRequest("This submission has no question text to evaluate against");
+  }
+
+  // Best-effort: feed the first page photo to pass 1 for the presentation
+  // dimension. A download failure here must not block evaluation — it's an
+  // enrichment, not a requirement, and the OCR text is the authoritative answer.
+  let pageImage: AnalysisPageImage | undefined;
+  if (submission.mode === "handwritten" && submission.image_paths?.[0]) {
+    try {
+      pageImage = await downloadImageAsBase64(submission.image_paths[0]);
+    } catch (err) {
+      logger.warn({ err, submissionId }, "failed to load page image for presentation scoring; continuing without it");
+    }
   }
 
   // Reclaim submissions stranded in 'evaluating' past the staleness window (a
@@ -337,7 +364,7 @@ export async function planEvaluation(userId: string, submissionId: string): Prom
     throw conflict("This answer is already being evaluated.");
   }
 
-  return { kind: "run", submission: { ...submission, status: "evaluating" }, ...ctx };
+  return { kind: "run", submission: { ...submission, status: "evaluating" }, ...ctx, pageImage };
 }
 
 // ---------------------------------------------------------------------------
@@ -405,8 +432,8 @@ export async function executeEvaluation(
       // keeping repeatability within ±5% of full marks. The clear rubric + the
       // huge ranking margins mean low effort loses no accuracy here.
       effort: "low",
-      system: buildAnalysisSystem(),
-      content: buildAnalysisUserContent(ctx),
+      system: buildAnalysisSystem(!!plan.pageImage),
+      content: buildAnalysisUserContent(ctx, plan.pageImage),
       schema: analysisJsonSchema(),
       maxTokens: 8000,
       purpose: "answer_eval_analysis",
@@ -575,6 +602,94 @@ export async function runEvaluation(
 }
 
 // ---------------------------------------------------------------------------
+// OCR (handwritten mode) — GET /stream/ocr/:submissionId
+// ---------------------------------------------------------------------------
+export type OcrEmit = (event: string, data: unknown) => void;
+
+export type OcrPlan =
+  | { kind: "replay"; ocrText: string; confidence: number }
+  | { kind: "run"; submission: SubmissionRow };
+
+export async function planOcr(userId: string, submissionId: string): Promise<OcrPlan> {
+  const submission = await fetchSubmission(userId, submissionId);
+  if (submission.mode !== "handwritten") {
+    throw badRequest("This submission is not a handwritten (photo) submission");
+  }
+  if (!submission.image_paths?.length) {
+    throw new HttpError(500, "Handwritten submission is missing its page images");
+  }
+  // A persisted transcription is the source of truth for "done": replay it
+  // instead of re-billing the model, the same contract as evaluation replay.
+  if (submission.ocr_text) {
+    return { kind: "replay", ocrText: submission.ocr_text, confidence: submission.ocr_confidence ?? 0 };
+  }
+  return { kind: "run", submission };
+}
+
+export async function executeOcr(
+  plan: Extract<OcrPlan, { kind: "run" }>,
+  emit: OcrEmit,
+  signal?: AbortSignal,
+): Promise<void> {
+  const { submission } = plan;
+  try {
+    const pages = await Promise.all((submission.image_paths ?? []).map((p) => downloadImageAsBase64(p)));
+    if (signal?.aborted) return;
+    const result: OcrResult = await getOcrProvider().transcribe({
+      pages,
+      language: submission.language,
+      userId: submission.user_id,
+      signal,
+      onDelta: (text) => emit("delta", { text }),
+    });
+    if (signal?.aborted) return;
+    if (!result.text.trim()) {
+      // Honest failure: every page came back unreadable. status=failed but the
+      // stored image_paths make this recoverable — a fresh GET on this route
+      // retries the same photos with no re-upload needed.
+      throw new Error("Could not read any text from the uploaded pages. Please retake the photos.");
+    }
+    await persistOcrResult(submission.id, result);
+    emit("done", { ocr_text: result.text, ocr_confidence: result.confidence });
+  } catch (err) {
+    await setSubmissionStatus(submission.id, "failed").catch(() => {});
+    throw err;
+  }
+}
+
+async function persistOcrResult(submissionId: string, result: OcrResult): Promise<void> {
+  const { error } = await supabase()
+    .from("answer_submissions")
+    .update({ ocr_text: result.text, ocr_confidence: result.confidence, status: "ocr_done" })
+    .eq("id", submissionId);
+  if (error) throw new HttpError(500, `failed to persist OCR result: ${error.message}`);
+}
+
+/**
+ * PATCH /answers/submissions/:id/confirm-ocr — the trust-loop confirm step.
+ * Persists the user's reviewed (and possibly edited) transcription as
+ * typed_text, which is what executeEvaluation actually reads — the raw
+ * ocr_text is kept untouched as an audit trail of what the model produced.
+ */
+export async function confirmOcr(userId: string, submissionId: string, text: string): Promise<Submission> {
+  const submission = await fetchSubmission(userId, submissionId);
+  if (submission.mode !== "handwritten") {
+    throw badRequest("This submission is not a handwritten (photo) submission");
+  }
+  if (submission.status === "evaluating" || submission.status === "complete") {
+    throw conflict("This answer has already been submitted for evaluation");
+  }
+  const { data, error } = await supabase()
+    .from("answer_submissions")
+    .update({ typed_text: text.trim() })
+    .eq("id", submissionId)
+    .select(SUBMISSION_COLUMNS)
+    .single();
+  if (error) throw new HttpError(500, `failed to confirm transcription: ${error.message}`);
+  return mapSubmission(data as SubmissionRow);
+}
+
+// ---------------------------------------------------------------------------
 // Persistence helpers
 // ---------------------------------------------------------------------------
 export async function setSubmissionStatus(submissionId: string, status: Submission["status"]): Promise<void> {
@@ -667,6 +782,9 @@ function mapSubmission(row: SubmissionRow): Submission {
     custom_question_text_i18n: row.custom_question_text_i18n,
     mode: row.mode,
     typed_text: row.typed_text,
+    image_paths: row.image_paths,
+    ocr_text: row.ocr_text,
+    ocr_confidence: row.ocr_confidence === null ? null : Number(row.ocr_confidence),
     status: row.status,
     language: row.language,
     created_at: row.created_at,

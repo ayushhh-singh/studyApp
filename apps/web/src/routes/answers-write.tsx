@@ -1,20 +1,23 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
-import type { Locale } from "@prayasup/shared";
+import type { Locale, SubmissionMode } from "@prayasup/shared";
 import { MAX_CUSTOM_QUESTION_CHARS } from "@prayasup/shared";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { AnswerEditor } from "@/components/answers/answer-editor";
 import { WritingTimer } from "@/components/answers/writing-timer";
+import { HandwrittenUpload, type AnswerPageImage } from "@/components/answers/handwritten-upload";
 import { useQuestion } from "@/hooks/use-questions";
 import { useCreateSubmission } from "@/hooks/use-answers";
 import { useDraftAutosave, readDraft, clearDraft } from "@/hooks/use-draft-autosave";
 import { useLocale } from "@/hooks/use-locale";
 import { ApiError } from "@/lib/api";
+import { prepareAnswerImage, uploadAnswerImage } from "@/lib/answer-images";
 
 const INPUT_CLASS =
   "h-9 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -32,37 +35,73 @@ export function Component() {
   const draftKey = `answers-draft:${questionId ?? "custom"}`;
 
   const [language, setLanguage] = useState<Locale>(locale);
+  const [mode, setMode] = useState<SubmissionMode>("typed");
   const [answerText, setAnswerText] = useState(() => readDraft(draftKey));
+  const [pages, setPages] = useState<AnswerPageImage[]>([]);
   const [customQuestionText, setCustomQuestionText] = useState("");
   const [customWordLimit, setCustomWordLimit] = useState(150);
   const [customMarks, setCustomMarks] = useState(10);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const draftIdRef = useRef(crypto.randomUUID());
 
   useDraftAutosave(draftKey, answerText);
 
   const createSubmission = useCreateSubmission();
 
   const wordLimit = questionId ? (question?.word_limit ?? null) : customWordLimit;
+  const hasQuestion = questionId ? true : customQuestionText.trim().length > 0;
   const canSubmit =
-    answerText.trim().length > 0 && (questionId ? true : customQuestionText.trim().length > 0) && !createSubmission.isPending;
+    hasQuestion &&
+    (mode === "typed" ? answerText.trim().length > 0 : pages.length > 0) &&
+    !createSubmission.isPending &&
+    !isUploading;
 
-  function handleSubmit() {
+  async function handleSubmit() {
     if (!canSubmit) return;
-    createSubmission.mutate(
-      {
-        question_id: questionId,
-        custom_question_text: questionId ? undefined : customQuestionText.trim(),
-        typed_text: answerText,
-        language,
-        word_limit: questionId ? undefined : customWordLimit,
-        marks: questionId ? undefined : customMarks,
-      },
-      {
-        onSuccess: (submission) => {
-          clearDraft(draftKey);
-          navigate(`/${locale}/answers/evaluation/${submission.id}`);
+    setUploadError(null);
+
+    const questionFields = {
+      question_id: questionId,
+      custom_question_text: questionId ? undefined : customQuestionText.trim(),
+      language,
+      word_limit: questionId ? undefined : customWordLimit,
+      marks: questionId ? undefined : customMarks,
+    };
+
+    if (mode === "typed") {
+      createSubmission.mutate(
+        { ...questionFields, mode: "typed", typed_text: answerText },
+        {
+          onSuccess: (submission) => {
+            clearDraft(draftKey);
+            navigate(`/${locale}/answers/evaluation/${submission.id}`);
+          },
         },
-      },
-    );
+      );
+      return;
+    }
+
+    setIsUploading(true);
+    try {
+      const imagePaths: string[] = [];
+      for (let i = 0; i < pages.length; i++) {
+        const prepared = await prepareAnswerImage(pages[i].file, pages[i].rotation);
+        imagePaths.push(await uploadAnswerImage(prepared, draftIdRef.current, i));
+      }
+      createSubmission.mutate(
+        { ...questionFields, mode: "handwritten", image_paths: imagePaths },
+        {
+          onSuccess: (submission) => {
+            navigate(`/${locale}/answers/confirm/${submission.id}`);
+          },
+        },
+      );
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : t("Answers.submitError"));
+    } finally {
+      setIsUploading(false);
+    }
   }
 
   return (
@@ -158,19 +197,33 @@ export function Component() {
           </div>
         }
       >
-        <WritingTimer />
-        <AnswerEditor value={answerText} onChange={setAnswerText} wordLimit={wordLimit} language={language} />
+        <Tabs value={mode} onValueChange={(v) => setMode(v as SubmissionMode)}>
+          <TabsList>
+            <TabsTrigger value="typed">{t("Answers.tabTyped")}</TabsTrigger>
+            <TabsTrigger value="handwritten">{t("Answers.tabHandwritten")}</TabsTrigger>
+          </TabsList>
+          <TabsContent value="typed" className="flex flex-col gap-3">
+            <WritingTimer />
+            <AnswerEditor value={answerText} onChange={setAnswerText} wordLimit={wordLimit} language={language} />
+          </TabsContent>
+          <TabsContent value="handwritten">
+            <HandwrittenUpload pages={pages} onChange={setPages} disabled={isUploading || createSubmission.isPending} />
+          </TabsContent>
+        </Tabs>
 
-        {createSubmission.isError && (
+        {(createSubmission.isError || uploadError) && (
           <p className="text-sm text-destructive">
-            {createSubmission.error instanceof ApiError
-              ? createSubmission.error.message
-              : t("Answers.submitError")}
+            {uploadError ??
+              (createSubmission.error instanceof ApiError ? createSubmission.error.message : t("Answers.submitError"))}
           </p>
         )}
 
         <Button type="button" size="lg" className="self-start" disabled={!canSubmit} onClick={handleSubmit}>
-          {createSubmission.isPending ? t("Answers.submitting") : t("Answers.submitCta")}
+          {isUploading
+            ? t("Answers.handwrittenUploading")
+            : createSubmission.isPending
+              ? t("Answers.submitting")
+              : t("Answers.submitCta")}
         </Button>
       </SectionCard>
     </div>

@@ -17,6 +17,10 @@ content-raw/**/*.PDF
 content-raw/**/*.zip
 content-raw/**/*.doc
 content-raw/**/*.docx
+content-raw/**/*.jpg
+content-raw/**/*.jpeg
+content-raw/**/*.png
+content-raw/**/*.webp
 !content-raw/manifest.json
 
 # ingest:pyq / ingest:syllabus --dry-run write review artifacts here. They are

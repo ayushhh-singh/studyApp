@@ -14,6 +14,16 @@ import type { Locale, RubricDimensionKey } from "@prayasup/shared";
 import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt } from "./rubric.js";
 import type { GroundingResult } from "./grounding.js";
 
+/** One page photo of a handwritten submission, fed to pass 1 for the presentation dimension only. */
+export interface AnalysisPageImage {
+  base64: string;
+  mediaType: "image/jpeg" | "image/png" | "image/webp";
+}
+
+type AnalysisContentPart =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: AnalysisPageImage["mediaType"]; data: string } };
+
 export interface EvalContext {
   /** Question text in the answer's language (directive words preserved). */
   questionText: string;
@@ -75,14 +85,22 @@ const UNTRUSTED_ANSWER_CLAUSE =
 // ---------------------------------------------------------------------------
 // Pass 1 — analysis (strict JSON)
 // ---------------------------------------------------------------------------
-export function buildAnalysisSystem(): string {
+export function buildAnalysisSystem(hasPageImage = false): string {
   return (
     "You are a strict but fair examiner for the UPPSC (Uttar Pradesh Public Service " +
-    "Commission) Civil Services Mains examination. You evaluate a candidate's typed " +
+    "Commission) Civil Services Mains examination. You evaluate a candidate's " +
     "descriptive answer against a fixed six-dimension rubric and return a rigorous, " +
     "evidence-based analysis as JSON.\n\n" +
     "RUBRIC (score each dimension 0-10):\n" +
     renderRubricForPrompt() +
+    (hasPageImage
+      ? "\n\nOne photo of the candidate's original handwritten answer page is attached. Use it " +
+        "ONLY to judge the 'presentation' dimension — handwriting legibility, use of headings, " +
+        "margins, underlining, and overall neatness of layout. The transcription below (not the " +
+        "image) is the authoritative record of content: do not re-transcribe the image, do not " +
+        "let image legibility affect any other dimension, and do not second-guess the given word " +
+        "count from the image.\n"
+      : "") +
     "\n\nScoring principles:\n" +
     "- Score each dimension ONLY on what is actually present in the answer. Never reward " +
     "content, structure, or examples that are not there.\n" +
@@ -102,16 +120,23 @@ export function buildAnalysisSystem(): string {
   );
 }
 
-export function buildAnalysisUserContent(ctx: EvalContext): string {
-  return (
+export function buildAnalysisUserContent(
+  ctx: EvalContext,
+  pageImage?: AnalysisPageImage,
+): string | AnalysisContentPart[] {
+  const text =
     `QUESTION (honour its directive words — examine / discuss / critically analyse / etc.):\n` +
     `${ctx.questionText}\n\n` +
     `Marks: ${ctx.maxScore} | Word limit: ${ctx.wordLimit} words | Answer language: ${langName(ctx.language)}\n\n` +
     `REFERENCE POINTS:\n${groundingBlock(ctx.grounding)}\n\n` +
-    `CANDIDATE'S ANSWER (typed, approx. ${ctx.wordCount} words):\n<<<\n${neutralizeFence(ctx.answerText)}\n>>>\n\n` +
+    `CANDIDATE'S ANSWER (${pageImage ? "transcribed from handwriting" : "typed"}, approx. ${ctx.wordCount} words):\n<<<\n${neutralizeFence(ctx.answerText)}\n>>>\n\n` +
     `Score all six rubric dimensions and return JSON only. reference_points should list 4-8 key ` +
-    `points a strong answer would cover; missed_key_points are those the candidate did not.`
-  );
+    `points a strong answer would cover; missed_key_points are those the candidate did not.`;
+  if (!pageImage) return text;
+  return [
+    { type: "text", text },
+    { type: "image", source: { type: "base64", media_type: pageImage.mediaType, data: pageImage.base64 } },
+  ];
 }
 
 /** JSON Schema for pass-1 structured output. Keys are fixed to the six rubric dimensions. */

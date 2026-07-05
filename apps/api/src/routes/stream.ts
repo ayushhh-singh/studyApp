@@ -10,10 +10,13 @@ import { MODELS, streamText, translate } from "../lib/anthropic.js";
 import { getQuestionForExplain, persistQuestionExplanation } from "../services/questions.js";
 import {
   executeEvaluation,
+  executeOcr,
   planEvaluation,
+  planOcr,
   releaseStuckEvaluation,
   replayEvaluation,
   type EvalEmit,
+  type OcrEmit,
 } from "../services/evaluation/evaluate.js";
 
 export const streamRouter = Router();
@@ -98,6 +101,49 @@ streamRouter.get(
       send("done", { explanation_i18n });
     } catch (err) {
       send("error", { message: err instanceof Error ? err.message : "Failed to generate explanation" });
+    } finally {
+      close();
+    }
+  }),
+);
+
+const ocrParamsSchema = z.object({ submissionId: z.string().uuid() });
+
+/**
+ * Transcribes a handwritten-mode submission's page photos, streamed as SSE —
+ * the first half of the trust loop on the confirm screen (transcribe here,
+ * then PATCH /answers/submissions/:id/confirm-ocr once the user has reviewed
+ * it). Event order: delta ×N -> done. A submission that already has ocr_text
+ * replays it as a single "done" instead of re-billing the model. On failure
+ * (e.g. every page came back unreadable) the submission is marked 'failed'
+ * but stays recoverable — a fresh GET on this route retries the same stored
+ * photos with no re-upload needed.
+ */
+streamRouter.get(
+  "/stream/ocr/:submissionId",
+  rateLimit({ windowMs: 60_000, max: 20 }),
+  asyncHandler(async (req, res) => {
+    const { submissionId } = parse(ocrParamsSchema, req.params);
+
+    // Pre-flight before opening SSE so 404/400 return as JSON, not a stream.
+    const plan = await planOcr(devUserId(), submissionId);
+
+    const { send, close } = createSseConnection(req, res);
+    const emit: OcrEmit = (event, data) => {
+      if (!res.writableEnded) send(event, data);
+    };
+
+    const abort = new AbortController();
+    req.on("close", () => abort.abort());
+
+    try {
+      if (plan.kind === "replay") {
+        emit("done", { ocr_text: plan.ocrText, ocr_confidence: plan.confidence });
+      } else {
+        await executeOcr(plan, emit, abort.signal);
+      }
+    } catch (err) {
+      emit("error", { message: err instanceof Error ? err.message : "Transcription failed" });
     } finally {
       close();
     }

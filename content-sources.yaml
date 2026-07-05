@@ -323,6 +323,34 @@ verified:
     paper: prelims_csat
     notes: Non-gov (CareerPower). Paper + answer key combined.
 
+  # =============== HANDWRITING SAMPLES (Answer-Writing OCR smoke test) ===============
+  # Public-domain Devanagari manuscript pages from Wikimedia Commons, used ONLY to
+  # smoke-test the handwritten-mode OCR pipeline (upload -> transcribe -> confirm ->
+  # evaluate) without needing a real handwriting photo. Verified direct
+  # upload.wikimedia.org JPEG URLs (checked for real image bytes + license before
+  # being added here) — see apps/api/src/services/ocr/index.ts and CLAUDE.md.
+  - id: handwriting_sample_rigveda
+    section: handwriting_samples
+    url: https://upload.wikimedia.org/wikipedia/commons/5/50/1500-1200_BCE%2C_Rigveda_manuscript_page_sample_iii%2C_Sanskrit%2C_Devanagari.jpg
+    lang: hi
+    notes: >-
+      Wikimedia Commons, CC BY-SA 4.0 (photo) / PD-Art (pre-1923 underlying text).
+      Rigveda manuscript page, Devanagari, Lalchand Research Library.
+  - id: handwriting_sample_indian_manuscript
+    section: handwriting_samples
+    url: https://upload.wikimedia.org/wikipedia/commons/9/98/Indian_manuscript%2C_Devanagari_script_on_paper.jpg
+    lang: hi
+    notes: >-
+      Wikimedia Commons, dual-licensed GFDL 1.2+/CC BY-SA 4.0, uploader released
+      into the public domain. Devanagari manuscript page on hemp paper.
+  - id: handwriting_sample_maitrayaniya_upanishad
+    section: handwriting_samples
+    url: https://upload.wikimedia.org/wikipedia/commons/f/f8/1860s_manuscript_copy_of_ancient_Maitrayaniya_Upanishad%2C_sample_i%2C_Krishna_Yajurveda%2C_Pune_Maharashtra%2C_Sanskrit%2C_Devanagari.jpg
+    lang: hi
+    notes: >-
+      Wikimedia Commons, CC BY-SA 4.0. 1860s manuscript copy, Devanagari,
+      Cambridge University collection.
+
 # Sources that are clearly useful but live ONLY on a non-government domain and
 # need an explicit human copyright decision before download. The fetcher IGNORES
 # this section. Promote an entry into `verified:` to enable it.

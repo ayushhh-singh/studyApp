@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  confirmOcrBodySchema,
   createSubmissionBodySchema,
   submissionDetailResponseSchema,
   submissionListResponseSchema,
@@ -12,6 +13,7 @@ import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
 import {
+  confirmOcr,
   createSubmission,
   getSubmissionDetail,
   listSubmissions,
@@ -75,5 +77,21 @@ answersRouter.get(
     const { submissionId } = parse(submissionIdParams, req.params);
     const detail = await getSubmissionDetail(devUserId(), submissionId);
     res.json(submissionDetailResponseSchema.parse({ data: detail, error: null }));
+  }),
+);
+
+/**
+ * Trust-loop confirm step for a handwritten submission: persists the user's
+ * reviewed/edited OCR transcription as typed_text. The actual transcription
+ * runs at GET /stream/evaluations/:submissionId's sibling,
+ * GET /stream/ocr/:submissionId (see routes/stream.ts).
+ */
+answersRouter.patch(
+  "/answers/submissions/:submissionId/confirm-ocr",
+  asyncHandler(async (req, res) => {
+    const { submissionId } = parse(submissionIdParams, req.params);
+    const { text } = parse(confirmOcrBodySchema, req.body);
+    const submission = await confirmOcr(devUserId(), submissionId, text);
+    res.json(submissionResponseSchema.parse({ data: submission, error: null }));
   }),
 );

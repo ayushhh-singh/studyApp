@@ -40,6 +40,10 @@ export const router = createBrowserRouter([
           { path: "answers", lazy: () => import("@/routes/answers") },
           { path: "answers/write", lazy: () => import("@/routes/answers-write") },
           {
+            path: "answers/confirm/:submissionId",
+            lazy: () => import("@/routes/answers-confirm"),
+          },
+          {
             path: "answers/evaluation/:submissionId",
             lazy: () => import("@/routes/answers-evaluation"),
           },

@@ -52,7 +52,21 @@ const FETCHABLE_SECTIONS = new Set([
   "pyq_prelims",
   "pyq_mains",
   "answer_key",
+  "handwriting_samples",
 ]);
+
+/**
+ * Every section downloads a PDF except `handwriting_samples` (public-domain
+ * Devanagari handwriting photos used to smoke-test the OCR pipeline without
+ * needing a real photo from a person). Kind drives validation (%PDF magic
+ * bytes vs. JPEG/PNG/WEBP magic bytes), the output extension, and how "pages"
+ * is computed for the manifest (a real PDF page count vs. a flat 1 per image).
+ */
+type ContentKind = "pdf" | "image";
+const SECTION_KIND: Record<string, ContentKind> = { handwriting_samples: "image" };
+function kindOf(section: string): ContentKind {
+  return SECTION_KIND[section] ?? "pdf";
+}
 
 // ---------- types ----------
 interface Source {
@@ -133,6 +147,32 @@ async function pdfPageCount(buf: Buffer): Promise<number> {
   }
 }
 
+/** JPEG/PNG/WEBP magic bytes — the trio the answer-images Storage bucket accepts. */
+function isImage(buf: Buffer): boolean {
+  if (buf.length < 12) return false;
+  if (buf[0] === 0xff && buf[1] === 0xd8 && buf[2] === 0xff) return true; // JPEG
+  if (buf.subarray(0, 8).toString("latin1") === "\x89PNG\r\n\x1a\n") return true; // PNG
+  if (buf.subarray(0, 4).toString("latin1") === "RIFF" && buf.subarray(8, 12).toString("latin1") === "WEBP") return true;
+  return false;
+}
+
+function isValidContent(buf: Buffer, kind: ContentKind): boolean {
+  return kind === "pdf" ? isPdf(buf) : isImage(buf);
+}
+
+/** Output extension for an image source, from its URL's own extension (jpg/png/webp; defaults to jpg). */
+function imageExtFromUrl(url: string): string {
+  const ext = new URL(url).pathname.split(".").pop()?.toLowerCase();
+  if (ext === "png" || ext === "webp" || ext === "jpeg" || ext === "jpg") return ext === "jpeg" ? "jpg" : ext;
+  return "jpg";
+}
+
+function extFor(source: Source): string {
+  return kindOf(source.section) === "pdf" ? "pdf" : imageExtFromUrl(source.url);
+}
+
+const CONTENT_EXTENSIONS = [".pdf", ".jpg", ".jpeg", ".png", ".webp"];
+
 // ---------- cookie jar (per host) ----------
 const cookieJar = new Map<string, Map<string, string>>();
 
@@ -193,9 +233,10 @@ async function warmup(source: Source): Promise<void> {
 
 // ---------- download with retries ----------
 async function downloadOnce(source: Source): Promise<Buffer> {
+  const kind = kindOf(source.section);
   const headers: Record<string, string> = {
     "User-Agent": USER_AGENT,
-    Accept: "application/pdf,*/*",
+    Accept: kind === "pdf" ? "application/pdf,*/*" : "image/*,*/*",
   };
   const cookie = cookieHeader(source.url);
   if (cookie) headers["Cookie"] = cookie;
@@ -211,14 +252,15 @@ async function downloadOnce(source: Source): Promise<Buffer> {
     throw new Error(`HTTP ${res.status} ${res.statusText} (${buf.length} bytes)`);
   }
   if (buf.length === 0) throw new Error("empty response body");
-  if (!isPdf(buf)) {
+  if (!isValidContent(buf, kind)) {
     const looksHtml = /text\/html|<html|<!doctype/i.test(
       ct + buf.subarray(0, 256).toString("latin1"),
     );
+    const label = kind === "pdf" ? "a PDF" : "a JPEG/PNG/WEBP image";
     throw new Error(
       looksHtml
-        ? `served HTML, not a PDF (content-type: ${ct || "?"}) — likely a session redirect`
-        : `not a PDF (content-type: ${ct || "?"}, first bytes: ${JSON.stringify(
+        ? `served HTML, not ${label} (content-type: ${ct || "?"}) — likely a session redirect`
+        : `not ${label} (content-type: ${ct || "?"}, first bytes: ${JSON.stringify(
             buf.subarray(0, 8).toString("latin1"),
           )})`,
     );
@@ -280,9 +322,11 @@ async function saveManifest(entries: Map<string, ManifestEntry>): Promise<void> 
 /** Validate an on-disk file and return a fresh manifest entry, or null if invalid. */
 async function inspectFile(
   path: string,
+  kind: ContentKind,
 ): Promise<{ sha256: string; bytes: number; pages: number } | null> {
   const buf = await readFile(path);
-  if (!isPdf(buf)) return null;
+  if (!isValidContent(buf, kind)) return null;
+  if (kind === "image") return { sha256: sha256(buf), bytes: buf.length, pages: 1 };
   try {
     const pages = await pdfPageCount(buf);
     return { sha256: sha256(buf), bytes: buf.length, pages };
@@ -364,15 +408,16 @@ async function main() {
   let firstRequest = true;
 
   for (const source of sources) {
+    const kind = kindOf(source.section);
     const dir = join(CONTENT_RAW, source.section);
     await mkdir(dir, { recursive: true });
-    const outPath = join(dir, `${source.id}.pdf`);
+    const outPath = join(dir, `${source.id}.${extFor(source)}`);
     const relPath = relative(ROOT, outPath);
     const prior = manifest.get(source.id);
 
-    // Idempotent skip: file present, still a valid PDF, sha matches manifest.
+    // Idempotent skip: file present, still valid, sha matches manifest.
     if (existsSync(outPath) && prior?.status === "ok" && prior.sha256) {
-      const info = await inspectFile(outPath);
+      const info = await inspectFile(outPath, kind);
       if (info && info.sha256 === prior.sha256) {
         console.log(`⏭  ${source.id.padEnd(34)} unchanged (${info.pages}p)`);
         skipped++;
@@ -387,7 +432,7 @@ async function main() {
     process.stdout.write(`⬇  ${source.id.padEnd(34)} `);
     try {
       const buf = await downloadWithRetries(source);
-      const pages = await pdfPageCount(buf); // throws if unparseable
+      const pages = kind === "image" ? 1 : await pdfPageCount(buf); // throws if unparseable
       await writeFile(outPath, buf);
       manifest.set(source.id, {
         id: source.id,
@@ -428,9 +473,9 @@ async function main() {
   // ---------- hand-dropped + orphan files ----------
   const knownPaths = new Map<string, Source>(); // absolute path -> source
   for (const s of sources)
-    knownPaths.set(join(CONTENT_RAW, s.section, `${s.id}.pdf`), s);
+    knownPaths.set(join(CONTENT_RAW, s.section, `${s.id}.${extFor(s)}`), s);
 
-  const walked = await walkPdfs(CONTENT_RAW);
+  const walked = await walkContentFiles(CONTENT_RAW);
   let manualAdopted = 0;
   for (const abs of walked) {
     const src = knownPaths.get(abs);
@@ -439,7 +484,8 @@ async function main() {
     // healthy "ok" download for it, nothing to do.
     if (src && cur?.status === "ok" && cur.origin === "download") continue;
 
-    const info = await inspectFile(abs);
+    const kind = src ? kindOf(src.section) : kindFromExt(abs);
+    const info = await inspectFile(abs, kind);
     const relPath = relative(ROOT, abs);
     if (src) {
       // A file exists for a known source that we did NOT successfully download
@@ -497,8 +543,9 @@ async function main() {
     console.log(`FAILURES (${failures.length}) — grab these in a browser into the same path:`);
     console.log("=".repeat(72));
     for (const f of failures) {
+      const src = sources.find((s) => s.id === f.id);
       console.log(`\n  id:    ${f.id}`);
-      console.log(`  save:  content-raw/${sectionForId(f.id, sources)}/${f.id}.pdf`);
+      console.log(`  save:  content-raw/${sectionForId(f.id, sources)}/${f.id}.${src ? extFor(src) : "pdf"}`);
       console.log(`  url:   ${f.url}`);
       console.log(`  why:   ${f.error}`);
     }
@@ -520,17 +567,22 @@ function sectionOf(abs: string): string {
 }
 
 function orphanId(abs: string): string {
-  const rel = relative(CONTENT_RAW, abs).replace(/\.pdf$/i, "");
+  const rel = relative(CONTENT_RAW, abs).replace(/\.(pdf|jpe?g|png|webp)$/i, "");
   return rel.replace(/[\\/]/g, "__");
 }
 
-async function walkPdfs(dir: string): Promise<string[]> {
+/** Extension-only fallback for a path with no matching yaml source (orphan scan). */
+function kindFromExt(abs: string): ContentKind {
+  return abs.toLowerCase().endsWith(".pdf") ? "pdf" : "image";
+}
+
+async function walkContentFiles(dir: string): Promise<string[]> {
   const out: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   for (const e of entries) {
     const p = join(dir, e.name);
-    if (e.isDirectory()) out.push(...(await walkPdfs(p)));
-    else if (e.isFile() && e.name.toLowerCase().endsWith(".pdf")) out.push(p);
+    if (e.isDirectory()) out.push(...(await walkContentFiles(p)));
+    else if (e.isFile() && CONTENT_EXTENSIONS.some((ext) => e.name.toLowerCase().endsWith(ext))) out.push(p);
   }
   return out;
 }

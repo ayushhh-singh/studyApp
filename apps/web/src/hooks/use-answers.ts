@@ -41,3 +41,15 @@ export function useCreateSubmission() {
     },
   });
 }
+
+/** Trust-loop confirm step: persists the user's reviewed/edited OCR transcription. */
+export function useConfirmOcr(submissionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (text: string) =>
+      api.patch(`/api/v1/answers/submissions/${submissionId}/confirm-ocr`, submissionResponseSchema, { text }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.submissionDetail(submissionId) });
+    },
+  });
+}

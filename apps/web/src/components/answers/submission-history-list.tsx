@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight, History } from "lucide-react";
+import { Camera, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
@@ -40,6 +40,7 @@ export function SubmissionHistoryList() {
               const row = (
                 <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-background px-3 py-2.5">
                   <p className="line-clamp-2 text-sm" lang={locale}>
+                    {item.mode === "handwritten" && <Camera className="mr-1.5 inline size-3.5 text-muted-foreground" aria-hidden />}
                     {stem || t("Answers.historyUntitled")}
                   </p>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
@@ -53,11 +54,19 @@ export function SubmissionHistoryList() {
                   </div>
                 </div>
               );
+              // A handwritten submission not yet confirmed/evaluated can resume the
+              // trust-loop confirm screen; a completed one (any mode) reopens its result.
+              const resumeHref =
+                item.status === "complete"
+                  ? `/${locale}/answers/evaluation/${item.id}`
+                  : item.mode === "handwritten" && item.status !== "evaluating"
+                    ? `/${locale}/answers/confirm/${item.id}`
+                    : null;
               return (
                 <li key={item.id}>
-                  {item.status === "complete" ? (
+                  {resumeHref ? (
                     <Link
-                      to={`/${locale}/answers/evaluation/${item.id}`}
+                      to={resumeHref}
                       className="block rounded-lg transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     >
                       {row}

@@ -70,25 +70,48 @@ export const submissionStatusSchema = z.enum([
 ]);
 export type SubmissionStatus = z.infer<typeof submissionStatusSchema>;
 
+/** Max handwritten page photos accepted for a single submission. */
+export const MAX_ANSWER_IMAGES = 6;
+
 /**
  * POST /answers/submissions body. Exactly one of `question_id` (catalogued) or
  * `custom_question_text` (a prompt the user typed in themselves) must be set.
  * `word_limit`/`marks` are optional overrides for the custom path; for a
  * catalogued question they come from the questions row.
+ *
+ * `mode: "typed"` requires `typed_text`. `mode: "handwritten"` requires
+ * `image_paths` (1-6 paths already uploaded by the client straight to the
+ * `answer-images` Supabase Storage bucket) — `typed_text` is filled in later,
+ * once the user confirms the OCR transcription (see PATCH
+ * /answers/submissions/:id/confirm-ocr).
  */
 export const createSubmissionBodySchema = z
   .object({
     question_id: z.string().uuid().optional(),
     custom_question_text: z.string().trim().min(1).max(MAX_CUSTOM_QUESTION_CHARS).optional(),
-    typed_text: z.string().min(1).max(MAX_ANSWER_CHARS),
+    mode: submissionModeSchema.default("typed"),
+    typed_text: z.string().min(1).max(MAX_ANSWER_CHARS).optional(),
+    image_paths: z.array(z.string().min(1)).min(1).max(MAX_ANSWER_IMAGES).optional(),
     language: localeSchema,
     word_limit: z.number().int().positive().max(2_000).optional(),
     marks: z.number().int().positive().max(100).optional(),
   })
   .refine((b) => (b.question_id ? 1 : 0) + (b.custom_question_text ? 1 : 0) === 1, {
     message: "Provide exactly one of question_id or custom_question_text",
+  })
+  .refine((b) => (b.mode === "typed" ? !!b.typed_text?.trim() : true), {
+    message: "typed_text: answer text is required",
+  })
+  .refine((b) => (b.mode === "handwritten" ? !!b.image_paths?.length : true), {
+    message: "image_paths: at least one page image is required for a handwritten submission",
   });
 export type CreateSubmissionBody = z.infer<typeof createSubmissionBodySchema>;
+
+/** PATCH /answers/submissions/:id/confirm-ocr — the user's reviewed/edited transcription. */
+export const confirmOcrBodySchema = z.object({
+  text: z.string().trim().min(1).max(MAX_ANSWER_CHARS),
+});
+export type ConfirmOcrBody = z.infer<typeof confirmOcrBodySchema>;
 
 export const submissionSchema = z.object({
   id: z.string().uuid(),
@@ -97,6 +120,9 @@ export const submissionSchema = z.object({
   custom_question_text_i18n: bilingualTextSchema.nullable(),
   mode: submissionModeSchema,
   typed_text: z.string().nullable(),
+  image_paths: z.array(z.string()).nullable(),
+  ocr_text: z.string().nullable(),
+  ocr_confidence: z.number().nullable(),
   status: submissionStatusSchema,
   language: localeSchema,
   created_at: z.string(),
@@ -200,6 +226,24 @@ export const evalErrorEventSchema = z.object({ message: z.string() });
 export type EvalErrorEvent = z.infer<typeof evalErrorEventSchema>;
 
 // ---------------------------------------------------------------------------
+// OCR SSE event payloads — GET /stream/ocr/:submissionId (handwritten mode).
+// Event order: delta ×N (live transcription text) -> done. A submission that
+// already has ocr_text replays it as a single "done" with no delta events, the
+// same idempotent-replay contract as the evaluation stream.
+// ---------------------------------------------------------------------------
+export const ocrDeltaEventSchema = z.object({ text: z.string() });
+export type OcrDeltaEvent = z.infer<typeof ocrDeltaEventSchema>;
+
+export const ocrDoneEventSchema = z.object({
+  ocr_text: z.string(),
+  ocr_confidence: z.number(),
+});
+export type OcrDoneEvent = z.infer<typeof ocrDoneEventSchema>;
+
+export const ocrErrorEventSchema = z.object({ message: z.string() });
+export type OcrErrorEvent = z.infer<typeof ocrErrorEventSchema>;
+
+// ---------------------------------------------------------------------------
 // Submission history (GET /answers/submissions) — one row per past submission,
 // with just enough of its evaluation (if any) to render a score/status chip
 // without a second round-trip per row.
@@ -207,6 +251,7 @@ export type EvalErrorEvent = z.infer<typeof evalErrorEventSchema>;
 export const submissionListItemSchema = z.object({
   id: z.string().uuid(),
   status: submissionStatusSchema,
+  mode: submissionModeSchema,
   language: localeSchema,
   created_at: z.string(),
   question_id: z.string().uuid().nullable(),

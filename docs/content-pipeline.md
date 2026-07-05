@@ -16,7 +16,9 @@ pnpm content:fetch
    where noted, a reputable coaching mirror.
 2. Downloads each source to `content-raw/<section>/<id>.pdf`.
 3. Validates every file: `%PDF` magic bytes **and** a real page count via
-   `pdf-parse`. HTML error/login pages saved as `.pdf` are rejected as failures.
+   `pdf-parse` for PDF sections; JPEG/PNG/WEBP magic bytes (pages fixed at 1)
+   for the `handwriting_samples` image section. HTML error/login pages saved
+   with the wrong extension are rejected as failures either way.
 4. Maintains [`content-raw/manifest.json`](../content-raw/manifest.json):
    `{id, section, url, path, sha256, bytes, pages, fetched_at, status, origin, error?}`.
 
@@ -32,6 +34,7 @@ committed, so the manifest is the source of truth for "what should exist" and
 | `pyq_prelims` | Prelims GS-I + CSAT question papers                        |
 | `pyq_mains`   | Mains question papers (8 papers/year, whatever is published) |
 | `answer_key`  | Official Prelims answer keys                               |
+| `handwriting_samples` | Public-domain Devanagari handwriting photos (Wikimedia Commons) used to smoke-test the Answer-Writing OCR pipeline |
 
 ## Politeness & robustness
 
