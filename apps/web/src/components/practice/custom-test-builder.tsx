@@ -30,8 +30,12 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const [count, setCount] = useState(20);
   const createTest = useCreateCustomTest();
 
+  // own_pyq_count (exact node match), NOT pyq_count (subtree-aggregated) —
+  // createCustomTestFromNode only pulls questions mapped to this exact node,
+  // so the picker must reflect that count or it over-promises what a parent
+  // topic's dropdown row can actually deliver.
   const flatNodes = useMemo(
-    () => (tree ? flatten(tree.children).filter((f) => f.node.pyq_count > 0) : []),
+    () => (tree ? flatten(tree.children).filter((f) => f.node.own_pyq_count > 0) : []),
     [tree],
   );
   const selectedNode = flatNodes.find((f) => f.node.id === nodeId)?.node;
@@ -77,7 +81,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
           {flatNodes.map(({ node, depth }) => (
             <option key={node.id} value={node.id}>
               {"— ".repeat(depth)}
-              {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.pyq_count })})
+              {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.own_pyq_count })})
             </option>
           ))}
         </select>
@@ -104,9 +108,9 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
             type="number"
             className={INPUT_CLASS}
             min={1}
-            max={Math.max(1, Math.min(100, selectedNode?.pyq_count ?? 100))}
+            max={Math.max(1, Math.min(100, selectedNode?.own_pyq_count ?? 100))}
             value={count}
-            onChange={(e) => setCount(Math.max(1, Number(e.target.value) || 1))}
+            onChange={(e) => setCount(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
           />
         </label>
       </div>

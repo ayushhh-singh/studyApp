@@ -151,7 +151,18 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
     })
     .select(ATTEMPT_COLUMNS)
     .single();
-  if (error) throw new HttpError(500, `attempt insert failed: ${error.message}`);
+  if (error) {
+    // 23505 here means a concurrent "Start Test" request (double-click, slow
+    // network) won the race against the active-attempt check above — the
+    // partial unique index (attempts_one_active_per_test_idx) caught it.
+    // Return the winner's attempt instead of erroring, so both requests
+    // converge on the same attempt id.
+    if (error.code === "23505" && body.test_id) {
+      const winner = await findActiveAttempt(userId, body.test_id);
+      if (winner) return toAttempt(winner);
+    }
+    throw new HttpError(500, `attempt insert failed: ${error.message}`);
+  }
   return toAttempt(attempt as unknown as AttemptRow);
 }
 

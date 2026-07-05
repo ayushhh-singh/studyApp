@@ -11,6 +11,7 @@ import { createOfflineQueue, type QueueStatus } from "@/lib/offline-queue";
  */
 export function useAttemptAnswers(attemptId: string | undefined): {
   saveAnswer: (input: AttemptAnswerInput) => void;
+  flushNow: () => Promise<void>;
   status: QueueStatus;
 } {
   const queue = useMemo(() => {
@@ -38,6 +39,7 @@ export function useAttemptAnswers(attemptId: string | undefined): {
 
   return {
     saveAnswer: (input) => queue?.enqueue(input),
+    flushNow: () => queue?.flushNow() ?? Promise.resolve(),
     status,
   };
 }

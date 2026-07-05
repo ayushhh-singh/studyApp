@@ -113,12 +113,17 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   if (error) throw new HttpError(500, `test lookup failed: ${error.message}`);
   if (!test) throw notFound("Test not found");
 
+  // !inner + questions.is_published filters out questions retracted after the
+  // test was assembled — must match the same filter in startAttempt/
+  // submitAttempt, or the player would show (and let a user answer) a
+  // question that can never be scored.
   const { data: tq, error: tqError } = await supabase()
     .from("test_questions")
     .select(
-      "order_index, marks, questions(id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks)",
+      "order_index, marks, questions!inner(id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
     )
     .eq("test_id", testId)
+    .eq("questions.is_published", true)
     .order("order_index", { ascending: true });
   if (tqError) throw new HttpError(500, `test questions lookup failed: ${tqError.message}`);
 

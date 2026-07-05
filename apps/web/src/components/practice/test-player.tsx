@@ -69,7 +69,7 @@ export function TestPlayer({
   const [paletteOpen, setPaletteOpen] = useState(false);
   const activeSinceRef = useRef(Date.now());
 
-  const { saveAnswer } = useAttemptAnswers(attemptId);
+  const { saveAnswer, flushNow } = useAttemptAnswers(attemptId);
   const submitAttempt = useSubmitAttempt();
 
   const question = test.questions[currentIndex];
@@ -111,8 +111,12 @@ export function TestPlayer({
     });
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     flushTimeFor(question.id);
+    // Wait for the answer queue to actually reach the server first — firing
+    // submit immediately after the last option pick would otherwise race the
+    // autosave POST and could grade the final question as unanswered.
+    await flushNow();
     submitAttempt.mutate(attemptId, {
       onSuccess: (result) => {
         localStorage.removeItem(markedStorageKey(attemptId));
@@ -123,6 +127,9 @@ export function TestPlayer({
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // Don't let shortcuts reach the player while the submit dialog or the
+      // mobile palette sheet is open on top of it.
+      if (submitOpen || paletteOpen) return;
       if (event.key === "ArrowRight") goTo(currentIndex + 1);
       else if (event.key === "ArrowLeft") goTo(currentIndex - 1);
       else if (event.key.toLowerCase() === "m") toggleMark();
@@ -136,8 +143,8 @@ export function TestPlayer({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
     // Re-subscribed on every relevant state change so the handler always
-    // closes over the current question/answers/marked snapshot.
-  }, [currentIndex, question, answers, marked]);
+    // closes over the current question/answers/marked/dialog snapshot.
+  }, [currentIndex, question, answers, marked, submitOpen, paletteOpen]);
 
   useEffect(() => {
     function onBeforeUnload(event: BeforeUnloadEvent) {
