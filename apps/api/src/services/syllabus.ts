@@ -68,43 +68,43 @@ export async function getSyllabusTree(stage?: ExamStage): Promise<SyllabusNode[]
 // Papers grid — one row per paper root (syllabus_nodes.depth = 0).
 // ---------------------------------------------------------------------------
 export async function getPaperSummaries(userId: string): Promise<PaperSummary[]> {
-  const { data: roots, error: rootsError } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, exam_stage, paper_code, title_i18n")
-    .eq("depth", 0)
-    .order("exam_stage", { ascending: true })
-    .order("paper_code", { ascending: true });
-  if (rootsError) throw new HttpError(500, `paper roots lookup failed: ${rootsError.message}`);
-  const rootRows = (roots ?? []) as {
+  // depth=1 rows are the top-level chapters shown as the outline's first
+  // level (what "N topics" on a paper card should count) — NOT every node at
+  // every depth, which would silently include every subtopic too.
+  const [rootsResult, topicsResult, questionsResult, graded] = await Promise.all([
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, exam_stage, paper_code, title_i18n")
+      .eq("depth", 0)
+      .order("exam_stage", { ascending: true })
+      .order("paper_code", { ascending: true }),
+    supabase().from("syllabus_nodes").select("paper_code").eq("depth", 1),
+    supabase().from("questions").select("paper_code").eq("is_published", true),
+    getGradedAnswers(userId),
+  ]);
+  if (rootsResult.error) throw new HttpError(500, `paper roots lookup failed: ${rootsResult.error.message}`);
+  if (topicsResult.error) throw new HttpError(500, `topic count lookup failed: ${topicsResult.error.message}`);
+  if (questionsResult.error) throw new HttpError(500, `question count lookup failed: ${questionsResult.error.message}`);
+
+  const rootRows = (rootsResult.data ?? []) as {
     id: string;
     exam_stage: ExamStage;
     paper_code: string;
     title_i18n: BilingualText;
   }[];
 
-  const { data: topicRows, error: topicsError } = await supabase()
-    .from("syllabus_nodes")
-    .select("paper_code")
-    .gt("depth", 0);
-  if (topicsError) throw new HttpError(500, `topic count lookup failed: ${topicsError.message}`);
   const topicsByPaper = new Map<string, number>();
-  for (const row of topicRows ?? []) {
+  for (const row of topicsResult.data ?? []) {
     const code = row.paper_code as string;
     topicsByPaper.set(code, (topicsByPaper.get(code) ?? 0) + 1);
   }
 
-  const { data: questionRows, error: questionsError } = await supabase()
-    .from("questions")
-    .select("paper_code")
-    .eq("is_published", true);
-  if (questionsError) throw new HttpError(500, `question count lookup failed: ${questionsError.message}`);
   const pyqByPaper = new Map<string, number>();
-  for (const row of questionRows ?? []) {
+  for (const row of questionsResult.data ?? []) {
     const code = row.paper_code as string;
     pyqByPaper.set(code, (pyqByPaper.get(code) ?? 0) + 1);
   }
 
-  const graded = await getGradedAnswers(userId);
   const accuracyByPaper = new Map<string, { correct: number; total: number }>();
   for (const row of graded) {
     const code = row.questions?.paper_code;
@@ -130,49 +130,37 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
 }
 
 // ---------------------------------------------------------------------------
-// Paper outline — full node tree for one paper, annotated with subtree-wide
-// PYQ counts + accuracy (own question stats rolled up through every ancestor,
-// so a chapter row is meaningful even though only leaf topics carry
-// questions directly).
+// Paper outline — full node tree for one paper, annotated with both:
+//  - own_pyq_count: PYQs mapped exactly to that node (matches /questions?node=)
+//  - pyq_count/accuracy_pct/answered_count: rolled up through the whole
+//    subtree, so a chapter row is meaningful even though only leaf topics
+//    carry questions directly.
 // ---------------------------------------------------------------------------
-interface PaperTreeRow {
-  id: string;
-  exam_stage: ExamStage;
-  paper_code: string;
-  title_i18n: BilingualText;
-  description_i18n: BilingualText | null;
-  order_index: number;
-  depth: number;
-  path: string;
-  parent_id: string | null;
-}
-
 export async function getPaperTree(userId: string, paperCode: string): Promise<SyllabusNodeWithStats> {
-  const { data, error } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, exam_stage, paper_code, title_i18n, description_i18n, order_index, depth, path, parent_id")
-    .eq("paper_code", paperCode)
-    .order("depth", { ascending: true })
-    .order("order_index", { ascending: true });
-  if (error) throw new HttpError(500, `paper tree lookup failed: ${error.message}`);
-  const rows = (data ?? []) as PaperTreeRow[];
-  const root = rows.find((r) => r.depth === 0);
+  const [treeResult, questionsResult, graded] = await Promise.all([
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, exam_stage, paper_code, title_i18n, description_i18n, order_index, depth, path, parent_id")
+      .eq("paper_code", paperCode)
+      .order("depth", { ascending: true })
+      .order("order_index", { ascending: true }),
+    supabase().from("questions").select("syllabus_node_id").eq("paper_code", paperCode).eq("is_published", true),
+    getGradedAnswers(userId),
+  ]);
+  if (treeResult.error) throw new HttpError(500, `paper tree lookup failed: ${treeResult.error.message}`);
+  if (questionsResult.error) throw new HttpError(500, `paper question lookup failed: ${questionsResult.error.message}`);
+
+  const rows = (treeResult.data ?? []) as SyllabusRow[];
+  const [root] = buildTree(rows);
   if (!root) throw notFound("Paper not found");
 
-  const { data: questionRows, error: qError } = await supabase()
-    .from("questions")
-    .select("syllabus_node_id")
-    .eq("paper_code", paperCode)
-    .eq("is_published", true);
-  if (qError) throw new HttpError(500, `paper question lookup failed: ${qError.message}`);
   const ownPyqCount = new Map<string, number>();
-  for (const row of questionRows ?? []) {
+  for (const row of questionsResult.data ?? []) {
     const nodeId = row.syllabus_node_id as string | null;
     if (!nodeId) continue;
     ownPyqCount.set(nodeId, (ownPyqCount.get(nodeId) ?? 0) + 1);
   }
 
-  const graded = await getGradedAnswers(userId);
   const ownStats = new Map<string, { correct: number; total: number }>();
   for (const row of graded) {
     if (row.questions?.paper_code !== paperCode) continue;
@@ -184,53 +172,42 @@ export async function getPaperTree(userId: string, paperCode: string): Promise<S
     ownStats.set(nodeId, bucket);
   }
 
-  const byId = new Map<string, SyllabusNodeWithStats>();
-  for (const r of rows) {
-    byId.set(r.id, {
-      id: r.id,
-      exam_stage: r.exam_stage,
-      paper_code: r.paper_code,
-      title_i18n: r.title_i18n,
-      description_i18n: r.description_i18n,
-      order_index: r.order_index,
-      depth: r.depth,
-      path: r.path,
-      pyq_count: 0,
-      accuracy_pct: null,
-      answered_count: 0,
-      children: [],
-    });
-  }
-  for (const r of rows) {
-    if (!r.parent_id) continue;
-    const parent = byId.get(r.parent_id);
-    if (parent) parent.children.push(byId.get(r.id)!);
-  }
-
-  // Deepest-first so every node's children are already fully accumulated
-  // (pyq_count + correct/total) by the time the node itself is processed.
-  const subtreeTotals = new Map<string, { correct: number; total: number }>();
-  for (const r of [...rows].sort((a, b) => b.depth - a.depth)) {
-    const node = byId.get(r.id)!;
-    const own = ownStats.get(r.id) ?? { correct: 0, total: 0 };
+  // Post-order over the already-linked tree: each call returns both the
+  // decorated node and its raw correct/total, so a parent can roll up its
+  // children's totals directly from their return values — no side Map needed.
+  function decorate(node: SyllabusNode): { node: SyllabusNodeWithStats; correct: number; total: number } {
+    const decoratedChildren = node.children.map(decorate);
+    const own = ownStats.get(node.id) ?? { correct: 0, total: 0 };
     let correct = own.correct;
     let total = own.total;
-    let pyq = ownPyqCount.get(r.id) ?? 0;
-    for (const child of node.children) {
-      pyq += child.pyq_count;
-      const childTotals = subtreeTotals.get(child.id);
-      if (childTotals) {
-        correct += childTotals.correct;
-        total += childTotals.total;
-      }
+    let pyq = ownPyqCount.get(node.id) ?? 0;
+    for (const child of decoratedChildren) {
+      pyq += child.node.pyq_count;
+      correct += child.correct;
+      total += child.total;
     }
-    node.pyq_count = pyq;
-    node.answered_count = total;
-    node.accuracy_pct = total > 0 ? round2((correct / total) * 100) : null;
-    subtreeTotals.set(r.id, { correct, total });
+    return {
+      node: {
+        id: node.id,
+        exam_stage: node.exam_stage,
+        paper_code: node.paper_code,
+        title_i18n: node.title_i18n,
+        description_i18n: node.description_i18n,
+        order_index: node.order_index,
+        depth: node.depth,
+        path: node.path,
+        own_pyq_count: ownPyqCount.get(node.id) ?? 0,
+        pyq_count: pyq,
+        accuracy_pct: total > 0 ? round2((correct / total) * 100) : null,
+        answered_count: total,
+        children: decoratedChildren.map((c) => c.node),
+      },
+      correct,
+      total,
+    };
   }
 
-  return byId.get(root.id)!;
+  return decorate(root).node;
 }
 
 // ---------------------------------------------------------------------------
@@ -251,26 +228,42 @@ export async function getNodeDetail(userId: string, nodeId: string): Promise<Syl
   const prefixes = [""];
   for (let i = 1; i <= segments.length; i++) prefixes.push(segments.slice(0, i).join("/"));
 
-  const { data: ancestorRows, error: ancestorError } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, title_i18n, path, depth")
-    .eq("paper_code", node.paper_code)
-    .in("path", prefixes);
-  if (ancestorError) throw new HttpError(500, `breadcrumb lookup failed: ${ancestorError.message}`);
+  // None of these four depend on each other — only on nodeId/node.paper_code/
+  // node.path (already in hand) and userId — so run them concurrently.
+  const [ancestorResult, pyqCountResult, graded, relatedCaResult] = await Promise.all([
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, title_i18n, path, depth")
+      .eq("paper_code", node.paper_code)
+      .in("path", prefixes),
+    supabase()
+      .from("questions")
+      .select("id", { count: "exact", head: true })
+      .eq("syllabus_node_id", nodeId)
+      .eq("is_published", true),
+    getGradedAnswers(userId),
+    supabase()
+      .from("current_affairs_items")
+      .select(
+        "id, date, category, is_up_specific, title_i18n, summary_i18n, detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids",
+      )
+      .eq("is_published", true)
+      .contains("syllabus_node_ids", [nodeId])
+      .order("date", { ascending: false })
+      .limit(10),
+  ]);
+  if (ancestorResult.error) throw new HttpError(500, `breadcrumb lookup failed: ${ancestorResult.error.message}`);
+  if (pyqCountResult.error) throw new HttpError(500, `node question count failed: ${pyqCountResult.error.message}`);
+  if (relatedCaResult.error) {
+    throw new HttpError(500, `related current affairs lookup failed: ${relatedCaResult.error.message}`);
+  }
+
   const breadcrumb = (
-    (ancestorRows ?? []) as { id: string; title_i18n: BilingualText; path: string; depth: number }[]
+    (ancestorResult.data ?? []) as { id: string; title_i18n: BilingualText; path: string; depth: number }[]
   )
     .sort((a, b) => a.depth - b.depth)
     .map((r) => ({ id: r.id, title_i18n: r.title_i18n, path: r.path }));
 
-  const { count: pyqCount, error: qError } = await supabase()
-    .from("questions")
-    .select("id", { count: "exact", head: true })
-    .eq("syllabus_node_id", nodeId)
-    .eq("is_published", true);
-  if (qError) throw new HttpError(500, `node question count failed: ${qError.message}`);
-
-  const graded = await getGradedAnswers(userId);
   let correct = 0;
   let total = 0;
   for (const row of graded) {
@@ -279,16 +272,8 @@ export async function getNodeDetail(userId: string, nodeId: string): Promise<Syl
     if (row.is_correct) correct += 1;
   }
 
-  const { data: relatedCa, error: caError } = await supabase()
-    .from("current_affairs_items")
-    .select(
-      "id, date, category, is_up_specific, title_i18n, summary_i18n, detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids",
-    )
-    .eq("is_published", true)
-    .contains("syllabus_node_ids", [nodeId])
-    .order("date", { ascending: false })
-    .limit(10);
-  if (caError) throw new HttpError(500, `related current affairs lookup failed: ${caError.message}`);
+  const relatedCa = relatedCaResult.data;
+  const pyqCount = pyqCountResult.count;
 
   return {
     id: node.id,

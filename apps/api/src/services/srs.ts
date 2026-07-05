@@ -14,20 +14,14 @@ interface SrsCardRow {
 const SRS_CARD_COLUMNS = "id, user_id, front_i18n, back_i18n, source_type, source_id";
 
 /**
- * Add a syllabus topic to revision. Idempotent: a second click on the same
- * node returns the existing card rather than piling up duplicates.
+ * Add a syllabus topic to revision. Idempotent via a DB-level unique index on
+ * (user_id, source_type, source_id) (migration 0026) + upsert — a plain
+ * check-then-insert can't actually guarantee this under concurrent requests
+ * (two near-simultaneous clicks could both pass the lookup before either
+ * insert lands), so the uniqueness has to be enforced by the database, not
+ * just by application logic.
  */
 export async function addNodeToRevision(userId: string, nodeId: string): Promise<SrsCard> {
-  const { data: existing, error: existingError } = await supabase()
-    .from("srs_cards")
-    .select(SRS_CARD_COLUMNS)
-    .eq("user_id", userId)
-    .eq("source_type", "manual")
-    .eq("source_id", nodeId)
-    .maybeSingle();
-  if (existingError) throw new HttpError(500, `srs card lookup failed: ${existingError.message}`);
-  if (existing) return existing as unknown as SrsCardRow;
-
   const { data: node, error: nodeError } = await supabase()
     .from("syllabus_nodes")
     .select("title_i18n, description_i18n")
@@ -36,17 +30,20 @@ export async function addNodeToRevision(userId: string, nodeId: string): Promise
   if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
   if (!node) throw notFound("Syllabus node not found");
 
-  const { data: created, error: createError } = await supabase()
+  const { data: card, error } = await supabase()
     .from("srs_cards")
-    .insert({
-      user_id: userId,
-      front_i18n: node.title_i18n,
-      back_i18n: node.description_i18n ?? { hi: "", en: "" },
-      source_type: "manual",
-      source_id: nodeId,
-    })
+    .upsert(
+      {
+        user_id: userId,
+        front_i18n: node.title_i18n,
+        back_i18n: node.description_i18n ?? { hi: "", en: "" },
+        source_type: "manual",
+        source_id: nodeId,
+      },
+      { onConflict: "user_id,source_type,source_id" },
+    )
     .select(SRS_CARD_COLUMNS)
     .single();
-  if (createError) throw new HttpError(500, `srs card insert failed: ${createError.message}`);
-  return created as unknown as SrsCardRow;
+  if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
+  return card as unknown as SrsCardRow;
 }

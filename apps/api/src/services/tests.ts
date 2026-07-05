@@ -220,7 +220,13 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
         marks: q.marks,
       })),
     );
-  if (tqError) throw new HttpError(500, `custom test questions insert failed: ${tqError.message}`);
+  if (tqError) {
+    // supabase-js has no cross-table transaction — compensate by deleting the
+    // just-created test rather than leaving an orphaned, published, 0-question
+    // test permanently visible in the shared /practice list.
+    await supabase().from("tests").delete().eq("id", test.id as string);
+    throw new HttpError(500, `custom test questions insert failed: ${tqError.message}`);
+  }
 
   return getTestDetail(test.id as string);
 }

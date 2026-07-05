@@ -28,11 +28,16 @@ export function Component() {
   const page = Number(searchParams.get("page") ?? "1") || 1;
 
   useEffect(() => {
-    // Deliberately depends on nodeId only — recordEvent is a fresh mutation
-    // object every render, and including it here would re-fire the event on
-    // every re-render instead of once per node visited.
+    // Deliberately depends on nodeId only — recordEvent/createTest are fresh
+    // objects every render, and including them here would either re-fire the
+    // view event on every re-render or reset createTest right after it
+    // succeeds. React Router reuses this component across nodeId changes (no
+    // remount), so createTest's success/error state from a previous node must
+    // be cleared explicitly or it keeps showing on whichever node you land on
+    // next.
     if (!nodeId) return;
     recordEvent.mutate({ name: "syllabus_node_view", props: { node_id: nodeId } });
+    createTest.reset();
   }, [nodeId]);
 
   function setPage(next: number) {

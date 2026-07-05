@@ -25,6 +25,9 @@ export interface SyllabusNodeWithStats {
   order_index: number;
   depth: number;
   path: string;
+  /** PYQs mapped exactly to this node (not descendants) — matches the /questions?node= filter 1:1. */
+  own_pyq_count: number;
+  /** PYQs mapped to this node OR any descendant — always >= own_pyq_count. */
   pyq_count: number;
   accuracy_pct: number | null;
   answered_count: number;
@@ -41,6 +44,7 @@ export const syllabusNodeWithStatsSchema: z.ZodType<SyllabusNodeWithStats> = z.l
     order_index: z.number().int(),
     depth: z.number().int(),
     path: z.string(),
+    own_pyq_count: z.number().int(),
     pyq_count: z.number().int(),
     accuracy_pct: z.number().nullable(),
     answered_count: z.number().int(),

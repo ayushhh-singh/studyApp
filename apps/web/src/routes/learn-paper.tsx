@@ -84,7 +84,7 @@ function NodeRow({
               {Math.round(node.accuracy_pct)}%
             </span>
           )}
-          {node.pyq_count > 0 && (
+          {node.own_pyq_count > 0 && (
             <Button asChild variant="ghost" size="xs">
               <Link to={`/${locale}/practice?node=${node.id}`}>
                 <PenSquare aria-hidden />
@@ -134,26 +134,30 @@ export function Component() {
   const [searchParams, setSearchParams] = useSearchParams();
   const addToRevision = useAddToRevision();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [pendingId, setPendingId] = useState<string | null>(null);
+  // Derived straight from the mutation object rather than tracked separately —
+  // isPending/variables already update together, so a second piece of state
+  // would just be a second (and occasionally stale) source of truth.
+  const pendingId = addToRevision.isPending ? (addToRevision.variables ?? null) : null;
 
   const expanded = new Set((searchParams.get("open") ?? "").split(",").filter(Boolean));
 
   function handleAddToRevision(nodeId: string) {
-    setPendingId(nodeId);
     addToRevision.mutate(nodeId, {
       onSuccess: () => setAddedIds((prev) => new Set(prev).add(nodeId)),
-      onSettled: () => setPendingId((current) => (current === nodeId ? null : current)),
     });
   }
 
   function toggleNode(id: string) {
-    const next = new Set(expanded);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
+    // Derive `next` from `prev` inside the updater (not from the outer-scope
+    // `expanded`) so two toggles that both fire before a re-render commits
+    // can't clobber each other by both reading the same stale snapshot.
     setSearchParams(
       (prev) => {
+        const current = new Set((prev.get("open") ?? "").split(",").filter(Boolean));
+        if (current.has(id)) current.delete(id);
+        else current.add(id);
         const params = new URLSearchParams(prev);
-        if (next.size > 0) params.set("open", [...next].join(","));
+        if (current.size > 0) params.set("open", [...current].join(","));
         else params.delete("open");
         return params;
       },
