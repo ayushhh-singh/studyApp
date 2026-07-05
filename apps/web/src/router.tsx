@@ -8,13 +8,17 @@ function RedirectPending() {
 export const router = createBrowserRouter([
   {
     path: "/",
-    loader: () => redirect(`/${DEFAULT_LOCALE}`),
+    loader: ({ request }) => {
+      const { search, hash } = new URL(request.url);
+      return redirect(`/${DEFAULT_LOCALE}${search}${hash}`);
+    },
     Component: RedirectPending,
     HydrateFallback: RedirectPending,
   },
   {
     path: "/:locale",
     lazy: () => import("@/routes/locale-layout"),
+    HydrateFallback: RedirectPending,
     children: [
       {
         index: true,

@@ -10,8 +10,9 @@ export function switchLocale(
   pathname: string,
   search: string,
   next: Locale,
+  hash = "",
 ): string {
   const segments = pathname.split("/");
   segments[1] = next;
-  return `${segments.join("/")}${search}`;
+  return `${segments.join("/")}${search}${hash}`;
 }

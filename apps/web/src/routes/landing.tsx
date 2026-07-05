@@ -35,7 +35,14 @@ export function Component() {
             variant={l === locale ? "default" : "outline"}
             size="sm"
             onClick={() =>
-              navigate(switchLocale(location.pathname, location.search, l))
+              navigate(
+                switchLocale(
+                  location.pathname,
+                  location.search,
+                  l,
+                  location.hash,
+                ),
+              )
             }
           >
             {l.toUpperCase()}
