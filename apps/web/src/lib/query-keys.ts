@@ -9,6 +9,7 @@ export const queryKeys = {
     ["tests", "list", filters?.kind ?? "all", filters?.paper ?? "all"] as const,
   test: (id: string) => ["tests", "detail", id] as const,
   attempt: (id: string) => ["attempts", "detail", id] as const,
+  attemptResult: (id: string) => ["attempts", "result", id] as const,
   dashboardSummary: () => ["dashboard", "summary"] as const,
   profile: () => ["profile"] as const,
   currentAffairs: (filters?: { date?: string; category?: string; up_only?: boolean; page?: number }) =>

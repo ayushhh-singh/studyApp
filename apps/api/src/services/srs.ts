@@ -47,3 +47,61 @@ export async function addNodeToRevision(userId: string, nodeId: string): Promise
   if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
   return card as unknown as SrsCardRow;
 }
+
+interface QuestionForRevisionRow {
+  stem_i18n: BilingualText;
+  options_i18n: { key: string; text_i18n: BilingualText }[] | null;
+  correct_option_key: string | null;
+  explanation_i18n: BilingualText | null;
+}
+
+/**
+ * Add a practice question to revision from the attempt-result review list.
+ * front = the question stem, back = the correct option + explanation (both
+ * bilingual) so a later FSRS review reads standalone, without the original
+ * attempt context. Idempotent via the same (user_id, source_type, source_id)
+ * unique index as addNodeToRevision, keyed by source_type='question'.
+ */
+export async function addQuestionToRevision(userId: string, questionId: string): Promise<SrsCard> {
+  const { data: question, error: questionError } = await supabase()
+    .from("questions")
+    .select("stem_i18n, options_i18n, correct_option_key, explanation_i18n")
+    .eq("id", questionId)
+    .maybeSingle();
+  if (questionError) throw new HttpError(500, `question lookup failed: ${questionError.message}`);
+  if (!question) throw notFound("Question not found");
+
+  const row = question as unknown as QuestionForRevisionRow;
+  const correctOption = row.options_i18n?.find((o) => o.key === row.correct_option_key) ?? null;
+  const back_i18n: BilingualText = {
+    en: [
+      correctOption ? `Answer: ${row.correct_option_key}. ${correctOption.text_i18n.en}` : null,
+      row.explanation_i18n?.en,
+    ]
+      .filter((part): part is string => !!part)
+      .join("\n\n"),
+    hi: [
+      correctOption ? `उत्तर: ${row.correct_option_key}. ${correctOption.text_i18n.hi}` : null,
+      row.explanation_i18n?.hi,
+    ]
+      .filter((part): part is string => !!part)
+      .join("\n\n"),
+  };
+
+  const { data: card, error } = await supabase()
+    .from("srs_cards")
+    .upsert(
+      {
+        user_id: userId,
+        front_i18n: row.stem_i18n,
+        back_i18n,
+        source_type: "question",
+        source_id: questionId,
+      },
+      { onConflict: "user_id,source_type,source_id" },
+    )
+    .select(SRS_CARD_COLUMNS)
+    .single();
+  if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
+  return card as unknown as SrsCardRow;
+}

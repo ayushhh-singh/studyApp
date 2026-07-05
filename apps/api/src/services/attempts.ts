@@ -3,10 +3,15 @@ import type {
   AttemptAnswerInput,
   AttemptAnswerRecord,
   AttemptDetail,
+  AttemptResultDetail,
   AttemptResultItem,
+  AttemptReviewItem,
   AttemptStartBody,
   AttemptSubmitResult,
+  AttemptTopicBreakdownItem,
+  BilingualText,
   MarkingScheme,
+  TestKind,
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
@@ -292,4 +297,191 @@ export async function submitAttempt(userId: string, attemptId: string): Promise<
   if (updateError) throw new HttpError(500, `attempt submit failed: ${updateError.message}`);
 
   return { attempt: toAttempt(updated as unknown as AttemptRow), results };
+}
+
+interface ResultQuestionRow {
+  id: string;
+  paper_code: string;
+  syllabus_node_id: string | null;
+  stem_i18n: BilingualText;
+  options_i18n: AttemptReviewItem["options_i18n"];
+  correct_option_key: string | null;
+  explanation_i18n: BilingualText | null;
+}
+
+interface TopicBucket {
+  paper_code: string | null;
+  title_i18n: BilingualText | null;
+  attempted: number;
+  correct: number;
+}
+
+const UNMAPPED_KEY = "__unmapped__";
+
+export async function getAttemptResult(userId: string, attemptId: string): Promise<AttemptResultDetail> {
+  const attempt = await getOwnedAttemptRow(userId, attemptId);
+  if (!attempt.submitted_at) throw conflict("Attempt has not been submitted yet");
+
+  const { question_ids: questionIds, question_marks: questionMarks, marking_scheme: markingScheme } = attempt.meta;
+  const negativeFraction = markingScheme?.negative_marking ?? 0;
+
+  const [testResult, answersResult, questionsResult] = await Promise.all([
+    attempt.test_id
+      ? supabase().from("tests").select("id, title_i18n, kind, paper_code").eq("id", attempt.test_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    supabase()
+      .from("attempt_answers")
+      .select("question_id, chosen_option_key, is_correct, time_spent_seconds")
+      .eq("attempt_id", attemptId),
+    supabase()
+      .from("questions")
+      .select("id, paper_code, syllabus_node_id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
+      .in("id", questionIds),
+  ]);
+  if (testResult.error) throw new HttpError(500, `test lookup failed: ${testResult.error.message}`);
+  if (answersResult.error) throw new HttpError(500, `answers lookup failed: ${answersResult.error.message}`);
+  if (questionsResult.error) throw new HttpError(500, `questions lookup failed: ${questionsResult.error.message}`);
+
+  const answerByQuestion = new Map(
+    (answersResult.data ?? []).map((a) => [
+      a.question_id as string,
+      a as { chosen_option_key: string | null; is_correct: boolean | null; time_spent_seconds: number | null },
+    ]),
+  );
+  const questionById = new Map(
+    (questionsResult.data ?? []).map((q) => [q.id as string, q as unknown as ResultQuestionRow]),
+  );
+
+  const nodeIds = [
+    ...new Set([...questionById.values()].map((q) => q.syllabus_node_id).filter((id): id is string => !!id)),
+  ];
+  const nodesResult = nodeIds.length
+    ? await supabase().from("syllabus_nodes").select("id, title_i18n").in("id", nodeIds)
+    : { data: [] as { id: string; title_i18n: BilingualText }[], error: null };
+  if (nodesResult.error) throw new HttpError(500, `syllabus node lookup failed: ${nodesResult.error.message}`);
+  const nodeTitleById = new Map((nodesResult.data ?? []).map((n) => [n.id as string, n.title_i18n as BilingualText]));
+
+  let correctCount = 0;
+  let incorrectCount = 0;
+  let attemptedCount = 0;
+  let totalSeconds = 0;
+  let totalSecondsCount = 0;
+  let correctSeconds = 0;
+  let correctSecondsCount = 0;
+
+  const review: AttemptReviewItem[] = [];
+  const breakdownByNode = new Map<string, TopicBucket>();
+
+  for (const qid of questionIds) {
+    const question = questionById.get(qid);
+    const answer = answerByQuestion.get(qid);
+    const marks = questionMarks[qid] ?? 0;
+    const chosen = answer?.chosen_option_key ?? null;
+    const isCorrect = answer?.is_correct ?? null;
+    const timeSpent = answer?.time_spent_seconds ?? null;
+    const awarded = isCorrect === true ? marks : isCorrect === false ? negativeFraction * marks : 0;
+
+    if (chosen != null) attemptedCount += 1;
+    if (isCorrect === true) correctCount += 1;
+    if (isCorrect === false) incorrectCount += 1;
+    if (timeSpent != null) {
+      totalSeconds += timeSpent;
+      totalSecondsCount += 1;
+      if (isCorrect === true) {
+        correctSeconds += timeSpent;
+        correctSecondsCount += 1;
+      }
+    }
+
+    const nodeId = question?.syllabus_node_id ?? null;
+    const bucketKey = nodeId ?? UNMAPPED_KEY;
+    const bucket = breakdownByNode.get(bucketKey) ?? {
+      paper_code: question?.paper_code ?? null,
+      title_i18n: nodeId ? (nodeTitleById.get(nodeId) ?? null) : null,
+      attempted: 0,
+      correct: 0,
+    };
+    if (chosen != null) {
+      bucket.attempted += 1;
+      if (isCorrect === true) bucket.correct += 1;
+    }
+    breakdownByNode.set(bucketKey, bucket);
+
+    review.push({
+      question_id: qid,
+      stem_i18n: question?.stem_i18n ?? { hi: "", en: "" },
+      options_i18n: question?.options_i18n ?? null,
+      chosen_option_key: chosen,
+      correct_option_key: question?.correct_option_key ?? null,
+      is_correct: isCorrect,
+      marks_awarded: round2(awarded),
+      explanation_i18n: question?.explanation_i18n ?? null,
+      time_spent_seconds: timeSpent,
+      syllabus_node_id: nodeId,
+      paper_code: question?.paper_code ?? null,
+    });
+  }
+
+  const skippedCount = questionIds.length - attemptedCount;
+  const scorePct = attempt.total ? round2(((attempt.score ?? 0) / attempt.total) * 100) : null;
+  const accuracyPct = attemptedCount > 0 ? round2((correctCount / attemptedCount) * 100) : null;
+  const avgSecondsPerQuestion = totalSecondsCount > 0 ? round2(totalSeconds / totalSecondsCount) : null;
+  const avgSecondsCorrect = correctSecondsCount > 0 ? round2(correctSeconds / correctSecondsCount) : null;
+
+  const topicBreakdown: AttemptTopicBreakdownItem[] = [...breakdownByNode.entries()]
+    .map(([key, bucket]) => ({
+      syllabus_node_id: key === UNMAPPED_KEY ? null : key,
+      paper_code: bucket.paper_code,
+      title_i18n: bucket.title_i18n,
+      attempted: bucket.attempted,
+      correct: bucket.correct,
+      accuracy_pct: bucket.attempted > 0 ? round2((bucket.correct / bucket.attempted) * 100) : null,
+      is_weak: bucket.attempted > 0 && bucket.correct / bucket.attempted < 0.5,
+    }))
+    .sort((a, b) => (a.accuracy_pct ?? Infinity) - (b.accuracy_pct ?? Infinity));
+
+  // Percentile is computed against every submitted attempt of this test (not
+  // just this user's) — with a single dev user today that's the same
+  // population, but the calc itself doesn't assume that.
+  let percentile: number | null = null;
+  if (attempt.test_id) {
+    const { data: scoreRows, error: scoresError } = await supabase()
+      .from("attempts")
+      .select("score")
+      .eq("test_id", attempt.test_id)
+      .not("submitted_at", "is", null);
+    if (scoresError) throw new HttpError(500, `attempt scores lookup failed: ${scoresError.message}`);
+    const scores = (scoreRows ?? []).map((r) => (r.score as number | null) ?? 0);
+    if (scores.length > 0) {
+      const myScore = attempt.score ?? 0;
+      const below = scores.filter((s) => s < myScore).length;
+      const equal = scores.filter((s) => s === myScore).length;
+      percentile = round2(((below + 0.5 * equal) / scores.length) * 100);
+    }
+  }
+
+  const test = testResult.data
+    ? {
+        id: testResult.data.id as string,
+        title_i18n: testResult.data.title_i18n as BilingualText,
+        kind: testResult.data.kind as TestKind,
+        paper_code: testResult.data.paper_code as string | null,
+      }
+    : null;
+
+  return {
+    attempt: toAttempt(attempt),
+    test,
+    score_pct: scorePct,
+    percentile,
+    accuracy_pct: accuracyPct,
+    attempted_count: attemptedCount,
+    correct_count: correctCount,
+    incorrect_count: incorrectCount,
+    skipped_count: skippedCount,
+    avg_seconds_per_question: avgSecondsPerQuestion,
+    avg_seconds_correct: avgSecondsCorrect,
+    topic_breakdown: topicBreakdown,
+    review,
+  };
 }

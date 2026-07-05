@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   attemptDetailResponseSchema,
   attemptResponseSchema,
+  attemptResultResponseSchema,
   attemptSubmitResponseSchema,
   type AttemptStartBody,
 } from "@prayasup/shared";
@@ -18,6 +19,14 @@ export function useAttemptDetail(attemptId: string | undefined) {
   return useQuery({
     queryKey: queryKeys.attempt(attemptId ?? ""),
     queryFn: () => api.get(`/api/v1/attempts/${attemptId}`, attemptDetailResponseSchema),
+    enabled: !!attemptId,
+  });
+}
+
+export function useAttemptResult(attemptId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.attemptResult(attemptId ?? ""),
+    queryFn: () => api.get(`/api/v1/attempts/${attemptId}/result`, attemptResultResponseSchema),
     enabled: !!attemptId,
   });
 }

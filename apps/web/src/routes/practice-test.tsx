@@ -2,12 +2,10 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import { FileQuestion } from "lucide-react";
-import type { AttemptSubmitResult } from "@prayasup/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Button } from "@/components/ui/button";
 import { TestInstructions } from "@/components/practice/test-instructions";
 import { TestPlayer } from "@/components/practice/test-player";
-import { TestResults } from "@/components/practice/test-results";
 import { useTest } from "@/hooks/use-tests";
 import { useAttemptDetail, useStartAttempt } from "@/hooks/use-attempt";
 import { useLocale } from "@/hooks/use-locale";
@@ -21,7 +19,6 @@ export function Component() {
   const startAttempt = useStartAttempt();
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
-  const [result, setResult] = useState<AttemptSubmitResult | null>(null);
   const { data: attemptDetail } = useAttemptDetail(attemptId ?? undefined);
 
   function handleStart() {
@@ -51,10 +48,6 @@ export function Component() {
     );
   }
 
-  if (result) {
-    return <TestResults test={test} result={result} locale={locale} />;
-  }
-
   if (attemptId && startedAt) {
     if (!attemptDetail) return null;
     return (
@@ -63,7 +56,7 @@ export function Component() {
         attemptId={attemptId}
         startedAt={startedAt}
         initialAnswers={attemptDetail.answers}
-        onSubmitted={setResult}
+        onSubmitted={(result) => navigate(`/${locale}/practice/attempt/${result.attempt.id}/result`)}
         locale={locale}
       />
     );

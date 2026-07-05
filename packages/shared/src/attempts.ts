@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema } from "./types";
+import { questionOptionSchema } from "./questions";
+import { testKindSchema } from "./tests";
 
 export const attemptStartBodySchema = z
   .object({
@@ -74,3 +76,61 @@ export type AttemptAnswersResponse = z.infer<typeof attemptAnswersResponseSchema
 
 export const attemptSubmitResponseSchema = apiEnvelopeSchema(attemptSubmitResultSchema);
 export type AttemptSubmitResponse = z.infer<typeof attemptSubmitResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Result page (/practice/attempt/:attemptId/result) — score hero, topic
+// breakdown, and a full per-question review.
+// ---------------------------------------------------------------------------
+
+export const attemptTopicBreakdownItemSchema = z.object({
+  syllabus_node_id: z.string().uuid().nullable(),
+  paper_code: z.string().nullable(),
+  title_i18n: bilingualTextSchema.nullable(),
+  attempted: z.number().int(),
+  correct: z.number().int(),
+  accuracy_pct: z.number().nullable(),
+  is_weak: z.boolean(),
+});
+export type AttemptTopicBreakdownItem = z.infer<typeof attemptTopicBreakdownItemSchema>;
+
+export const attemptReviewItemSchema = z.object({
+  question_id: z.string().uuid(),
+  stem_i18n: bilingualTextSchema,
+  options_i18n: z.array(questionOptionSchema).nullable(),
+  chosen_option_key: z.string().nullable(),
+  correct_option_key: z.string().nullable(),
+  is_correct: z.boolean().nullable(),
+  marks_awarded: z.number(),
+  explanation_i18n: bilingualTextSchema.nullable(),
+  time_spent_seconds: z.number().int().nullable(),
+  syllabus_node_id: z.string().uuid().nullable(),
+  paper_code: z.string().nullable(),
+});
+export type AttemptReviewItem = z.infer<typeof attemptReviewItemSchema>;
+
+export const attemptResultDetailSchema = z.object({
+  attempt: attemptSchema,
+  test: z
+    .object({
+      id: z.string().uuid(),
+      title_i18n: bilingualTextSchema,
+      kind: testKindSchema,
+      paper_code: z.string().nullable(),
+    })
+    .nullable(),
+  score_pct: z.number().nullable(),
+  percentile: z.number().nullable(),
+  accuracy_pct: z.number().nullable(),
+  attempted_count: z.number().int(),
+  correct_count: z.number().int(),
+  incorrect_count: z.number().int(),
+  skipped_count: z.number().int(),
+  avg_seconds_per_question: z.number().nullable(),
+  avg_seconds_correct: z.number().nullable(),
+  topic_breakdown: z.array(attemptTopicBreakdownItemSchema),
+  review: z.array(attemptReviewItemSchema),
+});
+export type AttemptResultDetail = z.infer<typeof attemptResultDetailSchema>;
+
+export const attemptResultResponseSchema = apiEnvelopeSchema(attemptResultDetailSchema);
+export type AttemptResultResponse = z.infer<typeof attemptResultResponseSchema>;

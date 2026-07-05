@@ -19,5 +19,10 @@ export const createSrsCardFromNodeBodySchema = z.object({
 });
 export type CreateSrsCardFromNodeBody = z.infer<typeof createSrsCardFromNodeBodySchema>;
 
+export const createSrsCardFromQuestionBodySchema = z.object({
+  question_id: z.string().uuid(),
+});
+export type CreateSrsCardFromQuestionBody = z.infer<typeof createSrsCardFromQuestionBodySchema>;
+
 export const srsCardResponseSchema = apiEnvelopeSchema(srsCardSchema);
 export type SrsCardResponse = z.infer<typeof srsCardResponseSchema>;

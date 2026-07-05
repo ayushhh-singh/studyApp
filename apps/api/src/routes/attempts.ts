@@ -5,6 +5,7 @@ import {
   attemptAnswersResponseSchema,
   attemptDetailResponseSchema,
   attemptResponseSchema,
+  attemptResultResponseSchema,
   attemptStartBodySchema,
   attemptSubmitResponseSchema,
 } from "@prayasup/shared";
@@ -12,7 +13,13 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
-import { getAttemptDetail, startAttempt, submitAttempt, upsertAttemptAnswers } from "../services/attempts.js";
+import {
+  getAttemptDetail,
+  getAttemptResult,
+  startAttempt,
+  submitAttempt,
+  upsertAttemptAnswers,
+} from "../services/attempts.js";
 
 export const attemptsRouter = Router();
 attemptsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -44,6 +51,15 @@ attemptsRouter.post(
     const body = parse(attemptAnswersBodySchema, req.body);
     const upserted = await upsertAttemptAnswers(devUserId(), id, body.answers);
     res.json(attemptAnswersResponseSchema.parse({ data: { upserted }, error: null }));
+  }),
+);
+
+attemptsRouter.get(
+  "/attempts/:id/result",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(attemptIdParams, req.params);
+    const result = await getAttemptResult(devUserId(), id);
+    res.json(attemptResultResponseSchema.parse({ data: result, error: null }));
   }),
 );
 
