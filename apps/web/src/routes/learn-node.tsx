@@ -13,6 +13,8 @@ import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { Button } from "@/components/ui/button";
 import { PyqList } from "@/components/learn/pyq-list";
+import { NotesView } from "@/components/learn/notes-view";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useRecordEvent } from "@/hooks/use-record-event";
 import { useCreateCustomTest } from "@/hooks/use-create-custom-test";
@@ -32,6 +34,21 @@ export function Component() {
   const recordEvent = useRecordEvent();
   const createTest = useCreateCustomTest();
   const page = Number(searchParams.get("page") ?? "1") || 1;
+  const tabParam = searchParams.get("tab");
+  const tab = tabParam === "pyqs" || tabParam === "ca" ? tabParam : "notes";
+
+  function setTab(next: string) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "notes") params.delete("tab");
+        else params.set("tab", next);
+        params.delete("page");
+        return params;
+      },
+      { replace: true },
+    );
+  }
 
   function setExam(next: ExamCode | undefined) {
     setSearchParams(
@@ -152,36 +169,61 @@ export function Component() {
         </div>
       )}
 
-      <SectionCard title={t("Learn.pyqsTitle")}>
-        <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
-      </SectionCard>
+      <Tabs value={tab} onValueChange={setTab}>
+        <TabsList>
+          <TabsTrigger value="notes">{t("Notes.tab")}</TabsTrigger>
+          <TabsTrigger value="pyqs">{t("Learn.pyqsTitle")}</TabsTrigger>
+          <TabsTrigger value="ca">
+            {t("Learn.relatedCurrentAffairsTitle")}
+            {node.related_current_affairs.length > 0 && (
+              <span className="ms-1.5 rounded-full bg-foreground/10 px-1.5 text-xs">
+                {node.related_current_affairs.length}
+              </span>
+            )}
+          </TabsTrigger>
+        </TabsList>
 
-      <SectionCard title={t("Learn.relatedCurrentAffairsTitle")}>
-        {node.related_current_affairs.length === 0 ? (
-          <EmptyState
-            icon={Newspaper}
-            title={t("Learn.noRelatedCurrentAffairsTitle")}
-            description={t("Learn.noRelatedCurrentAffairsDescription")}
-          />
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {node.related_current_affairs.map((item) => (
-              <li
-                key={item.id}
-                className="flex flex-col gap-1 rounded-lg border border-border bg-background px-3 py-2.5"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium">{item.title_i18n[locale]}</span>
-                  <span className="shrink-0 text-xs text-muted-foreground">{item.date}</span>
-                </div>
-                {item.summary_i18n && (
-                  <p className="text-xs text-muted-foreground">{item.summary_i18n[locale]}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </SectionCard>
+        <TabsContent value="notes">
+          <SectionCard>
+            <NotesView nodeId={nodeId} paperCode={paperCode} locale={locale} />
+          </SectionCard>
+        </TabsContent>
+
+        <TabsContent value="pyqs">
+          <SectionCard title={t("Learn.pyqsTitle")}>
+            <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
+          </SectionCard>
+        </TabsContent>
+
+        <TabsContent value="ca">
+          <SectionCard title={t("Learn.relatedCurrentAffairsTitle")}>
+            {node.related_current_affairs.length === 0 ? (
+              <EmptyState
+                icon={Newspaper}
+                title={t("Learn.noRelatedCurrentAffairsTitle")}
+                description={t("Learn.noRelatedCurrentAffairsDescription")}
+              />
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {node.related_current_affairs.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex flex-col gap-1 rounded-lg border border-border bg-background px-3 py-2.5"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{item.title_i18n[locale]}</span>
+                      <span className="shrink-0 text-xs text-muted-foreground">{item.date}</span>
+                    </div>
+                    {item.summary_i18n && (
+                      <p className="text-xs text-muted-foreground">{item.summary_i18n[locale]}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

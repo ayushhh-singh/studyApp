@@ -47,4 +47,8 @@ export const queryKeys = {
   adminStatus: () => ["admin", "status"] as const,
   reviewCounts: () => ["admin", "review", "counts"] as const,
   reviewQueue: (tab: string, page: number) => ["admin", "review", tab, page] as const,
+  reviewNotes: (page: number) => ["admin", "notes", "review", page] as const,
+  noteForNode: (nodeId: string) => ["notes", "node", nodeId] as const,
+  magazineMonths: () => ["magazine", "months"] as const,
+  magazine: (month: string) => ["magazine", month] as const,
 };

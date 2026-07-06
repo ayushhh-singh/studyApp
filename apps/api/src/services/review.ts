@@ -20,6 +20,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
+import { reviewNotesCount } from "./notes.js";
 
 export const REVIEW_PAGE_SIZE = 10;
 
@@ -54,6 +55,10 @@ function applyTab(query: any, tab: ReviewTab): any {
         .eq("meta->>machine_translated", "true")
         .neq("review_state", "rejected")
         .or("meta->>human_verified.is.null,meta->>human_verified.neq.true");
+    default:
+      // "notes" is served by a separate endpoint (services/notes.ts); never a
+      // questions query. Return an unsatisfiable filter as a defensive no-op.
+      return query.eq("review_state", "__none__");
   }
 }
 
@@ -134,6 +139,8 @@ function mapRow(row: ReviewRow, similar: SimilarQuestion[]): ReviewQuestion {
 }
 
 export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ items: ReviewQuestion[]; total: number }> {
+  // Notes have their own list endpoint (services/notes.ts) — never a question query.
+  if (tab === "notes") return { items: [], total: 0 };
   const from = (page - 1) * REVIEW_PAGE_SIZE;
   const to = from + REVIEW_PAGE_SIZE - 1;
   const base = supabase().from("questions").select(REVIEW_COLUMNS, { count: "exact" });
@@ -149,17 +156,20 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
 
 export async function reviewCounts(): Promise<ReviewCounts> {
   const tabs: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs"];
-  const entries = await Promise.all(
-    tabs.map(async (tab) => {
-      const { count, error } = await applyTab(
-        supabase().from("questions").select("id", { count: "exact", head: true }),
-        tab,
-      );
-      if (error) throw new HttpError(500, `review count (${tab}) failed: ${error.message}`);
-      return [tab, count ?? 0] as const;
-    }),
-  );
-  return Object.fromEntries(entries) as unknown as ReviewCounts;
+  const [questionEntries, notes] = await Promise.all([
+    Promise.all(
+      tabs.map(async (tab) => {
+        const { count, error } = await applyTab(
+          supabase().from("questions").select("id", { count: "exact", head: true }),
+          tab,
+        );
+        if (error) throw new HttpError(500, `review count (${tab}) failed: ${error.message}`);
+        return [tab, count ?? 0] as const;
+      }),
+    ),
+    reviewNotesCount(),
+  ]);
+  return { ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes">), notes };
 }
 
 // ---------------------------------------------------------------------------

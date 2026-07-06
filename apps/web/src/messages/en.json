@@ -113,7 +113,8 @@
     "weightageShare": "{{pct}}% of paper PYQs",
     "outOfSyllabus": "Outside UPPSC syllabus",
     "outOfSyllabusShort": "out",
-    "viewTrends": "Weightage & Trends"
+    "viewTrends": "Weightage & Trends",
+    "notesCoverage": "{{pct}}% notes"
   },
   "Practice": {
     "title": "Practice",
@@ -399,7 +400,8 @@
       "generated_mcq": "Generated MCQs",
       "generated_descriptive": "Generated Mains",
       "machine_translated": "Machine-translated",
-      "current_affairs": "Current Affairs"
+      "current_affairs": "Current Affairs",
+      "notes": "Study Notes"
     },
     "difficulty": {
       "easy": "Easy",
@@ -462,5 +464,57 @@
     "notFoundDescription": "This paper has no syllabus yet.",
     "askedShort": "{{count}}×",
     "loading": "Loading trends…"
+  },
+  "Notes": {
+    "tab": "Notes",
+    "emptyTitle": "No notes yet",
+    "emptyDescription": "Study notes for this topic haven't been published yet. Check back soon.",
+    "overview": "Overview",
+    "keyFacts": "Key Facts",
+    "upAngle": "The UP Angle",
+    "pyqAnalysis": "PYQ Analysis",
+    "mnemonics": "Mnemonics",
+    "quickRevision": "Quick Revision",
+    "furtherReading": "Further Reading & Sources",
+    "toc": "On this page",
+    "quickMode": "5-min revision",
+    "addToRevision": "Add to revision",
+    "addDeck": "Add deck ({{count}})",
+    "deckAdded": "Deck added ({{count}})",
+    "practiceThesePyqs": "Practice these PYQs",
+    "ourWordsNote": "Notes are written in our own words and grounded in cited sources — never reproduced from any book or coaching material.",
+    "factCardBack": "Recall this fact for the exam."
+  },
+  "ReviewNotes": {
+    "emptyTitle": "No notes to review",
+    "emptyDescription": "Generated study notes awaiting review will appear here.",
+    "gateOk": "Publishable",
+    "gateFail": "Incomplete",
+    "webGrounded": "web-grounded",
+    "criticVerdict": "Critic",
+    "clean": "clean",
+    "flagged": "flagged",
+    "syllabusDrift": "Possible syllabus drift",
+    "srsCount": "{{count}} SRS card candidates",
+    "onePerLine": "one per line",
+    "saveApprove": "Save & publish",
+    "saveDraft": "Save as draft",
+    "publish": "Publish",
+    "sendBack": "Send back"
+  },
+  "Magazine": {
+    "navTitle": "Magazine",
+    "indexTitle": "Monthly CA Magazine",
+    "indexDescription": "Each month's current affairs, compiled into a print-ready bilingual digest.",
+    "emptyTitle": "No magazine yet",
+    "emptyDescription": "No published current affairs for this month yet.",
+    "itemCount": "{{count}} items",
+    "back": "All months",
+    "print": "Print / PDF",
+    "masthead": "PrayasUP Current Affairs",
+    "coverStats": "{{total}} stories · {{up}} Uttar-Pradesh-specific",
+    "upSection": "Uttar Pradesh Focus",
+    "quizAppendix": "Practice Quiz ({{count}} questions)",
+    "footer": "Compiled in our own words from published sources. For UPPSC exam preparation."
   }
 }

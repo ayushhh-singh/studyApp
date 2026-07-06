@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Newspaper } from "lucide-react";
+import { Link } from "react-router";
+import { Newspaper, BookMarked } from "lucide-react";
 import type { CurrentAffairsCategory, CurrentAffairsItem } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -73,7 +74,17 @@ export function Component() {
       <PageHeader
         title={t("CurrentAffairs.title")}
         description={t("CurrentAffairs.description")}
-        action={<CurrentAffairsQuizButton />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to={`/${locale}/magazine`}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <BookMarked className="size-4" /> {t("Magazine.navTitle")}
+            </Link>
+            <CurrentAffairsQuizButton />
+          </div>
+        }
       />
 
       <SectionCard title={t("CurrentAffairs.latest")}>

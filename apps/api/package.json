@@ -17,8 +17,11 @@
     "eval:answers": "tsx --env-file=.env scripts/eval-harness.ts",
     "cost:report": "tsx --env-file=.env scripts/cost-report.ts",
     "ca:run": "tsx --env-file=.env src/ca/run.ts",
+    "ca:compile": "tsx --env-file=.env src/ca/compile.ts",
     "qgen": "tsx --env-file=.env src/qgen/cli.ts",
-    "qgen:topup": "tsx --env-file=.env src/qgen/cli.ts --topup"
+    "qgen:topup": "tsx --env-file=.env src/qgen/cli.ts --topup",
+    "notes:gen": "tsx --env-file=.env src/notes/cli.ts",
+    "notes:embed": "tsx --env-file=.env src/notes/embed.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

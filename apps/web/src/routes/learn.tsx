@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { BookOpen, ListChecks } from "lucide-react";
+import { BookOpen, FileText, ListChecks } from "lucide-react";
 import type { PaperSummary } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -35,14 +35,36 @@ function PaperCard({ paper }: { paper: PaperSummary }) {
         )}
       </div>
       <span className="text-sm font-semibold text-balance">{paper.title_i18n[locale]}</span>
-      <div className="mt-auto flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-        <span>{t("Learn.topicsCount", { count: paper.topics_count })}</span>
-        <span className="flex items-center gap-1">
-          <ListChecks className="size-3.5" aria-hidden />
-          {t("Learn.pyqCount", { count: paper.pyq_count })}
-        </span>
+      <div className="mt-auto flex flex-col gap-2">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+          <span>{t("Learn.topicsCount", { count: paper.topics_count })}</span>
+          <span className="flex items-center gap-1">
+            <ListChecks className="size-3.5" aria-hidden />
+            {t("Learn.pyqCount", { count: paper.pyq_count })}
+          </span>
+        </div>
+        <NotesCoverage published={paper.notes_published_count} topics={paper.topics_count} />
       </div>
     </Link>
+  );
+}
+
+function NotesCoverage({ published, topics }: { published: number; topics: number }) {
+  const { t } = useTranslation();
+  const pct = topics > 0 ? Math.min(100, Math.round((published / topics) * 100)) : 0;
+  return (
+    <div className="flex items-center gap-2">
+      <FileText className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-[width]"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <span className="shrink-0 text-xs font-medium tabular-nums text-muted-foreground">
+        {t("Learn.notesCoverage", { pct })}
+      </span>
+    </div>
   );
 }
 

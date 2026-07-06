@@ -9,6 +9,11 @@ import {
   reviewQueueQuerySchema,
   reviewQueueResponseSchema,
   reviewRejectBodySchema,
+  reviewNoteActionResponseSchema,
+  reviewNoteEditBodySchema,
+  reviewNoteRejectBodySchema,
+  reviewNotesQuerySchema,
+  reviewNotesResponseSchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -23,6 +28,13 @@ import {
   reviewCounts,
   REVIEW_PAGE_SIZE,
 } from "../services/review.js";
+import {
+  approveNote,
+  editNote,
+  listReviewNotes,
+  NOTES_REVIEW_PAGE_SIZE,
+  rejectNote,
+} from "../services/notes.js";
 
 export const adminRouter = Router();
 
@@ -36,6 +48,7 @@ adminRouter.get(
 
 // Everything below is admin-gated.
 adminRouter.use("/admin/review", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
+adminRouter.use("/admin/notes", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 
 adminRouter.get(
   "/admin/review",
@@ -99,5 +112,57 @@ adminRouter.patch(
     const { id } = parse(idParams, req.params);
     const body = parse(reviewEditBodySchema, req.body);
     res.json(reviewActionResponseSchema.parse({ data: await editQuestion(id, body), error: null }));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Notes review (the Review Queue's Notes tab). Notes are structurally unlike
+// questions, so they get their own list/action endpoints under /admin/notes.
+// ---------------------------------------------------------------------------
+adminRouter.get(
+  "/admin/notes/review",
+  asyncHandler(async (req, res) => {
+    const { page } = parse(reviewNotesQuerySchema, req.query);
+    const { items, total } = await listReviewNotes(page);
+    res.json(
+      reviewNotesResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: NOTES_REVIEW_PAGE_SIZE,
+            total,
+            total_pages: Math.max(1, Math.ceil(total / NOTES_REVIEW_PAGE_SIZE)),
+          },
+        },
+        error: null,
+      }),
+    );
+  }),
+);
+
+adminRouter.post(
+  "/admin/notes/:id/approve",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(reviewNoteActionResponseSchema.parse({ data: await approveNote(id), error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/notes/:id/reject",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    const { reason } = parse(reviewNoteRejectBodySchema, req.body);
+    res.json(reviewNoteActionResponseSchema.parse({ data: await rejectNote(id, reason), error: null }));
+  }),
+);
+
+adminRouter.patch(
+  "/admin/notes/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    const body = parse(reviewNoteEditBodySchema, req.body);
+    res.json(reviewNoteActionResponseSchema.parse({ data: await editNote(id, body), error: null }));
   }),
 );

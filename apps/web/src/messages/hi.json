@@ -113,7 +113,8 @@
     "weightageShare": "पेपर के {{pct}}% प्रश्न",
     "outOfSyllabus": "यूपीपीएससी पाठ्यक्रम से बाहर",
     "outOfSyllabusShort": "बाहर",
-    "viewTrends": "भारांक और रुझान"
+    "viewTrends": "भारांक और रुझान",
+    "notesCoverage": "{{pct}}% नोट्स"
   },
   "Practice": {
     "title": "अभ्यास",
@@ -399,7 +400,8 @@
       "generated_mcq": "जनित MCQ",
       "generated_descriptive": "जनित मुख्य",
       "machine_translated": "मशीन-अनूदित",
-      "current_affairs": "करेंट अफेयर्स"
+      "current_affairs": "करेंट अफेयर्स",
+      "notes": "अध्ययन नोट्स"
     },
     "difficulty": {
       "easy": "आसान",
@@ -462,5 +464,57 @@
     "notFoundDescription": "इस पेपर का पाठ्यक्रम अभी नहीं है।",
     "askedShort": "{{count}}×",
     "loading": "रुझान लोड हो रहे हैं…"
+  },
+  "Notes": {
+    "tab": "नोट्स",
+    "emptyTitle": "अभी कोई नोट्स नहीं",
+    "emptyDescription": "इस विषय के अध्ययन नोट्स अभी प्रकाशित नहीं हुए हैं। जल्द ही देखें।",
+    "overview": "अवलोकन",
+    "keyFacts": "मुख्य तथ्य",
+    "upAngle": "यूपी संदर्भ",
+    "pyqAnalysis": "PYQ विश्लेषण",
+    "mnemonics": "स्मृति सूत्र",
+    "quickRevision": "त्वरित पुनरावृत्ति",
+    "furtherReading": "अधिक पठन व स्रोत",
+    "toc": "इस पृष्ठ पर",
+    "quickMode": "5-मिनट पुनरावृत्ति",
+    "addToRevision": "पुनरावृत्ति में जोड़ें",
+    "addDeck": "डेक जोड़ें ({{count}})",
+    "deckAdded": "डेक जोड़ा गया ({{count}})",
+    "practiceThesePyqs": "ये PYQ हल करें",
+    "ourWordsNote": "नोट्स हमारे अपने शब्दों में लिखे गए हैं और उद्धृत स्रोतों पर आधारित हैं — किसी पुस्तक या कोचिंग सामग्री से नकल नहीं।",
+    "factCardBack": "परीक्षा के लिए इस तथ्य को याद रखें।"
+  },
+  "ReviewNotes": {
+    "emptyTitle": "समीक्षा हेतु कोई नोट्स नहीं",
+    "emptyDescription": "समीक्षा की प्रतीक्षा में जनरेट किए गए अध्ययन नोट्स यहाँ दिखेंगे।",
+    "gateOk": "प्रकाशन योग्य",
+    "gateFail": "अपूर्ण",
+    "webGrounded": "वेब-आधारित",
+    "criticVerdict": "समीक्षक",
+    "clean": "स्वच्छ",
+    "flagged": "चिह्नित",
+    "syllabusDrift": "संभावित पाठ्यक्रम विचलन",
+    "srsCount": "{{count}} SRS कार्ड सुझाव",
+    "onePerLine": "प्रति पंक्ति एक",
+    "saveApprove": "सहेजें व प्रकाशित करें",
+    "saveDraft": "ड्राफ्ट सहेजें",
+    "publish": "प्रकाशित करें",
+    "sendBack": "वापस भेजें"
+  },
+  "Magazine": {
+    "navTitle": "पत्रिका",
+    "indexTitle": "मासिक करेंट अफेयर्स पत्रिका",
+    "indexDescription": "हर माह के करेंट अफेयर्स, प्रिंट-योग्य द्विभाषी संग्रह में संकलित।",
+    "emptyTitle": "अभी कोई पत्रिका नहीं",
+    "emptyDescription": "इस माह के लिए अभी कोई प्रकाशित करेंट अफेयर्स नहीं।",
+    "itemCount": "{{count}} आइटम",
+    "back": "सभी माह",
+    "print": "प्रिंट / PDF",
+    "masthead": "प्रयासUP करेंट अफेयर्स",
+    "coverStats": "{{total}} समाचार · {{up}} उत्तर-प्रदेश-विशिष्ट",
+    "upSection": "उत्तर प्रदेश फोकस",
+    "quizAppendix": "अभ्यास प्रश्नोत्तरी ({{count}} प्रश्न)",
+    "footer": "प्रकाशित स्रोतों से हमारे अपने शब्दों में संकलित। UPPSC परीक्षा तैयारी हेतु।"
   }
 }

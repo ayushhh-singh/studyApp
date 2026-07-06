@@ -1,0 +1,396 @@
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Link } from "react-router";
+import {
+  BookmarkPlus,
+  BookOpen,
+  Check,
+  ExternalLink,
+  Layers,
+  ListTree,
+  MapPin,
+  Sparkles,
+  TrendingUp,
+  Zap,
+} from "lucide-react";
+import type { Locale, NoteBody } from "@prayasup/shared";
+import { EmptyState } from "@/components/ui-x/empty-state";
+import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { Button } from "@/components/ui/button";
+import { useNoteForNode, useAddNoteDeck, useAddNoteBlock } from "@/hooks/use-notes";
+import { useRecordEvent } from "@/hooks/use-record-event";
+import { cn } from "@/lib/utils";
+
+type BlockKey = "overview" | "key_facts" | "up_angle" | "pyq_analysis" | "mnemonics" | "quick_revision" | "further_reading";
+
+interface Section {
+  key: BlockKey;
+  label: string;
+  icon: typeof BookOpen;
+}
+
+/** A prose block that respects Devanagari reading rhythm (taller leading, comfortable measure). */
+function Prose({ children, locale }: { children: string; locale: Locale }) {
+  return (
+    <p
+      className={cn(
+        "max-w-[64ch] whitespace-pre-line text-[15px] text-foreground/90",
+        locale === "hi" ? "leading-[1.95]" : "leading-[1.75]",
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
+function AddButton({
+  added,
+  pending,
+  onClick,
+  label,
+}: {
+  added: boolean;
+  pending: boolean;
+  onClick: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={pending || added}
+      aria-label={label}
+      title={label}
+      className={cn(
+        "inline-flex size-8 shrink-0 items-center justify-center rounded-md border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        added
+          ? "border-tulsi/40 bg-tulsi/15 text-tulsi-foreground"
+          : "border-border text-muted-foreground hover:border-primary/40 hover:text-primary",
+      )}
+    >
+      {added ? <Check className="size-4" /> : <BookmarkPlus className="size-4" />}
+    </button>
+  );
+}
+
+export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paperCode: string; locale: Locale }) {
+  const { t } = useTranslation();
+  const { data: note, isLoading, isError } = useNoteForNode(nodeId);
+  const addDeck = useAddNoteDeck();
+  const addBlock = useAddNoteBlock();
+  const recordEvent = useRecordEvent();
+  const [quick, setQuick] = useState(false);
+  const [added, setAdded] = useState<Set<string>>(new Set());
+  const [deckDone, setDeckDone] = useState(false);
+
+  // Reading-progress signal (feeds analytics + the dashboard "continue" card).
+  useEffect(() => {
+    if (note) recordEvent.mutate({ name: "note_read", props: { node_id: nodeId, note_id: note.id } });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [note?.id]);
+
+  const body: NoteBody | null = useMemo(() => (note ? note.content_i18n[locale] : null), [note, locale]);
+
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <ListRowSkeleton />
+        <ListRowSkeleton />
+        <ListRowSkeleton />
+      </div>
+    );
+  }
+
+  if (isError || !note || !body) {
+    return (
+      <EmptyState
+        icon={BookOpen}
+        title={t("Notes.emptyTitle")}
+        description={t("Notes.emptyDescription")}
+      />
+    );
+  }
+
+  function markAdded(key: string) {
+    setAdded((prev) => new Set(prev).add(key));
+  }
+
+  function addFact(index: number, fact: string) {
+    if (!note || !body) return;
+    const other = note.content_i18n[locale === "hi" ? "en" : "hi"].key_facts[index]?.fact ?? "";
+    addBlock.mutate(
+      {
+        noteId: note.id,
+        body: {
+          block: "key_fact",
+          index,
+          front_i18n: note.content_i18n.hi.key_facts[index]
+            ? { hi: note.content_i18n.hi.key_facts[index].fact, en: note.content_i18n.en.key_facts[index]?.fact ?? "" }
+            : { hi: fact, en: other },
+          back_i18n: { hi: t("Notes.factCardBack"), en: t("Notes.factCardBack") },
+        },
+      },
+      { onSuccess: () => markAdded(`fact:${index}`) },
+    );
+  }
+
+  function addSection(block: "overview" | "up_angle" | "pyq_analysis", label: string) {
+    if (!note) return;
+    addBlock.mutate(
+      {
+        noteId: note.id,
+        body: {
+          block,
+          index: 0,
+          front_i18n: { hi: label, en: label },
+          back_i18n: { hi: note.content_i18n.hi[block], en: note.content_i18n.en[block] },
+        },
+      },
+      { onSuccess: () => markAdded(`sec:${block}`) },
+    );
+  }
+
+  const sections = (
+    [
+      { key: "overview", label: t("Notes.overview"), icon: BookOpen },
+      { key: "key_facts", label: t("Notes.keyFacts"), icon: Sparkles },
+      { key: "up_angle", label: t("Notes.upAngle"), icon: MapPin },
+      { key: "pyq_analysis", label: t("Notes.pyqAnalysis"), icon: TrendingUp },
+      { key: "mnemonics", label: t("Notes.mnemonics"), icon: Zap },
+      { key: "quick_revision", label: t("Notes.quickRevision"), icon: Layers },
+    ] satisfies Section[]
+  ).filter((s) => {
+    if (s.key === "mnemonics") return body.mnemonics.length > 0;
+    return true;
+  });
+
+  // Quick Revision mode: only key facts + the quick-revision list.
+  const visible = quick ? sections.filter((s) => s.key === "key_facts" || s.key === "quick_revision") : sections;
+
+  return (
+    <div className="flex flex-col gap-5 lg:flex-row lg:gap-8">
+      {/* sticky mini-TOC (desktop) + toolbar */}
+      <aside className="lg:sticky lg:top-20 lg:h-fit lg:w-52 lg:shrink-0">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={quick ? "default" : "outline"}
+              onClick={() => setQuick((q) => !q)}
+              className={quick ? "bg-marigold text-marigold-foreground hover:bg-marigold/90" : ""}
+            >
+              <Zap className="size-4" /> {t("Notes.quickMode")}
+            </Button>
+          </div>
+          <nav aria-label={t("Notes.toc")} className="hidden lg:block">
+            <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <ListTree className="size-3.5" /> {t("Notes.toc")}
+            </p>
+            <ul className="flex flex-col gap-0.5 border-s border-border">
+              {visible.map((s) => (
+                <li key={s.key}>
+                  <a
+                    href={`#note-${s.key}`}
+                    className="-ms-px block border-s-2 border-transparent py-1 ps-3 text-sm text-muted-foreground transition-colors hover:border-primary hover:text-foreground"
+                  >
+                    {s.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          {note.srs_candidates.length > 0 && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              disabled={addDeck.isPending || deckDone}
+              onClick={() =>
+                addDeck.mutate(note.id, {
+                  onSuccess: () => setDeckDone(true),
+                })
+              }
+              className="justify-start"
+            >
+              {deckDone ? <Check className="size-4 text-tulsi-foreground" /> : <Layers className="size-4" />}{" "}
+              {deckDone
+                ? t("Notes.deckAdded", { count: addDeck.data?.added ?? note.srs_candidates.length })
+                : t("Notes.addDeck", { count: note.srs_candidates.length })}
+            </Button>
+          )}
+        </div>
+      </aside>
+
+      {/* article */}
+      <article className="min-w-0 flex-1">
+        {/* mobile section chips */}
+        <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+          {visible.map((s) => (
+            <a
+              key={s.key}
+              href={`#note-${s.key}`}
+              className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground"
+            >
+              {s.label}
+            </a>
+          ))}
+        </div>
+
+        <div className="flex flex-col gap-7">
+          {visible.map((s) => (
+            <section key={s.key} id={`note-${s.key}`} className="scroll-mt-20">
+              <div className="mb-2.5 flex items-center justify-between gap-2">
+                <h3 className="flex items-center gap-2 text-base font-semibold">
+                  <s.icon className="size-4 text-primary" aria-hidden /> {s.label}
+                </h3>
+                {s.key === "overview" && (
+                  <AddButton
+                    added={added.has("sec:overview")}
+                    pending={addBlock.isPending}
+                    onClick={() => addSection("overview", s.label)}
+                    label={t("Notes.addToRevision")}
+                  />
+                )}
+                {s.key === "up_angle" && (
+                  <AddButton
+                    added={added.has("sec:up_angle")}
+                    pending={addBlock.isPending}
+                    onClick={() => addSection("up_angle", s.label)}
+                    label={t("Notes.addToRevision")}
+                  />
+                )}
+              </div>
+
+              {s.key === "overview" && <Prose locale={locale}>{body.overview}</Prose>}
+
+              {s.key === "up_angle" && (
+                <div className="rounded-xl border border-tulsi/25 bg-tulsi/[0.07] p-4">
+                  <Prose locale={locale}>{body.up_angle}</Prose>
+                </div>
+              )}
+
+              {s.key === "pyq_analysis" && (
+                <div className="flex flex-col gap-3">
+                  <Prose locale={locale}>{body.pyq_analysis}</Prose>
+                  <Link
+                    to={`/${locale}/learn/${paperCode}/${nodeId}?tab=pyqs`}
+                    className="inline-flex w-fit items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary/15"
+                  >
+                    <TrendingUp className="size-4" /> {t("Notes.practiceThesePyqs")}
+                  </Link>
+                </div>
+              )}
+
+              {s.key === "key_facts" && (
+                <ul className="flex flex-col gap-2">
+                  {body.key_facts.map((f, i) => {
+                    const source = f.source_ref ? note.sources.find((src) => src.id === f.source_ref) : null;
+                    return (
+                      <li
+                        key={i}
+                        className="flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5"
+                      >
+                        <span
+                          className={cn(
+                            "min-w-0 flex-1 text-[15px]",
+                            locale === "hi" ? "leading-[1.9]" : "leading-relaxed",
+                          )}
+                        >
+                          {f.fact}
+                          {source && (
+                            <a
+                              href={source.url}
+                              target="_blank"
+                              rel="noreferrer noopener"
+                              className="ms-1.5 inline-flex items-center gap-0.5 align-middle text-xs font-medium text-primary hover:underline"
+                            >
+                              {f.source_ref} <ExternalLink className="size-3" />
+                            </a>
+                          )}
+                        </span>
+                        <AddButton
+                          added={added.has(`fact:${i}`)}
+                          pending={addBlock.isPending}
+                          onClick={() => addFact(i, f.fact)}
+                          label={t("Notes.addToRevision")}
+                        />
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {s.key === "mnemonics" && (
+                <ul className="flex flex-col gap-2">
+                  {body.mnemonics.map((m, i) => (
+                    <li
+                      key={i}
+                      className={cn(
+                        "rounded-lg border border-marigold/25 bg-marigold/[0.08] px-3 py-2 text-[15px]",
+                        locale === "hi" ? "leading-[1.9]" : "leading-relaxed",
+                      )}
+                    >
+                      {m}
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {s.key === "quick_revision" && (
+                <ul className="flex flex-col gap-1.5">
+                  {body.quick_revision.map((q, i) => (
+                    <li
+                      key={i}
+                      className={cn(
+                        "flex gap-2 text-[15px] text-foreground/90",
+                        locale === "hi" ? "leading-[1.9]" : "leading-relaxed",
+                      )}
+                    >
+                      <span className="mt-2 size-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+                      <span>{q}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+
+          {/* Further reading + sources (hidden in quick mode) */}
+          {!quick && (body.further_reading.length > 0 || note.sources.length > 0) && (
+            <section className="flex flex-col gap-3 border-t border-border pt-5">
+              <h3 className="text-sm font-semibold text-muted-foreground">{t("Notes.furtherReading")}</h3>
+              <ul className="flex flex-col gap-1.5">
+                {body.further_reading.map((r, i) => (
+                  <li key={`fr-${i}`}>
+                    <a
+                      href={r.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+                    >
+                      <ExternalLink className="size-3.5" /> {r.title}
+                    </a>
+                  </li>
+                ))}
+                {note.sources.map((src) => (
+                  <li key={src.id}>
+                    <a
+                      href={src.url}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-primary hover:underline"
+                    >
+                      <ExternalLink className="size-3" /> [{src.id}] {src.title}
+                    </a>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-muted-foreground">{t("Notes.ourWordsNote")}</p>
+            </section>
+          )}
+        </div>
+      </article>
+    </div>
+  );
+}

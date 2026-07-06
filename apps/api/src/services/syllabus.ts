@@ -84,7 +84,7 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
   // depth=1 rows are the top-level chapters shown as the outline's first
   // level (what "N topics" on a paper card should count) — NOT every node at
   // every depth, which would silently include every subtopic too.
-  const [rootsResult, topicsResult, questionsResult, graded] = await Promise.all([
+  const [rootsResult, topicsResult, questionsResult, notesResult, graded] = await Promise.all([
     supabase()
       .from("syllabus_nodes")
       .select("id, exam_stage, paper_code, title_i18n")
@@ -92,7 +92,11 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
       .order("exam_stage", { ascending: true })
       .order("paper_code", { ascending: true }),
     supabase().from("syllabus_nodes").select("paper_code").eq("depth", 1),
-    supabase().from("questions").select("paper_code").eq("is_published", true),
+    // Count only user-visible questions (published AND approved), matching the
+    // catalog list + weightage — a needs_review row must not inflate the badge.
+    supabase().from("questions").select("paper_code").eq("is_published", true).eq("review_state", "approved"),
+    // Published study notes per paper (via the node's paper_code) → coverage %.
+    supabase().from("notes").select("syllabus_nodes(paper_code)").eq("status", "published"),
     getGradedAnswers(userId),
   ]);
   if (rootsResult.error) throw new HttpError(500, `paper roots lookup failed: ${rootsResult.error.message}`);
@@ -118,6 +122,16 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
     pyqByPaper.set(code, (pyqByPaper.get(code) ?? 0) + 1);
   }
 
+  const notesByPaper = new Map<string, number>();
+  for (const row of notesResult.data ?? []) {
+    // PostgREST embeds the to-one join as an object or a single-element array.
+    const sn = (row as unknown as { syllabus_nodes: { paper_code: string } | { paper_code: string }[] | null })
+      .syllabus_nodes;
+    const code = Array.isArray(sn) ? sn[0]?.paper_code : sn?.paper_code;
+    if (!code) continue;
+    notesByPaper.set(code, (notesByPaper.get(code) ?? 0) + 1);
+  }
+
   const accuracyByPaper = new Map<string, { correct: number; total: number }>();
   for (const row of graded) {
     const code = row.questions?.paper_code;
@@ -138,6 +152,7 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
       pyq_count: pyqByPaper.get(root.paper_code) ?? 0,
       accuracy_pct: stats && stats.total > 0 ? round2((stats.correct / stats.total) * 100) : null,
       answered_count: stats?.total ?? 0,
+      notes_published_count: notesByPaper.get(root.paper_code) ?? 0,
     };
   });
 }
@@ -158,7 +173,8 @@ export async function getPaperTree(
     .from("questions")
     .select("syllabus_node_id")
     .eq("paper_code", paperCode)
-    .eq("is_published", true);
+    .eq("is_published", true)
+    .eq("review_state", "approved");
   if (exam) pyqQuery = pyqQuery.eq("exam_code", exam);
 
   const [treeResult, questionsResult, graded, weightage] = await Promise.all([
@@ -301,7 +317,8 @@ export async function getNodeDetail(
     .from("questions")
     .select("id", { count: "exact", head: true })
     .eq("syllabus_node_id", nodeId)
-    .eq("is_published", true);
+    .eq("is_published", true)
+    .eq("review_state", "approved");
   if (exam) pyqCountQuery = pyqCountQuery.eq("exam_code", exam);
 
   // None of these depend on each other — only on nodeId/node.paper_code/

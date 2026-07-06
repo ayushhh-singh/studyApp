@@ -15,8 +15,11 @@
     "eval:answers": "pnpm --filter api eval:answers",
     "cost:report": "pnpm --filter api cost:report",
     "ca:run": "pnpm --filter api ca:run",
+    "ca:compile": "pnpm --filter api ca:compile",
     "qgen": "pnpm --filter api qgen",
-    "qgen:topup": "pnpm --filter api qgen:topup"
+    "qgen:topup": "pnpm --filter api qgen:topup",
+    "notes:gen": "pnpm --filter api notes:gen",
+    "notes:embed": "pnpm --filter api notes:embed"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

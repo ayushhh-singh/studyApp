@@ -27,6 +27,8 @@ export const paperSummarySchema = z.object({
   pyq_count: z.number().int(),
   accuracy_pct: z.number().nullable(),
   answered_count: z.number().int(),
+  /** Published study notes for this paper — drives the coverage % on the card. */
+  notes_published_count: z.number().int(),
 });
 export type PaperSummary = z.infer<typeof paperSummarySchema>;
 

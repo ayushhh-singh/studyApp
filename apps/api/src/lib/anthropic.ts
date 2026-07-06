@@ -370,6 +370,130 @@ export async function streamText(opts: {
     .join("");
 }
 
+// ---------------------------------------------------------------------------
+// Web research (server-side web_search tool) — for grounding study notes on
+// CURRENT facts (UP schemes, latest data) that our local bank can't supply.
+// Returns the model's own-words synthesis PLUS the source list it cited, so
+// every externally-sourced fact in a note can carry a link out. This is the
+// ONE place the Anthropic tools API is used.
+// ---------------------------------------------------------------------------
+
+/** A web source surfaced by the web_search tool, for a note's `sources` list. */
+export interface WebSource {
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface WebResearchResult {
+  /** The model's synthesised text (its own words), citing sources as [S1], [S2], … */
+  text: string;
+  sources: WebSource[];
+}
+
+/**
+ * Run a web-search-grounded research turn with claude-sonnet-5. The model may
+ * issue several searches (server-side); we drive the tool loop to completion
+ * (handling `pause_turn`) and collect every `web_search_result` it saw into a
+ * deduped, id-stamped source list. Degrades to `{text:"", sources:[]}` on any
+ * error so note generation can proceed ungrounded-by-web rather than fail.
+ *
+ * `web_search_20260209` (dynamic filtering) is supported on claude-sonnet-5;
+ * see the claude-api skill. No beta header required.
+ */
+export async function webResearch(opts: {
+  system?: SystemParam;
+  content: string;
+  /** Cap on server-side searches (bounds cost/latency). */
+  maxUses?: number;
+  maxTokens?: number;
+  purpose: string;
+  userId?: string;
+  onUsage?: (usage: LlmUsage) => void;
+  signal?: AbortSignal;
+}): Promise<WebResearchResult> {
+  const model = MODELS.sonnet;
+  const tools = [
+    { type: "web_search_20260209", name: "web_search", max_uses: opts.maxUses ?? 5 },
+  ];
+
+  try {
+    let messages: Anthropic.MessageParam[] = [{ role: "user", content: opts.content }];
+    const sourcesByUrl = new Map<string, WebSource>();
+    const textParts: string[] = [];
+    let inTok = 0;
+    let outTok = 0;
+    let cacheR = 0;
+    let cacheW = 0;
+
+    // Server-side tool loops can end a turn with `pause_turn`; re-send to resume.
+    for (let hop = 0; hop < 8; hop++) {
+      const message = (await anthropic().messages.create(
+        {
+          model,
+          max_tokens: opts.maxTokens ?? 6000,
+          ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
+          tools: tools as unknown as Anthropic.ToolUnion[],
+          messages,
+        } as Anthropic.MessageCreateParamsNonStreaming,
+        opts.signal ? { signal: opts.signal } : undefined,
+      )) as Anthropic.Message;
+
+      inTok += message.usage.input_tokens;
+      outTok += message.usage.output_tokens;
+      cacheR += message.usage.cache_read_input_tokens ?? 0;
+      cacheW += message.usage.cache_creation_input_tokens ?? 0;
+
+      for (const block of message.content as unknown[]) {
+        const b = block as { type: string; text?: string; content?: unknown };
+        if (b.type === "text" && b.text) textParts.push(b.text);
+        if (b.type === "web_search_tool_result" && Array.isArray(b.content)) {
+          for (const r of b.content as { type?: string; url?: string; title?: string }[]) {
+            if (r.url && !sourcesByUrl.has(r.url)) {
+              sourcesByUrl.set(r.url, {
+                id: `S${sourcesByUrl.size + 1}`,
+                title: r.title || r.url,
+                url: r.url,
+              });
+            }
+          }
+        }
+      }
+
+      if (message.stop_reason === "refusal") break;
+      if (message.stop_reason === "pause_turn") {
+        messages = [...messages, { role: "assistant", content: message.content }];
+        continue;
+      }
+      break; // end_turn / max_tokens / tool loop done
+    }
+
+    const usage: LlmUsage = {
+      model,
+      inputTokens: inTok,
+      outputTokens: outTok,
+      cacheReadTokens: cacheR,
+      cacheWriteTokens: cacheW,
+      costUsd: estimateCostUsd(model, inTok, outTok, cacheR, cacheW),
+    };
+    opts.onUsage?.(usage);
+    await recordLlmCall({
+      model,
+      purpose: opts.purpose,
+      userId: opts.userId,
+      inputTokens: inTok,
+      outputTokens: outTok,
+      cacheReadTokens: cacheR,
+      cacheWriteTokens: cacheW,
+    });
+
+    return { text: textParts.join("\n").trim(), sources: [...sourcesByUrl.values()] };
+  } catch (err) {
+    logger.warn({ err, purpose: opts.purpose }, "webResearch failed; degrading to no web grounding");
+    return { text: "", sources: [] };
+  }
+}
+
 /**
  * Draft-translate a short piece of content between hi/en with claude-haiku-4-5.
  * Used to fill the missing language when only one side parsed cleanly. Callers

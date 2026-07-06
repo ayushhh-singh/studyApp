@@ -49,6 +49,7 @@ export const router = createBrowserRouter([
             lazy: () => import("@/routes/answers-evaluation"),
           },
           { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
+          { path: "magazine", lazy: () => import("@/routes/magazine-index") },
           { path: "revision", lazy: () => import("@/routes/revision") },
           { path: "review", lazy: () => import("@/routes/review") },
           { path: "profile", lazy: () => import("@/routes/profile") },
@@ -58,6 +59,9 @@ export const router = createBrowserRouter([
       // full-screen experience with its own minimal header, not the normal
       // sidebar/bottom-tab chrome.
       { path: "practice/test/:testId", lazy: () => import("@/routes/practice-test") },
+      // The monthly magazine is a print-styled document (own header + print
+      // button, no app chrome) so print-to-PDF is clean.
+      { path: "magazine/:month", lazy: () => import("@/routes/magazine") },
     ],
   },
   {
