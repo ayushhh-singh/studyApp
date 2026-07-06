@@ -566,7 +566,10 @@ export async function executeEvaluation(
         },
       });
       if (signal?.aborted) return;
-      if (submission.question_id) {
+      // Only cache a non-empty answer — an empty/failed generation must stay
+      // a one-off for THIS submission, not get replayed as empty for every
+      // future student who lands on this question until RUBRIC_VERSION bumps.
+      if (submission.question_id && modelAnswer.trim()) {
         await persistStoredModelAnswer(
           submission.question_id,
           language,
