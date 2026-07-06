@@ -54,6 +54,19 @@ export const DAILY_QUIZ_CONFIG: DailyQuizConfig = {
 /** The order slices are filled AND the order leftovers are drawn from when backfilling a short slice. */
 export const SLICE_FILL_ORDER: QuizSlice[] = ["generated", "pyq", "current_affairs", "random"];
 
+// ---------------------------------------------------------------------------
+// Daily answer set — 4 GS descriptive questions/day rotating across the six GS
+// papers (incl. GS-V/VI UP), plus one weekly ESSAY slot (Sunday). Computed
+// deterministically per IST day, so it needs no storage and is stable within a
+// day. One completed evaluation from the set maintains the streak.
+// ---------------------------------------------------------------------------
+export const ANSWER_SET_CONFIG = {
+  /** GS descriptive questions per day (a rotating window over the six GS papers). */
+  gsPerDay: 4,
+  /** IST weekday that carries the weekly essay slot (0 = Sunday). */
+  essayWeekday: 0,
+};
+
 /**
  * Split `size` into per-slice targets by ratio. Uses largest-remainder rounding
  * so the parts always sum to exactly `size` (no off-by-one from independent

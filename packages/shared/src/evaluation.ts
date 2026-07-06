@@ -22,6 +22,8 @@ export const MAX_CUSTOM_QUESTION_CHARS = 2_000;
 // Rubric (v1)
 // ---------------------------------------------------------------------------
 export const RUBRIC_VERSION = "v1";
+/** The UPPSC Essay-paper rubric variant (one ~700-word essay, 50 marks). */
+export const ESSAY_RUBRIC_VERSION = "essay-v1";
 
 export const rubricDimensionKeySchema = z.enum([
   "structure_flow",

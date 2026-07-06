@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   confirmOcrBodySchema,
   createSubmissionBodySchema,
+  dailyAnswerSetResponseSchema,
   submissionDetailResponseSchema,
   submissionListResponseSchema,
   submissionResponseSchema,
@@ -20,6 +21,7 @@ import {
   SUBMISSIONS_PAGE_SIZE,
 } from "../services/evaluation/evaluate.js";
 import { getTodaysQuestion } from "../services/questions.js";
+import { getDailyAnswerSet } from "../services/answer-set.js";
 
 /**
  * Answer-writing evaluation (flagship). Submissions are created here; the
@@ -37,6 +39,14 @@ answersRouter.get(
   asyncHandler(async (_req, res) => {
     const question = await getTodaysQuestion();
     res.json(todaysQuestionResponseSchema.parse({ data: question, error: null }));
+  }),
+);
+
+answersRouter.get(
+  "/answers/daily-set",
+  asyncHandler(async (_req, res) => {
+    const set = await getDailyAnswerSet(devUserId());
+    res.json(dailyAnswerSetResponseSchema.parse({ data: set, error: null }));
   }),
 );
 

@@ -33,9 +33,11 @@ import {
   computeOverallScore,
   DEFAULT_MAX_SCORE,
   DEFAULT_WORD_LIMIT,
-  RUBRIC_DIMENSIONS,
+  ESSAY_RUBRIC_VERSION,
+  rubricDimensions,
   RUBRIC_VERSION,
 } from "./rubric.js";
+import { ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, ESSAY_MAX_MARKS } from "../../lib/exam-papers.js";
 import {
   analysisJsonSchema,
   buildAnalysisSystem,
@@ -85,7 +87,7 @@ interface SubmissionRow {
   ocr_confidence: number | null;
   status: Submission["status"];
   language: Locale;
-  meta: { word_limit?: number; marks?: number } | null;
+  meta: { word_limit?: number; marks?: number; rubric?: string } | null;
   created_at: string;
 }
 
@@ -255,6 +257,8 @@ export type EvaluationPlan =
       syllabusNodeId: string | null;
       wordLimit: number;
       maxScore: number;
+      /** Which rubric to apply — essay-v1 for the Essay paper, else v1. */
+      rubricVersion: string;
       /** First page photo (handwritten mode only), fed to pass 1 for the presentation dimension. */
       pageImage?: AnalysisPageImage;
     };
@@ -264,32 +268,40 @@ async function resolveQuestionContext(submission: SubmissionRow): Promise<{
   syllabusNodeId: string | null;
   wordLimit: number;
   maxScore: number;
+  rubricVersion: string;
 }> {
   const lang = submission.language;
   if (submission.question_id) {
     const { data: q, error } = await supabase()
       .from("questions")
-      .select("stem_i18n, syllabus_node_id, word_limit, marks")
+      .select("stem_i18n, syllabus_node_id, word_limit, marks, paper_code")
       .eq("id", submission.question_id)
       .maybeSingle();
     if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
     if (!q) throw new HttpError(409, "The question for this submission no longer exists");
     const stem = q.stem_i18n as BilingualText;
     const questionText = stem[lang]?.trim() || stem.en?.trim() || stem.hi?.trim() || "";
+    // The Essay paper (निबंध) scores under the essay rubric; everything else uses v1.
+    const isEssay = q.paper_code === ESSAY_PAPER_CODE;
     return {
       questionText,
       syllabusNodeId: (q.syllabus_node_id as string | null) ?? null,
-      wordLimit: (q.word_limit as number | null) ?? DEFAULT_WORD_LIMIT,
-      maxScore: (q.marks as number | null) ?? DEFAULT_MAX_SCORE,
+      wordLimit: (q.word_limit as number | null) ?? (isEssay ? ESSAY_WORD_LIMIT : DEFAULT_WORD_LIMIT),
+      maxScore: (q.marks as number | null) ?? (isEssay ? ESSAY_MAX_MARKS : DEFAULT_MAX_SCORE),
+      rubricVersion: isEssay ? ESSAY_RUBRIC_VERSION : RUBRIC_VERSION,
     };
   }
   const custom = submission.custom_question_text_i18n;
   const questionText = custom?.[lang]?.trim() || custom?.en?.trim() || custom?.hi?.trim() || "";
+  // A custom prompt can opt into the essay rubric via meta.rubric = "essay-v1"
+  // (set when the writing room's essay mode is used for a non-catalogued topic).
+  const isEssay = submission.meta?.rubric === ESSAY_RUBRIC_VERSION;
   return {
     questionText,
     syllabusNodeId: null,
-    wordLimit: submission.meta?.word_limit ?? DEFAULT_WORD_LIMIT,
-    maxScore: submission.meta?.marks ?? DEFAULT_MAX_SCORE,
+    wordLimit: submission.meta?.word_limit ?? (isEssay ? ESSAY_WORD_LIMIT : DEFAULT_WORD_LIMIT),
+    maxScore: submission.meta?.marks ?? (isEssay ? ESSAY_MAX_MARKS : DEFAULT_MAX_SCORE),
+    rubricVersion: isEssay ? ESSAY_RUBRIC_VERSION : RUBRIC_VERSION,
   };
 }
 
@@ -437,6 +449,7 @@ export async function executeEvaluation(
       maxScore: plan.maxScore,
       wordCount: countWords(answerText),
       grounding,
+      rubricVersion: plan.rubricVersion,
     };
 
     // 2. Pass 1 — structured analysis
@@ -453,7 +466,7 @@ export async function executeEvaluation(
       // Fixed per (locale, hasPageImage) — cached so the rubric + examiner
       // framing is a cache read, not a fresh input token, for every OTHER
       // student's submission that shares those two axes.
-      system: [{ text: buildAnalysisSystem(!!plan.pageImage), cache: true }],
+      system: [{ text: buildAnalysisSystem(!!plan.pageImage, plan.rubricVersion), cache: true }],
       content: buildAnalysisUserContent(ctx, plan.pageImage),
       schema: analysisJsonSchema(),
       maxTokens: 8000,
@@ -464,7 +477,7 @@ export async function executeEvaluation(
     });
     if (signal?.aborted) return;
 
-    const dimensionScores: DimensionScore[] = RUBRIC_DIMENSIONS.map((d) => ({
+    const dimensionScores: DimensionScore[] = rubricDimensions(plan.rubricVersion).map((d) => ({
       key: d.key,
       label: d.label,
       weight: d.weight,
@@ -537,7 +550,7 @@ export async function executeEvaluation(
     emit("status", { phase: "model_answer" });
     let modelAnswer = "";
     const reused = submission.question_id
-      ? await fetchStoredModelAnswer(submission.question_id, language).catch((err) => {
+      ? await fetchStoredModelAnswer(submission.question_id, language, plan.rubricVersion).catch((err) => {
           logger.warn({ err, submissionId: submission.id }, "model-answer reuse lookup failed; generating fresh");
           return null;
         })
@@ -573,6 +586,7 @@ export async function executeEvaluation(
         await persistStoredModelAnswer(
           submission.question_id,
           language,
+          plan.rubricVersion,
           modelAnswer,
           modelAnswerUsage.tokens,
           modelAnswerUsage.cost,
@@ -584,6 +598,7 @@ export async function executeEvaluation(
     emit("status", { phase: "persisting" });
     const evaluation = await persistEvaluation({
       submissionId: submission.id,
+      rubricVersion: plan.rubricVersion,
       overallScore,
       maxScore: plan.maxScore,
       dimensionScores,
@@ -846,13 +861,14 @@ export async function releaseStuckOcr(submissionId: string): Promise<void> {
 async function fetchStoredModelAnswer(
   questionId: string,
   locale: Locale,
+  rubricVersion: string,
 ): Promise<{ modelAnswer: string } | null> {
   const { data, error } = await supabase()
     .from("question_model_answers")
     .select("model_answer")
     .eq("question_id", questionId)
     .eq("locale", locale)
-    .eq("rubric_version", RUBRIC_VERSION)
+    .eq("rubric_version", rubricVersion)
     .maybeSingle();
   if (error) throw new HttpError(500, `model answer lookup failed: ${error.message}`);
   return data ? { modelAnswer: data.model_answer as string } : null;
@@ -862,6 +878,7 @@ async function fetchStoredModelAnswer(
 async function persistStoredModelAnswer(
   questionId: string,
   locale: Locale,
+  rubricVersion: string,
   modelAnswer: string,
   tokens: number,
   costUsd: number,
@@ -869,7 +886,7 @@ async function persistStoredModelAnswer(
   const { error } = await supabase()
     .from("question_model_answers")
     .upsert(
-      { question_id: questionId, locale, rubric_version: RUBRIC_VERSION, model_answer: modelAnswer, tokens, cost_usd: costUsd },
+      { question_id: questionId, locale, rubric_version: rubricVersion, model_answer: modelAnswer, tokens, cost_usd: costUsd },
       { onConflict: "question_id,locale,rubric_version", ignoreDuplicates: true },
     );
   if (error) logger.warn({ error, questionId }, "failed to persist reusable model answer");
@@ -877,6 +894,7 @@ async function persistStoredModelAnswer(
 
 async function persistEvaluation(input: {
   submissionId: string;
+  rubricVersion: string;
   overallScore: number;
   maxScore: number;
   dimensionScores: DimensionScore[];
@@ -913,7 +931,7 @@ async function persistEvaluation(input: {
       {
         submission_id: input.submissionId,
         model: MODELS.sonnet,
-        rubric_version: RUBRIC_VERSION,
+        rubric_version: input.rubricVersion,
         overall_score: input.overallScore,
         max_score: input.maxScore,
         dimension_scores: input.dimensionScores,

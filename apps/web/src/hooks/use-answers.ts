@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  dailyAnswerSetResponseSchema,
   submissionDetailResponseSchema,
   submissionListResponseSchema,
   submissionResponseSchema,
@@ -13,6 +14,13 @@ export function useTodaysQuestion() {
   return useQuery({
     queryKey: queryKeys.todaysQuestion(),
     queryFn: () => api.get("/api/v1/answers/today", todaysQuestionResponseSchema),
+  });
+}
+
+export function useDailyAnswerSet() {
+  return useQuery({
+    queryKey: queryKeys.dailyAnswerSet(),
+    queryFn: () => api.get("/api/v1/answers/daily-set", dailyAnswerSetResponseSchema),
   });
 }
 

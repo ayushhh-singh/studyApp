@@ -4,6 +4,7 @@ import { NotebookPen, PenTool } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { TodaysQuestionCard } from "@/components/answers/todays-question-card";
+import { DailyAnswerSet } from "@/components/answers/daily-answer-set";
 import { PyqPicker } from "@/components/answers/pyq-picker";
 import { SubmissionHistoryList } from "@/components/answers/submission-history-list";
 import { useTodaysQuestion } from "@/hooks/use-answers";
@@ -30,6 +31,8 @@ export function Component() {
       />
 
       <TodaysQuestionCard question={todaysQuestion} isLoading={isTodaysQuestionLoading} />
+
+      <DailyAnswerSet />
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <PyqPicker />

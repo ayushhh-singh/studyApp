@@ -10,6 +10,7 @@ import { devUserId } from "../lib/dev-user.js";
 import { istToday } from "../lib/ist.js";
 import { logger } from "../lib/logger.js";
 import { buildDailyQuiz } from "./quiz.js";
+import { getDailyAnswerSet } from "../services/answer-set.js";
 
 export interface DailyBuildOptions {
   date?: string;
@@ -26,6 +27,14 @@ export async function runDailyBuild(opts: DailyBuildOptions = {}): Promise<void>
   log(`building daily content for ${date}`);
   const quiz = await buildDailyQuiz({ userId, date, size: opts.size, log });
   if (!quiz) log("daily quiz: skipped (no questions available)");
+
+  // The answer set is computed deterministically on demand (no storage) — verify
+  // and log today's composition so the scheduled run surfaces any supply gap.
+  const answerSet = await getDailyAnswerSet(userId, date);
+  log(
+    `daily answer set: ${answerSet.items.length} question(s) — ` +
+      answerSet.items.map((i) => `${i.paper_code}(${i.kind})`).join(" "),
+  );
 }
 
 function parseArgs(argv: string[]): DailyBuildOptions {

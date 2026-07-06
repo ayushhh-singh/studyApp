@@ -35,6 +35,8 @@ export interface EvalContext {
   maxScore: number;
   wordCount: number;
   grounding: GroundingResult;
+  /** Which rubric variant is being applied — "v1" (GS) or "essay-v1" (Essay paper). */
+  rubricVersion: string;
 }
 
 /** Strict pass-1 output. `dimensions` has exactly the six rubric keys. */
@@ -87,14 +89,18 @@ const UNTRUSTED_ANSWER_CLAUSE =
 // ---------------------------------------------------------------------------
 // Pass 1 — analysis (strict JSON)
 // ---------------------------------------------------------------------------
-export function buildAnalysisSystem(hasPageImage = false): string {
+export function buildAnalysisSystem(hasPageImage = false, rubricVersion?: string): string {
+  const isEssay = rubricVersion === "essay-v1";
   return (
     "You are a strict but fair examiner for the UPPSC (Uttar Pradesh Public Service " +
     "Commission) Civil Services Mains examination. You evaluate a candidate's " +
-    "descriptive answer against a fixed six-dimension rubric and return a rigorous, " +
+    (isEssay
+      ? "ESSAY (निबंध paper — one ~700-word essay written on a chosen topic) "
+      : "descriptive answer ") +
+    "against a fixed six-dimension rubric and return a rigorous, " +
     "evidence-based analysis as JSON.\n\n" +
     "RUBRIC (score each dimension 0-10):\n" +
-    renderRubricForPrompt() +
+    renderRubricForPrompt(rubricVersion) +
     (hasPageImage
       ? "\n\nOne photo of the candidate's original handwritten answer page is attached. Use it " +
         "ONLY to judge the 'presentation' dimension — handwriting legibility, use of headings, " +
@@ -266,6 +272,18 @@ export const FEEDBACK_WRITE_NOW = "Write your response now, following the instru
 // Pass 2 — model answer (streamed)
 // ---------------------------------------------------------------------------
 export function buildModelAnswerSystem(ctx: EvalContext): string {
+  if (ctx.rubricVersion === "essay-v1") {
+    return (
+      `You are a top UPPSC Essay-paper writer. Write a MODEL ESSAY on the given topic in ` +
+      `${langName(ctx.language)} that would score near-full marks, within about ${ctx.wordLimit} ` +
+      `words (stay within ~10% — do not overshoot). Write continuous, flowing prose: a compelling ` +
+      `introduction that frames the theme, a body that examines it from multiple angles ` +
+      `(social, economic, political, technological, environmental, ethical as relevant) with a ` +
+      `balanced view and real substantiation — facts, examples, case studies, apt quotations, and ` +
+      `UP-/India-specific evidence — and a forward-looking conclusion. Prefer paragraphs over ` +
+      `bullet points; a rare sub-heading is acceptable. ${NO_MARKDOWN}`
+    );
+  }
   return (
     `You are a top UPPSC Mains answer writer. Write a MODEL ANSWER to the question in ` +
     `${langName(ctx.language)} that would score near-full marks, within a word limit of ` +
