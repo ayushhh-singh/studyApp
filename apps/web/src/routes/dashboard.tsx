@@ -9,6 +9,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { PerformanceCard } from "@/components/dashboard/performance-card";
 import { WeaknessCard } from "@/components/dashboard/weakness-card";
 import { AnswerSpotlightCard } from "@/components/dashboard/answer-spotlight-card";
+import { WeeklyDigestCard } from "@/components/dashboard/weekly-digest-card";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 
 export const handle = { titleKey: "Nav.dashboard" };
@@ -60,6 +61,8 @@ export function Component() {
         <ContinueCard data={data.continue} />
         <TodayCard data={data.today} />
       </div>
+
+      <WeeklyDigestCard />
 
       <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
         <PerformanceCard data={data.performance} />

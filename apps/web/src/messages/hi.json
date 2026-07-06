@@ -569,5 +569,25 @@
     "title": "सूचनाएँ",
     "empty": "सब कुछ देख लिया।",
     "dismiss": "हटाएँ"
+  },
+  "Digest": {
+    "title": "इस सप्ताह",
+    "share": "साझा करें",
+    "questions": "प्रश्न",
+    "accuracy": "सटीकता",
+    "answers": "उत्तर",
+    "streak": "स्ट्रीक"
+  },
+  "Milestones": {
+    "dismiss": "हटाएँ"
+  },
+  "Leaderboard": {
+    "title": "लीडरबोर्ड",
+    "description": "स्ट्रीक और अभ्यास के आधार पर रैंकिंग।",
+    "rankingTitle": "रैंकिंग",
+    "anonymous": "अभ्यर्थी",
+    "you": "(आप)",
+    "streak_one": "{{count}}-दिन स्ट्रीक",
+    "streak_other": "{{count}}-दिन स्ट्रीक"
   }
 }

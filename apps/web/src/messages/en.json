@@ -569,5 +569,25 @@
     "title": "Notifications",
     "empty": "You're all caught up.",
     "dismiss": "Dismiss"
+  },
+  "Digest": {
+    "title": "This week",
+    "share": "Share",
+    "questions": "Questions",
+    "accuracy": "Accuracy",
+    "answers": "Answers",
+    "streak": "Streak"
+  },
+  "Milestones": {
+    "dismiss": "Dismiss"
+  },
+  "Leaderboard": {
+    "title": "Leaderboard",
+    "description": "Rankings by streak and practice.",
+    "rankingTitle": "Rankings",
+    "anonymous": "Aspirant",
+    "you": "(you)",
+    "streak_one": "{{count}}-day streak",
+    "streak_other": "{{count}}-day streak"
   }
 }

@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/app-shell/sidebar";
 import { TopBar } from "@/components/app-shell/top-bar";
 import { BottomTabBar } from "@/components/app-shell/bottom-tab-bar";
 import { CommandPalette } from "@/components/ui-x/command-palette";
+import { MilestoneToaster } from "@/components/app-shell/milestone-toaster";
 
 interface RouteHandle {
   titleKey?: string;
@@ -29,6 +30,7 @@ export function Component() {
       </div>
       <BottomTabBar />
       <CommandPalette />
+      <MilestoneToaster />
     </div>
   );
 }

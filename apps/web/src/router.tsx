@@ -52,6 +52,8 @@ export const router = createBrowserRouter([
           { path: "magazine", lazy: () => import("@/routes/magazine-index") },
           { path: "revision", lazy: () => import("@/routes/revision") },
           { path: "review", lazy: () => import("@/routes/review") },
+          // Built but hidden: reachable by URL, not linked in nav (see leaderboard.tsx).
+          { path: "leaderboard", lazy: () => import("@/routes/leaderboard") },
           { path: "profile", lazy: () => import("@/routes/profile") },
         ],
       },

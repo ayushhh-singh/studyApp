@@ -21,6 +21,7 @@ import { notesRouter } from "./routes/notes.js";
 import { magazineRouter } from "./routes/magazine.js";
 import { dailyRouter } from "./routes/daily.js";
 import { notificationsRouter } from "./routes/notifications.js";
+import { engagementRouter } from "./routes/engagement.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
 
@@ -52,6 +53,7 @@ app.use("/api/v1", notesRouter);
 app.use("/api/v1", magazineRouter);
 app.use("/api/v1", dailyRouter);
 app.use("/api/v1", notificationsRouter);
+app.use("/api/v1", engagementRouter);
 app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);
