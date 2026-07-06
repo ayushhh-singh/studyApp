@@ -14,3 +14,4 @@ export * from "./review";
 export * from "./notes";
 export * from "./magazine";
 export * from "./daily";
+export * from "./notifications";

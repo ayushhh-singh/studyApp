@@ -14,9 +14,12 @@ import cron from "node-cron";
 import { logger } from "../lib/logger.js";
 import { runDailyBuild } from "./run.js";
 import { runStreakNightly } from "./streak.js";
+import { generateForUser } from "../services/notifications.js";
+import { devUserId } from "../lib/dev-user.js";
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
 const STREAK_NIGHTLY_CRON = "5 0 * * *"; // 00:05 every day — settle the streak just after IST midnight
+const NOTIFICATIONS_CRON = "0 * * * *"; // hourly — (re)generate/resolve nudges (incl. the ~8 PM streak-at-risk)
 const IST_TZ = "Asia/Kolkata";
 
 export function startDailyScheduler(): void {
@@ -39,5 +42,15 @@ export function startDailyScheduler(): void {
     { timezone: IST_TZ },
   );
 
-  logger.info(`daily: scheduler started (build "${DAILY_BUILD_CRON}" IST, streak "${STREAK_NIGHTLY_CRON}" IST)`);
+  cron.schedule(
+    NOTIFICATIONS_CRON,
+    () => {
+      generateForUser(devUserId()).catch((err) => logger.error({ err }, "daily: notification generation failed"));
+    },
+    { timezone: IST_TZ },
+  );
+
+  logger.info(
+    `daily: scheduler started (build "${DAILY_BUILD_CRON}" IST, streak "${STREAK_NIGHTLY_CRON}" IST, notifications "${NOTIFICATIONS_CRON}" IST)`,
+  );
 }

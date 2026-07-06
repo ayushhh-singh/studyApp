@@ -554,5 +554,10 @@
     "upSection": "Uttar Pradesh Focus",
     "quizAppendix": "Practice Quiz ({{count}} questions)",
     "footer": "Compiled in our own words from published sources. For UPPSC exam preparation."
+  },
+  "Notifications": {
+    "title": "Notifications",
+    "empty": "You're all caught up.",
+    "dismiss": "Dismiss"
   }
 }

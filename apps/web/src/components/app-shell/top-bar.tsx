@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
+import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { useLocale } from "@/hooks/use-locale";
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile";
 import { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, switchLocale, type Locale } from "@/lib/locale";
@@ -57,6 +58,8 @@ export function TopBar({ title }: { title: string }) {
       </Button>
 
       <StreakFlame count={profile?.streak_count ?? 0} />
+
+      <NotificationBell />
 
       <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
         {SUPPORTED_LOCALES.map((l) => (

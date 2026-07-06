@@ -53,4 +53,5 @@ export const queryKeys = {
   magazineMonths: () => ["magazine", "months"] as const,
   magazine: (month: string) => ["magazine", month] as const,
   dailyQuizArchive: (page: number) => ["daily-quiz", "archive", page] as const,
+  notifications: () => ["notifications"] as const,
 };

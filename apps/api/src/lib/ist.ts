@@ -53,6 +53,12 @@ export function istDayRangeUtc(date: string): { startUtc: string; endUtc: string
   };
 }
 
+/** The UTC ISO instant for a wall-clock IST time (hour:minute) on an IST date. */
+export function istClockUtc(date: string, hour: number, minute = 0): string {
+  const ms = Date.parse(`${date}T00:00:00Z`) - IST_OFFSET_MS + (hour * 60 + minute) * 60 * 1000;
+  return new Date(ms).toISOString();
+}
+
 /** Bilingual "7 Jul 2026" / "7 जुल 2026" from a `YYYY-MM-DD` string, for test/quiz titles. */
 export function formatDateBilingual(dateStr: string): { en: string; hi: string } {
   const [y, m, d] = dateStr.split("-").map(Number);
