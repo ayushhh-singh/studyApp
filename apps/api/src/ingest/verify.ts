@@ -17,6 +17,25 @@ function pct(n: number, d: number): string {
   return d === 0 ? "  n/a" : `${((100 * n) / d).toFixed(1)}%`;
 }
 
+/**
+ * Fetch every row of a table, paging past PostgREST's 1000-row cap — the bank
+ * now exceeds 1000 questions, so a single `.select()` would silently undercount.
+ */
+async function fetchAllRows<T = Record<string, unknown>>(table: string, columns: string): Promise<T[]> {
+  const PAGE = 1000;
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase()
+      .from(table)
+      .select(columns)
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`${table} query failed: ${error.message}`);
+    out.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGE) break;
+  }
+  return out;
+}
+
 async function main(): Promise<void> {
   const db = supabase();
   report.section("ingest:verify");
@@ -45,12 +64,23 @@ async function main(): Promise<void> {
   console.log(`  ${"TOTAL".padEnd(12)} ${" ".padEnd(8)} ${String(nodes?.length ?? 0).padStart(4)} nodes`);
 
   // --- Questions per year/paper + bilingual / answer-key coverage ---
-  const { data: qs, error: qErr } = await db
-    .from("questions")
-    .select(
-      "type, stage, exam_code, source_kind, out_of_syllabus, paper_code, year, source, is_published, review_state, publish_gate_ok, meta",
-    );
-  if (qErr) throw new Error(qErr.message);
+  const qs = await fetchAllRows<{
+    type: string;
+    stage: string;
+    exam_code: string | null;
+    source_kind: string | null;
+    out_of_syllabus: boolean | null;
+    paper_code: string;
+    year: number | null;
+    source: string;
+    is_published: boolean;
+    review_state: string | null;
+    publish_gate_ok: boolean;
+    meta: unknown;
+  }>(
+    "questions",
+    "type, stage, exam_code, source_kind, out_of_syllabus, paper_code, year, source, is_published, review_state, publish_gate_ok, meta",
+  );
   report.section("Questions per year / paper");
   const qKey = new Map<string, number>();
   let totalQ = 0;
@@ -115,10 +145,10 @@ async function main(): Promise<void> {
   for (const k of [...tByKind.keys()].sort()) console.log(`  ${k.padEnd(14)} ${String(tByKind.get(k)).padStart(4)}`);
 
   // --- Embedding coverage ---
-  const { data: embs, error: eErr } = await db
-    .from("embeddings")
-    .select("source_type, source_id, locale");
-  if (eErr) throw new Error(eErr.message);
+  const embs = await fetchAllRows<{ source_type: string; source_id: string; locale: string }>(
+    "embeddings",
+    "source_type, source_id, locale",
+  );
   report.section("Embedding coverage");
   const embByType = new Map<string, Set<string>>();
   const chunkByType = new Map<string, number>();
