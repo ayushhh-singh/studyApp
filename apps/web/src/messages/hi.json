@@ -106,7 +106,14 @@
     "yearUnknown": "वर्ष अज्ञात",
     "prevPage": "पिछला",
     "nextPage": "अगला",
-    "pageOf": "पृष्ठ {{page}} / {{total}}"
+    "pageOf": "पृष्ठ {{page}} / {{total}}",
+    "askedTimes_one": "{{count}} बार पूछा गया",
+    "askedTimes_other": "{{count}} बार पूछा गया",
+    "lastAsked": "अंतिम {{year}}",
+    "weightageShare": "पेपर के {{pct}}% प्रश्न",
+    "outOfSyllabus": "यूपीपीएससी पाठ्यक्रम से बाहर",
+    "outOfSyllabusShort": "बाहर",
+    "viewTrends": "भारांक और रुझान"
   },
   "Practice": {
     "title": "अभ्यास",
@@ -431,5 +438,29 @@
     "saveApprove": "सहेजें और स्वीकृत करें",
     "saveDraft": "मसौदा सहेजें",
     "cancel": "रद्द करें"
+  },
+  "Exam": {
+    "filterLabel": "परीक्षा फ़िल्टर",
+    "uppscOnly": "केवल यूपीपीएससी",
+    "allExams": "सभी परीक्षाएँ"
+  },
+  "Trends": {
+    "title": "पीवाईक्यू भारांक और रुझान",
+    "description": "पिछले दशक में प्रत्येक विषय कितनी बार पूछा गया।",
+    "backToPaper": "पेपर पर वापस",
+    "totalQuestions_one": "{{count}} पीवाईक्यू",
+    "totalQuestions_other": "{{count}} पीवाईक्यू",
+    "perYearTitle": "प्रति वर्ष प्रश्न",
+    "topTopicsTitle": "सर्वाधिक पूछे गए विषय",
+    "risingTitle": "उभरते विषय",
+    "risingHint": "पिछले 3 वर्षों में सक्रिय",
+    "dormantTitle": "5+ वर्षों से नहीं पूछा गया",
+    "dormantHint": "लंबित — पूर्व में अधिक, लंबा अंतराल",
+    "emptyTitle": "अभी तक कोई भारांक डेटा नहीं",
+    "emptyDescription": "इस पेपर के लिए वर्ष-चिह्नित पीवाईक्यू लोड होने पर रुझान दिखेंगे।",
+    "notFoundTitle": "पेपर नहीं मिला",
+    "notFoundDescription": "इस पेपर का पाठ्यक्रम अभी नहीं है।",
+    "askedShort": "{{count}}×",
+    "loading": "रुझान लोड हो रहे हैं…"
   }
 }

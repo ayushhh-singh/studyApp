@@ -13,7 +13,7 @@ function istDayNumber(): number {
 }
 
 const QUESTION_COLUMNS =
-  "id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, correct_option_key, explanation_i18n, difficulty, word_limit, marks";
+  "id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, correct_option_key, explanation_i18n, difficulty, word_limit, marks";
 
 export async function listQuestions(
   filters: QuestionsQuery,
@@ -27,6 +27,7 @@ export async function listQuestions(
   if (filters.node) query = query.eq("syllabus_node_id", filters.node);
   if (filters.year !== undefined) query = query.eq("year", filters.year);
   if (filters.type) query = query.eq("type", filters.type);
+  if (filters.exam) query = query.eq("exam_code", filters.exam);
 
   const from = (filters.page - 1) * QUESTIONS_PAGE_SIZE;
   const to = from + QUESTIONS_PAGE_SIZE - 1;

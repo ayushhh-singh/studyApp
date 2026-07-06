@@ -1,5 +1,12 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, bilingualTextSchema, examStageSchema, paginatedSchema } from "./types";
+import {
+  apiEnvelopeSchema,
+  bilingualTextSchema,
+  examCodeSchema,
+  examStageSchema,
+  paginatedSchema,
+  sourceKindSchema,
+} from "./types";
 
 export const questionTypeSchema = z.enum(["mcq", "descriptive"]);
 export type QuestionType = z.infer<typeof questionTypeSchema>;
@@ -18,6 +25,12 @@ export const questionSchema = z.object({
   id: z.string().uuid(),
   type: questionTypeSchema,
   stage: examStageSchema,
+  exam_code: examCodeSchema,
+  /** Bilingual attribution label, e.g. { en: "UPSC Prelims", hi: "…" }. Null for legacy rows without one. */
+  exam_label_i18n: bilingualTextSchema.nullable(),
+  source_kind: sourceKindSchema,
+  /** True when the question maps to no UPPSC syllabus node (an out-of-scope ask). */
+  out_of_syllabus: z.boolean(),
   paper_code: z.string(),
   syllabus_node_id: z.string().uuid().nullable(),
   year: z.number().int().nullable(),
@@ -37,6 +50,8 @@ export const questionsQuerySchema = z.object({
   node: z.string().uuid().optional(),
   year: z.coerce.number().int().optional(),
   type: questionTypeSchema.optional(),
+  /** Filter by source exam. Omit for "All exams"; pass "uppsc" for "UPPSC only". */
+  exam: examCodeSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
 });
 export type QuestionsQuery = z.infer<typeof questionsQuerySchema>;

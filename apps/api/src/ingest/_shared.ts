@@ -9,6 +9,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { PDFParse } from "pdf-parse";
+import { PDFDocument } from "pdf-lib";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // apps/api/src/ingest -> repo root is four levels up.
@@ -24,6 +25,10 @@ export interface ManifestEntry {
   id: string;
   section: "syllabus" | "pyq_prelims" | "pyq_mains" | "answer_key";
   url: string;
+  /** Source tier stamped by content:fetch (A official / B compilation). */
+  tier?: "A" | "B";
+  /** Exam attribution stamped by content:fetch. */
+  exam?: string;
   path: string; // repo-relative, e.g. content-raw/syllabus/xxx.pdf
   sha256: string;
   bytes: number;
@@ -101,6 +106,27 @@ export async function pdfDocumentBlock(fileAbsPath: string) {
       type: "base64" as const,
       media_type: "application/pdf" as const,
       data: await pdfBase64(fileAbsPath),
+    },
+  };
+}
+
+/**
+ * A document block containing only the given (0-based) pages of a PDF. Used to
+ * chunk a large scanned paper under the Anthropic request-size limit — a 30MB+
+ * scan can't be attached whole, so extraction sends it a few pages at a time.
+ */
+export async function pdfSubsetDocumentBlock(fileAbsPath: string, pageIndices: number[]) {
+  const src = await PDFDocument.load(await readFile(fileAbsPath));
+  const out = await PDFDocument.create();
+  const copied = await out.copyPages(src, pageIndices);
+  copied.forEach((p) => out.addPage(p));
+  const bytes = await out.save();
+  return {
+    type: "document" as const,
+    source: {
+      type: "base64" as const,
+      media_type: "application/pdf" as const,
+      data: Buffer.from(bytes).toString("base64"),
     },
   };
 }
@@ -225,22 +251,83 @@ export function paperByCode(code: string): PaperDef | undefined {
   return PAPERS.find((p) => p.paperCode === code);
 }
 
+// ---------------------------------------------------------------------------
+// Multi-exam attribution + source provenance (matches the questions columns
+// added in migration 0036).
+// ---------------------------------------------------------------------------
+export type ExamCode = "uppsc" | "upsc" | "up_ro_aro" | "upsssc_pet" | "other";
+export type SourceKind = "official" | "compilation" | "generated" | "manual";
+
+const EXAM_PREFIXES: ExamCode[] = ["uppsc", "upsc", "up_ro_aro", "upsssc_pet"];
+
+/** Bilingual attribution label per exam × stage — rendered as the chip's exam half. */
+const EXAM_LABELS: Record<ExamCode, { prelims: I18n; mains: I18n }> = {
+  uppsc: {
+    prelims: { en: "UPPSC Prelims", hi: "यूपीपीएससी प्रारंभिक" },
+    mains: { en: "UPPSC Mains", hi: "यूपीपीएससी मुख्य" },
+  },
+  upsc: {
+    prelims: { en: "UPSC Prelims", hi: "यूपीएससी प्रारंभिक" },
+    mains: { en: "UPSC Mains", hi: "यूपीएससी मुख्य" },
+  },
+  up_ro_aro: {
+    prelims: { en: "UP RO/ARO", hi: "यूपी आरओ/एआरओ" },
+    mains: { en: "UP RO/ARO", hi: "यूपी आरओ/एआरओ" },
+  },
+  upsssc_pet: {
+    prelims: { en: "UPSSSC PET", hi: "यूपीएसएसएससी पीईटी" },
+    mains: { en: "UPSSSC PET", hi: "यूपीएसएसएससी पीईटी" },
+  },
+  other: {
+    prelims: { en: "Other exam", hi: "अन्य परीक्षा" },
+    mains: { en: "Other exam", hi: "अन्य परीक्षा" },
+  },
+};
+
+export function examLabel(exam: ExamCode, stage: ExamStage): I18n {
+  return EXAM_LABELS[exam][stage];
+}
+
+/** Derive the exam code from a manifest id prefix, defaulting to uppsc. */
+export function examCodeFromId(id: string): ExamCode {
+  for (const e of EXAM_PREFIXES) if (id.startsWith(`${e}_`)) return e;
+  return "uppsc";
+}
+
+const GOV_DOMAINS = ["upsc.gov.in", "uppsc.up.nic.in", "gov.in", "nic.in", "upload.wikimedia.org"];
+
+/** Provenance tier for a fetched source — prefer the stamped tier, else infer from the URL host. */
+export function sourceKindForEntry(entry: ManifestEntry): SourceKind {
+  const tier = entry.tier ?? (GOV_DOMAINS.some((d) => entry.url.includes(d)) ? "A" : "B");
+  return tier === "A" ? "official" : "compilation";
+}
+
+/** True when the source is a Tier-B third-party compilation (stricter extraction rules apply). */
+export function isCompilationEntry(entry: ManifestEntry): boolean {
+  return sourceKindForEntry(entry) === "compilation";
+}
+
 /**
- * Map a PYQ manifest id (e.g. uppsc_prelims_2024_gs1, uppsc_mains_2025_gs5,
- * uppsc_mains_2024_essay) to {paperCode, year, stage}. Returns null for
- * anything we can't confidently place (e.g. mirror duplicates are handled by
- * the caller preferring the primary).
+ * Map a PYQ manifest id to {examCode, paperCode, year, stage}. Handles all
+ * exams (uppsc/upsc/up_ro_aro/upsssc_pet) — e.g. uppsc_mains_2025_gs5,
+ * upsc_prelims_2024_gs1. Non-UPPSC objective exams (RO/ARO, PET) map their GS
+ * papers onto the shared UPPSC prelims syllabus (PRE_GS1) for weightage overlap;
+ * questions beyond that scope are kept out_of_syllabus at load. Returns null for
+ * anything we can't confidently place.
  */
 export function classifyPyqId(
   id: string,
-): { paperCode: string; year: number; stage: ExamStage } | null {
-  const m = id.match(/^uppsc_(prelims|mains)_(\d{4})_([a-z0-9_]+?)(_mirror)?$/);
+): { examCode: ExamCode; paperCode: string; year: number; stage: ExamStage } | null {
+  const m = id.match(/^(uppsc|upsc|up_ro_aro|upsssc_pet)_(prelims|mains)_(\d{4})_([a-z0-9_]+?)(_mirror)?$/);
   if (!m) return null;
-  const [, stageRaw, yearRaw, paperRaw] = m;
+  const [, examRaw, stageRaw, yearRaw, paperRaw] = m;
+  const examCode = examRaw as ExamCode;
   const stage = stageRaw as ExamStage;
   const year = Number(yearRaw);
   const map: Record<string, string> = {
     gs1: stage === "prelims" ? "PRE_GS1" : "MAINS_GS1",
+    gs: "PRE_GS1",
+    general_studies: "PRE_GS1",
     csat: "PRE_CSAT",
     gs2: "MAINS_GS2",
     gs3: "MAINS_GS3",
@@ -252,7 +339,7 @@ export function classifyPyqId(
   };
   const paperCode = map[paperRaw];
   if (!paperCode) return null;
-  return { paperCode, year, stage };
+  return { examCode, paperCode, year, stage };
 }
 
 // ---------------------------------------------------------------------------

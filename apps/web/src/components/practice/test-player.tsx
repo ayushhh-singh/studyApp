@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Flag, Grid3x3, Languages, X } from "lucide-r
 import type { AttemptAnswerRecord, AttemptSubmitResult, Locale, TestDetail } from "@prayasup/shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
+import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { CountdownTimer } from "./countdown-timer";
 import { QuestionPalette, type QuestionStatus } from "./question-palette";
 import { SubmitConfirmDialog } from "./submit-confirm-dialog";
@@ -193,9 +194,17 @@ export function TestPlayer({
 
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-y-auto p-4 sm:p-6">
-          <div className="flex items-center justify-between text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
             <span>{t("Practice.questionOf", { current: currentIndex + 1, total: test.questions.length })}</span>
-            {question.marks != null && <span>{t("Learn.marks", { count: question.marks })}</span>}
+            <div className="flex items-center gap-2">
+              <ExamYearChip
+                examCode={question.exam_code}
+                examLabel={question.exam_label_i18n}
+                year={question.year}
+                outOfSyllabus={question.out_of_syllabus}
+              />
+              {question.marks != null && <span>{t("Learn.marks", { count: question.marks })}</span>}
+            </div>
           </div>
 
           <p className={cn("text-base", displayLocale === "hi" && "leading-[1.75]")} lang={displayLocale}>

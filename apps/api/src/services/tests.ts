@@ -104,6 +104,10 @@ interface TestQuestionJoinRow {
     id: string;
     type: TestQuestionPublic["type"];
     stage: TestQuestionPublic["stage"];
+    exam_code: TestQuestionPublic["exam_code"];
+    exam_label_i18n: TestQuestionPublic["exam_label_i18n"];
+    source_kind: TestQuestionPublic["source_kind"];
+    out_of_syllabus: boolean;
     paper_code: string;
     syllabus_node_id: string | null;
     year: number | null;
@@ -136,7 +140,7 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   const { data: tq, error: tqError } = await supabase()
     .from("test_questions")
     .select(
-      "order_index, marks, questions!inner(id, type, stage, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
+      "order_index, marks, questions!inner(id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
     )
     .eq("test_id", testId)
     .or(questionVisibilityOrFilter("test"), { referencedTable: "questions" })
@@ -148,6 +152,10 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
     id: row.questions.id,
     type: row.questions.type,
     stage: row.questions.stage,
+    exam_code: row.questions.exam_code,
+    exam_label_i18n: row.questions.exam_label_i18n,
+    source_kind: row.questions.source_kind,
+    out_of_syllabus: row.questions.out_of_syllabus,
     paper_code: row.questions.paper_code,
     syllabus_node_id: row.questions.syllabus_node_id,
     year: row.questions.year,
@@ -215,6 +223,9 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     .eq("type", "mcq")
     .or(questionVisibilityOrFilter("catalog"));
   if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);
+  // Omitting `exam` mixes every exam mapped to the topic (the default); passing
+  // one narrows the set to a single exam's PYQs.
+  if (body.exam) questionsQuery = questionsQuery.eq("exam_code", body.exam);
   const { data: questionRows, error: questionsError } = await questionsQuery;
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];

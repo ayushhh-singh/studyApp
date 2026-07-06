@@ -1,5 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
-import { questionResponseSchema, questionsResponseSchema, type QuestionType } from "@prayasup/shared";
+import {
+  questionResponseSchema,
+  questionsResponseSchema,
+  type ExamCode,
+  type QuestionType,
+} from "@prayasup/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -8,6 +13,7 @@ export function useQuestions(filters?: {
   paper?: string;
   node?: string;
   year?: number;
+  exam?: ExamCode;
   page?: number;
 }) {
   return useQuery({

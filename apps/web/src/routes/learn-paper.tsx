@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
-import { BookOpen, Brain, Check, ChevronRight, ListChecks, PenSquare } from "lucide-react";
-import type { SyllabusNodeWithStats } from "@prayasup/shared";
+import { BarChart3, BookOpen, Brain, Check, ChevronRight, ListChecks, PenSquare } from "lucide-react";
+import type { ExamCode, SyllabusNodeWithStats } from "@prayasup/shared";
+import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { ExamFilter } from "@/components/ui-x/exam-filter";
+import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { Button } from "@/components/ui/button";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useAddToRevision } from "@/hooks/use-add-to-revision";
@@ -84,6 +87,7 @@ function NodeRow({
               {Math.round(node.accuracy_pct)}%
             </span>
           )}
+          <WeightageBar weightage={node.weightage} />
           {node.own_pyq_count > 0 && (
             <Button asChild variant="ghost" size="xs">
               <Link to={`/${locale}/practice?node=${node.id}`}>
@@ -130,8 +134,10 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { paperCode = "" } = useParams<{ paperCode: string }>();
-  const { data: tree, isLoading, isError } = usePaperTree(paperCode);
   const [searchParams, setSearchParams] = useSearchParams();
+  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
+  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
+  const { data: tree, isLoading, isError } = usePaperTree(paperCode, exam);
   const addToRevision = useAddToRevision();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   // Derived straight from the mutation object rather than tracked separately —
@@ -145,6 +151,18 @@ export function Component() {
     addToRevision.mutate(nodeId, {
       onSuccess: () => setAddedIds((prev) => new Set(prev).add(nodeId)),
     });
+  }
+
+  function setExam(next: ExamCode | undefined) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next) params.set("exam", next);
+        else params.delete("exam");
+        return params;
+      },
+      { replace: true },
+    );
   }
 
   function toggleNode(id: string) {
@@ -176,6 +194,17 @@ export function Component() {
       <PageHeader
         title={tree ? tree.title_i18n[locale] : t("Learn.title")}
         description={tree?.description_i18n?.[locale]}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <ExamFilter value={exam} onChange={setExam} />
+            <Button asChild variant="outline" size="sm">
+              <Link to={`/${locale}/learn/${paperCode}/trends${exam ? `?exam=${exam}` : ""}`}>
+                <BarChart3 aria-hidden />
+                {t("Learn.viewTrends")}
+              </Link>
+            </Button>
+          </div>
+        }
       />
 
       {isLoading || !tree ? (

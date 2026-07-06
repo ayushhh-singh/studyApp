@@ -18,6 +18,14 @@ export type HealthResponse = z.infer<typeof healthResponseSchema>;
 export const examStageSchema = z.enum(["prelims", "mains"]);
 export type ExamStage = z.infer<typeof examStageSchema>;
 
+/** Which exam a question came from. Orthogonal to paper_code (the UPPSC syllabus anchor). */
+export const examCodeSchema = z.enum(["uppsc", "upsc", "up_ro_aro", "upsssc_pet", "other"]);
+export type ExamCode = z.infer<typeof examCodeSchema>;
+
+/** Provenance tier of the source a question was extracted from — the ingest audit trail. */
+export const sourceKindSchema = z.enum(["official", "compilation", "generated", "manual"]);
+export type SourceKind = z.infer<typeof sourceKindSchema>;
+
 export const localeSchema = z.enum(["hi", "en"]);
 export type Locale = z.infer<typeof localeSchema>;
 

@@ -106,7 +106,14 @@
     "yearUnknown": "Year unknown",
     "prevPage": "Previous",
     "nextPage": "Next",
-    "pageOf": "Page {{page}} of {{total}}"
+    "pageOf": "Page {{page}} of {{total}}",
+    "askedTimes_one": "asked {{count}}×",
+    "askedTimes_other": "asked {{count}}×",
+    "lastAsked": "last {{year}}",
+    "weightageShare": "{{pct}}% of paper PYQs",
+    "outOfSyllabus": "Outside UPPSC syllabus",
+    "outOfSyllabusShort": "out",
+    "viewTrends": "Weightage & Trends"
   },
   "Practice": {
     "title": "Practice",
@@ -431,5 +438,29 @@
     "saveApprove": "Save & approve",
     "saveDraft": "Save draft",
     "cancel": "Cancel"
+  },
+  "Exam": {
+    "filterLabel": "Filter by exam",
+    "uppscOnly": "UPPSC only",
+    "allExams": "All exams"
+  },
+  "Trends": {
+    "title": "PYQ Weightage & Trends",
+    "description": "How often each topic has been asked over the last decade.",
+    "backToPaper": "Back to paper",
+    "totalQuestions_one": "{{count}} PYQ",
+    "totalQuestions_other": "{{count}} PYQs",
+    "perYearTitle": "Questions per year",
+    "topTopicsTitle": "Most-asked topics",
+    "risingTitle": "Rising topics",
+    "risingHint": "Hot in the last 3 years",
+    "dormantTitle": "Not asked in 5+ years",
+    "dormantHint": "Overdue — high past frequency, long gap",
+    "emptyTitle": "No weightage data yet",
+    "emptyDescription": "Trends appear once year-tagged PYQs are loaded for this paper.",
+    "notFoundTitle": "Paper not found",
+    "notFoundDescription": "This paper has no syllabus yet.",
+    "askedShort": "{{count}}×",
+    "loading": "Loading trends…"
   }
 }

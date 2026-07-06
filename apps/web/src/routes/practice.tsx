@@ -1,10 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { PenSquare, X } from "lucide-react";
+import type { ExamCode } from "@prayasup/shared";
+import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PyqList } from "@/components/learn/pyq-list";
@@ -26,8 +29,10 @@ function isTab(value: string | null): value is Tab {
 function PyqFilterView({ nodeId }: { nodeId: string }) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: node } = useSyllabusNode(nodeId);
   const [searchParams, setSearchParams] = useSearchParams();
+  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
+  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
+  const { data: node } = useSyllabusNode(nodeId, exam);
   const page = Number(searchParams.get("page") ?? "1") || 1;
 
   function setPage(next: number) {
@@ -42,19 +47,35 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
     );
   }
 
+  function setExam(next: ExamCode | undefined) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next) params.set("exam", next);
+        else params.delete("exam");
+        params.delete("page");
+        return params;
+      },
+      { replace: true },
+    );
+  }
+
   return (
     <SectionCard
       title={node ? t("Practice.filteredTitle", { topic: node.title_i18n[locale] }) : t("Practice.filteredTitleFallback")}
       action={
-        <Button asChild variant="ghost" size="sm">
-          <Link to={`/${locale}/practice`}>
-            <X aria-hidden />
-            {t("Practice.clearFilter")}
-          </Link>
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          <ExamFilter value={exam} onChange={setExam} />
+          <Button asChild variant="ghost" size="sm">
+            <Link to={`/${locale}/practice`}>
+              <X aria-hidden />
+              {t("Practice.clearFilter")}
+            </Link>
+          </Button>
+        </div>
       }
     >
-      <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} />
+      <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
     </SectionCard>
   );
 }

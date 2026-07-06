@@ -73,6 +73,11 @@ interface Source {
   id: string;
   section: string;
   url: string;
+  /** A = official/government (auto-approved); B = third-party compilation (needs `approved: true`). */
+  tier?: "A" | "B";
+  /** Only the human sets this. A tier-B source without it is never fetched. */
+  approved?: boolean;
+  exam?: string;
   lang?: "hi" | "en" | "both";
   year?: number | null;
   paper?: string | null;
@@ -85,6 +90,11 @@ interface Source {
   needs_cookie?: boolean;
 }
 
+/** A tier-B source is fetchable only once the human has approved it. Tier A is always fetchable. */
+function isApprovedForFetch(s: Source): boolean {
+  return s.tier === "A" || (s.tier === "B" && s.approved === true);
+}
+
 interface SourcesFile {
   verified?: Source[];
   needs_my_approval?: unknown[];
@@ -94,6 +104,10 @@ interface ManifestEntry {
   id: string;
   section: string;
   url: string;
+  /** Source tier the file was fetched under (A official / B compilation). */
+  tier?: "A" | "B";
+  /** Exam attribution the source carries; downstream parser reads this. */
+  exam?: string;
   path: string; // relative to repo root
   sha256: string | null;
   bytes: number | null;
@@ -375,6 +389,11 @@ async function main() {
         problems.push(
           `${where}: unknown section "${s.section}" (expected ${[...FETCHABLE_SECTIONS].join("|")})`,
         );
+      // Tier is mandatory — the source policy must be enforced, not remembered.
+      if (s.tier !== "A" && s.tier !== "B")
+        problems.push(`${where}: missing/invalid \`tier\` (must be A or B)`);
+      if (s.tier === "B" && s.approved !== undefined && typeof s.approved !== "boolean")
+        problems.push(`${where}: \`approved\` must be a boolean`);
     }
   });
   if (problems.length) {
@@ -383,7 +402,20 @@ async function main() {
     process.exit(1);
   }
 
-  const sources = verified.filter((s) => FETCHABLE_SECTIONS.has(s.section));
+  const allInSections = verified.filter((s) => FETCHABLE_SECTIONS.has(s.section));
+
+  // TIER GATE: a tier-B source without `approved: true` is skipped entirely —
+  // never fetched, never written to disk. This enforces the source policy in
+  // code rather than trusting the operator to remember it.
+  const gatedOut = allInSections.filter((s) => !isApprovedForFetch(s));
+  const sources = allInSections.filter(isApprovedForFetch);
+  if (gatedOut.length) {
+    console.log(
+      `⚠  ${gatedOut.length} tier-B source(s) NOT approved — skipping (set \`approved: true\` to fetch):`,
+    );
+    for (const s of gatedOut) console.log(`     - ${s.id}  (${s.section})`);
+    console.log("");
+  }
 
   // Guard: duplicate ids collide on disk and in the manifest.
   const seen = new Set<string>();
@@ -438,6 +470,8 @@ async function main() {
         id: source.id,
         section: source.section,
         url: source.url,
+        tier: source.tier,
+        exam: source.exam,
         path: relPath,
         sha256: sha256(buf),
         bytes: buf.length,
@@ -455,6 +489,8 @@ async function main() {
         id: source.id,
         section: source.section,
         url: source.url,
+        tier: source.tier,
+        exam: source.exam,
         path: relPath,
         sha256: prior?.sha256 ?? null,
         bytes: prior?.bytes ?? null,
@@ -495,6 +531,8 @@ async function main() {
           id: src.id,
           section: src.section,
           url: src.url,
+          tier: src.tier,
+          exam: src.exam,
           path: relPath,
           sha256: info.sha256,
           bytes: info.bytes,

@@ -29,6 +29,7 @@ import {
   absPath,
   extractPdf,
   pdfDocumentBlock,
+  pdfSubsetDocumentBlock,
   classifyPyqId,
   paperByCode,
   ensureParsedDir,
@@ -37,6 +38,11 @@ import {
   report,
   isMojibakeHindi,
   questionPublishable,
+  examLabel,
+  sourceKindForEntry,
+  isCompilationEntry,
+  type ExamCode,
+  type SourceKind,
   type ManifestEntry,
 } from "./_shared.js";
 
@@ -54,6 +60,12 @@ interface RawQuestion {
   explanation_hi: string;
   marks: number;
   word_limit: number;
+  /**
+   * Tier-B gate: true only when this is a genuine question from the stated
+   * (exam, year) paper. The model marks compiler-added "practice"/"model"
+   * questions false so they're skipped — we never ingest a compiler's own Qs.
+   */
+  attributed: boolean;
 }
 
 const EXTRACT_SCHEMA = {
@@ -88,6 +100,7 @@ const EXTRACT_SCHEMA = {
           explanation_hi: { type: "string" },
           marks: { type: "integer" },
           word_limit: { type: "integer" },
+          attributed: { type: "boolean" },
         },
         required: [
           "q_no",
@@ -100,6 +113,7 @@ const EXTRACT_SCHEMA = {
           "explanation_hi",
           "marks",
           "word_limit",
+          "attributed",
         ],
       },
     },
@@ -112,6 +126,11 @@ interface ParsedQuestion {
   external_id: string;
   type: "mcq" | "descriptive";
   stage: "prelims" | "mains";
+  exam_code: ExamCode;
+  exam_label_i18n: { hi: string; en: string };
+  source_kind: SourceKind;
+  source_ref: string;
+  out_of_syllabus: boolean;
   paper_code: string;
   year: number;
   q_no: number;
@@ -129,15 +148,12 @@ interface ParsedQuestion {
 }
 
 // ---------------------------------------------------------------------------
-// 1. Extraction (sonnet native PDF read, with recursive halving on truncation)
+// 1. Extraction (sonnet native PDF read, with recursive halving on truncation;
+//    page-chunked fallback for scans too large to attach whole).
 // ---------------------------------------------------------------------------
-async function extractRange(
-  entry: ManifestEntry,
-  isMcq: boolean,
-  from: number,
-  to: number,
-): Promise<RawQuestion[]> {
-  const doc = await pdfDocumentBlock(absPath(entry));
+type ExtractCtx = { examLabelEn: string; year: number; isCompilation: boolean };
+
+function buildExtractSystem(isMcq: boolean, ctx: ExtractCtx): { system: string; kind: string } {
   const kind = isMcq
     ? "This is a Prelims MCQ paper. Each question has a stem and options. " +
       "Each option's `key` MUST be the single printed option letter A, B, C, or " +
@@ -149,12 +165,41 @@ async function extractRange(
     : "This is a Mains descriptive paper. Questions have NO options. Set " +
       "type='descriptive', options=[], correct_option_key='', and set " +
       "word_limit from the paper's instructions when stated (else 0).";
+  // Tier-B (third-party compilation) rules — enforced in the prompt, then again
+  // in code: (1) attribution — only extract genuine questions from the stated
+  // exam+year paper; mark any compiler-added "practice"/"model"/"similar"
+  // question attributed=false. (2) never copy the compiler's solutions —
+  // ALWAYS leave explanation_en/explanation_hi empty; our own pipeline writes
+  // explanations later. For official (Tier-A) sources, set attributed=true and
+  // transcribe any printed explanation.
+  const provenance = ctx.isCompilation
+    ? `This is a THIRD-PARTY COMPILATION that republishes the ${ctx.examLabelEn} ${ctx.year} ` +
+      `paper. Extract ONLY the genuine questions that actually appeared in that exam paper; ` +
+      `set attributed=true for those and attributed=false for any question the compiler ADDED ` +
+      `(practice/model/"similar"/solved-example questions that were not in the real paper). ` +
+      `Do NOT copy the compiler's explanations, solutions, notes, or answer rationales into ANY ` +
+      `field — always return explanation_en="" and explanation_hi="". Take only the question ` +
+      `stem, its options, and (for MCQs) leave the answer to the separate key step.`
+    : `This is an official ${ctx.examLabelEn} ${ctx.year} paper. Set attributed=true for every ` +
+      `question. Transcribe a printed explanation only if one appears in the paper itself.`;
   const system =
-    "You extract UPPSC previous-year questions from the attached PDF into " +
+    `You extract ${ctx.examLabelEn} previous-year questions from the attached PDF into ` +
     "structured JSON. The paper is bilingual (Hindi + English). Capture BOTH " +
     "languages faithfully in Devanagari and English. Preserve question numbers. " +
     "Do not translate, invent, or answer — transcribe. Use marks from the paper " +
-    "when printed, else 0.";
+    `when printed, else 0. ${provenance}`;
+  return { system, kind };
+}
+
+async function extractRange(
+  entry: ManifestEntry,
+  isMcq: boolean,
+  from: number,
+  to: number,
+  ctx: ExtractCtx,
+): Promise<RawQuestion[]> {
+  const doc = await pdfDocumentBlock(absPath(entry));
+  const { system, kind } = buildExtractSystem(isMcq, ctx);
   const out = await structuredJson<{ questions: RawQuestion[] }>({
     model: MODELS.sonnet,
     system,
@@ -175,15 +220,52 @@ async function extractRange(
   return out.questions.filter((q) => q.q_no >= from && q.q_no <= to);
 }
 
-async function extractAll(entry: ManifestEntry, isMcq: boolean): Promise<RawQuestion[]> {
-  // Prelims papers can have ~150 questions; mains ~20. Start wide, halve the
-  // window on any suspected truncation (structuredJson throws on truncation).
+/** How complete an extraction is — for picking the better copy of a q_no seen in two overlapping chunks. */
+function completeness(q: RawQuestion): number {
+  return q.options.length * 1000 + (q.stem_en?.length ?? 0) + (q.stem_hi?.length ?? 0);
+}
+
+/** Extract every question fully visible on a subset of pages (large-scan path). */
+async function extractPageChunk(
+  entry: ManifestEntry,
+  isMcq: boolean,
+  pageIndices: number[],
+  ctx: ExtractCtx,
+): Promise<RawQuestion[]> {
+  const doc = await pdfSubsetDocumentBlock(absPath(entry), pageIndices);
+  const { system, kind } = buildExtractSystem(isMcq, ctx);
+  const out = await structuredJson<{ questions: RawQuestion[] }>({
+    model: MODELS.sonnet,
+    system,
+    content: [
+      doc,
+      {
+        type: "text",
+        text:
+          `${kind}\n\nThe attached PDF contains only SOME pages of the paper. Extract EVERY ` +
+          `question that appears in FULL on these pages, preserving its printed question number. ` +
+          `Skip a question if it is only partially visible (cut off at a page edge) — it will be ` +
+          `captured with its neighbouring pages. Return them in question-number order.`,
+      },
+    ],
+    schema: EXTRACT_SCHEMA as unknown as Record<string, unknown>,
+    maxTokens: 64000,
+    effort: "medium",
+  });
+  return out.questions;
+}
+
+/**
+ * Whole-PDF extraction (default): attach the full PDF, extract by question
+ * window, halving on truncation. Used when the PDF is small enough to attach.
+ */
+async function extractWhole(entry: ManifestEntry, isMcq: boolean, ctx: ExtractCtx): Promise<RawQuestion[]> {
   const byNo = new Map<number, RawQuestion>();
   const windows: [number, number][] = [[1, 250]];
   while (windows.length) {
     const [from, to] = windows.shift()!;
     try {
-      const qs = await extractRange(entry, isMcq, from, to);
+      const qs = await extractRange(entry, isMcq, from, to, ctx);
       for (const q of qs) byNo.set(q.q_no, q);
       report.step(`extracted q${from}-${to}: +${qs.length}`);
     } catch (err) {
@@ -197,6 +279,63 @@ async function extractAll(entry: ManifestEntry, isMcq: boolean): Promise<RawQues
     }
   }
   return [...byNo.values()].sort((a, b) => a.q_no - b.q_no);
+}
+
+/**
+ * Page-chunked extraction: for a scan too large to attach whole, walk the pages
+ * in overlapping windows (overlap catches a question split across a boundary),
+ * extracting per chunk and merging by question number (keeping the more
+ * complete copy).
+ */
+async function extractByPages(
+  entry: ManifestEntry,
+  isMcq: boolean,
+  ctx: ExtractCtx,
+  pageCount: number,
+): Promise<RawQuestion[]> {
+  const CHUNK = 8;
+  const OVERLAP = 1;
+  const byNo = new Map<number, RawQuestion>();
+  for (let start = 0; start < pageCount; start += CHUNK - OVERLAP) {
+    const pages: number[] = [];
+    for (let p = start; p < Math.min(start + CHUNK, pageCount); p++) pages.push(p);
+    if (pages.length === 0) break;
+    try {
+      const qs = await extractPageChunk(entry, isMcq, pages, ctx);
+      for (const q of qs) {
+        const existing = byNo.get(q.q_no);
+        if (!existing || completeness(q) > completeness(existing)) byNo.set(q.q_no, q);
+      }
+      report.step(`pages ${pages[0] + 1}-${pages[pages.length - 1] + 1}: +${qs.length} (total ${byNo.size})`);
+    } catch (err) {
+      report.warn(`pages ${pages[0] + 1}-${pages[pages.length - 1] + 1} failed: ${(err as Error).message}`);
+    }
+    if (start + CHUNK >= pageCount) break;
+  }
+  return [...byNo.values()].sort((a, b) => a.q_no - b.q_no);
+}
+
+/** Anthropic's request cap is ~32MB; a PDF base64-encodes ~1.37x, so anything
+ * over ~18MB can't be attached whole → use the page-chunked path. */
+const WHOLE_PDF_MAX_BYTES = 18_000_000;
+
+async function extractAll(
+  entry: ManifestEntry,
+  isMcq: boolean,
+  ctx: ExtractCtx,
+  pageCount: number,
+): Promise<RawQuestion[]> {
+  const bytes = entry.bytes ?? 0;
+  if (bytes > WHOLE_PDF_MAX_BYTES && pageCount > 1) {
+    report.step(
+      `PDF is ${(bytes / 1_048_576).toFixed(0)}MB (> ${(WHOLE_PDF_MAX_BYTES / 1_048_576).toFixed(0)}MB) — ` +
+        `extracting page-by-page (${pageCount} pages)`,
+    );
+    return extractByPages(entry, isMcq, ctx, pageCount);
+  }
+  // Prelims papers can have ~150 questions; mains ~20. Start wide, halve the
+  // window on any suspected truncation (structuredJson throws on truncation).
+  return extractWhole(entry, isMcq, ctx);
 }
 
 // ---------------------------------------------------------------------------
@@ -224,13 +363,20 @@ const ANSWER_KEY_SCHEMA = {
 
 async function loadAnswerKey(
   manifest: ManifestEntry[],
+  examCode: ExamCode,
   year: number,
   paperCode: string,
 ): Promise<Map<number, string> | null> {
-  // Answer-key ids look like uppsc_answerkey_2024_prelims_gs1 / _csat.
+  // Answer-key ids look like <exam>_answerkey_<year>_prelims_gs1 / _csat.
   const suffix = paperCode === "PRE_CSAT" ? "csat" : "gs1";
-  const id = `uppsc_answerkey_${year}_prelims_${suffix}`;
-  const entry = manifest.find((e) => e.id === id && e.status === "ok");
+  const candidates = [
+    `${examCode}_answerkey_${year}_prelims_${suffix}`,
+    // Legacy uppsc keys were stored without the redundant exam-in-id form.
+    `uppsc_answerkey_${year}_prelims_${suffix}`,
+  ];
+  const entry = manifest.find(
+    (e) => candidates.includes(e.id) && (e.status === "ok" || e.status === "manual"),
+  );
   if (!entry) return null;
   const out = await structuredJson<{ answers: { q_no: number; correct_option_key: string }[] }>({
     model: MODELS.sonnet,
@@ -369,9 +515,12 @@ function assemble(
   hiMap: Map<string, string>,
   ctx: {
     manifestId: string;
+    examCode: ExamCode;
     stage: "prelims" | "mains";
     paperCode: string;
     year: number;
+    sourceKind: SourceKind;
+    isCompilation: boolean;
     answerKey: Map<number, string> | null;
     syllabusPath: string | null;
   },
@@ -392,8 +541,10 @@ function assemble(
     }
   }
 
+  // Tier-B rule: NEVER carry a compiler's explanation/solution. Our haiku
+  // explain pipeline generates one on demand later instead.
   let explanation: ParsedQuestion["explanation_i18n"] = null;
-  if (raw.explanation_hi.trim() || raw.explanation_en.trim()) {
+  if (!ctx.isCompilation && (raw.explanation_hi.trim() || raw.explanation_en.trim())) {
     const e = resolveLang(raw.explanation_hi, raw.explanation_en, hiMap);
     machine ||= e.machine;
     explanation = e.v;
@@ -428,10 +579,20 @@ function assemble(
   const bilingualComplete = questionPublishable(raw.type, stem.v, options, correct);
   if (raw.type === "mcq" && !bilingualComplete) meta.needs_review = true;
 
+  // An out-of-exam question that maps to no UPPSC syllabus node is kept as
+  // out_of_syllabus rather than force-mapped. (An unmapped UPPSC question is
+  // just an unclassified in-syllabus row, not out-of-scope.)
+  const outOfSyllabus = !ctx.syllabusPath && ctx.examCode !== "uppsc";
+
   return {
     external_id: `pyq:${ctx.manifestId}:q${raw.q_no}`,
     type: raw.type,
     stage: ctx.stage,
+    exam_code: ctx.examCode,
+    exam_label_i18n: examLabel(ctx.examCode, ctx.stage),
+    source_kind: ctx.sourceKind,
+    source_ref: ctx.manifestId,
+    out_of_syllabus: outOfSyllabus,
     paper_code: ctx.paperCode,
     year: ctx.year,
     q_no: raw.q_no,
@@ -465,31 +626,48 @@ async function main(): Promise<void> {
   report.section(`ingest:pyq  (parse only — writes JSON for review, NO db writes)`);
 
   const manifest = await readManifest();
-  const entry = manifest.find((e) => e.id === manifestId && e.status === "ok");
+  const entry = manifest.find(
+    (e) => e.id === manifestId && (e.status === "ok" || e.status === "manual"),
+  );
   if (!entry) throw new Error(`No manifest entry with id=${manifestId}`);
   const cls = classifyPyqId(manifestId);
   if (!cls) throw new Error(`Cannot classify paper from id ${manifestId}`);
   const paper = paperByCode(cls.paperCode);
   if (!paper) throw new Error(`Unknown paper_code ${cls.paperCode}`);
   const isMcq = cls.stage === "prelims";
+  const sourceKind = sourceKindForEntry(entry);
+  const isCompilation = isCompilationEntry(entry);
+  const examLabelEn = examLabel(cls.examCode, cls.stage).en;
+  const extractCtx = { examLabelEn, year: cls.year, isCompilation };
 
-  report.step(`paper: ${cls.paperCode} (${paper.title.en}) · year ${cls.year} · ${cls.stage} · ${isMcq ? "MCQ" : "descriptive"}`);
+  report.step(
+    `exam: ${cls.examCode} · paper: ${cls.paperCode} (${paper.title.en}) · year ${cls.year} · ` +
+      `${cls.stage} · ${isMcq ? "MCQ" : "descriptive"} · source_kind: ${sourceKind}` +
+      (isCompilation ? " (Tier-B compilation → attribution-gated, no solutions copied)" : ""),
+  );
   const info = await extractPdf(absPath(entry));
   report.step(`source PDF: ${entry.path} (${info.pageCount}p${info.likelyScanned ? ", scanned → vision" : ""})`);
 
   // 1. Extract
   report.section("Extracting questions (claude-sonnet-5, native PDF read)");
-  const raw = await extractAll(entry, isMcq);
-  report.ok(`extracted ${raw.length} questions`);
+  const rawAll = await extractAll(entry, isMcq, extractCtx, info.pageCount);
+  // Tier-B attribution gate: drop (and count) any compiler-added question that
+  // isn't a genuine PYQ of this exam+year. Official sources keep everything.
+  const rawSkipped = isCompilation ? rawAll.filter((q) => q.attributed === false) : [];
+  const raw = isCompilation ? rawAll.filter((q) => q.attributed !== false) : rawAll;
+  report.ok(`extracted ${raw.length} attributed questions`);
+  if (rawSkipped.length) {
+    report.warn(`skipped ${rawSkipped.length} unattributed (compiler-added) question(s): not ingested`);
+  }
   if (raw.length === 0) throw new Error("No questions extracted.");
 
   // 2. Answer key (prelims)
   let answerKey: Map<number, string> | null = null;
   if (isMcq) {
     report.section("Answer-key cross-check");
-    answerKey = await loadAnswerKey(manifest, cls.year, cls.paperCode);
-    if (answerKey) report.ok(`official answer key loaded (${answerKey.size} answers)`);
-    else report.warn("no official answer key available for this paper");
+    answerKey = await loadAnswerKey(manifest, cls.examCode, cls.year, cls.paperCode);
+    if (answerKey) report.ok(`answer key loaded (${answerKey.size} answers)`);
+    else report.warn("no answer key available for this paper");
   }
 
   // 3. Classify
@@ -514,9 +692,12 @@ async function main(): Promise<void> {
   const parsed: ParsedQuestion[] = raw.map((q) =>
     assemble(q, hiMap, {
       manifestId,
+      examCode: cls.examCode,
       stage: cls.stage,
       paperCode: cls.paperCode,
       year: cls.year,
+      sourceKind,
+      isCompilation,
       answerKey,
       syllabusPath: pathByQ.get(q.q_no) ?? null,
     }),
@@ -528,6 +709,7 @@ async function main(): Promise<void> {
   const verified = parsed.filter((q) => (q.meta as { answer_key_verified?: boolean }).answer_key_verified).length;
   const mismatches = parsed.filter((q) => (q.meta as { answer_key_mismatch?: unknown }).answer_key_mismatch);
   const classified = parsed.filter((q) => q.syllabus_path).length;
+  const outOfSyllabus = parsed.filter((q) => q.out_of_syllabus).length;
 
   // Write parsed JSON for review
   await ensureParsedDir();
@@ -536,14 +718,16 @@ async function main(): Promise<void> {
     outPath,
     JSON.stringify(
       {
-        source: { manifest_id: manifestId, path: entry.path, ...cls },
+        source: { manifest_id: manifestId, path: entry.path, source_kind: sourceKind, ...cls },
         summary: {
           questions: parsed.length,
+          skipped_unattributed: rawSkipped.length,
           bilingual_complete: bilingual,
           machine_translated: mt,
           answer_key_verified: verified,
           answer_key_mismatches: mismatches.length,
           syllabus_classified: classified,
+          out_of_syllabus: outOfSyllabus,
         },
         questions: parsed,
       },
@@ -554,10 +738,13 @@ async function main(): Promise<void> {
 
   report.section("Parsed — STOPPING for your review");
   report.ok(`wrote ${outPath.replace(ROOT + "/", "")}`);
+  console.log(`  exam / source_kind     ${cls.examCode} / ${sourceKind}`);
   console.log(`  questions              ${parsed.length}`);
+  if (isCompilation) console.log(`  skipped unattributed   ${rawSkipped.length}`);
   console.log(`  bilingual-complete     ${bilingual}/${parsed.length}`);
   console.log(`  machine-translated     ${mt}`);
   console.log(`  syllabus-classified    ${classified}/${parsed.length}`);
+  if (outOfSyllabus) console.log(`  out-of-syllabus        ${outOfSyllabus}`);
   if (isMcq) {
     console.log(`  answer-key-verified    ${verified}/${parsed.length}`);
     console.log(`  answer-key MISMATCHES   ${mismatches.length}`);

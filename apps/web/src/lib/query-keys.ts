@@ -1,10 +1,13 @@
-import type { ExamStage, QuestionType } from "@prayasup/shared";
+import type { ExamCode, ExamStage, QuestionType } from "@prayasup/shared";
 
 export const queryKeys = {
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,
   paperSummaries: () => ["syllabus", "papers"] as const,
-  paperTree: (paperCode: string) => ["syllabus", "papers", paperCode, "tree"] as const,
-  syllabusNode: (nodeId: string) => ["syllabus", "nodes", nodeId] as const,
+  paperTree: (paperCode: string, exam?: ExamCode) =>
+    ["syllabus", "papers", paperCode, "tree", exam ?? "all"] as const,
+  paperTrends: (paperCode: string, exam?: ExamCode) =>
+    ["syllabus", "papers", paperCode, "trends", exam ?? "all"] as const,
+  syllabusNode: (nodeId: string, exam?: ExamCode) => ["syllabus", "nodes", nodeId, exam ?? "all"] as const,
   tests: (filters?: { kind?: string; paper?: string }) =>
     ["tests", "list", filters?.kind ?? "all", filters?.paper ?? "all"] as const,
   test: (id: string) => ["tests", "detail", id] as const,
@@ -21,13 +24,21 @@ export const queryKeys = {
       filters?.page ?? 1,
     ] as const,
   currentAffairsItem: (id: string) => ["current-affairs", "detail", id] as const,
-  questions: (filters?: { type?: QuestionType; paper?: string; node?: string; year?: number; page?: number }) =>
+  questions: (filters?: {
+    type?: QuestionType;
+    paper?: string;
+    node?: string;
+    year?: number;
+    exam?: ExamCode;
+    page?: number;
+  }) =>
     [
       "questions",
       filters?.type ?? "all",
       filters?.paper ?? "all",
       filters?.node ?? "all",
       filters?.year ?? "all",
+      filters?.exam ?? "all",
       filters?.page ?? 1,
     ] as const,
   todaysQuestion: () => ["answers", "today"] as const,

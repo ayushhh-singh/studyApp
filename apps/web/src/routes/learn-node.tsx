@@ -2,11 +2,15 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
 import { BookOpen, ListChecks, Newspaper, PenSquare } from "lucide-react";
+import type { ExamCode } from "@prayasup/shared";
+import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { ExamFilter } from "@/components/ui-x/exam-filter";
+import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { Button } from "@/components/ui/button";
 import { PyqList } from "@/components/learn/pyq-list";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
@@ -21,11 +25,26 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { paperCode = "", nodeId = "" } = useParams<{ paperCode: string; nodeId: string }>();
-  const { data: node, isLoading, isError } = useSyllabusNode(nodeId);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
+  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
+  const { data: node, isLoading, isError } = useSyllabusNode(nodeId, exam);
   const recordEvent = useRecordEvent();
   const createTest = useCreateCustomTest();
-  const [searchParams, setSearchParams] = useSearchParams();
   const page = Number(searchParams.get("page") ?? "1") || 1;
+
+  function setExam(next: ExamCode | undefined) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next) params.set("exam", next);
+        else params.delete("exam");
+        params.delete("page");
+        return params;
+      },
+      { replace: true },
+    );
+  }
 
   useEffect(() => {
     // Deliberately depends on nodeId only — recordEvent/createTest are fresh
@@ -93,7 +112,7 @@ export function Component() {
         action={
           <Button
             type="button"
-            onClick={() => createTest.mutate({ node_id: nodeId, count: Math.min(node.pyq_count, 20) })}
+            onClick={() => createTest.mutate({ node_id: nodeId, count: Math.min(node.pyq_count, 20), exam })}
             disabled={node.pyq_count === 0 || createTest.isPending}
           >
             <PenSquare aria-hidden />
@@ -115,6 +134,8 @@ export function Component() {
             {t("Learn.yourAccuracy", { pct: Math.round(node.accuracy_pct) })}
           </span>
         )}
+        {node.weightage && <WeightageBar weightage={node.weightage} />}
+        <ExamFilter value={exam} onChange={setExam} className="ms-auto" />
       </div>
 
       {createTest.isSuccess && (
@@ -132,7 +153,7 @@ export function Component() {
       )}
 
       <SectionCard title={t("Learn.pyqsTitle")}>
-        <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} />
+        <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
       </SectionCard>
 
       <SectionCard title={t("Learn.relatedCurrentAffairsTitle")}>

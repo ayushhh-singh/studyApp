@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import type { Difficulty, Locale, SyllabusNodeWithStats } from "@prayasup/shared";
+import type { Difficulty, ExamCode, Locale, SyllabusNodeWithStats } from "@prayasup/shared";
 import { Button } from "@/components/ui/button";
+import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useCreateCustomTest } from "@/hooks/use-create-custom-test";
@@ -27,6 +28,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const { data: tree } = usePaperTree(paperCode || undefined);
   const [nodeId, setNodeId] = useState<string>("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
+  const [exam, setExam] = useState<ExamCode | undefined>(undefined);
   const [count, setCount] = useState(20);
   const createTest = useCreateCustomTest();
 
@@ -43,13 +45,18 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   function handleSubmit() {
     if (!nodeId) return;
     createTest.mutate(
-      { node_id: nodeId, count, difficulty: difficulty || undefined },
+      { node_id: nodeId, count, difficulty: difficulty || undefined, exam },
       { onSuccess: (test) => navigate(`/${locale}/practice/test/${test.id}`) },
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium">{t("Exam.filterLabel")}</span>
+        <ExamFilter value={exam} onChange={setExam} />
+      </div>
+
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         {t("Practice.customPaper")}
         <select

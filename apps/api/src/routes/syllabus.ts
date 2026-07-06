@@ -1,8 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  examCodeSchema,
   papersResponseSchema,
   paperTreeResponseSchema,
+  paperTrendsQuerySchema,
+  paperTrendsResponseSchema,
   syllabusNodeDetailResponseSchema,
   syllabusTreeQuerySchema,
   syllabusTreeResponseSchema,
@@ -11,7 +14,15 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
-import { getNodeDetail, getPaperSummaries, getPaperTree, getSyllabusTree } from "../services/syllabus.js";
+import {
+  getNodeDetail,
+  getPaperSummaries,
+  getPaperTree,
+  getPaperTrends,
+  getSyllabusTree,
+} from "../services/syllabus.js";
+
+const examFilterQuerySchema = z.object({ exam: examCodeSchema.optional() });
 
 export const syllabusRouter = Router();
 syllabusRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -37,8 +48,19 @@ syllabusRouter.get(
   "/syllabus/papers/:code/tree",
   asyncHandler(async (req, res) => {
     const { code } = parse(z.object({ code: z.string().min(1) }), req.params);
-    const tree = await getPaperTree(devUserId(), code);
+    const { exam } = parse(examFilterQuerySchema, req.query);
+    const tree = await getPaperTree(devUserId(), code, exam);
     res.json(paperTreeResponseSchema.parse({ data: tree, error: null }));
+  }),
+);
+
+syllabusRouter.get(
+  "/syllabus/papers/:code/trends",
+  asyncHandler(async (req, res) => {
+    const { code } = parse(z.object({ code: z.string().min(1) }), req.params);
+    const { exam } = parse(paperTrendsQuerySchema, req.query);
+    const trends = await getPaperTrends(code, exam);
+    res.json(paperTrendsResponseSchema.parse({ data: trends, error: null }));
   }),
 );
 
@@ -46,7 +68,8 @@ syllabusRouter.get(
   "/syllabus/nodes/:id",
   asyncHandler(async (req, res) => {
     const { id } = parse(z.object({ id: z.string().uuid() }), req.params);
-    const node = await getNodeDetail(devUserId(), id);
+    const { exam } = parse(examFilterQuerySchema, req.query);
+    const node = await getNodeDetail(devUserId(), id, exam);
     res.json(syllabusNodeDetailResponseSchema.parse({ data: node, error: null }));
   }),
 );

@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileQuestion } from "lucide-react";
-import type { Locale, Question } from "@prayasup/shared";
+import type { ExamCode, Locale, Question } from "@prayasup/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { Button } from "@/components/ui/button";
 import { useQuestions } from "@/hooks/use-questions";
 import { cn } from "@/lib/utils";
@@ -14,6 +15,14 @@ function QuestionCard({ question, locale }: { question: Question; locale: Locale
 
   return (
     <li className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Year is the group header, so the chip shows only the exam here. */}
+        <ExamYearChip
+          examCode={question.exam_code}
+          examLabel={question.exam_label_i18n}
+          outOfSyllabus={question.out_of_syllabus}
+        />
+      </div>
       <p className="text-sm">{question.stem_i18n[locale]}</p>
       {question.options_i18n && (
         <ul className="flex flex-col gap-1 text-xs">
@@ -82,14 +91,16 @@ export function PyqList({
   locale,
   page,
   onPageChange,
+  exam,
 }: {
   nodeId: string;
   locale: Locale;
   page: number;
   onPageChange: (page: number) => void;
+  exam?: ExamCode;
 }) {
   const { t } = useTranslation();
-  const { data, isLoading } = useQuestions({ node: nodeId, page });
+  const { data, isLoading } = useQuestions({ node: nodeId, page, exam });
 
   if (isLoading || !data) {
     return (

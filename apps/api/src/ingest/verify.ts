@@ -47,7 +47,9 @@ async function main(): Promise<void> {
   // --- Questions per year/paper + bilingual / answer-key coverage ---
   const { data: qs, error: qErr } = await db
     .from("questions")
-    .select("type, stage, paper_code, year, source, is_published, publish_gate_ok, meta");
+    .select(
+      "type, stage, exam_code, source_kind, out_of_syllabus, paper_code, year, source, is_published, review_state, publish_gate_ok, meta",
+    );
   if (qErr) throw new Error(qErr.message);
   report.section("Questions per year / paper");
   const qKey = new Map<string, number>();
@@ -56,24 +58,50 @@ async function main(): Promise<void> {
   let mcq = 0;
   let akVerified = 0;
   let published = 0;
+  let needsReview = 0;
+  let outOfSyllabus = 0;
+  // exam_code AND source_kind breakdown — the provenance audit trail.
+  const examSource = new Map<string, { total: number; published: number }>();
+  const byExam = new Map<string, number>();
   for (const q of qs ?? []) {
     totalQ++;
     if (q.publish_gate_ok) bilingual++;
     if (q.is_published) published++;
+    if (q.review_state === "needs_review") needsReview++;
+    if (q.out_of_syllabus) outOfSyllabus++;
     if (q.type === "mcq") {
       mcq++;
       if ((q.meta as { answer_key_verified?: boolean })?.answer_key_verified) akVerified++;
     }
     const key = `${q.year ?? "----"} ${q.paper_code}`;
     qKey.set(key, (qKey.get(key) ?? 0) + 1);
+    const es = `${q.exam_code ?? "?"} · ${q.source_kind ?? "?"}`;
+    const bucket = examSource.get(es) ?? { total: 0, published: 0 };
+    bucket.total++;
+    if (q.is_published) bucket.published++;
+    examSource.set(es, bucket);
+    byExam.set(q.exam_code ?? "?", (byExam.get(q.exam_code ?? "?") ?? 0) + 1);
   }
   if (qKey.size === 0) report.warn("none");
   for (const key of [...qKey.keys()].sort()) {
     console.log(`  ${key.padEnd(18)} ${String(qKey.get(key)).padStart(4)}`);
   }
+
+  report.section("Questions by exam_code × source_kind  (provenance audit)");
+  console.log(`  ${"exam · source_kind".padEnd(28)} ${"total".padStart(6)} ${"published".padStart(10)}`);
+  console.log("  " + "-".repeat(46));
+  for (const key of [...examSource.keys()].sort()) {
+    const v = examSource.get(key)!;
+    console.log(`  ${key.padEnd(28)} ${String(v.total).padStart(6)} ${String(v.published).padStart(10)}`);
+  }
+  console.log("  " + "-".repeat(46));
+  console.log(`  by exam: ${[...byExam.entries()].sort().map(([e, n]) => `${e}=${n}`).join("  ")}`);
+
   report.section("Question coverage");
   console.log(`  total questions        ${String(totalQ).padStart(6)}`);
   console.log(`  published              ${String(published).padStart(6)}`);
+  console.log(`  needs_review (queue)   ${String(needsReview).padStart(6)}`);
+  console.log(`  out-of-syllabus        ${String(outOfSyllabus).padStart(6)}`);
   console.log(`  bilingual-complete     ${pct(bilingual, totalQ).padStart(6)}  (${bilingual}/${totalQ})`);
   console.log(`  MCQ answer-key-verified ${pct(akVerified, mcq).padStart(5)}  (${akVerified}/${mcq} MCQ)`);
 

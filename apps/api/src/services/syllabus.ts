@@ -1,14 +1,27 @@
 import type {
   BilingualText,
+  ExamCode,
   ExamStage,
+  NodeWeightage,
   PaperSummary,
+  PaperTrends,
   SyllabusNode,
   SyllabusNodeDetail,
   SyllabusNodeWithStats,
+  TrendNode,
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
+import {
+  byYearRecord,
+  currentExamYear,
+  DORMANT_YEARS,
+  hotnessRaw,
+  lastAskedYear,
+  loadNodeWeightage,
+  toNodeWeightage,
+} from "../lib/weightage.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -136,16 +149,28 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
 //    subtree, so a chapter row is meaningful even though only leaf topics
 //    carry questions directly.
 // ---------------------------------------------------------------------------
-export async function getPaperTree(userId: string, paperCode: string): Promise<SyllabusNodeWithStats> {
-  const [treeResult, questionsResult, graded] = await Promise.all([
+export async function getPaperTree(
+  userId: string,
+  paperCode: string,
+  exam?: ExamCode,
+): Promise<SyllabusNodeWithStats> {
+  let pyqQuery = supabase()
+    .from("questions")
+    .select("syllabus_node_id")
+    .eq("paper_code", paperCode)
+    .eq("is_published", true);
+  if (exam) pyqQuery = pyqQuery.eq("exam_code", exam);
+
+  const [treeResult, questionsResult, graded, weightage] = await Promise.all([
     supabase()
       .from("syllabus_nodes")
       .select("id, exam_stage, paper_code, title_i18n, description_i18n, order_index, depth, path, parent_id")
       .eq("paper_code", paperCode)
       .order("depth", { ascending: true })
       .order("order_index", { ascending: true }),
-    supabase().from("questions").select("syllabus_node_id").eq("paper_code", paperCode).eq("is_published", true),
+    pyqQuery,
     getGradedAnswers(userId),
+    loadNodeWeightage(exam),
   ]);
   if (treeResult.error) throw new HttpError(500, `paper tree lookup failed: ${treeResult.error.message}`);
   if (questionsResult.error) throw new HttpError(500, `paper question lookup failed: ${questionsResult.error.message}`);
@@ -172,19 +197,26 @@ export async function getPaperTree(userId: string, paperCode: string): Promise<S
     ownStats.set(nodeId, bucket);
   }
 
-  // Post-order over the already-linked tree: each call returns both the
-  // decorated node and its raw correct/total, so a parent can roll up its
-  // children's totals directly from their return values — no side Map needed.
-  function decorate(node: SyllabusNode): { node: SyllabusNodeWithStats; correct: number; total: number } {
+  const cy = currentExamYear();
+
+  // Post-order over the already-linked tree: each call returns the decorated
+  // node plus its raw correct/total AND its rolled-up by-year weightage map, so
+  // a parent rolls up its children's numbers directly from their return values.
+  function decorate(
+    node: SyllabusNode,
+  ): { node: SyllabusNodeWithStats; correct: number; total: number; byYear: Map<number, number> } {
     const decoratedChildren = node.children.map(decorate);
     const own = ownStats.get(node.id) ?? { correct: 0, total: 0 };
     let correct = own.correct;
     let total = own.total;
     let pyq = ownPyqCount.get(node.id) ?? 0;
+    const byYear = new Map<number, number>();
+    for (const [y, c] of weightage.get(node.id)?.byYear ?? []) byYear.set(y, (byYear.get(y) ?? 0) + c);
     for (const child of decoratedChildren) {
       pyq += child.node.pyq_count;
       correct += child.correct;
       total += child.total;
+      for (const [y, c] of child.byYear) byYear.set(y, (byYear.get(y) ?? 0) + c);
     }
     return {
       node: {
@@ -200,14 +232,47 @@ export async function getPaperTree(userId: string, paperCode: string): Promise<S
         pyq_count: pyq,
         accuracy_pct: total > 0 ? round2((correct / total) * 100) : null,
         answered_count: total,
+        // share_pct/hotness are normalised in a second pass once paper maxima
+        // are known; set an unnormalised placeholder here.
+        weightage: toNodeWeightage(byYear, cy, 0, 0),
         children: decoratedChildren.map((c) => c.node),
       },
       correct,
       total,
+      byYear,
     };
   }
 
-  return decorate(root).node;
+  const decoratedRoot = decorate(root).node;
+
+  // Normalise share_pct/hotness against the busiest node in the paper, so the
+  // bar and hotness read 0–100 relative to this paper's own top topic.
+  let maxTotal = 0;
+  let maxHot = 0;
+  const walk = (n: SyllabusNodeWithStats, fn: (n: SyllabusNodeWithStats) => void) => {
+    fn(n);
+    n.children.forEach((c) => walk(c, fn));
+  };
+  walk(decoratedRoot, (n) => {
+    if (!n.weightage) return;
+    maxTotal = Math.max(maxTotal, n.weightage.total);
+    const hot = hotnessRaw(recordToMap(n.weightage.by_year), cy);
+    maxHot = Math.max(maxHot, hot);
+  });
+  walk(decoratedRoot, (n) => {
+    if (!n.weightage) return;
+    const hot = hotnessRaw(recordToMap(n.weightage.by_year), cy);
+    n.weightage.share_pct = maxTotal > 0 ? Math.round((n.weightage.total / maxTotal) * 100) : 0;
+    n.weightage.hotness = maxHot > 0 ? Math.round((hot / maxHot) * 100) : 0;
+  });
+
+  return decoratedRoot;
+}
+
+function recordToMap(rec: Record<string, number>): Map<number, number> {
+  const m = new Map<number, number>();
+  for (const [y, c] of Object.entries(rec)) m.set(Number(y), c);
+  return m;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,7 +280,11 @@ export async function getPaperTree(userId: string, paperCode: string): Promise<S
 // affairs. "Own" stats deliberately match the /questions?node= filter
 // exactly, so the PYQ count badge never disagrees with the list it labels.
 // ---------------------------------------------------------------------------
-export async function getNodeDetail(userId: string, nodeId: string): Promise<SyllabusNodeDetail> {
+export async function getNodeDetail(
+  userId: string,
+  nodeId: string,
+  exam?: ExamCode,
+): Promise<SyllabusNodeDetail> {
   const { data: node, error } = await supabase()
     .from("syllabus_nodes")
     .select("id, exam_stage, paper_code, title_i18n, description_i18n, path")
@@ -228,20 +297,24 @@ export async function getNodeDetail(userId: string, nodeId: string): Promise<Syl
   const prefixes = [""];
   for (let i = 1; i <= segments.length; i++) prefixes.push(segments.slice(0, i).join("/"));
 
-  // None of these four depend on each other — only on nodeId/node.paper_code/
+  let pyqCountQuery = supabase()
+    .from("questions")
+    .select("id", { count: "exact", head: true })
+    .eq("syllabus_node_id", nodeId)
+    .eq("is_published", true);
+  if (exam) pyqCountQuery = pyqCountQuery.eq("exam_code", exam);
+
+  // None of these depend on each other — only on nodeId/node.paper_code/
   // node.path (already in hand) and userId — so run them concurrently.
-  const [ancestorResult, pyqCountResult, graded, relatedCaResult] = await Promise.all([
+  const [ancestorResult, pyqCountResult, graded, weightageMap, relatedCaResult] = await Promise.all([
     supabase()
       .from("syllabus_nodes")
       .select("id, title_i18n, path, depth")
       .eq("paper_code", node.paper_code)
       .in("path", prefixes),
-    supabase()
-      .from("questions")
-      .select("id", { count: "exact", head: true })
-      .eq("syllabus_node_id", nodeId)
-      .eq("is_published", true),
+    pyqCountQuery,
     getGradedAnswers(userId),
+    loadNodeWeightage(exam),
     supabase()
       .from("current_affairs_items")
       .select(
@@ -275,6 +348,14 @@ export async function getNodeDetail(userId: string, nodeId: string): Promise<Syl
   const relatedCa = relatedCaResult.data;
   const pyqCount = pyqCountResult.count;
 
+  // Own-only weightage for this node (matches the /questions?node= list beside
+  // it). Self-normalised, so share_pct/hotness read 100 when data exists; the
+  // node-detail chip uses total/last_asked_year/years_asked, not those two.
+  const own = weightageMap.get(nodeId);
+  const nodeWeightage: NodeWeightage | null = own
+    ? toNodeWeightage(own.byYear, currentExamYear(), own.total, hotnessRaw(own.byYear, currentExamYear()))
+    : null;
+
   return {
     id: node.id,
     exam_stage: node.exam_stage as ExamStage,
@@ -285,6 +366,105 @@ export async function getNodeDetail(userId: string, nodeId: string): Promise<Syl
     pyq_count: pyqCount ?? 0,
     accuracy_pct: total > 0 ? round2((correct / total) * 100) : null,
     answered_count: total,
+    weightage: nodeWeightage,
     related_current_affairs: (relatedCa ?? []) as unknown as SyllabusNodeDetail["related_current_affairs"],
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Per-paper Trends — the weightage analytics view. Rolls the cached per-node
+// aggregates up the tree, then surfaces the busiest topics, the recency-hot
+// ("rising") topics, and topics gone quiet for 5+ years ("dormant"). Computed
+// from the matview + syllabus tree, so it's cheap.
+// ---------------------------------------------------------------------------
+export async function getPaperTrends(paperCode: string, exam?: ExamCode): Promise<PaperTrends> {
+  const [treeResult, weightage] = await Promise.all([
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, exam_stage, paper_code, title_i18n, description_i18n, order_index, depth, path, parent_id")
+      .eq("paper_code", paperCode)
+      .order("depth", { ascending: true })
+      .order("order_index", { ascending: true }),
+    loadNodeWeightage(exam),
+  ]);
+  if (treeResult.error) throw new HttpError(500, `paper trends lookup failed: ${treeResult.error.message}`);
+  const rows = (treeResult.data ?? []) as SyllabusRow[];
+  const [root] = buildTree(rows);
+  if (!root) throw notFound("Paper not found");
+
+  const cy = currentExamYear();
+
+  // Roll each node's own by-year counts up through its subtree.
+  const rolled = new Map<string, { node: SyllabusNode; byYear: Map<number, number> }>();
+  function roll(node: SyllabusNode): Map<number, number> {
+    const byYear = new Map<number, number>();
+    for (const [y, c] of weightage.get(node.id)?.byYear ?? []) byYear.set(y, (byYear.get(y) ?? 0) + c);
+    for (const child of node.children) for (const [y, c] of roll(child)) byYear.set(y, (byYear.get(y) ?? 0) + c);
+    rolled.set(node.id, { node, byYear });
+    return byYear;
+  }
+  roll(root);
+
+  // Paper-wide series: sum OWN counts across THIS PAPER's nodes only (the
+  // matview spans every paper, so scope by the paper's node ids). Own counts,
+  // not rolled, to avoid double-counting ancestors.
+  const paperNodeIds = new Set(rows.map((r) => r.id));
+  const totalByYear = new Map<number, number>();
+  for (const nodeId of paperNodeIds) {
+    for (const [y, c] of weightage.get(nodeId)?.byYear ?? []) totalByYear.set(y, (totalByYear.get(y) ?? 0) + c);
+  }
+  const totalQuestions = [...totalByYear.values()].reduce((a, b) => a + b, 0);
+
+  // Year axis: the last 10 years up to the latest asked year (or current year).
+  const latestYear = totalByYear.size ? Math.max(...totalByYear.keys()) : cy;
+  const years: number[] = [];
+  for (let y = latestYear - 9; y <= latestYear; y++) years.push(y);
+
+  // Candidate trend nodes: depth >= 1 (skip the paper root), with data.
+  const candidates: (TrendNode & { hotRaw: number })[] = [];
+  for (const { node, byYear } of rolled.values()) {
+    if (node.depth === 0) continue;
+    const total = [...byYear.values()].reduce((a, b) => a + b, 0);
+    if (total === 0) continue;
+    const hotRaw = hotnessRaw(byYear, cy);
+    candidates.push({
+      node_id: node.id,
+      title_i18n: node.title_i18n,
+      path: node.path,
+      depth: node.depth,
+      total,
+      by_year: byYearRecord(byYear),
+      last_asked_year: lastAskedYear(byYear),
+      years_asked: byYear.size,
+      hotness: 0, // normalised below
+      hotRaw,
+    });
+  }
+  const maxHot = candidates.reduce((m, c) => Math.max(m, c.hotRaw), 0);
+  for (const c of candidates) c.hotness = maxHot > 0 ? Math.round((c.hotRaw / maxHot) * 100) : 0;
+
+  const strip = ({ hotRaw: _hotRaw, ...rest }: TrendNode & { hotRaw: number }): TrendNode => rest;
+
+  const topNodes = [...candidates].sort((a, b) => b.total - a.total || b.hotRaw - a.hotRaw).slice(0, 12).map(strip);
+  const rising = [...candidates]
+    .filter((c) => c.last_asked_year !== null && c.last_asked_year >= cy - 3)
+    .sort((a, b) => b.hotRaw - a.hotRaw)
+    .slice(0, 8)
+    .map(strip);
+  const dormant = [...candidates]
+    .filter((c) => c.last_asked_year !== null && c.last_asked_year <= cy - DORMANT_YEARS)
+    .sort((a, b) => b.total - a.total || (a.last_asked_year ?? 0) - (b.last_asked_year ?? 0))
+    .slice(0, 8)
+    .map(strip);
+
+  return {
+    paper_code: paperCode,
+    exam_code: exam ?? null,
+    years,
+    total_by_year: byYearRecord(totalByYear),
+    total_questions: totalQuestions,
+    top_nodes: topNodes,
+    rising,
+    dormant,
   };
 }

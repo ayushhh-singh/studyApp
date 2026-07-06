@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, bilingualTextSchema } from "./types";
+import { apiEnvelopeSchema, bilingualTextSchema, examCodeSchema } from "./types";
 import { difficultySchema, questionSchema } from "./questions";
 
 export const testKindSchema = z.enum(["pyq_full", "sectional", "daily_quiz", "custom"]);
@@ -53,6 +53,8 @@ export const createCustomTestBodySchema = z.object({
   node_id: z.string().uuid(),
   count: z.number().int().min(1).max(100).default(20),
   difficulty: difficultySchema.optional(),
+  /** Omit to mix all exams mapped to the topic; pass one to scope to a single exam. */
+  exam: examCodeSchema.optional(),
 });
 export type CreateCustomTestBody = z.infer<typeof createCustomTestBodySchema>;
 
