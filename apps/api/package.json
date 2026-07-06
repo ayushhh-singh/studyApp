@@ -18,6 +18,7 @@
     "cost:report": "tsx --env-file=.env scripts/cost-report.ts",
     "ca:run": "tsx --env-file=.env src/ca/run.ts",
     "ca:compile": "tsx --env-file=.env src/ca/compile.ts",
+    "daily:build": "tsx --env-file=.env src/daily/run.ts",
     "qgen": "tsx --env-file=.env src/qgen/cli.ts",
     "qgen:topup": "tsx --env-file=.env src/qgen/cli.ts --topup",
     "notes:gen": "tsx --env-file=.env src/notes/cli.ts",

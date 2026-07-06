@@ -13,13 +13,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PyqList } from "@/components/learn/pyq-list";
 import { TestCard } from "@/components/practice/test-card";
 import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
+import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
 import { useTests } from "@/hooks/use-tests";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "Nav.practice" };
 
-const TABS = ["pyq", "sectional", "custom"] as const;
+const TABS = ["daily", "pyq", "sectional", "custom"] as const;
 type Tab = (typeof TABS)[number];
 
 function isTab(value: string | null): value is Tab {
@@ -174,10 +175,16 @@ export function Component() {
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList>
+          <TabsTrigger value="daily">{t("Practice.tabDaily")}</TabsTrigger>
           <TabsTrigger value="pyq">{t("Practice.tabPyq")}</TabsTrigger>
           <TabsTrigger value="sectional">{t("Practice.tabSectional")}</TabsTrigger>
           <TabsTrigger value="custom">{t("Practice.tabCustom")}</TabsTrigger>
         </TabsList>
+        <TabsContent value="daily">
+          <SectionCard title={t("Practice.dailyArchiveTitle")} description={t("Practice.dailyArchiveDescription")}>
+            <DailyQuizPanel />
+          </SectionCard>
+        </TabsContent>
         <TabsContent value="pyq">
           <SectionCard title={t("Practice.available")}>
             <TestListPanel kind="pyq_full" />

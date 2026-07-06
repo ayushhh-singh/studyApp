@@ -206,7 +206,18 @@
     "submitTest": "Submit test",
     "testNotFoundTitle": "Test not found",
     "testNotFoundDescription": "This test doesn't exist or hasn't been published yet.",
-    "backToPractice": "Back to Practice"
+    "backToPractice": "Back to Practice",
+    "tabDaily": "Daily Quiz",
+    "dailyArchiveTitle": "Daily quiz archive",
+    "dailyArchiveDescription": "Today's quiz, yesterday's makeup, and every past day.",
+    "dailyToday": "Today",
+    "dailyYesterday": "Yesterday",
+    "dailyMakeupBadge": "Makeup",
+    "dailyEmptyTitle": "No daily quizzes yet",
+    "dailyEmptyDescription": "The first daily quiz is assembled at 5 AM IST — check back soon.",
+    "dailyPrev": "Newer",
+    "dailyNext": "Older",
+    "dailyPageOf": "{{page}} / {{total}}"
   },
   "Answers": {
     "title": "Answer Writing",

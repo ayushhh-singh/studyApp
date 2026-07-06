@@ -19,7 +19,9 @@ import { answersRouter } from "./routes/answers.js";
 import { adminRouter } from "./routes/admin.js";
 import { notesRouter } from "./routes/notes.js";
 import { magazineRouter } from "./routes/magazine.js";
+import { dailyRouter } from "./routes/daily.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
+import { startDailyScheduler } from "./daily/scheduler.js";
 
 const app = express();
 const port = process.env.PORT ?? 4000;
@@ -47,6 +49,7 @@ app.use("/api/v1", srsRouter);
 app.use("/api/v1", answersRouter);
 app.use("/api/v1", notesRouter);
 app.use("/api/v1", magazineRouter);
+app.use("/api/v1", dailyRouter);
 app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);
@@ -54,5 +57,8 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   logger.info(`api listening on http://localhost:${port}`);
-  if (process.env.NODE_ENV !== "production") startDevCaScheduler();
+  if (process.env.NODE_ENV !== "production") {
+    startDevCaScheduler();
+    startDailyScheduler();
+  }
 });

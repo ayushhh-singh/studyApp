@@ -206,7 +206,18 @@
     "submitTest": "टेस्ट सबमिट करें",
     "testNotFoundTitle": "टेस्ट नहीं मिला",
     "testNotFoundDescription": "यह टेस्ट मौजूद नहीं है या अभी प्रकाशित नहीं हुआ है।",
-    "backToPractice": "अभ्यास पर वापस जाएँ"
+    "backToPractice": "अभ्यास पर वापस जाएँ",
+    "tabDaily": "डेली क्विज़",
+    "dailyArchiveTitle": "डेली क्विज़ आर्काइव",
+    "dailyArchiveDescription": "आज की क्विज़, कल की मेकअप, और हर बीता दिन।",
+    "dailyToday": "आज",
+    "dailyYesterday": "कल",
+    "dailyMakeupBadge": "मेकअप",
+    "dailyEmptyTitle": "अभी कोई डेली क्विज़ नहीं",
+    "dailyEmptyDescription": "पहली डेली क्विज़ सुबह 5 बजे (IST) बनती है — जल्द देखें।",
+    "dailyPrev": "नई",
+    "dailyNext": "पुरानी",
+    "dailyPageOf": "{{page}} / {{total}}"
   },
   "Answers": {
     "title": "उत्तर लेखन",

@@ -51,4 +51,5 @@ export const queryKeys = {
   noteForNode: (nodeId: string) => ["notes", "node", nodeId] as const,
   magazineMonths: () => ["magazine", "months"] as const,
   magazine: (month: string) => ["magazine", month] as const,
+  dailyQuizArchive: (page: number) => ["daily-quiz", "archive", page] as const,
 };
