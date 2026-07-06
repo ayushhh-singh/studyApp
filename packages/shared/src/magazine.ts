@@ -13,10 +13,10 @@ import { questionOptionSchema } from "./questions";
  * module is just the response shape the route/hook consume.
  */
 
-/** "YYYY-MM" — the calendar month (IST) the magazine covers. */
+/** "YYYY-MM" — the calendar month (IST) the magazine covers (month 01-12 only). */
 export const magazineMonthSchema = z
   .string()
-  .regex(/^\d{4}-\d{2}$/, "month must be YYYY-MM");
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "month must be YYYY-MM (01-12)");
 export type MagazineMonth = z.infer<typeof magazineMonthSchema>;
 
 /** A category section of the magazine (UP-specific items are pulled into their own lead section first). */

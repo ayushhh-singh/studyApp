@@ -116,17 +116,19 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
   }
 
   function addFact(index: number, fact: string) {
-    if (!note || !body) return;
-    const other = note.content_i18n[locale === "hi" ? "en" : "hi"].key_facts[index]?.fact ?? "";
+    if (!note) return;
+    // Pull each language's fact by index independently (arrays can differ in
+    // length after editing); fall back to the displayed text for the active
+    // locale so the card is never empty on the side the user is reading.
+    const hiFact = note.content_i18n.hi.key_facts[index]?.fact ?? (locale === "hi" ? fact : "");
+    const enFact = note.content_i18n.en.key_facts[index]?.fact ?? (locale === "en" ? fact : "");
     addBlock.mutate(
       {
         noteId: note.id,
         body: {
           block: "key_fact",
           index,
-          front_i18n: note.content_i18n.hi.key_facts[index]
-            ? { hi: note.content_i18n.hi.key_facts[index].fact, en: note.content_i18n.en.key_facts[index]?.fact ?? "" }
-            : { hi: fact, en: other },
+          front_i18n: { hi: hiFact, en: enFact },
           back_i18n: { hi: t("Notes.factCardBack"), en: t("Notes.factCardBack") },
         },
       },
@@ -160,8 +162,22 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
       { key: "quick_revision", label: t("Notes.quickRevision"), icon: Layers },
     ] satisfies Section[]
   ).filter((s) => {
-    if (s.key === "mnemonics") return body.mnemonics.length > 0;
-    return true;
+    // Only the bilingual overview is guaranteed by the publish gate; drop any
+    // other block that came back empty so the reader never shows a bare header.
+    switch (s.key) {
+      case "key_facts":
+        return body.key_facts.length > 0;
+      case "quick_revision":
+        return body.quick_revision.length > 0;
+      case "mnemonics":
+        return body.mnemonics.length > 0;
+      case "up_angle":
+        return body.up_angle.trim().length > 0;
+      case "pyq_analysis":
+        return body.pyq_analysis.trim().length > 0;
+      default:
+        return true;
+    }
   });
 
   // Quick Revision mode: only key facts + the quick-revision list.

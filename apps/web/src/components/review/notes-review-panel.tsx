@@ -206,6 +206,9 @@ function NoteEditForm({
     };
   }
 
+  // The publish gate the backend enforces: both overviews non-blank.
+  const overviewOk = draft.hi.overview.trim().length > 0 && draft.en.overview.trim().length > 0;
+
   return (
     <div className="flex flex-col gap-4">
       <Field label={t("Notes.overview")} en={draft.en.overview} hi={draft.hi.overview} onEn={(v) => set("en", "overview", v)} onHi={(v) => set("hi", "overview", v)} rows={4} />
@@ -215,13 +218,19 @@ function NoteEditForm({
       <Field label={`${t("Notes.mnemonics")} (${t("ReviewNotes.onePerLine")})`} en={draft.en.mnemonics} hi={draft.hi.mnemonics} onEn={(v) => set("en", "mnemonics", v)} onHi={(v) => set("hi", "mnemonics", v)} rows={3} />
       <Field label={`${t("Notes.quickRevision")} (${t("ReviewNotes.onePerLine")})`} en={draft.en.quick_revision} hi={draft.hi.quick_revision} onEn={(v) => set("en", "quick_revision", v)} onHi={(v) => set("hi", "quick_revision", v)} rows={4} />
 
-      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-        <Button type="button" onClick={() => onSubmit(build(), true)} disabled={pending} className="bg-tulsi text-white hover:bg-tulsi/90">
+      <div className="flex flex-wrap items-center gap-2 border-t border-border pt-4">
+        <Button
+          type="button"
+          onClick={() => onSubmit(build(), true)}
+          disabled={pending || !overviewOk}
+          className="bg-tulsi text-white hover:bg-tulsi/90"
+        >
           <Check className="size-4" /> {t("ReviewNotes.saveApprove")}
         </Button>
         <Button type="button" variant="outline" onClick={() => onSubmit(build(), false)} disabled={pending}>
           {t("ReviewNotes.saveDraft")}
         </Button>
+        {!overviewOk && <span className="text-xs text-coral-foreground">{t("ReviewNotes.gateFail")}</span>}
         <Button type="button" variant="ghost" onClick={onCancel} disabled={pending}>
           {t("Review.cancel")}
         </Button>
@@ -249,6 +258,7 @@ export function NotesReviewPanel() {
   const reject = useNoteReject();
   const edit = useNoteEdit();
   const pending = approve.isPending || reject.isPending || edit.isPending;
+  const actionError = (approve.error || reject.error || edit.error) as Error | null;
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["admin", "notes", "review"] });
@@ -284,6 +294,12 @@ export function NotesReviewPanel() {
           </Button>
         </div>
       </div>
+
+      {actionError && (
+        <div className="rounded-lg border border-coral/30 bg-coral/10 px-3 py-2 text-sm text-coral-foreground">
+          {actionError.message}
+        </div>
+      )}
 
       {editing ? (
         <NoteEditForm

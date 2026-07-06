@@ -10,6 +10,22 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
+import { logger } from "../lib/logger.js";
+
+/**
+ * Drop a note's RAG chunks when it leaves `published` (rejected or regenerated),
+ * so the vector store never serves stale/unpublished note text until
+ * `notes:embed` re-adds it after re-publish. Best-effort — a failure here must
+ * not fail the review action.
+ */
+export async function deleteNoteEmbeddings(noteId: string): Promise<void> {
+  const { error } = await supabase()
+    .from("embeddings")
+    .delete()
+    .eq("source_type", "note")
+    .eq("source_id", noteId);
+  if (error) logger.warn({ error, noteId }, "failed to delete note embeddings");
+}
 
 // ---------------------------------------------------------------------------
 // Reader
@@ -156,15 +172,17 @@ interface ReviewNoteRow {
   cost_usd: number;
   created_at: string;
   updated_at: string;
-  syllabus_nodes: { paper_code: string; title_i18n: BilingualText } | null;
+  syllabus_nodes: { paper_code: string; title_i18n: BilingualText } | { paper_code: string; title_i18n: BilingualText }[] | null;
 }
 
 function toReviewNote(r: ReviewNoteRow): ReviewNote {
+  // PostgREST embeds the to-one join as an object or a single-element array.
+  const sn = Array.isArray(r.syllabus_nodes) ? r.syllabus_nodes[0] : r.syllabus_nodes;
   return {
     id: r.id,
     syllabus_node_id: r.syllabus_node_id,
-    paper_code: r.syllabus_nodes?.paper_code ?? null,
-    syllabus_title_i18n: r.syllabus_nodes?.title_i18n ?? null,
+    paper_code: sn?.paper_code ?? null,
+    syllabus_title_i18n: sn?.title_i18n ?? null,
     status: r.status,
     version: r.version,
     content_i18n: r.content_i18n,
@@ -206,8 +224,10 @@ export async function reviewNotesCount(): Promise<number> {
 
 async function loadNoteForAction(id: string): Promise<ReviewNoteRow> {
   const { data, error } = await supabase()
+    // `meta` is needed so rejectNote can MERGE reject_reason into the existing
+    // generation/critic audit blob instead of overwriting it with just the reason.
     .from("notes")
-    .select("id, content_i18n, status")
+    .select("id, content_i18n, status, meta")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
@@ -232,6 +252,7 @@ export async function rejectNote(id: string, reason?: string): Promise<{ id: str
     .update({ status: "draft", meta: { ...(note.meta ?? {}), reject_reason: reason ?? null } })
     .eq("id", id);
   if (error) throw new HttpError(500, `note reject failed: ${error.message}`);
+  await deleteNoteEmbeddings(id); // unpublished → drop stale RAG chunks
   return { id, status: "draft" };
 }
 
@@ -241,6 +262,10 @@ export async function editNote(id: string, body: ReviewNoteEditBody): Promise<{ 
   if (body.sources) patch.sources = body.sources;
   if (body.srs_candidates) patch.srs_candidates = body.srs_candidates;
   if (Object.keys(patch).length > 0) {
+    // A human edit bumps version, matching the column's contract (0038) and the
+    // regeneration path in persistNote.
+    const { data: cur } = await supabase().from("notes").select("version").eq("id", id).maybeSingle();
+    patch.version = (((cur as { version: number } | null)?.version ?? 0) + 1) as number;
     const { error } = await supabase().from("notes").update(patch).eq("id", id);
     if (error) throw new HttpError(500, `note edit failed: ${error.message}`);
   }

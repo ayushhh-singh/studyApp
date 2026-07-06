@@ -57,8 +57,11 @@ function applyTab(query: any, tab: ReviewTab): any {
         .or("meta->>human_verified.is.null,meta->>human_verified.neq.true");
     default:
       // "notes" is served by a separate endpoint (services/notes.ts); never a
-      // questions query. Return an unsatisfiable filter as a defensive no-op.
-      return query.eq("review_state", "__none__");
+      // questions query (listReviewQueue guards it first). Return an
+      // unsatisfiable-but-TYPE-VALID filter as a defensive no-op — a bogus enum
+      // literal here would raise "invalid input value for enum" instead of
+      // returning zero rows.
+      return query.eq("id", "00000000-0000-0000-0000-000000000000");
   }
 }
 

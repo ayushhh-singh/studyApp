@@ -295,7 +295,20 @@ async function persistNote(opts: {
     .select("id")
     .single();
   if (error) throw new Error(`note upsert failed: ${error.message}`);
-  return (data as { id: string }).id;
+  const noteId = (data as { id: string }).id;
+
+  // The note is now needs_review with fresh content; drop any embeddings from a
+  // previously published version so RAG never serves stale note text until
+  // notes:embed re-runs after re-publish. Best-effort.
+  if (existing) {
+    const { error: delErr } = await supabase()
+      .from("embeddings")
+      .delete()
+      .eq("source_type", "note")
+      .eq("source_id", noteId);
+    if (delErr) console.warn(`  (warn) failed to clear stale note embeddings: ${delErr.message}`);
+  }
+  return noteId;
 }
 
 // ---------------------------------------------------------------------------
