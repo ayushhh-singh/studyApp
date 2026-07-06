@@ -15,6 +15,8 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { getBestScoresByTest } from "./tests.js";
+import { buildChecklist, getDailyProgress, type DailyProgress } from "./daily-progress.js";
+import { refreshStreak, type StreakState } from "../daily/streak.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -36,10 +38,10 @@ function daysBetween(fromDateStr: string, toDateStr: string): number {
   return Math.round((to - from) / (24 * 3600 * 1000));
 }
 
-async function getGreeting(userId: string, today: string): Promise<DashboardGreeting> {
+async function getGreeting(userId: string, today: string, streak: StreakState): Promise<DashboardGreeting> {
   const { data: profile, error: profileError } = await supabase()
     .from("users_profile")
-    .select("display_name, streak_count")
+    .select("display_name")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw new HttpError(500, `profile lookup failed: ${profileError.message}`);
@@ -62,7 +64,9 @@ async function getGreeting(userId: string, today: string): Promise<DashboardGree
 
   return {
     display_name: profile?.display_name ?? null,
-    streak_count: profile?.streak_count ?? 0,
+    streak_count: streak.streak_count,
+    streak_incremented_today: streak.incremented_today,
+    streak_active_today: streak.active_today,
     next_exam: examRow
       ? {
           exam_stage: examRow.exam_stage,
@@ -167,14 +171,8 @@ async function getContinue(userId: string): Promise<DashboardContinue> {
   return attemptCandidate ?? syllabusCandidate ?? { type: "none" };
 }
 
-async function getToday(userId: string, today: string): Promise<DashboardToday> {
-  const nowIso = new Date().toISOString();
-  const { count: srsDue, error: srsError } = await supabase()
-    .from("srs_cards")
-    .select("id", { count: "exact", head: true })
-    .eq("user_id", userId)
-    .lte("fsrs_state->>due_at", nowIso);
-  if (srsError) throw new HttpError(500, `srs due count failed: ${srsError.message}`);
+async function getToday(userId: string, today: string, progress: DailyProgress): Promise<DashboardToday> {
+  const srsDue = progress.srs_due;
 
   const { count: caToday, error: caError } = await supabase()
     .from("current_affairs_items")
@@ -223,10 +221,15 @@ async function getToday(userId: string, today: string): Promise<DashboardToday> 
       }
     : null;
 
+  const checklist = buildChecklist(progress);
+
   return {
-    srs_due_count: srsDue ?? 0,
+    srs_due_count: srsDue,
     current_affairs_today_count: caToday ?? 0,
     daily_quiz: dailyQuiz,
+    checklist: checklist.items,
+    checklist_completed: checklist.completed,
+    checklist_total: checklist.total,
   };
 }
 
@@ -372,10 +375,14 @@ async function getAnswerSpotlight(userId: string): Promise<DashboardAnswerSpotli
 
 export async function getDashboardSummary(userId: string): Promise<DashboardSummary> {
   const today = todayDateString();
+  // Compute the day's progress once, then reuse it for the streak refresh AND the
+  // Today checklist so they agree and don't double-query.
+  const progress = await getDailyProgress(userId, today);
+  const streak = await refreshStreak(userId, today, progress);
   const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
-    getGreeting(userId, today),
+    getGreeting(userId, today, streak),
     getContinue(userId),
-    getToday(userId, today),
+    getToday(userId, today, progress),
     getPerformanceAndWeakness(userId),
     getAnswerSpotlight(userId),
   ]);

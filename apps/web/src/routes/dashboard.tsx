@@ -2,8 +2,10 @@ import { useTranslation } from "react-i18next";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { GreetingHeader } from "@/components/dashboard/greeting-header";
+import { GuidedTodayCard } from "@/components/dashboard/guided-today-card";
 import { ContinueCard } from "@/components/dashboard/continue-card";
 import { TodayCard } from "@/components/dashboard/today-card";
+import { useLocale } from "@/hooks/use-locale";
 import { PerformanceCard } from "@/components/dashboard/performance-card";
 import { WeaknessCard } from "@/components/dashboard/weakness-card";
 import { AnswerSpotlightCard } from "@/components/dashboard/answer-spotlight-card";
@@ -25,6 +27,7 @@ function CardSkeleton({ title }: { title: string }) {
 
 export function Component() {
   const { t } = useTranslation();
+  const locale = useLocale();
   const { data, isLoading } = useDashboardSummary();
 
   if (isLoading || !data) {
@@ -50,6 +53,8 @@ export function Component() {
   return (
     <div className="flex flex-col gap-6">
       <GreetingHeader greeting={data.greeting} />
+
+      <GuidedTodayCard today={data.today} cont={data.continue} locale={locale} />
 
       <div className="grid gap-4 md:grid-cols-2">
         <ContinueCard data={data.continue} />

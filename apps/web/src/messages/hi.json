@@ -69,7 +69,17 @@
     "spotlightCta": "अपना अगला उत्तर लिखें",
     "spotlightEmptyTitle": "अपने उत्तरों पर AI फीडबैक पाएँ",
     "spotlightEmptyDescription": "मुख्य परीक्षा शैली का उत्तर सबमिट करें और सेकंडों में रूब्रिक-आधारित स्कोरिंग पाएँ।",
-    "spotlightStartCta": "लिखना शुरू करें"
+    "spotlightStartCta": "लिखना शुरू करें",
+    "guidedTitle": "आज की योजना",
+    "guidedSubtitle": "अपनी स्ट्रीक बनाए रखने के लिए इन्हें पूरा करें।",
+    "guidedAllDone": "सब पूरा — स्ट्रीक सुरक्षित!",
+    "guidedDone": "पूर्ण",
+    "guidedCount": "{{current}}/{{target}}",
+    "guidedSrsDue": "{{n}} बकाया",
+    "guidedItem_daily_quiz": "डेली क्विज़ हल करें",
+    "guidedItem_answer_set": "2 उत्तर लिखें",
+    "guidedItem_revision": "रिवीजन पूरा करें",
+    "guidedItem_continue_reading": "पढ़ना जारी रखें"
   },
   "Learn": {
     "title": "अध्ययन",

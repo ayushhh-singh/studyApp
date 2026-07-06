@@ -39,6 +39,20 @@ const MONTHS_HI = [
   "जन", "फ़र", "मार्च", "अप्रैल", "मई", "जून", "जुल", "अग", "सित", "अक्टू", "नव", "दिस",
 ];
 
+/**
+ * The UTC instant range [start, end) covering a given IST calendar day —
+ * IST day D is [D 00:00 IST, D+1 00:00 IST) = [D-1 18:30 UTC, D 18:30 UTC).
+ * For filtering timestamptz columns (attempts, reviews, events, submissions) by
+ * "which IST day did this happen on".
+ */
+export function istDayRangeUtc(date: string): { startUtc: string; endUtc: string } {
+  const startMs = Date.parse(`${date}T00:00:00Z`) - IST_OFFSET_MS;
+  return {
+    startUtc: new Date(startMs).toISOString(),
+    endUtc: new Date(startMs + 24 * 3600 * 1000).toISOString(),
+  };
+}
+
 /** Bilingual "7 Jul 2026" / "7 जुल 2026" from a `YYYY-MM-DD` string, for test/quiz titles. */
 export function formatDateBilingual(dateStr: string): { en: string; hi: string } {
   const [y, m, d] = dateStr.split("-").map(Number);

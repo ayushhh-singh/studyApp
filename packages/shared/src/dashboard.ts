@@ -16,6 +16,10 @@ export type DashboardNextExam = z.infer<typeof dashboardNextExamSchema>;
 export const dashboardGreetingSchema = z.object({
   display_name: z.string().nullable(),
   streak_count: z.number().int(),
+  /** This load just advanced the streak — the flame should animate. */
+  streak_incremented_today: z.boolean(),
+  /** Today already counts toward the streak. */
+  streak_active_today: z.boolean(),
   next_exam: dashboardNextExamSchema,
 });
 export type DashboardGreeting = z.infer<typeof dashboardGreetingSchema>;
@@ -40,10 +44,23 @@ export const dashboardContinueSchema = z.discriminatedUnion("type", [
 ]);
 export type DashboardContinue = z.infer<typeof dashboardContinueSchema>;
 
+/** One row of the guided "Today" checklist. */
+export const dashboardChecklistItemSchema = z.object({
+  key: z.enum(["daily_quiz", "answer_set", "revision", "continue_reading"]),
+  done: z.boolean(),
+  current: z.number().int(),
+  target: z.number().int(),
+});
+export type DashboardChecklistItem = z.infer<typeof dashboardChecklistItemSchema>;
+
 export const dashboardTodaySchema = z.object({
   srs_due_count: z.number().int(),
   current_affairs_today_count: z.number().int(),
   daily_quiz: testSummarySchema.nullable(),
+  /** The guided-mode checklist + its progress ring numbers. */
+  checklist: z.array(dashboardChecklistItemSchema),
+  checklist_completed: z.number().int(),
+  checklist_total: z.number().int(),
 });
 export type DashboardToday = z.infer<typeof dashboardTodaySchema>;
 

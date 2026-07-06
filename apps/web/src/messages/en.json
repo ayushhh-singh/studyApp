@@ -69,7 +69,17 @@
     "spotlightCta": "Write your next answer",
     "spotlightEmptyTitle": "Get AI feedback on your answers",
     "spotlightEmptyDescription": "Submit a Mains-style answer and get rubric-based scoring in seconds.",
-    "spotlightStartCta": "Start writing"
+    "spotlightStartCta": "Start writing",
+    "guidedTitle": "Today's plan",
+    "guidedSubtitle": "Finish these to keep your streak.",
+    "guidedAllDone": "All done — streak secured!",
+    "guidedDone": "Done",
+    "guidedCount": "{{current}}/{{target}}",
+    "guidedSrsDue": "{{n}} due",
+    "guidedItem_daily_quiz": "Take the daily quiz",
+    "guidedItem_answer_set": "Write 2 answers",
+    "guidedItem_revision": "Clear your revision",
+    "guidedItem_continue_reading": "Continue reading"
   },
   "Learn": {
     "title": "Learn",

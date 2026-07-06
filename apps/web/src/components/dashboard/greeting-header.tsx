@@ -17,7 +17,7 @@ export function GreetingHeader({ greeting }: { greeting: DashboardGreeting }) {
       description={t("Dashboard.description")}
       action={
         <div className="flex flex-wrap items-center gap-2">
-          <StreakFlame count={greeting.streak_count} />
+          <StreakFlame count={greeting.streak_count} animate={greeting.streak_incremented_today} />
           <ExamCountdownChip exam={greeting.next_exam} />
         </div>
       }
