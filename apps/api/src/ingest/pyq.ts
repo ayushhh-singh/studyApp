@@ -294,7 +294,10 @@ async function extractByPages(
   pageCount: number,
 ): Promise<RawQuestion[]> {
   const CHUNK = 8;
-  const OVERLAP = 1;
+  // Overlap 2 pages so a question spanning up to 3 pages across a chunk boundary
+  // is still captured whole by at least one chunk (1 page of overlap could drop
+  // a 3-page-span question, cut off in both neighbours).
+  const OVERLAP = 2;
   const byNo = new Map<number, RawQuestion>();
   for (let start = 0; start < pageCount; start += CHUNK - OVERLAP) {
     const pages: number[] = [];
@@ -367,21 +370,28 @@ async function loadAnswerKey(
   year: number,
   paperCode: string,
 ): Promise<Map<number, string> | null> {
-  // Answer-key ids look like <exam>_answerkey_<year>_prelims_gs1 / _csat.
+  // Answer-key ids look like <exam>_answerkey_<year>_prelims_gs1 / _csat. The
+  // candidates are SCOPED TO THIS EXAM ONLY — never fall back to another exam's
+  // key (a same-year UPPSC key must not be applied to UPSC questions).
   const suffix = paperCode === "PRE_CSAT" ? "csat" : "gs1";
   const candidates = [
     `${examCode}_answerkey_${year}_prelims_${suffix}`,
-    // Legacy uppsc keys were stored without the redundant exam-in-id form.
-    `uppsc_answerkey_${year}_prelims_${suffix}`,
+    // Tier-B mirror key (used when the official key is unreachable and a mirror
+    // paper/key pair carries the `_mirror` suffix to avoid an id collision).
+    `${examCode}_answerkey_${year}_prelims_${suffix}_mirror`,
   ];
-  const entry = manifest.find(
-    (e) => candidates.includes(e.id) && (e.status === "ok" || e.status === "manual"),
-  );
+  // Iterate `candidates` in priority order (NOT the sorted manifest) so the
+  // exact-exam id wins rather than whichever id happens to sort first.
+  let entry: ManifestEntry | undefined;
+  for (const id of candidates) {
+    entry = manifest.find((e) => e.id === id && (e.status === "ok" || e.status === "manual"));
+    if (entry) break;
+  }
   if (!entry) return null;
   const out = await structuredJson<{ answers: { q_no: number; correct_option_key: string }[] }>({
     model: MODELS.sonnet,
     system:
-      "You read an official UPPSC answer key PDF and return the correct option " +
+      "You read an official exam answer-key PDF and return the correct option " +
       "(A/B/C/D) for each question number. Return uppercase single letters.",
     content: [
       await pdfDocumentBlock(absPath(entry)),

@@ -51,14 +51,16 @@ type ReviewState = "draft" | "needs_review" | "approved" | "rejected";
  *    out-of-syllabus, or an answer-key mismatch — → needs_review (Review Queue).
  *    A mismatch is additionally NOT published (flagged, per the source policy).
  *  - Clean official + verified + human-language → approved + published (visible).
- * A row already human-approved in the DB is never auto-downgraded on re-load.
+ * A prior HUMAN decision (approved OR rejected) is never auto-overwritten on a
+ * re-load — approvals stay visible, rejections stay out.
  */
 function decideReview(
   q: ParsedQuestion,
   publishable: boolean,
-  alreadyApproved: boolean,
+  priorHumanState: "approved" | "rejected" | undefined,
 ): { reviewState: ReviewState; isPublished: boolean } {
-  if (alreadyApproved) return { reviewState: "approved", isPublished: publishable };
+  if (priorHumanState === "rejected") return { reviewState: "rejected", isPublished: false };
+  if (priorHumanState === "approved") return { reviewState: "approved", isPublished: publishable };
   const meta = q.meta as { machine_translated?: boolean; answer_key_mismatch?: unknown };
   const mismatch = !!meta.answer_key_mismatch;
   if (!publishable) return { reviewState: "draft", isPublished: false };
@@ -99,18 +101,20 @@ async function loadFile(
   let needsReview = 0;
   let failed = 0;
 
-  // Preload which of these external_ids are already human-approved, so a
-  // re-load never silently downgrades approved content to needs_review.
+  // Preload which of these external_ids already carry a HUMAN decision
+  // (approved or rejected), so a re-load never silently overwrites it: approvals
+  // stay visible, rejections stay out of the bank.
   const externalIds = data.questions.map((q) => q.external_id);
-  const approved = new Set<string>();
+  const priorHuman = new Map<string, "approved" | "rejected">();
   for (let i = 0; i < externalIds.length; i += 500) {
     const { data: existing, error } = await supabase()
       .from("questions")
-      .select("external_id")
+      .select("external_id, review_state")
       .in("external_id", externalIds.slice(i, i + 500))
-      .eq("review_state", "approved");
+      .in("review_state", ["approved", "rejected"]);
     if (error) throw new Error(`existing review-state lookup: ${error.message}`);
-    for (const r of existing ?? []) approved.add(r.external_id as string);
+    for (const r of existing ?? [])
+      priorHuman.set(r.external_id as string, r.review_state as "approved" | "rejected");
   }
 
   for (const q of data.questions) {
@@ -119,7 +123,7 @@ async function loadFile(
     // than trusting the parse-time flag — so a stale/over-optimistic flag can
     // never trip the trigger and abort the whole load.
     const publishable = questionPublishable(q.type, q.stem_i18n, q.options_i18n, q.correct_option_key);
-    const { reviewState, isPublished } = decideReview(q, publishable, approved.has(q.external_id));
+    const { reviewState, isPublished } = decideReview(q, publishable, priorHuman.get(q.external_id));
     const row = {
       external_id: q.external_id,
       type: q.type,

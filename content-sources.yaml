@@ -439,6 +439,86 @@ verified:
     paper: prelims_gs1
     substitutes_official: https://upsc.gov.in 2024 GS Paper I official key
     notes: Non-gov (Drishti IAS) answer key for GS Paper I, to cross-check extracted answers.
+  # UPSC Prelims 2022 + 2023 GS-I — Tier-B Drishti mirrors, human-approved
+  # 2026-07-06 ("use coaching mirrors for other exams"). Small English text PDFs
+  # (Hindi is machine-filled + flagged to the Review Queue); each has a separate
+  # answer key so answers are cross-checked. These extend weightage/Trends to a
+  # real multi-year series (2022–2024).
+  # 2023 keeps the official Tier-A entries above as the authoritative primary;
+  # these _mirror ids are the reachable Tier-B fallback (same pattern as 2024).
+  - id: upsc_prelims_2023_gs1_mirror
+    section: pyq_prelims
+    tier: B
+    approved: true
+    exam: upsc
+    url: https://www.drishtiias.com/images/pdf/UPSC%202023%20Questions%20English.pdf
+    lang: en
+    year: 2023
+    paper: gs1
+    substitutes_official: https://upsc.gov.in/sites/default/files/QP_CS_Pre_Exam_2023_280523.pdf (unreachable from host)
+    notes: Non-gov (Drishti IAS). English set; Hindi machine-filled + flagged.
+  - id: upsc_answerkey_2023_prelims_gs1_mirror
+    section: answer_key
+    tier: B
+    approved: true
+    exam: upsc
+    url: https://www.drishtiias.com/images/pdf/F_UPSC%202023%20GS%201%20Answer%20Key.pdf
+    lang: en
+    year: 2023
+    paper: prelims_gs1
+    substitutes_official: https://upsc.gov.in/sites/default/files/AnsKey-CSP-2023-Paper-I-090524.pdf (unreachable from host)
+    notes: Non-gov (Drishti IAS) GS-I answer key.
+  - id: upsc_prelims_2022_gs1
+    section: pyq_prelims
+    tier: B
+    approved: true
+    exam: upsc
+    url: https://www.drishtiias.com/images/pdf/GS%20Paper%202022%20(English)%20with%20logo.pdf
+    lang: en
+    year: 2022
+    paper: gs1
+    substitutes_official: https://upsc.gov.in official 2022 CS Prelims GS-I (unreachable from host)
+    notes: Non-gov (Drishti IAS). English set; Hindi machine-filled + flagged.
+  - id: upsc_answerkey_2022_prelims_gs1
+    section: answer_key
+    tier: B
+    approved: true
+    exam: upsc
+    url: https://www.drishtiias.com/images/pdf/UPSC%202022%20English%20Answer%20Key.pdf
+    lang: en
+    year: 2022
+    paper: prelims_gs1
+    substitutes_official: https://upsc.gov.in official 2022 GS-I key (unreachable from host)
+    notes: Non-gov (Drishti IAS) GS-I answer key.
+
+  # ============ UPSSSC PET (exam: upsssc_pet) — UP Preliminary Eligibility Test ============
+  # A different UP objective exam: its GS questions map onto the shared PRE_GS1
+  # syllabus; its aptitude/reasoning/Hindi/English sections have no UPPSC node
+  # and load as out_of_syllabus (node null). Tier-B mirror (Adda247 republishing
+  # the real 28-Oct-2023 2nd-shift paper). The answer_key entry points at the
+  # SAME file — the compilation PDF carries the key, so extraction reads it there.
+  - id: upsssc_pet_prelims_2023_gs1
+    section: pyq_prelims
+    tier: B
+    approved: true
+    exam: upsssc_pet
+    url: https://www.careerpower.in/blog/wp-content/uploads/2023/10/28180457/UPSSSC-PET-Paper-2nd-Shift-28-October-2023-Adda247.pdf
+    lang: both
+    year: 2023
+    paper: gs1
+    substitutes_official: UPSSSC PET 2023 official paper (upsssc.gov.in, session-gated)
+    notes: Non-gov (Adda247) mirror of the real 28-Oct-2023 2nd-shift PET paper.
+  - id: upsssc_pet_answerkey_2023_prelims_gs1
+    section: answer_key
+    tier: B
+    approved: true
+    exam: upsssc_pet
+    url: https://www.careerpower.in/blog/wp-content/uploads/2023/10/28180457/UPSSSC-PET-Paper-2nd-Shift-28-October-2023-Adda247.pdf
+    lang: both
+    year: 2023
+    paper: prelims_gs1
+    substitutes_official: UPSSSC PET 2023 official answer key (upsssc.gov.in)
+    notes: Same compilation PDF as the paper — it embeds the answer key; extraction reads it.
 
   # =============== HANDWRITING SAMPLES (Answer-Writing OCR smoke test) ===============
   # Public-domain Devanagari manuscript pages from Wikimedia Commons, used ONLY to
@@ -481,51 +561,12 @@ verified:
 # parser rules still apply: only (exam,year)-attributed items, stem+options+
 # answer only, no third-party solutions/explanations copied.
 needs_my_approval:
-  # ===== UPSC Civil Services Prelims 2020–2023 (Tier-B mirrors) =====
-  # Queued 2026-07-06 per your request to expand UPSC coverage. Official
-  # upsc.gov.in is unreachable from this ingest host, so these Drishti mirrors
-  # substitute for it. Set `approved: true` (and move into `verified:`) to fetch.
-  # Exact Drishti URLs below are from their year-wise GS-I downloads page.
-  - id: upsc_prelims_2023_gs1_mirror
-    section: pyq_prelims
-    tier: B
-    exam: upsc
-    url: https://www.drishtiias.com/images/pdf/UPSC 2023 Questions English.pdf
-    lang: en
-    year: 2023
-    paper: gs1
-    substitutes_official: https://upsc.gov.in/sites/default/files/QP_CS_Pre_Exam_2023_280523.pdf (unreachable from host)
-    notes: Non-gov (Drishti IAS). English set; Hindi will be machine-filled + flagged.
-  - id: upsc_answerkey_2023_prelims_gs1_mirror
-    section: answer_key
-    tier: B
-    exam: upsc
-    url: https://www.drishtiias.com/images/pdf/F_UPSC 2023 GS 1 Answer Key.pdf
-    lang: en
-    year: 2023
-    paper: prelims_gs1
-    substitutes_official: https://upsc.gov.in/sites/default/files/AnsKey-CSP-2023-Paper-I-090524.pdf (unreachable from host)
-    notes: Non-gov (Drishti IAS) GS-I answer key.
-  - id: upsc_prelims_2022_gs1_mirror
-    section: pyq_prelims
-    tier: B
-    exam: upsc
-    url: https://www.drishtiias.com/images/pdf/GS Paper 2022 (English) with logo.pdf
-    lang: en
-    year: 2022
-    paper: gs1
-    substitutes_official: https://upsc.gov.in official 2022 CS Prelims GS-I (unreachable from host)
-    notes: Non-gov (Drishti IAS). English set.
-  - id: upsc_answerkey_2022_prelims_gs1_mirror
-    section: answer_key
-    tier: B
-    exam: upsc
-    url: https://www.drishtiias.com/images/pdf/UPSC 2022 English Answer Key.pdf
-    lang: en
-    year: 2022
-    paper: prelims_gs1
-    substitutes_official: https://upsc.gov.in official 2022 GS-I key (unreachable from host)
-    notes: Non-gov (Drishti IAS).
+  # ===== UPSC Civil Services Prelims 2020–2021 (Tier-B mirrors) =====
+  # (2022–2024 are already approved + ingested in `verified:` above.) These two
+  # lack a SEPARATE reachable answer key (2021 has answers combined into the
+  # paper; 2020's standalone key was not found), so extraction can't cross-check
+  # the answer and rows would load unpublished — approve once a key is paired.
+  # 2016–2019 mirror URLs still need discovery (Drishti's page only lists 2020+).
   - id: upsc_prelims_2021_gs1_mirror
     section: pyq_prelims
     tier: B

@@ -294,11 +294,22 @@ export function examCodeFromId(id: string): ExamCode {
   return "uppsc";
 }
 
-const GOV_DOMAINS = ["upsc.gov.in", "uppsc.up.nic.in", "gov.in", "nic.in", "upload.wikimedia.org"];
+const GOV_HOST_SUFFIXES = ["gov.in", "nic.in", "upload.wikimedia.org"];
+
+/** True when the URL's HOST (not any substring) is an official/gov/public-archive domain. */
+function isOfficialHost(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).host.toLowerCase();
+  } catch {
+    return false;
+  }
+  return GOV_HOST_SUFFIXES.some((d) => host === d || host.endsWith(`.${d}`));
+}
 
 /** Provenance tier for a fetched source — prefer the stamped tier, else infer from the URL host. */
 export function sourceKindForEntry(entry: ManifestEntry): SourceKind {
-  const tier = entry.tier ?? (GOV_DOMAINS.some((d) => entry.url.includes(d)) ? "A" : "B");
+  const tier = entry.tier ?? (isOfficialHost(entry.url) ? "A" : "B");
   return tier === "A" ? "official" : "compilation";
 }
 

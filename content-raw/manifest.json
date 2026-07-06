@@ -24,6 +24,20 @@
     "origin": "download"
   },
   {
+    "id": "upsc_answerkey_2022_prelims_gs1",
+    "section": "answer_key",
+    "url": "https://www.drishtiias.com/images/pdf/UPSC%202022%20English%20Answer%20Key.pdf",
+    "tier": "B",
+    "exam": "upsc",
+    "path": "content-raw/answer_key/upsc_answerkey_2022_prelims_gs1.pdf",
+    "sha256": "233980018dce47832cf455f3c2fbe503e1ad7d8436e9de75a2eb974193e69c60",
+    "bytes": 196226,
+    "pages": 1,
+    "fetched_at": "2026-07-06T14:40:25.608Z",
+    "status": "ok",
+    "origin": "download"
+  },
+  {
     "id": "upsc_answerkey_2023_prelims_gs1",
     "section": "answer_key",
     "url": "https://upsc.gov.in/sites/default/files/AnsKey-CSP-2023-Paper-I-090524.pdf",
@@ -33,10 +47,24 @@
     "sha256": null,
     "bytes": null,
     "pages": null,
-    "fetched_at": "2026-07-06T07:04:22.485Z",
+    "fetched_at": "2026-07-06T14:54:32.789Z",
     "status": "failed",
     "origin": "download",
     "error": "fetch failed"
+  },
+  {
+    "id": "upsc_answerkey_2023_prelims_gs1_mirror",
+    "section": "answer_key",
+    "url": "https://www.drishtiias.com/images/pdf/F_UPSC%202023%20GS%201%20Answer%20Key.pdf",
+    "tier": "B",
+    "exam": "upsc",
+    "path": "content-raw/answer_key/upsc_answerkey_2023_prelims_gs1_mirror.pdf",
+    "sha256": "850659c08f221614a04152ec6f1a67349b17b3cdd199987ec9ee541e3ec18f56",
+    "bytes": 279061,
+    "pages": 1,
+    "fetched_at": "2026-07-06T14:40:19.962Z",
+    "status": "ok",
+    "origin": "download"
   },
   {
     "id": "upsc_answerkey_2024_prelims_gs1",
@@ -49,6 +77,20 @@
     "bytes": 499914,
     "pages": 4,
     "fetched_at": "2026-07-06T07:05:06.725Z",
+    "status": "ok",
+    "origin": "download"
+  },
+  {
+    "id": "upsssc_pet_answerkey_2023_prelims_gs1",
+    "section": "answer_key",
+    "url": "https://www.careerpower.in/blog/wp-content/uploads/2023/10/28180457/UPSSSC-PET-Paper-2nd-Shift-28-October-2023-Adda247.pdf",
+    "tier": "B",
+    "exam": "upsssc_pet",
+    "path": "content-raw/answer_key/upsssc_pet_answerkey_2023_prelims_gs1.pdf",
+    "sha256": "93ef2e94808f5fd9deb49cf71765ce4b8f207765a5d34fb5425ff4e79e6bf106",
+    "bytes": 7954365,
+    "pages": 15,
+    "fetched_at": "2026-07-06T14:54:38.397Z",
     "status": "ok",
     "origin": "download"
   },
@@ -425,6 +467,20 @@
     "origin": "download"
   },
   {
+    "id": "upsc_prelims_2022_gs1",
+    "section": "pyq_prelims",
+    "url": "https://www.drishtiias.com/images/pdf/GS%20Paper%202022%20(English)%20with%20logo.pdf",
+    "tier": "B",
+    "exam": "upsc",
+    "path": "content-raw/pyq_prelims/upsc_prelims_2022_gs1.pdf",
+    "sha256": "1f7bf651431133af67734eb6002adc2b61531f224fe6d0fd00936574d6dd1ee0",
+    "bytes": 2258813,
+    "pages": 22,
+    "fetched_at": "2026-07-06T14:40:23.423Z",
+    "status": "ok",
+    "origin": "download"
+  },
+  {
     "id": "upsc_prelims_2023_gs1",
     "section": "pyq_prelims",
     "url": "https://upsc.gov.in/sites/default/files/QP_CS_Pre_Exam_2023_280523.pdf",
@@ -434,10 +490,24 @@
     "sha256": null,
     "bytes": null,
     "pages": null,
-    "fetched_at": "2026-07-06T07:03:42.935Z",
+    "fetched_at": "2026-07-06T14:52:34.342Z",
     "status": "failed",
     "origin": "download",
     "error": "fetch failed"
+  },
+  {
+    "id": "upsc_prelims_2023_gs1_mirror",
+    "section": "pyq_prelims",
+    "url": "https://www.drishtiias.com/images/pdf/UPSC%202023%20Questions%20English.pdf",
+    "tier": "B",
+    "exam": "upsc",
+    "path": "content-raw/pyq_prelims/upsc_prelims_2023_gs1_mirror.pdf",
+    "sha256": "b5521bc55dcc3f1cfd227f4c55b842a498163a183c8879f813750ed0eb2f3963",
+    "bytes": 856889,
+    "pages": 41,
+    "fetched_at": "2026-07-06T14:40:17.590Z",
+    "status": "ok",
+    "origin": "download"
   },
   {
     "id": "upsc_prelims_2024_gs1",
@@ -450,6 +520,20 @@
     "bytes": 31575923,
     "pages": 43,
     "fetched_at": "2026-07-06T07:05:03.760Z",
+    "status": "ok",
+    "origin": "download"
+  },
+  {
+    "id": "upsssc_pet_prelims_2023_gs1",
+    "section": "pyq_prelims",
+    "url": "https://www.careerpower.in/blog/wp-content/uploads/2023/10/28180457/UPSSSC-PET-Paper-2nd-Shift-28-October-2023-Adda247.pdf",
+    "tier": "B",
+    "exam": "upsssc_pet",
+    "path": "content-raw/pyq_prelims/upsssc_pet_prelims_2023_gs1.pdf",
+    "sha256": "93ef2e94808f5fd9deb49cf71765ce4b8f207765a5d34fb5425ff4e79e6bf106",
+    "bytes": 7954365,
+    "pages": 15,
+    "fetched_at": "2026-07-06T14:54:35.621Z",
     "status": "ok",
     "origin": "download"
   },

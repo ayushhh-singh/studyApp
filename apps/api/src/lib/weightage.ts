@@ -92,7 +92,12 @@ export function toNodeWeightage(
   };
 }
 
-/** Refresh the cached matview (after an ingest). */
+/**
+ * Refresh the cached matview (after an ingest). The RPC attempts a CONCURRENT
+ * refresh but, since it runs inside a transactional function, that raises and
+ * falls back to a brief blocking refresh — fine at ingest time (not on a hot
+ * read path).
+ */
 export async function refreshNodeWeightage(): Promise<void> {
   const { error } = await supabase().rpc("refresh_node_weightage");
   if (error) throw new HttpError(500, `weightage refresh failed: ${error.message}`);
