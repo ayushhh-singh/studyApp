@@ -8,7 +8,10 @@ function TabsList({ className, ...props }: ComponentProps<typeof TabsPrimitive.L
   return (
     <TabsPrimitive.List
       className={cn(
-        "inline-flex h-10 w-full items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+        // overflow-x-auto: with many tabs (e.g. Practice's 5) the whitespace-nowrap
+        // triggers can't shrink below their text width, so let the list scroll
+        // horizontally instead of overflowing the page at 390px. No-op for 2-3 tabs.
+        "inline-flex h-10 w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground",
         className,
       )}
       {...props}
