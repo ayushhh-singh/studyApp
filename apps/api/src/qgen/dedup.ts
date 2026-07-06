@@ -47,7 +47,11 @@ async function embedAll(texts: string[]): Promise<number[][]> {
   const out: number[][] = [];
   const batchSize = 96;
   for (let i = 0; i < texts.length; i += batchSize) {
-    const vecs = await provider.embed(texts.slice(i, i + batchSize));
+    // OpenAI rejects empty-string inputs with a 400 — one broken/empty stem
+    // would otherwise fail the whole batch and silently disable dedup for the
+    // node. Substitute a placeholder (a stem this empty is a non-publishable
+    // question anyway; its embedding just won't match anything).
+    const vecs = await provider.embed(texts.slice(i, i + batchSize).map((t) => t || "(empty question)"));
     for (const v of vecs) out.push(normalize(v));
   }
   return out;

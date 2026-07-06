@@ -17,6 +17,7 @@ import {
   MODELS,
   runBatch,
   structuredJson,
+  structuredParams,
   type BatchRequest,
   type LlmUsage,
 } from "../lib/anthropic.js";
@@ -420,9 +421,13 @@ interface BatchPlanState {
   cost: number;
 }
 
-/** Sum this run's per-request costs back to the owning plan by parsing the custom_id prefix. */
+/**
+ * Sum this run's per-request costs back to the owning plan by parsing the
+ * custom_id. Anthropic requires custom_id to match ^[a-zA-Z0-9_-]{1,64}$, so
+ * segments are `_`-joined (NOT `:` — that 400s at batch submission).
+ */
 function addCost(states: BatchPlanState[], customId: string, usd: number): void {
-  const planIdx = Number(customId.split(":")[1]);
+  const planIdx = Number(customId.split("_")[1]);
   if (Number.isInteger(planIdx) && states[planIdx]) states[planIdx].cost += usd;
 }
 
@@ -443,8 +448,8 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
   states.forEach((s, pi) => {
     chunkSizes(s.plan.count).forEach((size, ci) => {
       genReqs.push({
-        customId: `gen:${pi}:${ci}`,
-        params: { ...genParamsFor(s.ctx, s.plan.kind, size, s.mix, ci) } as never,
+        customId: `gen_${pi}_${ci}`,
+        params: structuredParams(genParamsFor(s.ctx, s.plan.kind, size, s.mix, ci)),
         purpose: `qgen_${s.plan.kind}_generate`,
       });
     });
@@ -456,7 +461,7 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
   for (const req of genReqs) {
     const r = genRes.get(req.customId);
     if (!r?.ok) continue;
-    const pi = Number(req.customId.split(":")[1]);
+    const pi = Number(req.customId.split("_")[1]);
     if (r.usage) addCost(states, req.customId, r.usage.costUsd);
     try {
       states[pi].candidates.push(...candidatesFromGen(states[pi].plan.kind, JSON.parse(r.text)));
@@ -472,8 +477,8 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
       const rendered =
         c.kind === "mcq" ? renderQuestionForCritic.mcq(c.mcq!) : renderQuestionForCritic.descriptive(c.desc!);
       criticReqs.push({
-        customId: `critic:${pi}:${ci}`,
-        params: { ...buildCriticParams({ node: s.ctx.node, rendered }) } as never,
+        customId: `critic_${pi}_${ci}`,
+        params: structuredParams(buildCriticParams({ node: s.ctx.node, rendered })),
         purpose: "qgen_critic",
       });
     });
@@ -484,7 +489,7 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
   });
   for (const req of criticReqs) {
     const r = criticRes.get(req.customId);
-    const [, pi, ci] = req.customId.split(":").map(Number);
+    const [, pi, ci] = req.customId.split("_").map(Number);
     if (r?.ok) {
       addCost(states, req.customId, r.usage?.costUsd ?? 0);
       try {
@@ -506,8 +511,8 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
     s.candidates.forEach((c, ci) => {
       if (c.kind === "mcq" && !c.reject) {
         verifyReqs.push({
-          customId: `verify:${pi}:${ci}`,
-          params: { ...buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options }) } as never,
+          customId: `verify_${pi}_${ci}`,
+          params: structuredParams(buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options })),
           purpose: "qgen_verify",
         });
       }
@@ -519,7 +524,7 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
   });
   for (const req of verifyReqs) {
     const r = verifyRes.get(req.customId);
-    const [, pi, ci] = req.customId.split(":").map(Number);
+    const [, pi, ci] = req.customId.split("_").map(Number);
     const c = states[pi].candidates[ci];
     if (r?.ok) {
       addCost(states, req.customId, r.usage?.costUsd ?? 0);

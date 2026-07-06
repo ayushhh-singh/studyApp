@@ -249,8 +249,16 @@ export async function runBatch(
   });
 
   const pollMs = opts.pollMs ?? 15_000;
+  // Anthropic guarantees a batch ends within 24h; cap polling well past that so
+  // a stuck/never-terminal status fails the (unattended) nightly job loudly
+  // instead of looping forever.
+  const maxPolls = Math.ceil((26 * 60 * 60 * 1000) / pollMs);
   let status = batch.processing_status;
+  let polls = 0;
   while (status !== "ended") {
+    if (++polls > maxPolls) {
+      throw new Error(`Batch ${batch.id} did not end after ${polls} polls (~26h); aborting.`);
+    }
     await sleep(pollMs);
     const fresh = await anthropic().messages.batches.retrieve(batch.id);
     status = fresh.processing_status;
