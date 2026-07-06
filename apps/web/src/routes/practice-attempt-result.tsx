@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { ResultScoreHero } from "@/components/practice/result-score-hero";
+import { CutoffComparison } from "@/components/practice/cutoff-comparison";
 import { ResultTopicBreakdown } from "@/components/practice/result-topic-breakdown";
 import { ResultReviewList } from "@/components/practice/result-review-list";
 import { useAttemptResult } from "@/hooks/use-attempt";
@@ -90,6 +91,8 @@ export function Component() {
       />
 
       <ResultScoreHero result={result} />
+
+      {result.test?.kind === "mock" && <CutoffComparison result={result} />}
 
       <SectionCard title={t("Practice.resultTopicBreakdownTitle")}>
         <ResultTopicBreakdown items={result.topic_breakdown} locale={locale} />

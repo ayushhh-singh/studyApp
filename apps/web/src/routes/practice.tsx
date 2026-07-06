@@ -20,7 +20,7 @@ import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "Nav.practice" };
 
-const TABS = ["daily", "pyq", "sectional", "custom"] as const;
+const TABS = ["daily", "pyq", "sectional", "mock", "custom"] as const;
 type Tab = (typeof TABS)[number];
 
 function isTab(value: string | null): value is Tab {
@@ -81,7 +81,7 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
   );
 }
 
-function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" }) {
+function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" | "mock" }) {
   const { t } = useTranslation();
   const locale = useLocale();
   const { data: tests, isLoading } = useTests({ kind });
@@ -178,6 +178,7 @@ export function Component() {
           <TabsTrigger value="daily">{t("Practice.tabDaily")}</TabsTrigger>
           <TabsTrigger value="pyq">{t("Practice.tabPyq")}</TabsTrigger>
           <TabsTrigger value="sectional">{t("Practice.tabSectional")}</TabsTrigger>
+          <TabsTrigger value="mock">{t("Practice.tabMock")}</TabsTrigger>
           <TabsTrigger value="custom">{t("Practice.tabCustom")}</TabsTrigger>
         </TabsList>
         <TabsContent value="daily">
@@ -193,6 +194,11 @@ export function Component() {
         <TabsContent value="sectional">
           <SectionCard title={t("Practice.available")}>
             <TestListPanel kind="sectional" />
+          </SectionCard>
+        </TabsContent>
+        <TabsContent value="mock">
+          <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription")}>
+            <TestListPanel kind="mock" />
           </SectionCard>
         </TabsContent>
         <TabsContent value="custom">

@@ -227,7 +227,17 @@
     "dailyEmptyDescription": "The first daily quiz is assembled at 5 AM IST — check back soon.",
     "dailyPrev": "Newer",
     "dailyNext": "Older",
-    "dailyPageOf": "{{page}} / {{total}}"
+    "dailyPageOf": "{{page}} / {{total}}",
+    "tabMock": "Mock Tests",
+    "mockTitle": "Full-length mock tests",
+    "mockDescription": "UPPSC-pattern papers with real one-third negative marking.",
+    "cutoffTitle": "How you'd stack up",
+    "cutoffDescription": "Your score ≈ {{your}}/200. General-category Prelims cut-offs:",
+    "cutoffRow": "{{cutoff}}/{{out_of}}",
+    "cutoffProvisional": "provisional",
+    "cutoffQualified": "You'd clear the CSAT qualifying bar",
+    "cutoffNotQualified": "Below the CSAT qualifying bar",
+    "cutoffCsatHint": "CSAT qualifies at 33% (66/200). Your equivalent: {{your}}/200."
   },
   "Answers": {
     "title": "Answer Writing",

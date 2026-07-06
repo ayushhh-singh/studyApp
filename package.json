@@ -17,6 +17,7 @@
     "ca:run": "pnpm --filter api ca:run",
     "ca:compile": "pnpm --filter api ca:compile",
     "daily:build": "pnpm --filter api daily:build",
+    "mocks:build": "pnpm --filter api mocks:build",
     "qgen": "pnpm --filter api qgen",
     "qgen:topup": "pnpm --filter api qgen:topup",
     "notes:gen": "pnpm --filter api notes:gen",

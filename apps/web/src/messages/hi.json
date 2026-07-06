@@ -227,7 +227,17 @@
     "dailyEmptyDescription": "पहली डेली क्विज़ सुबह 5 बजे (IST) बनती है — जल्द देखें।",
     "dailyPrev": "नई",
     "dailyNext": "पुरानी",
-    "dailyPageOf": "{{page}} / {{total}}"
+    "dailyPageOf": "{{page}} / {{total}}",
+    "tabMock": "मॉक टेस्ट",
+    "mockTitle": "पूर्ण-लंबाई मॉक टेस्ट",
+    "mockDescription": "असली एक-तिहाई नेगेटिव मार्किंग के साथ यूपीपीएससी-पैटर्न पेपर।",
+    "cutoffTitle": "आपकी स्थिति",
+    "cutoffDescription": "आपका स्कोर ≈ {{your}}/200। सामान्य वर्ग प्रारंभिक कट-ऑफ:",
+    "cutoffRow": "{{cutoff}}/{{out_of}}",
+    "cutoffProvisional": "अनंतिम",
+    "cutoffQualified": "आप सीसैट क्वालिफाइंग सीमा पार कर लेते",
+    "cutoffNotQualified": "सीसैट क्वालिफाइंग सीमा से नीचे",
+    "cutoffCsatHint": "सीसैट 33% (66/200) पर क्वालिफाई। आपका समकक्ष: {{your}}/200।"
   },
   "Answers": {
     "title": "उत्तर लेखन",

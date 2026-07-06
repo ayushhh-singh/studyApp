@@ -5,8 +5,10 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
+import { examCutoffsResponseSchema } from "@prayasup/shared";
 import { DAILY_ARCHIVE_PAGE_SIZE, ensureTodayQuiz, listDailyQuizzes } from "../services/daily.js";
 import { getTestDetail } from "../services/tests.js";
+import { getCutoffs } from "../services/mocks.js";
 
 export const dailyRouter = Router();
 dailyRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
@@ -48,5 +50,14 @@ dailyRouter.post(
     }
     const test = await getTestDetail(testId);
     res.json(testDetailResponseSchema.parse({ data: test, error: null }));
+  }),
+);
+
+dailyRouter.get(
+  "/mocks/cutoffs",
+  asyncHandler(async (req, res) => {
+    const { exam } = parse(z.object({ exam: z.string().default("PRE_GS1") }), req.query);
+    const cutoffs = await getCutoffs(exam);
+    res.json(examCutoffsResponseSchema.parse({ data: cutoffs, error: null }));
   }),
 );
