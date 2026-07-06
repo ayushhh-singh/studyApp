@@ -49,6 +49,7 @@ export const router = createBrowserRouter([
           },
           { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
           { path: "revision", lazy: () => import("@/routes/revision") },
+          { path: "review", lazy: () => import("@/routes/review") },
           { path: "profile", lazy: () => import("@/routes/profile") },
         ],
       },

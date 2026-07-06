@@ -16,6 +16,7 @@ import { profileRouter } from "./routes/profile.js";
 import { eventsRouter } from "./routes/events.js";
 import { srsRouter } from "./routes/srs.js";
 import { answersRouter } from "./routes/answers.js";
+import { adminRouter } from "./routes/admin.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 
 const app = express();
@@ -42,6 +43,7 @@ app.use("/api/v1", profileRouter);
 app.use("/api/v1", eventsRouter);
 app.use("/api/v1", srsRouter);
 app.use("/api/v1", answersRouter);
+app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);
 app.use(errorHandler);

@@ -33,4 +33,7 @@ export const queryKeys = {
   todaysQuestion: () => ["answers", "today"] as const,
   submissions: (page?: number) => ["answers", "submissions", page ?? 1] as const,
   submissionDetail: (id: string) => ["answers", "submissions", "detail", id] as const,
+  adminStatus: () => ["admin", "status"] as const,
+  reviewCounts: () => ["admin", "review", "counts"] as const,
+  reviewQueue: (tab: string, page: number) => ["admin", "review", tab, page] as const,
 };

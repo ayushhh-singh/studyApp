@@ -8,7 +8,8 @@
     "revision": "पुनरावृत्ति",
     "profile": "प्रोफ़ाइल",
     "more": "और",
-    "sectionsLabel": "विभाग"
+    "sectionsLabel": "विभाग",
+    "review": "समीक्षा"
   },
   "TopBar": {
     "search": "खोजें",
@@ -379,5 +380,56 @@
     "save": "बदलाव सहेजें",
     "saving": "सहेजा जा रहा है…",
     "saved": "सहेज लिया गया।"
+  },
+  "Review": {
+    "title": "समीक्षा सूची",
+    "description": "AI-जनित प्रश्नों को लाइव करने से पहले स्वीकृत, संपादित या अस्वीकृत करें।",
+    "disabledTitle": "एडमिन मोड बंद है",
+    "disabledDescription": "जनित प्रश्नों की समीक्षा के लिए apps/api/.env में ADMIN_MODE=true सेट करें और API पुनः शुरू करें।",
+    "emptyTitle": "सूची खाली है",
+    "emptyDescription": "इस टैब में समीक्षा हेतु कुछ भी लंबित नहीं है। pnpm qgen से और बनाएँ।",
+    "tab": {
+      "generated_mcq": "जनित MCQ",
+      "generated_descriptive": "जनित मुख्य",
+      "machine_translated": "मशीन-अनूदित",
+      "current_affairs": "करेंट अफेयर्स"
+    },
+    "difficulty": {
+      "easy": "आसान",
+      "medium": "मध्यम",
+      "hard": "कठिन"
+    },
+    "willPublish": "प्रकाशित होगा",
+    "wontPublish": "अपूर्ण — प्रकाशित नहीं होगा",
+    "question": "प्रश्न",
+    "explanation": "व्याख्या",
+    "markingPoints": "अंकन बिंदु",
+    "marks": "{{n}} अंक",
+    "wordLimit": "{{n}} शब्द",
+    "blindVerify": "अंध सत्यापन",
+    "verifyPicked": "मॉडल ने {{key}} चुना",
+    "criticNotes": "समीक्षक टिप्पणी",
+    "similarHits": "मिलते-जुलते मौजूदा प्रश्न",
+    "bulkApprove": "{{n}} उच्च-विश्वास स्वीकृत करें",
+    "position": "कार्ड {{current}} / {{total}}",
+    "prev": "पिछला कार्ड",
+    "next": "अगला कार्ड",
+    "approve": "स्वीकृत",
+    "edit": "संपादित",
+    "reject": "अस्वीकृत",
+    "keyboardHint": "j / k चलें · a स्वीकृत · e संपादित · r अस्वीकृत",
+    "footerNote": "स्वीकृति प्रश्न को PYQ की तरह उसी द्विभाषी गेट से प्रकाशित करती है।",
+    "stemEn": "प्रश्न (अंग्रेज़ी)",
+    "stemHi": "प्रश्न (हिन्दी)",
+    "options": "विकल्प (सही चुनें)",
+    "markCorrect": "{{key}} को सही चिह्नित करें",
+    "explanationEn": "व्याख्या (अंग्रेज़ी)",
+    "explanationHi": "व्याख्या (हिन्दी)",
+    "difficultyLabel": "कठिनाई",
+    "marksLabel": "अंक",
+    "wordLimitLabel": "शब्द सीमा",
+    "saveApprove": "सहेजें और स्वीकृत करें",
+    "saveDraft": "मसौदा सहेजें",
+    "cancel": "रद्द करें"
   }
 }

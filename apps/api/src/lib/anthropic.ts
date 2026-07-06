@@ -57,7 +57,9 @@ export function anthropic(): Anthropic {
 
 /**
  * Records one Anthropic call's usage/cost into llm_calls. Best-effort — a
- * logging failure never fails the caller's actual LLM request.
+ * logging failure never fails the caller's actual LLM request. Batch calls are
+ * billed at 0.5x (Message Batches API discount); the flag halves the recorded
+ * cost and tags meta.batch so cost:report can price the row correctly.
  */
 async function recordLlmCall(opts: {
   model: ModelId;
@@ -67,7 +69,9 @@ async function recordLlmCall(opts: {
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+  batch?: boolean;
 }): Promise<void> {
+  const base = estimateCostUsd(opts.model, opts.inputTokens, opts.outputTokens, opts.cacheReadTokens, opts.cacheWriteTokens);
   const { error } = await supabase()
     .from("llm_calls")
     .insert({
@@ -78,10 +82,14 @@ async function recordLlmCall(opts: {
       output_tokens: opts.outputTokens,
       cache_read_tokens: opts.cacheReadTokens,
       cache_write_tokens: opts.cacheWriteTokens,
-      cost_usd: estimateCostUsd(opts.model, opts.inputTokens, opts.outputTokens, opts.cacheReadTokens, opts.cacheWriteTokens),
+      cost_usd: opts.batch ? base * BATCH_DISCOUNT : base,
+      ...(opts.batch ? { meta: { batch: true } } : {}),
     });
   if (error) logger.warn({ error, purpose: opts.purpose }, "failed to record llm_calls row");
 }
+
+/** Message Batches API price multiplier (50% off standard token rates). */
+export const BATCH_DISCOUNT = 0.5;
 
 /** Fire the optional per-call usage callback with tokens + estimated cost. */
 function emitUsage(
@@ -104,6 +112,43 @@ function emitUsage(
   });
 }
 
+/** Shared structured-output options (streamed via structuredJson OR batched). */
+export interface StructuredParams {
+  model: ModelId;
+  system?: SystemParam;
+  content: Anthropic.MessageParam["content"];
+  schema: Record<string, unknown>;
+  maxTokens?: number;
+  effort?: "low" | "medium" | "high";
+}
+
+/**
+ * Build the Messages-API params for a structured-JSON call. Shared by the
+ * streaming path (structuredJson) and the Message Batches path (runBatch) so
+ * both produce byte-identical prompts — required for prompt-cache hits across
+ * the two.
+ */
+export function structuredParams(opts: StructuredParams): Anthropic.MessageCreateParamsNonStreaming {
+  return {
+    model: opts.model,
+    max_tokens: opts.maxTokens ?? 32000,
+    ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
+    output_config: {
+      ...(opts.effort ? { effort: opts.effort } : {}),
+      format: { type: "json_schema", schema: opts.schema },
+    },
+    messages: [{ role: "user", content: opts.content }],
+  } as Anthropic.MessageCreateParamsNonStreaming;
+}
+
+/** Concatenated text of a message's text blocks. */
+function messageText(message: Anthropic.Message): string {
+  return message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+}
+
 /**
  * Ask a model for a single JSON object matching `schema` (a JSON Schema).
  * Uses structured outputs (output_config.format) so the response is guaranteed
@@ -113,13 +158,7 @@ function emitUsage(
  * document/image blocks (e.g. a PDF for vision extraction). Pass `purpose`
  * (and `userId` for user-triggered calls) to log tokens + cost to llm_calls.
  */
-export async function structuredJson<T>(opts: {
-  model: ModelId;
-  system?: SystemParam;
-  content: Anthropic.MessageParam["content"];
-  schema: Record<string, unknown>;
-  maxTokens?: number;
-  effort?: "low" | "medium" | "high";
+export async function structuredJson<T>(opts: StructuredParams & {
   purpose?: string;
   userId?: string;
   onUsage?: (usage: LlmUsage) => void;
@@ -127,19 +166,7 @@ export async function structuredJson<T>(opts: {
   signal?: AbortSignal;
 }): Promise<T> {
   const stream = anthropic().messages.stream(
-    {
-      model: opts.model,
-      max_tokens: opts.maxTokens ?? 32000,
-      ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
-      output_config: {
-        ...(opts.effort ? { effort: opts.effort } : {}),
-        format: {
-          type: "json_schema",
-          schema: opts.schema,
-        },
-      },
-      messages: [{ role: "user", content: opts.content }],
-    } as Anthropic.MessageStreamParams,
+    structuredParams(opts) as Anthropic.MessageStreamParams,
     opts.signal ? { signal: opts.signal } : undefined,
   );
 
@@ -161,14 +188,125 @@ export async function structuredJson<T>(opts: {
       `Model refused (${message.stop_details?.category ?? "unknown"})`,
     );
   }
-  const text = message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  const text = messageText(message);
   if (!text.trim()) {
     throw new Error(`Empty response (stop_reason=${message.stop_reason})`);
   }
   return JSON.parse(text) as T;
+}
+
+// ---------------------------------------------------------------------------
+// Message Batches API — 50% cheaper async processing (lib/anthropic.ts is the
+// one place that talks to it). Used by the qgen nightly top-up; interactive
+// runs stay synchronous on structuredJson. Results arrive in ANY order, so
+// everything keys off custom_id, never position.
+// ---------------------------------------------------------------------------
+export interface BatchRequest {
+  customId: string;
+  params: Anthropic.MessageCreateParamsNonStreaming;
+  /** llm_calls purpose for this request's usage row (per-request so a mixed-stage batch logs correctly). */
+  purpose: string;
+  userId?: string;
+}
+
+export interface BatchItemResult {
+  customId: string;
+  /** true when the request succeeded and returned parseable text. */
+  ok: boolean;
+  /** Concatenated text blocks (JSON.parse-able for structured requests); "" when !ok. */
+  text: string;
+  error?: string;
+  usage?: LlmUsage;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Submit all requests as one Message Batch, poll to completion, and collect
+ * results keyed by custom_id. Each succeeded result's usage is logged to
+ * llm_calls at the batch (0.5x) rate and surfaced via `onUsage`.
+ *
+ * Poll cadence is coarse (batches take minutes, not seconds); this is only ever
+ * called from the nightly top-up job, never a request handler.
+ */
+export async function runBatch(
+  requests: BatchRequest[],
+  opts: {
+    pollMs?: number;
+    /** Called after each poll with the batch's request_counts, for CLI progress. */
+    onPoll?: (counts: { processing: number; succeeded: number; errored: number; canceled: number; expired: number }) => void;
+    onUsage?: (usage: LlmUsage) => void;
+  } = {},
+): Promise<Map<string, BatchItemResult>> {
+  const out = new Map<string, BatchItemResult>();
+  if (requests.length === 0) return out;
+
+  const byId = new Map(requests.map((r) => [r.customId, r]));
+  const batch = await anthropic().messages.batches.create({
+    requests: requests.map((r) => ({ custom_id: r.customId, params: r.params })),
+  });
+
+  const pollMs = opts.pollMs ?? 15_000;
+  let status = batch.processing_status;
+  while (status !== "ended") {
+    await sleep(pollMs);
+    const fresh = await anthropic().messages.batches.retrieve(batch.id);
+    status = fresh.processing_status;
+    opts.onPoll?.(fresh.request_counts);
+  }
+
+  const results = await anthropic().messages.batches.results(batch.id);
+  for await (const entry of results) {
+    const req = byId.get(entry.custom_id);
+    if (entry.result.type === "succeeded") {
+      const message = entry.result.message;
+      const usage: LlmUsage = {
+        model: (req?.params.model as ModelId) ?? MODELS.haiku,
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+        cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+        cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
+        costUsd:
+          estimateCostUsd(
+            (req?.params.model as ModelId) ?? MODELS.haiku,
+            message.usage.input_tokens,
+            message.usage.output_tokens,
+            message.usage.cache_read_input_tokens ?? 0,
+            message.usage.cache_creation_input_tokens ?? 0,
+          ) * BATCH_DISCOUNT,
+      };
+      opts.onUsage?.(usage);
+      if (req) {
+        await recordLlmCall({
+          model: usage.model,
+          purpose: req.purpose,
+          userId: req.userId,
+          inputTokens: usage.inputTokens,
+          outputTokens: usage.outputTokens,
+          cacheReadTokens: usage.cacheReadTokens,
+          cacheWriteTokens: usage.cacheWriteTokens,
+          batch: true,
+        });
+      }
+      const refused = message.stop_reason === "refusal";
+      out.set(entry.custom_id, {
+        customId: entry.custom_id,
+        ok: !refused,
+        text: refused ? "" : messageText(message),
+        error: refused ? "model refused" : undefined,
+        usage,
+      });
+    } else {
+      const err =
+        entry.result.type === "errored"
+          ? entry.result.error.error?.message ?? "errored"
+          : entry.result.type; // canceled | expired
+      out.set(entry.custom_id, { customId: entry.custom_id, ok: false, text: "", error: err });
+    }
+  }
+  return out;
 }
 
 /**

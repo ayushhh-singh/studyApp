@@ -1,12 +1,15 @@
 import { NavLink } from "react-router";
 import { useTranslation } from "react-i18next";
-import { NAV_ITEMS } from "@/lib/nav";
+import { visibleNav } from "@/lib/nav";
 import { useLocale } from "@/hooks/use-locale";
+import { useAdminStatus } from "@/hooks/use-review";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
   const { t } = useTranslation();
   const locale = useLocale();
+  const { data: admin } = useAdminStatus();
+  const navItems = visibleNav(admin?.admin_mode ?? false);
 
   return (
     <nav
@@ -17,7 +20,7 @@ export function Sidebar() {
         <span className="font-display text-lg text-sidebar-foreground">प्रयासUP</span>
       </div>
       <div className="flex flex-1 flex-col gap-1">
-        {NAV_ITEMS.map((item) => (
+        {navItems.map((item) => (
           <NavLink
             key={item.id}
             to={`/${locale}/${item.to}`}

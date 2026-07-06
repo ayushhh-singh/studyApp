@@ -5,7 +5,8 @@ import { useNavigate } from "react-router";
 import type { SyllabusNode } from "@prayasup/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useSyllabusTree } from "@/hooks/use-syllabus-tree";
-import { NAV_ITEMS } from "@/lib/nav";
+import { useAdminStatus } from "@/hooks/use-review";
+import { visibleNav } from "@/lib/nav";
 import { useCommandPaletteStore } from "@/stores/command-palette-store";
 
 const GROUP_HEADING_CLASS =
@@ -26,6 +27,8 @@ export function CommandPalette() {
   const locale = useLocale();
   const navigate = useNavigate();
   const { data: syllabus } = useSyllabusTree();
+  const { data: admin } = useAdminStatus();
+  const navItems = visibleNav(admin?.admin_mode ?? false);
 
   const syllabusResults = useMemo(
     // depth 0 rows are paper roots, not real topics — surfaced via the Learn
@@ -67,7 +70,7 @@ export function CommandPalette() {
           {t("CommandPalette.empty")}
         </CommandEmpty>
         <CommandGroup heading={t("CommandPalette.navigate")} className={GROUP_HEADING_CLASS}>
-          {NAV_ITEMS.map((item) => (
+          {navItems.map((item) => (
             <CommandItem
               key={item.id}
               value={`${item.id} ${t(item.labelKey)}`}

@@ -10,6 +10,9 @@
 import { MODEL_PRICING, costFromPriceSet, type ModelId } from "../src/lib/models.js";
 import { supabase } from "../src/lib/supabase.js";
 
+/** Message Batches API discount — batch rows carry meta.batch=true and are priced at 0.5x. */
+const BATCH_DISCOUNT = 0.5;
+
 interface LlmCallRow {
   purpose: string;
   model: string;
@@ -17,12 +20,14 @@ interface LlmCallRow {
   output_tokens: number;
   cache_read_tokens: number;
   cache_write_tokens: number;
+  meta: { batch?: boolean } | null;
   created_at: string;
 }
 
 interface Bucket {
   purpose: string;
   model: string;
+  batch: boolean;
   calls: number;
   callsWithCacheHit: number;
   inputTokens: number;
@@ -57,7 +62,7 @@ async function main(): Promise<void> {
 
   const { data, error } = await supabase()
     .from("llm_calls")
-    .select("purpose, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, created_at")
+    .select("purpose, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta, created_at")
     .gte("created_at", since.toISOString());
   if (error) throw new Error(`llm_calls query failed: ${error.message}`);
   const rows = (data ?? []) as unknown as LlmCallRow[];
@@ -71,13 +76,15 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Group by (purpose, model).
+  // Group by (purpose, model, batch) — batch rows price at 0.5x.
   const buckets = new Map<string, Bucket>();
   for (const r of rows) {
-    const key = `${r.purpose}::${r.model}`;
+    const isBatch = !!r.meta?.batch;
+    const key = `${r.purpose}::${r.model}::${isBatch ? "batch" : "sync"}`;
     const b = buckets.get(key) ?? {
       purpose: r.purpose,
       model: r.model,
+      batch: isBatch,
       calls: 0,
       callsWithCacheHit: 0,
       inputTokens: 0,
@@ -119,20 +126,16 @@ async function main(): Promise<void> {
       continue;
     }
     const schedule = MODEL_PRICING[b.model];
-    const costIntro = costFromPriceSet(schedule.intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens);
-    const costStandard = costFromPriceSet(
-      schedule.standard,
-      b.inputTokens,
-      b.outputTokens,
-      b.cacheReadTokens,
-      b.cacheWriteTokens,
-    );
+    const disc = b.batch ? BATCH_DISCOUNT : 1;
+    const costIntro = costFromPriceSet(schedule.intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
+    const costStandard =
+      costFromPriceSet(schedule.standard, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
     totalIntro += costIntro;
     totalStandard += costStandard;
 
     console.log(
       [
-        b.purpose.padEnd(24),
+        (b.batch ? `${b.purpose}*` : b.purpose).padEnd(24),
         b.model.padEnd(18),
         String(b.calls).padStart(7),
         fmtPct(b.callsWithCacheHit / b.calls).padStart(10),
@@ -161,6 +164,7 @@ async function main(): Promise<void> {
   );
   const jumpPct = totalIntro > 0 ? ((totalStandard - totalIntro) / totalIntro) * 100 : 0;
   console.log(`\nStandard pricing would cost ${jumpPct.toFixed(0)}% more than intro pricing for this window's usage.`);
+  if (sorted.some((b) => b.batch)) console.log("(* = Message-Batches API rows, priced at 0.5x.)");
 
   // Cost per evaluation: total answer_eval_* cost / number of real (non-replayed)
   // evaluation runs — each run calls answer_eval_analysis exactly once.
@@ -168,7 +172,9 @@ async function main(): Promise<void> {
   const evalCostIntro = evalPurposes.reduce((sum, b) => {
     if (!isModelId(b.model)) return sum;
     return (
-      sum + costFromPriceSet(MODEL_PRICING[b.model].intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens)
+      sum +
+      costFromPriceSet(MODEL_PRICING[b.model].intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) *
+        (b.batch ? BATCH_DISCOUNT : 1)
     );
   }, 0);
   const analysisCalls = sorted.find((b) => b.purpose === "answer_eval_analysis")?.calls ?? 0;
@@ -187,7 +193,9 @@ async function main(): Promise<void> {
   const caCostIntro = caPurposes.reduce((sum, b) => {
     if (!isModelId(b.model)) return sum;
     return (
-      sum + costFromPriceSet(MODEL_PRICING[b.model].intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens)
+      sum +
+      costFromPriceSet(MODEL_PRICING[b.model].intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) *
+        (b.batch ? BATCH_DISCOUNT : 1)
     );
   }, 0);
   const caDays = new Set(rows.filter((r) => r.purpose.startsWith("ca_")).map((r) => r.created_at.slice(0, 10))).size;
@@ -198,6 +206,51 @@ async function main(): Promise<void> {
         } with CA activity)`
       : "Cost per CA run: no current-affairs activity in this window.",
   );
+
+  // Cost per ACCEPTED generated question, from generation_batches (the
+  // authoritative per-run cost + acceptance tally; this already reflects the
+  // batch discount for nightly runs). Targets: ~₹1.5 sync, ~₹0.9 batch.
+  const { data: gbRows, error: gbErr } = await supabase()
+    .from("generation_batches")
+    .select("kind, requested_count, accepted_count, cost_usd, meta, created_at")
+    .gte("created_at", since.toISOString());
+  if (gbErr) {
+    console.log(`\n(generation_batches unavailable: ${gbErr.message})`);
+  } else if ((gbRows ?? []).length === 0) {
+    console.log("\nGeneration (qgen): no runs in this window.");
+  } else {
+    console.log("\n" + "=".repeat(100));
+    console.log("Question generation (qgen)");
+    console.log("=".repeat(100));
+    const agg = (rows: typeof gbRows) => {
+      let requested = 0;
+      let accepted = 0;
+      let cost = 0;
+      for (const r of rows) {
+        requested += (r as { requested_count: number }).requested_count;
+        accepted += (r as { accepted_count: number }).accepted_count;
+        cost += Number((r as { cost_usd: number }).cost_usd);
+      }
+      return { runs: rows.length, requested, accepted, cost };
+    };
+    const USD_TO_INR = 86;
+    const line = (label: string, a: ReturnType<typeof agg>) => {
+      const perAccepted = a.accepted ? a.cost / a.accepted : 0;
+      const rate = a.requested ? Math.round((a.accepted / a.requested) * 100) : 0;
+      console.log(
+        `  ${label.padEnd(20)} runs=${String(a.runs).padStart(3)} requested=${String(a.requested).padStart(4)} ` +
+          `accepted=${String(a.accepted).padStart(4)} (${rate}%)  cost=${fmtUsd(a.cost)}  per-accepted=${fmtUsd(
+            perAccepted,
+          )} (~₹${(perAccepted * USD_TO_INR).toFixed(2)})`,
+      );
+    };
+    const sync = (gbRows ?? []).filter((r) => (r.meta as { mode?: string } | null)?.mode !== "batch");
+    const batch = (gbRows ?? []).filter((r) => (r.meta as { mode?: string } | null)?.mode === "batch");
+    line("ALL", agg(gbRows ?? []));
+    if (sync.length) line("sync", agg(sync));
+    if (batch.length) line("batch", agg(batch));
+    console.log("  Targets: ~₹1.5 per accepted (sync), ~₹0.9 (batch).");
+  }
 }
 
 main().catch((err) => {

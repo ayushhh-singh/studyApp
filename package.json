@@ -14,7 +14,9 @@
     "ingest:verify": "pnpm --filter api ingest:verify",
     "eval:answers": "pnpm --filter api eval:answers",
     "cost:report": "pnpm --filter api cost:report",
-    "ca:run": "pnpm --filter api ca:run"
+    "ca:run": "pnpm --filter api ca:run",
+    "qgen": "pnpm --filter api qgen",
+    "qgen:topup": "pnpm --filter api qgen:topup"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

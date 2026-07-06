@@ -121,8 +121,11 @@ async function insertMcqsForItem(opts: {
     word_limit: null,
     marks: 2,
     // Always false — CA-generated MCQs are review-gated, never auto-published
-    // regardless of bilingual completeness (unlike PYQ ingestion).
+    // regardless of bilingual completeness (unlike PYQ ingestion). They enter
+    // the Review Queue as needs_review; approving one there publishes it
+    // (migration 0035 / lib/question-visibility.ts).
     is_published: false,
+    review_state: "needs_review" as const,
   }));
 
   const { data, error } = await supabase().from("questions").insert(rows).select("id");

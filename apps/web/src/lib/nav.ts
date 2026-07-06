@@ -5,6 +5,7 @@ import {
   NotebookPen,
   Newspaper,
   Brain,
+  ShieldCheck,
   User,
   type LucideIcon,
 } from "lucide-react";
@@ -16,6 +17,8 @@ export interface NavItem {
   icon: LucideIcon;
   flagship?: boolean;
   mobilePrimary?: boolean;
+  /** Only shown when ADMIN_MODE is on (the question Review Queue). */
+  adminOnly?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -32,8 +35,14 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "practice", to: "practice", labelKey: "Nav.practice", icon: PenSquare, mobilePrimary: true },
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain },
+  { id: "review", to: "review", labelKey: "Nav.review", icon: ShieldCheck, adminOnly: true },
   { id: "profile", to: "profile", labelKey: "Nav.profile", icon: User },
 ];
+
+/** NAV_ITEMS filtered by admin visibility — pass the resolved ADMIN_MODE flag. */
+export function visibleNav(adminMode: boolean): NavItem[] {
+  return NAV_ITEMS.filter((item) => !item.adminOnly || adminMode);
+}
 
 export const MOBILE_PRIMARY_NAV = NAV_ITEMS.filter((item) => item.mobilePrimary);
 export const MOBILE_MORE_NAV = NAV_ITEMS.filter((item) => !item.mobilePrimary);

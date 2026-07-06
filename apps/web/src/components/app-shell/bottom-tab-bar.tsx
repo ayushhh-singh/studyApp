@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { useLocale } from "@/hooks/use-locale";
+import { useAdminStatus } from "@/hooks/use-review";
 import { MOBILE_MORE_NAV, MOBILE_PRIMARY_NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
@@ -12,8 +13,10 @@ export function BottomTabBar() {
   const locale = useLocale();
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
+  const { data: admin } = useAdminStatus();
+  const moreItems = MOBILE_MORE_NAV.filter((item) => !item.adminOnly || admin?.admin_mode);
 
-  const moreActive = MOBILE_MORE_NAV.some((item) => location.pathname.includes(`/${item.to}`));
+  const moreActive = moreItems.some((item) => location.pathname.includes(`/${item.to}`));
 
   return (
     <nav
@@ -50,7 +53,7 @@ export function BottomTabBar() {
         </SheetTrigger>
         <SheetContent side="bottom" title={t("Nav.more")}>
           <div className="flex flex-col gap-1">
-            {MOBILE_MORE_NAV.map((item) => (
+            {moreItems.map((item) => (
               <NavLink
                 key={item.id}
                 to={`/${locale}/${item.to}`}

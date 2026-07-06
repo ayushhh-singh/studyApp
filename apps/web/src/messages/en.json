@@ -8,7 +8,8 @@
     "revision": "Revision",
     "profile": "Profile",
     "more": "More",
-    "sectionsLabel": "Sections"
+    "sectionsLabel": "Sections",
+    "review": "Review"
   },
   "TopBar": {
     "search": "Search",
@@ -379,5 +380,56 @@
     "save": "Save changes",
     "saving": "Saving…",
     "saved": "Saved."
+  },
+  "Review": {
+    "title": "Review Queue",
+    "description": "Approve, edit, or reject AI-generated questions before they go live.",
+    "disabledTitle": "Admin mode is off",
+    "disabledDescription": "Set ADMIN_MODE=true in apps/api/.env and restart the API to review generated questions.",
+    "emptyTitle": "Queue is clear",
+    "emptyDescription": "Nothing is waiting for review in this tab. Generate more with pnpm qgen.",
+    "tab": {
+      "generated_mcq": "Generated MCQs",
+      "generated_descriptive": "Generated Mains",
+      "machine_translated": "Machine-translated",
+      "current_affairs": "Current Affairs"
+    },
+    "difficulty": {
+      "easy": "Easy",
+      "medium": "Medium",
+      "hard": "Hard"
+    },
+    "willPublish": "Will publish",
+    "wontPublish": "Incomplete — won’t publish",
+    "question": "Question",
+    "explanation": "Explanation",
+    "markingPoints": "Marking points",
+    "marks": "{{n}} marks",
+    "wordLimit": "{{n}} words",
+    "blindVerify": "Blind verify",
+    "verifyPicked": "Model picked {{key}}",
+    "criticNotes": "Critic notes",
+    "similarHits": "Similar existing questions",
+    "bulkApprove": "Approve {{n}} high-confidence",
+    "position": "Card {{current}} of {{total}}",
+    "prev": "Previous card",
+    "next": "Next card",
+    "approve": "Approve",
+    "edit": "Edit",
+    "reject": "Reject",
+    "keyboardHint": "j / k to move · a approve · e edit · r reject",
+    "footerNote": "Approving publishes a question through the same bilingual gate as PYQ ingestion.",
+    "stemEn": "Question (English)",
+    "stemHi": "Question (Hindi)",
+    "options": "Options (select the correct one)",
+    "markCorrect": "Mark {{key}} correct",
+    "explanationEn": "Explanation (English)",
+    "explanationHi": "Explanation (Hindi)",
+    "difficultyLabel": "Difficulty",
+    "marksLabel": "Marks",
+    "wordLimitLabel": "Word limit",
+    "saveApprove": "Save & approve",
+    "saveDraft": "Save draft",
+    "cancel": "Cancel"
   }
 }
