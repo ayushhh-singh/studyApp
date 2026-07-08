@@ -684,5 +684,31 @@
     "pitchShort": "सीसैट पर घड़ी को हराएँ।",
     "chipTimer": "10 प्र · 5 मिनट",
     "chipBest": "अपना सर्वश्रेष्ठ हराएँ"
+  },
+  "Ghost": {
+    "title": "घोस्ट बैटल",
+    "raceThisAgain": "इसे फिर से दौड़ें",
+    "raceThisAgainHint": "इस सेट को अतीत-के-आप के विरुद्ध दोबारा खेलें और देखें कि आप तेज़ हुए या नहीं।",
+    "marker": "अतीत-के-आप: प्र{{n}}/{{total}}",
+    "markerTitle": "पिछली बार इस समय अतीत-के-आप कहाँ थे",
+    "vsPastYou": "अतीत-के-आप के मुक़ाबले",
+    "faster": "{{time}} तेज़",
+    "slower": "{{time}} धीमे",
+    "tied": "बराबरी",
+    "accuracyLine": "सटीकता {{you}} बनाम {{past}} / {{total}}",
+    "timeLine": "समय {{you}} बनाम {{past}}",
+    "colQ": "प्र",
+    "colYou": "आप",
+    "colPast": "अतीत-के-आप",
+    "colDelta": "Δ",
+    "colResult": "परिणाम",
+    "correct": "सही",
+    "incorrect": "ग़लत",
+    "newlyRight": "सुधरा",
+    "raceAgain": "फिर दौड़ें",
+    "viewResult": "परिणाम पर लौटें",
+    "masteryNote": "इस दौड़ से आपकी दक्षता अपडेट हो गई है।",
+    "errorTitle": "दौड़ शुरू नहीं हो सकी",
+    "errorDescription": "यह प्रयास अभी दोबारा नहीं दौड़ा जा सकता।"
   }
 }

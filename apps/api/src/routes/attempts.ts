@@ -8,6 +8,7 @@ import {
   attemptResultResponseSchema,
   attemptStartBodySchema,
   attemptSubmitResponseSchema,
+  ghostStartResponseSchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -22,6 +23,7 @@ import {
   submitAttempt,
   upsertAttemptAnswers,
 } from "../services/attempts.js";
+import { startGhostBattle } from "../services/ghost.js";
 
 export const attemptsRouter = Router();
 attemptsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -62,6 +64,16 @@ attemptsRouter.get(
     const { id } = parse(attemptIdParams, req.params);
     const result = await getAttemptResult(devUserId(), id);
     res.json(attemptResultResponseSchema.parse({ data: result, error: null }));
+  }),
+);
+
+/** Ghost Battle — replay this completed attempt's question set, racing past-you. */
+attemptsRouter.post(
+  "/attempts/:id/ghost",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(attemptIdParams, req.params);
+    const start = await startGhostBattle(devUserId(), id);
+    res.status(201).json(ghostStartResponseSchema.parse({ data: start, error: null }));
   }),
 );
 

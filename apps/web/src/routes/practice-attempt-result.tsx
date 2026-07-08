@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { FileQuestion } from "lucide-react";
+import { FileQuestion, Ghost } from "lucide-react";
 import type { BilingualText } from "@prayasup/shared";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -91,6 +91,18 @@ export function Component() {
       />
 
       <ResultScoreHero result={result} />
+
+      {result.test && result.attempted_count > 0 && (
+        <div className="flex flex-col items-center gap-1.5">
+          <Button asChild variant="outline">
+            <Link to={`/${locale}/practice/ghost/${attemptId}`}>
+              <Ghost aria-hidden />
+              {t("Ghost.raceThisAgain")}
+            </Link>
+          </Button>
+          <span className="text-xs text-muted-foreground">{t("Ghost.raceThisAgainHint")}</span>
+        </div>
+      )}
 
       {result.test?.kind === "mock" && <CutoffComparison result={result} />}
 

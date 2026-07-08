@@ -684,5 +684,31 @@
     "pitchShort": "Beat the clock on CSAT.",
     "chipTimer": "10 Q · 5 min",
     "chipBest": "Beat your best"
+  },
+  "Ghost": {
+    "title": "Ghost Battle",
+    "raceThisAgain": "Race this again",
+    "raceThisAgainHint": "Replay this set against past-you and see if you've sped up.",
+    "marker": "Past you: Q{{n}}/{{total}}",
+    "markerTitle": "Where past-you was at this point last time",
+    "vsPastYou": "vs. past you",
+    "faster": "{{time}} faster",
+    "slower": "{{time}} slower",
+    "tied": "Dead heat",
+    "accuracyLine": "Accuracy {{you}} vs {{past}} of {{total}}",
+    "timeLine": "Time {{you}} vs {{past}}",
+    "colQ": "Q",
+    "colYou": "You",
+    "colPast": "Past you",
+    "colDelta": "Δ",
+    "colResult": "Result",
+    "correct": "Correct",
+    "incorrect": "Incorrect",
+    "newlyRight": "fixed",
+    "raceAgain": "Race again",
+    "viewResult": "Back to result",
+    "masteryNote": "Your mastery has been updated from this run.",
+    "errorTitle": "Couldn't start the race",
+    "errorDescription": "This attempt can't be raced right now."
   }
 }

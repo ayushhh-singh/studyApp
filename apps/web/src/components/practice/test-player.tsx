@@ -10,6 +10,7 @@ import { CountdownTimer } from "./countdown-timer";
 import { QuestionPalette, type QuestionStatus } from "./question-palette";
 import { SubmitConfirmDialog } from "./submit-confirm-dialog";
 import { ComboFlame } from "./combo-flame";
+import { GhostMarker } from "./ghost-marker";
 import { useAttemptAnswers } from "@/hooks/use-attempt-answers";
 import { useSubmitAttempt } from "@/hooks/use-attempt";
 import { useCombo } from "@/hooks/use-combo";
@@ -54,6 +55,7 @@ export function TestPlayer({
   onExit,
   bigTimer = false,
   onComboBest,
+  ghost,
 }: {
   test: TestDetail;
   attemptId: string;
@@ -73,6 +75,8 @@ export function TestPlayer({
   bigTimer?: boolean;
   /** Reports the run's best combo as it grows (for the Time Attack end screen). */
   onComboBest?: (best: number) => void;
+  /** Ghost Battle: past-you's cumulative per-question seconds, for the live marker. */
+  ghost?: { cumulativeSeconds: number[] };
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -218,6 +222,14 @@ export function TestPlayer({
         </Button>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{test.title_i18n[displayLocale]}</span>
         <div className="flex shrink-0 items-center gap-2">
+          {ghost && (
+            <GhostMarker
+              startedAt={startedAt}
+              cumulativeSeconds={ghost.cumulativeSeconds}
+              total={test.questions.length}
+              yourIndex={currentIndex}
+            />
+          )}
           <ComboFlame combo={combo} />
           <Button
             type="button"

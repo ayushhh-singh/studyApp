@@ -63,6 +63,8 @@ export const router = createBrowserRouter([
       { path: "practice/test/:testId", lazy: () => import("@/routes/practice-test") },
       // Full-screen CSAT Time Attack (own chrome, instant feedback + big timer).
       { path: "practice/time-attack", lazy: () => import("@/routes/practice-time-attack") },
+      // Full-screen Ghost Battle — replay a completed attempt racing past-you.
+      { path: "practice/ghost/:attemptId", lazy: () => import("@/routes/practice-ghost") },
       // Same rationale as the test player — a focused full-screen review flow.
       { path: "revision/session", lazy: () => import("@/routes/revision-session") },
       // The monthly magazine is a print-styled document (own header + print
