@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { Zap } from "lucide-react";
+import { Sparkles, Zap } from "lucide-react";
 import type { DrillType } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
@@ -48,7 +48,7 @@ export function MicroDrillsCard() {
                 {t("MicroDrill.weakestDimension", { dimension: t(DIMENSION_LABEL_KEYS[recommendation.weakest_dimension]) })}
               </p>
             )}
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {DRILL_TYPES.map((type) => {
                 const isRecommended = recommendation.recommended_type === type;
                 return (
@@ -58,14 +58,10 @@ export function MicroDrillsCard() {
                     variant={isRecommended ? "default" : "outline"}
                     disabled={createDrill.isPending}
                     onClick={() => start(type)}
-                    className="gap-2"
+                    className="gap-1.5"
                   >
+                    {isRecommended && <Sparkles className="size-4" aria-hidden />}
                     {type === "intro" ? t("MicroDrill.startIntro") : t("MicroDrill.startConclusion")}
-                    {isRecommended && (
-                      <span className="rounded-full bg-marigold/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-marigold-foreground">
-                        {t("MicroDrill.recommended")}
-                      </span>
-                    )}
                   </Button>
                 );
               })}

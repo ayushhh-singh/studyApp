@@ -55,59 +55,63 @@ export function SettingsCard() {
 
   return (
     <SectionCard>
-      <div className="flex flex-col gap-5 sm:max-w-md">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium">{t("Profile.settingsLanguage")}</span>
-          <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
-            {SUPPORTED_LOCALES.map((l) => (
-              <button
-                key={l}
-                type="button"
-                onClick={() => handleLocaleSwitch(l)}
-                aria-pressed={l === locale}
-                className={cn(
-                  "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                )}
-              >
-                {l}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-medium">{t("Profile.settingsTheme")}</span>
-          <Button type="button" variant="outline" size="sm" onClick={toggleTheme} className="gap-2">
-            {theme === "dark" ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
-            {theme === "dark" ? t("Profile.settingsThemeLight") : t("Profile.settingsThemeDark")}
-          </Button>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          <div className="flex items-center justify-between gap-3">
-            <div className="flex flex-col gap-0.5">
-              <span className="text-sm font-medium">{t("Profile.settingsExport")}</span>
-              <span className="text-xs text-muted-foreground">{t("Profile.settingsExportHint")}</span>
+      <div className="grid grid-cols-1 gap-x-8 gap-y-5 md:grid-cols-2">
+        <div className="flex flex-col gap-5">
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <span className="text-sm font-medium">{t("Profile.settingsLanguage")}</span>
+            <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
+              {SUPPORTED_LOCALES.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => handleLocaleSwitch(l)}
+                  aria-pressed={l === locale}
+                  className={cn(
+                    "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
             </div>
-            <Button type="button" variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="gap-2">
-              <Download className="size-4" aria-hidden />
-              {exporting ? t("Profile.settingsExporting") : t("Profile.settingsExportButton")}
+          </div>
+
+          <div className="flex items-center justify-between gap-3 rounded-lg border border-border p-3">
+            <span className="text-sm font-medium">{t("Profile.settingsTheme")}</span>
+            <Button type="button" variant="outline" size="sm" onClick={toggleTheme} className="gap-2">
+              {theme === "dark" ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
+              {theme === "dark" ? t("Profile.settingsThemeLight") : t("Profile.settingsThemeDark")}
             </Button>
           </div>
-          {exportError && <p className="text-sm text-destructive">{exportError}</p>}
         </div>
 
-        <div className="flex flex-col gap-2 rounded-lg border border-coral/30 bg-coral/5 p-3">
-          <span className="flex items-center gap-1.5 text-sm font-semibold text-coral-foreground">
-            <ShieldAlert className="size-4" aria-hidden />
-            {t("Profile.dangerZoneTitle")}
-          </span>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="text-xs text-muted-foreground">{t("Profile.dangerZoneHint")}</span>
-            <Button type="button" variant="destructive" size="sm" disabled title={t("Profile.dangerZoneHint")}>
-              {t("Profile.deleteAccount")}
-            </Button>
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{t("Profile.settingsExport")}</span>
+                <span className="text-xs text-muted-foreground">{t("Profile.settingsExportHint")}</span>
+              </div>
+              <Button type="button" variant="outline" size="sm" onClick={handleExport} disabled={exporting} className="gap-2">
+                <Download className="size-4" aria-hidden />
+                {exporting ? t("Profile.settingsExporting") : t("Profile.settingsExportButton")}
+              </Button>
+            </div>
+            {exportError && <p className="text-sm text-destructive">{exportError}</p>}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-coral/30 bg-coral/5 p-3">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-coral-foreground">
+              <ShieldAlert className="size-4" aria-hidden />
+              {t("Profile.dangerZoneTitle")}
+            </span>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-muted-foreground">{t("Profile.dangerZoneHint")}</span>
+              <Button type="button" variant="destructive" size="sm" disabled title={t("Profile.dangerZoneHint")}>
+                {t("Profile.deleteAccount")}
+              </Button>
+            </div>
           </div>
         </div>
       </div>

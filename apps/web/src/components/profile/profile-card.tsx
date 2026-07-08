@@ -1,40 +1,30 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarClock, User } from "lucide-react";
-import type { Locale, Profile, ProfileUpdateBody } from "@prayasup/shared";
+import { User } from "lucide-react";
+import type { DashboardNextExam, Locale, Profile, ProfileUpdateBody } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
-import { StatCard } from "@/components/ui-x/stat-card";
-import { StatCardSkeleton } from "@/components/ui-x/skeleton";
+import { StreakFlame } from "@/components/ui-x/streak-flame";
+import { FreezePips } from "@/components/ui-x/freeze-pips";
+import { ExamCountdownChip } from "@/components/dashboard/exam-countdown-chip";
 import { Button } from "@/components/ui/button";
-import { useLocale } from "@/hooks/use-locale";
 import { useUpdateProfile } from "@/hooks/use-profile";
 import { cn } from "@/lib/utils";
 
 const INPUT_CLASS =
   "min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-function ExamCountdown({ profile }: { profile: Profile }) {
-  const { t } = useTranslation();
-  const locale = useLocale();
-
-  if (profile.days_to_exam === null || !profile.next_exam_label_i18n) {
-    return (
-      <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-border bg-muted px-3 text-sm text-muted-foreground">
-        <CalendarClock className="size-4" aria-hidden />
-        {t("Dashboard.noExamDate")}
-      </span>
-    );
-  }
-
-  const title = profile.next_exam_label_i18n[locale];
-  return (
-    <span className="inline-flex h-9 items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 text-sm font-semibold text-primary">
-      <CalendarClock className="size-4" aria-hidden />
-      {profile.days_to_exam === 0
-        ? t("Dashboard.examToday", { title })
-        : t("Dashboard.examCountdown", { count: profile.days_to_exam, title })}
-    </span>
-  );
+/** Profile carries a flatter {days_to_exam, next_exam_label_i18n} shape than the
+ * dashboard's DashboardNextExam — adapt it so both pages share one chip component
+ * instead of two near-identical countdown renderers drifting apart over time. */
+function toDashboardNextExam(profile: Profile): DashboardNextExam {
+  if (profile.days_to_exam === null || !profile.next_exam_label_i18n) return null;
+  return {
+    exam_stage: "prelims",
+    title_i18n: profile.next_exam_label_i18n,
+    exam_date: "",
+    days_until: profile.days_to_exam,
+    is_tentative: false,
+  };
 }
 
 export function ProfileCard({ profile, isLoading }: { profile: Profile | undefined; isLoading: boolean }) {
@@ -73,16 +63,18 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
               <span className="text-lg font-semibold">
                 {profile?.display_name || t("Profile.namelessFallback")}
               </span>
-              <span className="text-xs text-muted-foreground">
-                {profile
-                  ? t("Profile.targetYearInline", { year: profile.target_exam_year ?? "—" })
-                  : null}
-              </span>
+              {profile?.target_exam_year && (
+                <span className="text-xs text-muted-foreground">
+                  {t("Profile.targetYearInline", { year: profile.target_exam_year })}
+                </span>
+              )}
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            {profile && <ExamCountdown profile={profile} />}
-            {profile && (
+          {profile && (
+            <div className="flex flex-wrap items-center gap-2">
+              <StreakFlame count={profile.streak_count} />
+              <FreezePips count={profile.streak_freezes} />
+              <ExamCountdownChip exam={toDashboardNextExam(profile)} />
               <span
                 className={cn(
                   "inline-flex h-9 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wide",
@@ -93,64 +85,45 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
               >
                 {t(profile.plan === "pro" ? "Profile.planPro" : "Profile.planFree")}
               </span>
-            )}
-          </div>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3 sm:max-w-md">
-          {isLoading || !profile ? (
-            <>
-              <StatCardSkeleton />
-              <StatCardSkeleton />
-            </>
-          ) : (
-            <>
-              <StatCard label={t("Profile.plan")} value={profile.plan.toUpperCase()} icon={User} />
-              <StatCard
-                label={t("Profile.streak")}
-                value={profile.streak_count}
-                hint={
-                  profile.streak_freezes > 0
-                    ? t("Dashboard.freezesBanked", { count: profile.streak_freezes })
-                    : undefined
-                }
-              />
-            </>
+            </div>
           )}
+          {isLoading && !profile && <div className="h-9 w-64 animate-pulse rounded-full bg-muted" />}
         </div>
 
-        <form className="flex flex-col gap-4 border-t border-border pt-5 sm:max-w-md" onSubmit={handleSubmit}>
-          <h3 className="text-sm font-semibold">{t("Profile.settings")}</h3>
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            {t("Profile.displayName")}
-            <input
-              className={INPUT_CLASS}
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              placeholder={t("Profile.displayNamePlaceholder")}
-            />
-          </label>
+        <form className="flex flex-col gap-4 border-t border-border pt-5" onSubmit={handleSubmit}>
+          <h3 className="text-sm font-semibold">{t("Profile.editProfileTitle")}</h3>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {t("Profile.displayName")}
+              <input
+                className={INPUT_CLASS}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder={t("Profile.displayNamePlaceholder")}
+              />
+            </label>
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            {t("Profile.targetYear")}
-            <input
-              className={INPUT_CLASS}
-              type="number"
-              min={2000}
-              max={2100}
-              value={targetYear}
-              onChange={(e) => setTargetYear(e.target.value)}
-              placeholder={t("Profile.targetYearPlaceholder")}
-            />
-          </label>
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {t("Profile.targetYear")}
+              <input
+                className={INPUT_CLASS}
+                type="number"
+                min={2000}
+                max={2100}
+                value={targetYear}
+                onChange={(e) => setTargetYear(e.target.value)}
+                placeholder={t("Profile.targetYearPlaceholder")}
+              />
+            </label>
 
-          <label className="flex flex-col gap-1.5 text-sm font-medium">
-            {t("Profile.medium")}
-            <select className={INPUT_CLASS} value={medium} onChange={(e) => setMedium(e.target.value as Locale)}>
-              <option value="hi">{t("Profile.mediumHi")}</option>
-              <option value="en">{t("Profile.mediumEn")}</option>
-            </select>
-          </label>
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {t("Profile.medium")}
+              <select className={INPUT_CLASS} value={medium} onChange={(e) => setMedium(e.target.value as Locale)}>
+                <option value="hi">{t("Profile.mediumHi")}</option>
+                <option value="en">{t("Profile.mediumEn")}</option>
+              </select>
+            </label>
+          </div>
 
           <Button type="submit" disabled={updateProfile.isPending} className="self-start">
             {updateProfile.isPending ? t("Profile.saving") : t("Profile.save")}
