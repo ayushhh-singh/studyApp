@@ -35,7 +35,9 @@ export function Component() {
   useEffect(() => {
     if (!is404) {
       console.error("Route error boundary caught:", error);
-      void import("@/lib/sentry-capture").then((m) => m.captureException(error));
+      void import("@/lib/sentry-capture")
+        .then((m) => m.captureException(error))
+        .catch(() => {}); // e.g. a stale chunk hash after a deploy — never let error reporting itself throw an unhandled rejection
     }
   }, [error, is404]);
 

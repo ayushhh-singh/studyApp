@@ -44,13 +44,6 @@ export async function requestPushSubscription(): Promise<PushSubscriptionPayload
   };
 }
 
-export async function currentPushEndpoint(): Promise<string | null> {
-  if (!("serviceWorker" in navigator)) return null;
-  const registration = await navigator.serviceWorker.getRegistration();
-  const subscription = await registration?.pushManager.getSubscription();
-  return subscription?.endpoint ?? null;
-}
-
 export async function removePushSubscription(): Promise<string | null> {
   if (!("serviceWorker" in navigator)) return null;
   const registration = await navigator.serviceWorker.getRegistration();

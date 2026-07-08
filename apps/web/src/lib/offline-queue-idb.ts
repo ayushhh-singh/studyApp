@@ -31,20 +31,36 @@ export function createIdbOfflineQueue<T>(opts: {
   let status: QueueStatus = "idle";
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
   let activeFlush: Promise<void> | null = null;
-  const dbPromise = getDb(opts.dbName, opts.storeName);
+
+  // A single cached `openDB()` promise would, once rejected (a transient
+  // failure — e.g. Safari private-mode's historically strict IndexedDB
+  // quota), stay rejected forever: awaiting an already-settled promise always
+  // replays the same outcome, it never retries. That would permanently break
+  // this queue for the rest of the page's life after one bad open. Retrying
+  // lazily on the next call instead lets a transient failure self-heal.
+  let dbPromise: Promise<IDBPDatabase> | null = null;
+  function getDbSafe(): Promise<IDBPDatabase> {
+    if (!dbPromise) {
+      dbPromise = getDb(opts.dbName, opts.storeName).catch((err) => {
+        dbPromise = null;
+        throw err;
+      });
+    }
+    return dbPromise;
+  }
 
   async function readAll(): Promise<T[]> {
-    const db = await dbPromise;
+    const db = await getDbSafe();
     return db.getAll(opts.storeName);
   }
 
   async function put(item: T): Promise<void> {
-    const db = await dbPromise;
+    const db = await getDbSafe();
     await db.put(opts.storeName, item, opts.dedupeKey(item));
   }
 
   async function remove(key: string): Promise<void> {
-    const db = await dbPromise;
+    const db = await getDbSafe();
     await db.delete(opts.storeName, key);
   }
 
@@ -105,7 +121,13 @@ export function createIdbOfflineQueue<T>(opts: {
 
   return {
     enqueue(item) {
-      void put(item).then(() => scheduleFlush(0));
+      // put() rejecting (a storage failure, not a send failure) must not
+      // become an unhandled promise rejection — surface it the same way a
+      // send failure already does, via `status`, so the UI can at least show
+      // something didn't save instead of silently losing the item.
+      put(item)
+        .then(() => scheduleFlush(0))
+        .catch(() => setStatus("error"));
     },
     flushNow: flush,
     getStatus: () => status,

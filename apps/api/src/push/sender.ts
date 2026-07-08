@@ -61,11 +61,13 @@ export async function runPushSender(now: number = Date.now()): Promise<{ sent: n
   const pushedIds: string[] = [];
 
   for (const row of rows) {
-    pushedIds.push(row.id);
     const prefs = prefsByUser.get(row.user_id);
     const optedIn = prefs ? prefs[row.type] !== false : true;
     const subs = subsByUser.get(row.user_id) ?? [];
     if (!optedIn || subs.length === 0) {
+      // Nothing to retry here — there's no device to reach regardless of when
+      // this runs again, so this row is done.
+      pushedIds.push(row.id);
       skipped++;
       continue;
     }
@@ -77,11 +79,25 @@ export async function runPushSender(now: number = Date.now()): Promise<{ sent: n
       link: row.link,
       tag: row.type,
     };
+    // Only mark this row done if it reached at least one device — a
+    // transient send failure ("error": network blip, push service hiccup)
+    // must NOT be marked pushed_at, or it silently never retries. A "gone"
+    // subscription is pruned but still counts as "handled" for this row
+    // (nothing more to do with a dead endpoint); if every subscription for
+    // this user is gone, the row is left unmarked so it's revisited once
+    // they (re)subscribe on a new device before scheduled_for's IST-day nudge
+    // window closes.
+    let delivered = false;
     for (const sub of subs) {
       const result = await sendPush({ endpoint: sub.endpoint, p256dh: sub.p256dh, authKey: sub.auth_key }, payload);
-      if (result === "sent") sent++;
-      else if (result === "gone") goneSubscriptionIds.push(sub.id);
+      if (result === "sent") {
+        sent++;
+        delivered = true;
+      } else if (result === "gone") {
+        goneSubscriptionIds.push(sub.id);
+      }
     }
+    if (delivered) pushedIds.push(row.id);
   }
 
   await supabase()

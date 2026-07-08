@@ -1,6 +1,6 @@
 import type { PushPreferences, PushStatus, PushSubscribeBody } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError } from "../lib/http-error.js";
+import { badRequest, HttpError } from "../lib/http-error.js";
 
 const DEFAULT_PREFERENCES: PushPreferences = {
   quiz_ready: true,
@@ -8,7 +8,34 @@ const DEFAULT_PREFERENCES: PushPreferences = {
   srs_due: true,
 };
 
+const IPV4_LITERAL = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
+
+/**
+ * The sender job later feeds this endpoint straight into web-push, which
+ * makes a real outbound HTTP POST to it — an unvalidated `endpoint` from the
+ * client is an SSRF primitive (a malicious authenticated user could register
+ * an internal/metadata URL as their "push subscription" and let the hourly
+ * sender job probe it). Real push-service endpoints are always https:// on a
+ * public vendor domain, never a bare IP literal, so rejecting IP-literal
+ * hosts (which covers loopback/private/link-local/cloud-metadata addresses
+ * without needing a vendor-domain allowlist that could go stale) plus
+ * enforcing https closes the practical attack surface.
+ */
+function assertSafePushEndpoint(endpoint: string): void {
+  let url: URL;
+  try {
+    url = new URL(endpoint);
+  } catch {
+    throw badRequest("Invalid push endpoint");
+  }
+  if (url.protocol !== "https:") throw badRequest("Push endpoint must be https");
+  const host = url.hostname.toLowerCase();
+  if (host === "localhost" || host.endsWith(".localhost")) throw badRequest("Invalid push endpoint host");
+  if (IPV4_LITERAL.test(host) || host.includes(":")) throw badRequest("Invalid push endpoint host");
+}
+
 export async function subscribe(userId: string, body: PushSubscribeBody): Promise<void> {
+  assertSafePushEndpoint(body.endpoint);
   const { error } = await supabase()
     .from("push_subscriptions")
     .upsert(

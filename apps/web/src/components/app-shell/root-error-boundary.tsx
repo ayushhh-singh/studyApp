@@ -24,7 +24,9 @@ export class RootErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
     console.error("Root error boundary caught:", error, info);
-    void import("@/lib/sentry-capture").then((m) => m.captureException(error));
+    void import("@/lib/sentry-capture")
+      .then((m) => m.captureException(error))
+      .catch(() => {}); // e.g. a stale chunk hash after a deploy — never let error reporting itself throw an unhandled rejection
   }
 
   render() {

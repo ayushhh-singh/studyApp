@@ -40,35 +40,49 @@ function startStaticServer() {
   const server = http.createServer((req, res) => {
     const urlPath = decodeURIComponent(req.url.split("?")[0]);
     let filePath = path.join(DIST, urlPath);
+    // path.join normalizes ".." segments, so a request like "/../../etc/passwd"
+    // can resolve OUTSIDE dist/ — this server only ever talks to the Playwright
+    // instance below on localhost, not untrusted input, but it costs nothing
+    // to not model a path-traversal-shaped bug even in a throwaway build script.
+    if (!filePath.startsWith(DIST + path.sep) && filePath !== DIST) filePath = path.join(DIST, "index.html");
     if (!existsSync(filePath) || statSync(filePath).isDirectory()) filePath = path.join(DIST, "index.html");
     res.setHeader("Content-Type", MIME[path.extname(filePath)] ?? "application/octet-stream");
     createReadStream(filePath).pipe(res);
   });
-  return new Promise((resolve) => server.listen(PORT, () => resolve(server)));
+  return new Promise((resolve, reject) => {
+    server.on("error", reject);
+    server.listen(PORT, () => resolve(server));
+  });
 }
 
 const server = await startStaticServer();
-const browser = await chromium.launch();
-const page = await browser.newPage();
+let browser;
+try {
+  browser = await chromium.launch();
+  const page = await browser.newPage();
 
-for (const route of ROUTES) {
-  await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle" });
-  // The landing hero renders synchronously off i18n + auth-provider state
-  // (no data fetching), so networkidle is already past first render — this
-  // just guards against a slow CI runner's first paint.
-  await page.waitForSelector("h1", { timeout: 10_000 });
-  let html = await page.content();
-  // React Router's lazy-loading injects modulepreload hints for the CURRENT
-  // route's chunk with the page's full origin baked in (absolute, not
-  // relative) — harmless on the temp prerender server but a dead cross-origin
-  // preload once this file is deployed elsewhere, so rewrite back to root-relative.
-  html = html.replaceAll(`http://localhost:${PORT}`, "");
+  for (const route of ROUTES) {
+    await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle" });
+    // The landing hero renders synchronously off i18n + auth-provider state
+    // (no data fetching), so networkidle is already past first render — this
+    // just guards against a slow CI runner's first paint.
+    await page.waitForSelector("h1", { timeout: 10_000 });
+    let html = await page.content();
+    // React Router's lazy-loading injects modulepreload hints for the CURRENT
+    // route's chunk with the page's full origin baked in (absolute, not
+    // relative) — harmless on the temp prerender server but a dead cross-origin
+    // preload once this file is deployed elsewhere, so rewrite back to root-relative.
+    html = html.replaceAll(`http://localhost:${PORT}`, "");
 
-  const outDir = path.join(DIST, route.slice(1));
-  mkdirSync(outDir, { recursive: true });
-  writeFileSync(path.join(outDir, "index.html"), html);
-  console.log(`prerendered ${route} -> dist${route}/index.html`);
+    const outDir = path.join(DIST, route.slice(1));
+    mkdirSync(outDir, { recursive: true });
+    writeFileSync(path.join(outDir, "index.html"), html);
+    console.log(`prerendered ${route} -> dist${route}/index.html`);
+  }
+} finally {
+  // Always release the browser + port, even on failure — otherwise a failed
+  // run leaves a zombie Chromium process and PORT bound, so the very next
+  // retry hangs on server.listen() instead of failing with a clear error.
+  await browser?.close();
+  server.close();
 }
-
-await browser.close();
-server.close();
