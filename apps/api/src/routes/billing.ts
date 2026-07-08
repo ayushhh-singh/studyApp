@@ -17,19 +17,27 @@ import { createOrder, getBillingState, listPlans, processWebhookEvent } from "..
 import { getEntitlements } from "../services/entitlements.js";
 
 // ---------------------------------------------------------------------------
-// Authed billing router (mounted after requireAuth)
+// Public billing router (mounted BEFORE requireAuth) — /pricing is a public
+// marketing page, so the plan list it renders (name/price/description, all
+// DB data with nothing user-specific) must be reachable signed-out too.
 // ---------------------------------------------------------------------------
-export const billingRouter = Router();
-billingRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
+export const billingPublicRouter = Router();
+billingPublicRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
 /** Public list of active plans (pricing lives in the DB, not the client). */
-billingRouter.get(
+billingPublicRouter.get(
   "/billing/plans",
   asyncHandler(async (_req, res) => {
     const plans = await listPlans();
     res.json(plansResponseSchema.parse({ data: { plans }, error: null }));
   }),
 );
+
+// ---------------------------------------------------------------------------
+// Authed billing router (mounted after requireAuth)
+// ---------------------------------------------------------------------------
+export const billingRouter = Router();
+billingRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
 /** Current user's subscription + entitlements snapshot. */
 billingRouter.get(

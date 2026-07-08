@@ -8,6 +8,7 @@
  *
  * Also stamps email_confirm so a never-confirmed account can log in immediately.
  */
+import { checkPasswordStrength, MIN_PASSWORD_LENGTH } from "@prayasup/shared";
 import { supabase } from "../src/lib/supabase.js";
 
 interface Args {
@@ -27,7 +28,14 @@ function parseArgs(argv: string[]): Args {
 async function main() {
   const { email, password } = parseArgs(process.argv.slice(2));
   if (!email || !password) throw new Error("Usage: set-password --email <email> --password <password>");
-  if (password.length < 8) throw new Error("Password must be at least 8 characters");
+  const strength = checkPasswordStrength(password);
+  if (!strength.ok) {
+    throw new Error(
+      strength.reason === "too_short"
+        ? `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+        : "That password is too common — choose a less guessable one",
+    );
+  }
 
   const db = supabase();
   const { data, error } = await db.auth.admin.listUsers();

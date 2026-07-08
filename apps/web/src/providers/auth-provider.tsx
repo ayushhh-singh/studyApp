@@ -20,6 +20,10 @@ interface AuthContextValue {
   /** Send a 6-digit email OTP. shouldCreateUser so first-time sign-ups work. */
   sendEmailOtp: (email: string) => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<void>;
+  /** Emails a recovery link that lands on redirectTo carrying a recovery code. */
+  sendPasswordReset: (email: string, redirectTo: string) => Promise<void>;
+  /** Sets a new password on the CURRENT session (recovery session or a normal signed-in one). */
+  updatePassword: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -89,6 +93,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       },
       async verifyEmailOtp(email, token) {
         const { error } = await supabaseBrowser().auth.verifyOtp({ email, token, type: "email" });
+        if (error) throw error;
+      },
+      async sendPasswordReset(email, redirectTo) {
+        const { error } = await supabaseBrowser().auth.resetPasswordForEmail(email, { redirectTo });
+        if (error) throw error;
+      },
+      async updatePassword(password) {
+        const { error } = await supabaseBrowser().auth.updateUser({ password });
         if (error) throw error;
       },
       async signOut() {

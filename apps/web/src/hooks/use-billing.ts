@@ -33,11 +33,16 @@ export function usePlans() {
   });
 }
 
-/** Current subscription + entitlements (for the pricing page's current-plan banner). */
-export function useBillingSubscription() {
+/**
+ * Current subscription + entitlements (for the pricing page's current-plan
+ * banner). Pricing is public — gate on a session so a signed-out visitor
+ * never fires a doomed authed request.
+ */
+export function useBillingSubscription(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: billingKeys.subscription(),
     queryFn: () => api.get("/api/v1/billing/subscription", subscriptionResponseSchema),
+    enabled: options?.enabled ?? true,
     staleTime: 30_000,
   });
 }

@@ -31,6 +31,10 @@ export const router = createBrowserRouter([
       // Public auth surfaces.
       { path: "auth", lazy: () => import("@/routes/auth") },
       { path: "auth/callback", lazy: () => import("@/routes/auth-callback") },
+      { path: "auth/reset", lazy: () => import("@/routes/auth-reset") },
+      // Public marketing page — pricing must be reachable signed-out (and is
+      // reviewed as such by Razorpay's live-mode approval).
+      { path: "pricing", lazy: () => import("@/routes/pricing") },
       // Everything below requires a signed-in session (RequireAuth also gates
       // the onboarding wizard: unfinished onboarding is redirected to it).
       {
@@ -62,10 +66,10 @@ export const router = createBrowserRouter([
               },
               { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
               { path: "doubts", lazy: () => import("@/routes/doubts") },
-      // A specific conversation gets its own URL — bookmarkable, survives a
-      // refresh, and behaves correctly with browser back/forward, unlike
-      // the previous local-component-state thread selection.
-      { path: "doubts/:threadId", lazy: () => import("@/routes/doubts") },
+          // A specific conversation gets its own URL — bookmarkable, survives a
+          // refresh, and behaves correctly with browser back/forward, unlike
+          // the previous local-component-state thread selection.
+          { path: "doubts/:threadId", lazy: () => import("@/routes/doubts") },
               { path: "magazine", lazy: () => import("@/routes/magazine-index") },
               { path: "revision", lazy: () => import("@/routes/revision") },
               { path: "community", lazy: () => import("@/routes/community") },
@@ -76,7 +80,6 @@ export const router = createBrowserRouter([
               // Built but hidden: reachable by URL, not linked in nav (see leaderboard.tsx).
               { path: "leaderboard", lazy: () => import("@/routes/leaderboard") },
               { path: "profile", lazy: () => import("@/routes/profile") },
-              { path: "pricing", lazy: () => import("@/routes/pricing") },
               // A multi-step flow (write -> score) but not a distraction-mode
               // full-screen experience, so it stays inside app-shell like the
               // rest of Profile — just its own route for clean back-navigation.

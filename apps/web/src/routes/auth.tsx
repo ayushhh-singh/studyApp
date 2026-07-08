@@ -33,7 +33,7 @@ function GoogleIcon() {
   );
 }
 
-type Step = "options" | "otp";
+type Step = "options" | "otp" | "forgot";
 type Mode = "signin" | "signup";
 
 export function Component() {
@@ -41,8 +41,16 @@ export function Component() {
   const locale = useLocale();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { session, loading, signInWithGoogle, signInWithPassword, signUpWithPassword, sendEmailOtp, verifyEmailOtp } =
-    useAuth();
+  const {
+    session,
+    loading,
+    signInWithGoogle,
+    signInWithPassword,
+    signUpWithPassword,
+    sendEmailOtp,
+    verifyEmailOtp,
+    sendPasswordReset,
+  } = useAuth();
 
   const redirectTarget = params.get("redirect") || `/${locale}/dashboard`;
 
@@ -97,6 +105,28 @@ export function Component() {
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : t("Auth.signInError"));
+      setBusy(false);
+    }
+  }
+
+  async function handleSendReset(e: FormEvent) {
+    e.preventDefault();
+    if (!email.trim()) {
+      setError(t("Auth.enterEmailFirst"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const redirectTo = new URL(`/${locale}/auth/reset`, window.location.origin).toString();
+      await sendPasswordReset(email.trim(), redirectTo);
+      setStep("options");
+      setMode("signin");
+      setNotice(t("Auth.resetLinkSent"));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("Auth.genericError"));
+    } finally {
       setBusy(false);
     }
   }
@@ -208,6 +238,19 @@ export function Component() {
                     onChange={(e) => setPassword(e.target.value)}
                   />
                 </label>
+                {mode === "signin" && (
+                  <button
+                    type="button"
+                    className="block text-right text-sm font-medium text-primary hover:underline"
+                    onClick={() => {
+                      setStep("forgot");
+                      setError(null);
+                      setNotice(null);
+                    }}
+                  >
+                    {t("Auth.forgotPassword")}
+                  </button>
+                )}
                 <Button
                   type="submit"
                   size="lg"
@@ -253,6 +296,37 @@ export function Component() {
 
               <p className="text-center text-xs leading-relaxed text-muted-foreground">{t("Auth.phoneSoon")}</p>
             </div>
+          ) : step === "forgot" ? (
+            <form onSubmit={handleSendReset} className="mt-6 space-y-4">
+              <p className="text-sm leading-relaxed text-muted-foreground">{t("Auth.forgotPasswordDescription")}</p>
+              <label className="block">
+                <span className="mb-1.5 block text-sm font-medium">{t("Auth.emailLabel")}</span>
+                <Input
+                  type="email"
+                  inputMode="email"
+                  autoComplete="email"
+                  required
+                  placeholder={t("Auth.emailPlaceholder")}
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </label>
+              <Button type="submit" size="lg" className="h-11 w-full text-base" disabled={busy || !email.trim()}>
+                {busy ? <Loader2 className="size-5 animate-spin" /> : <Mail className="size-5" />}
+                {t("Auth.sendResetLink")}
+              </Button>
+              <button
+                type="button"
+                className="flex w-full items-center justify-center gap-1.5 text-sm font-medium text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  setStep("options");
+                  setError(null);
+                  setNotice(null);
+                }}
+              >
+                <ArrowLeft className="size-4" /> {t("Auth.backToSignIn")}
+              </button>
+            </form>
           ) : (
             <form onSubmit={handleVerifyOtp} className="mt-6 space-y-4">
               <p className="text-sm leading-relaxed text-muted-foreground">

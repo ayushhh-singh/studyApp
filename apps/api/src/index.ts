@@ -29,7 +29,7 @@ import { doubtsRouter } from "./routes/doubts.js";
 import { drillsRouter } from "./routes/drills.js";
 import { studyPlanRouter } from "./routes/study-plan.js";
 import { communityRouter } from "./routes/community.js";
-import { billingRouter, billingWebhookRouter } from "./routes/billing.js";
+import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./routes/billing.js";
 import { pushRouter } from "./routes/push.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
@@ -91,6 +91,9 @@ app.use(express.json());
 
 // Public — no auth (liveness probe + JWKS warmup happen here).
 app.use("/api/v1", healthRouter);
+
+// Public — the /pricing marketing page needs the plan list while signed out.
+app.use("/api/v1", billingPublicRouter);
 
 // Everything below requires a valid Supabase session. requireAuth verifies the
 // JWT, derives the user id, and binds it to the request's async context.

@@ -1,12 +1,18 @@
 import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router";
+import { useTranslation } from "react-i18next";
 import { Check, Sparkles, Smartphone, X } from "lucide-react";
 import { paiseToRupeeString, type Plan } from "@prayasup/shared";
+import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { usePlans, useBillingSubscription, useCreateOrder, useRefreshBilling } from "@/hooks/use-billing";
 import { openRazorpayCheckout } from "@/lib/razorpay-checkout";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
+import { PageSeo } from "@/components/seo/page-seo";
+import { BrandMark } from "@/components/marketing/brand-mark";
 import { Skeleton } from "@/components/ui-x/skeleton";
+import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 import { billingCopy as c, pick } from "@/lib/billing-copy";
 
@@ -14,10 +20,17 @@ type Status = "idle" | "starting" | "activating" | "done" | "error";
 
 export const handle = { titleI18n: { en: "Go Pro", hi: "प्रो बनें" } };
 
+// Public marketing page (see router.tsx) — rendered standalone with its own
+// light header, not the signed-in app-shell chrome, so it reads correctly for
+// both a signed-out visitor and a signed-in user who followed a link here.
 export function Component() {
+  const { t } = useTranslation();
   const locale = useLocale();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { session } = useAuth();
   const plans = usePlans();
-  const subscription = useBillingSubscription();
+  const subscription = useBillingSubscription({ enabled: !!session });
   const createOrder = useCreateOrder();
   const refreshBilling = useRefreshBilling();
 
@@ -25,8 +38,14 @@ export function Component() {
   const [activePlan, setActivePlan] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const isPro = subscription.data?.entitlements.plan === "pro";
+  const isPro = !!session && subscription.data?.entitlements.plan === "pro";
   const proUntil = subscription.data?.entitlements.plan_expires_at ?? null;
+
+  function setLocale(next: Locale) {
+    if (next === locale) return;
+    localStorage.setItem(LOCALE_STORAGE_KEY, next);
+    navigate(switchLocale(location.pathname, location.search, next, location.hash));
+  }
 
   // While confirming a fresh payment, poll the subscription until the webhook
   // flips the plan to Pro (the webhook is the source of truth, not checkout.js).
@@ -45,6 +64,12 @@ export function Component() {
   }, [status, isPro]);
 
   async function choose(plan: Plan) {
+    // Checkout itself stays auth-gated — bounce through sign-in and back.
+    if (!session) {
+      const params = new URLSearchParams({ redirect: `/${locale}/pricing` });
+      navigate(`/${locale}/auth?${params.toString()}`);
+      return;
+    }
     setMessage(null);
     setActivePlan(plan.code);
     setStatus("starting");
@@ -74,8 +99,47 @@ export function Component() {
   }
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-8 pb-16">
-      <PageHeader title={pick(locale, c.pricingTitle)} description={pick(locale, c.pricingSubtitle)} />
+    <div className="min-h-svh bg-background">
+      <PageSeo
+        locale={locale}
+        path="/pricing"
+        title={`${pick(locale, c.pricingTitle)} — ${t("Landing.brand")}`}
+        description={pick(locale, c.pricingSubtitle)}
+      />
+
+      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
+        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
+          <Link to={`/${locale}`} aria-label={t("Landing.brand")}>
+            <BrandMark />
+          </Link>
+          <div className="flex items-center gap-1.5 sm:gap-3">
+            <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
+              {SUPPORTED_LOCALES.map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => setLocale(l)}
+                  aria-pressed={l === locale}
+                  className={cn(
+                    "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {l}
+                </button>
+              ))}
+            </div>
+            <Button asChild size="sm">
+              <Link to={session ? `/${locale}/dashboard` : `/${locale}/auth`}>
+                {session ? t("Landing.goToApp") : t("Landing.signIn")}
+              </Link>
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-8 pb-16 sm:px-6">
+        <PageHeader title={pick(locale, c.pricingTitle)} description={pick(locale, c.pricingSubtitle)} />
 
       {/* UPI-first assurance */}
       <div className="flex flex-col gap-1 rounded-xl border border-tulsi/30 bg-tulsi/10 p-4 sm:flex-row sm:items-center sm:gap-3">
@@ -161,6 +225,7 @@ export function Component() {
 
       {/* Free vs Pro comparison */}
       <ComparisonTable locale={locale} />
+      </div>
     </div>
   );
 }
