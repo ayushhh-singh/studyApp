@@ -314,6 +314,13 @@ async function persistNote(opts: {
 // ---------------------------------------------------------------------------
 // Top-weightage node picker (for --paper --top N)
 // ---------------------------------------------------------------------------
+/** Which of the given node ids already have a note (any status) — for gap-fill runs. */
+export async function existingNoteNodeIds(nodeIds: string[]): Promise<Set<string>> {
+  if (nodeIds.length === 0) return new Set();
+  const { data } = await supabase().from("notes").select("syllabus_node_id").in("syllabus_node_id", nodeIds);
+  return new Set(((data ?? []) as { syllabus_node_id: string }[]).map((r) => r.syllabus_node_id));
+}
+
 export async function resolvePaperCode(paperArg: string): Promise<string> {
   const { data } = await supabase()
     .from("syllabus_nodes")

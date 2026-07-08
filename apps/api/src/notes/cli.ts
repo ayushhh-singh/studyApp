@@ -11,6 +11,7 @@
  * weightage, not alphabetically — the top-weightage nodes get notes first.
  */
 import {
+  existingNoteNodeIds,
   generateNoteForNode,
   resolvePaperCode,
   topWeightageNodes,
@@ -57,7 +58,23 @@ async function main(): Promise<void> {
   } else if (nodeArg) {
     targets = [{ id: nodeArg, title: nodeArg, total: 0 }];
   } else {
-    throw new Error("usage: notes:gen --node <uuid> | --paper <PAPER_CODE> --top N [--no-web]");
+    throw new Error("usage: notes:gen --node <uuid> | --paper <PAPER_CODE> --top N [--no-web] [--regen]");
+  }
+
+  // Gap-fill by default: skip nodes that already have a note so a re-run never
+  // clobbers a published one (which would revert it to needs_review). --regen
+  // overrides to regenerate everything.
+  if (args.regen !== true) {
+    const existing = await existingNoteNodeIds(targets.map((t) => t.id));
+    const before = targets.length;
+    targets = targets.filter((t) => !existing.has(t.id));
+    if (before !== targets.length) {
+      console.log(`\n(skipping ${before - targets.length} node(s) that already have a note — pass --regen to overwrite)`);
+    }
+    if (targets.length === 0) {
+      console.log("\nNothing to generate — every selected node already has a note.");
+      return;
+    }
   }
 
   console.log(`\nweb research: ${web ? "on" : "off"}\n`);
