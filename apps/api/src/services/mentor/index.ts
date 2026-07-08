@@ -305,8 +305,12 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
     model: MODELS.sonnet,
     system,
     messages: messages as Parameters<typeof streamChat>[0]["messages"],
-    maxTokens: mode === "revision" ? 1200 : 3000,
-    effort: "low",
+    // A small, deliberate depth bump over the original low/3000 setting — enough
+    // for one genuine extra layer (an example, a distinguishing note, an exam-
+    // angle tip) without turning answers into padded essays. Revision mode is
+    // untouched — it's meant to stay a compressed 5-bullet recap.
+    maxTokens: mode === "revision" ? 1200 : 3600,
+    effort: mode === "revision" ? "low" : "medium",
     purpose: "mentor_doubt",
     userId,
     signal,

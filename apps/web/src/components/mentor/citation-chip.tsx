@@ -21,8 +21,13 @@ export function CitationChip({ citation }: { citation: MentorCitation }) {
   const Icon = ICONS[citation.source_type] ?? BookOpen;
   const title = citation.title_i18n[locale] || citation.title_i18n.en || citation.title_i18n.hi;
 
+  // min-w-0 alongside max-w-full: a flex item's default min-width is "auto"
+  // (its content's natural size), which can win over max-width and keep the
+  // inner truncate span from ever actually clipping — this showed up as full,
+  // unclipped question stems spilling out of the chat pane instead of the
+  // short "Medieval India"-style pill the title span's truncate class implies.
   const base =
-    "inline-flex max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground";
+    "inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs text-muted-foreground";
 
   const inner = (
     <>

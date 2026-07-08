@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { Newspaper, BookMarked } from "lucide-react";
 import type { CurrentAffairsCategory, CurrentAffairsItem } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -52,7 +52,25 @@ export function Component() {
   const [category, setCategory] = useState<CurrentAffairsCategory | "">("");
   const [upOnly, setUpOnly] = useState(false);
   const [page, setPage] = useState(1);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Lives in the URL (?item=<id>) rather than pure local state — a mentor
+  // citation ("[3]") can now link straight to `/current-affairs?item=<id>`
+  // and open that exact item's detail sheet directly (fetched independently
+  // by id via useCurrentAffairsItem, so it works regardless of the current
+  // category/up-only filters or which page it'd otherwise be on), and the
+  // open sheet now survives a refresh/is shareable like any other deep link.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const selectedId = searchParams.get("item");
+  function setSelectedId(id: string | null) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (id) params.set("item", id);
+        else params.delete("item");
+        return params;
+      },
+      { replace: true },
+    );
+  }
 
   const { data, isLoading } = useCurrentAffairs({
     category: category || undefined,

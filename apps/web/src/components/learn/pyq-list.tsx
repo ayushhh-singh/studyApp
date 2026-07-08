@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileQuestion } from "lucide-react";
 import type { ExamCode, Locale, Question } from "@prayasup/shared";
@@ -6,15 +6,38 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { Button } from "@/components/ui/button";
-import { useQuestions } from "@/hooks/use-questions";
+import { useQuestion, useQuestions } from "@/hooks/use-questions";
 import { cn } from "@/lib/utils";
 
-function QuestionCard({ question, locale }: { question: Question; locale: Locale }) {
+function QuestionCard({
+  question,
+  locale,
+  highlighted,
+}: {
+  question: Question;
+  locale: Locale;
+  highlighted?: boolean;
+}) {
   const { t } = useTranslation();
   const [showExplanation, setShowExplanation] = useState(false);
+  const ref = useRef<HTMLLIElement>(null);
+
+  // Scroll the cited question into view once, on mount — matches the ring
+  // highlight convention already used for "the current item" elsewhere in
+  // the app (question-palette.tsx's active-question ring).
+  useEffect(() => {
+    if (highlighted) ref.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
+    <li
+      ref={ref}
+      className={cn(
+        "flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5",
+        highlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+      )}
+    >
       <div className="flex flex-wrap items-center gap-2">
         {/* Year is the group header, so the chip shows only the exam here. */}
         <ExamYearChip
@@ -92,15 +115,27 @@ export function PyqList({
   page,
   onPageChange,
   exam,
+  highlightId,
 }: {
   nodeId: string;
   locale: Locale;
   page: number;
   onPageChange: (page: number) => void;
   exam?: ExamCode;
+  /**
+   * A specific question to surface prominently — from a mentor citation deep
+   * link (?qid=). There's no per-question detail page and no server support
+   * for "which page is question X on" (ordering/pagination is fixed
+   * server-side), so rather than build fragile page-jump logic, the cited
+   * question is fetched independently and always shown first, ring-highlighted
+   * and auto-scrolled to — regardless of which page of the normal list it'd
+   * otherwise fall on, or whether it's on the current page at all.
+   */
+  highlightId?: string;
 }) {
   const { t } = useTranslation();
   const { data, isLoading } = useQuestions({ node: nodeId, page, exam });
+  const { data: highlightedQuestion } = useQuestion(highlightId);
 
   if (isLoading || !data) {
     return (
@@ -111,7 +146,7 @@ export function PyqList({
     );
   }
 
-  if (data.items.length === 0) {
+  if (data.items.length === 0 && !highlightedQuestion) {
     return (
       <EmptyState
         icon={FileQuestion}
@@ -121,10 +156,23 @@ export function PyqList({
     );
   }
 
+  const onCurrentPage = highlightId ? data.items.some((q) => q.id === highlightId) : false;
   const groups = groupByYearDescending(data.items);
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Referenced question — shown once, above the normal list, when it
+          isn't already on the currently-displayed page. */}
+      {highlightedQuestion && !onCurrentPage && (
+        <div className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold tracking-wide text-primary uppercase">
+            {t("Learn.referencedQuestion")}
+          </h3>
+          <ul className="flex flex-col gap-2">
+            <QuestionCard question={highlightedQuestion} locale={locale} highlighted />
+          </ul>
+        </div>
+      )}
       {groups.map(([year, questions]) => (
         <div key={year} className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
@@ -132,7 +180,12 @@ export function PyqList({
           </h3>
           <ul className="flex flex-col gap-2">
             {questions.map((question) => (
-              <QuestionCard key={question.id} question={question} locale={locale} />
+              <QuestionCard
+                key={question.id}
+                question={question}
+                locale={locale}
+                highlighted={question.id === highlightId}
+              />
             ))}
           </ul>
         </div>

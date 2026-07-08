@@ -35,6 +35,8 @@ export function Component() {
   const recordEvent = useRecordEvent();
   const createTest = useCreateCustomTest();
   const page = Number(searchParams.get("page") ?? "1") || 1;
+  // A mentor citation deep link into a specific PYQ — see pyq-list.tsx.
+  const qid = searchParams.get("qid") ?? undefined;
   const tabParam = searchParams.get("tab");
   const tab = tabParam === "pyqs" || tabParam === "ca" || tabParam === "discussion" ? tabParam : "notes";
 
@@ -200,7 +202,7 @@ export function Component() {
 
         <TabsContent value="pyqs">
           <SectionCard title={t("Learn.pyqsTitle")}>
-            <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
+            <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} highlightId={qid} />
           </SectionCard>
         </TabsContent>
 

@@ -125,8 +125,8 @@ export function MentorChat({
   const isEmpty = !detail.isLoading && messages.length === 0 && !pendingUser && !stream.isStreaming;
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-2">
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>
+      <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 py-2">
         {/* Previously this briefly flashed the "ask me anything" empty state
             for an EXISTING thread with real history, since `messages` reads
             [] while the thread's first fetch is still in flight. */}

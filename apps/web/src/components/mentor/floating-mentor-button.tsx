@@ -67,7 +67,7 @@ export function FloatingMentorButton() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" title={t("Mentor.title")} className="w-[92vw] sm:w-[30rem]">
           {threadId ? (
-            <div className="flex min-h-0 flex-1 flex-col gap-2">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-2">
               {/* Connects this quick, in-context chat to the full /doubts page
                   (thread history, delete, other conversations) — the two
                   entry points previously had no link between them at all. */}

@@ -92,6 +92,14 @@ export function Component() {
   const handleNotFound = () => navigate(`/${locale}/doubts`, { replace: true });
 
   return (
+    // NOT h-full/flex-1 here: every other page in this app scrolls at the
+    // document level (app-shell's <main> has no overflow boundary of its own,
+    // by design), so trying to make this ONE page stretch-fill "remaining
+    // viewport height" fights that model — it briefly made the panel grow to
+    // its full CONTENT height instead of a bounded one, pushing the page well
+    // past the viewport. A fixed, viewport-relative height on the panel alone
+    // (tuned below) is far more predictable: it's always bounded, and the
+    // message list scrolls internally via its own overflow-y-auto.
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
       <PageHeader
         title={t("Mentor.title")}
@@ -104,8 +112,15 @@ export function Component() {
       />
 
       <div className="grid min-h-0 gap-4 md:grid-cols-[16rem_1fr]">
-        {/* Thread list */}
-        <aside className={cn("flex flex-col gap-1", threadId && "hidden md:flex")}>
+        {/* Thread list — capped to match the chat panel's own bounded height
+            (see the panel below) and independently scrollable, so a long
+            list scrolls internally instead of growing taller than the chat. */}
+        <aside
+          className={cn(
+            "flex max-h-[calc(100svh-17rem)] flex-col gap-1 overflow-y-auto sm:max-h-[calc(100svh-13rem)]",
+            threadId && "hidden md:flex",
+          )}
+        >
           {threads.isLoading ? (
             // Previously this briefly showed "No threads yet" even for a
             // returning user with real history, since `items` defaults to []
@@ -154,7 +169,7 @@ export function Component() {
         </aside>
 
         {/* Chat */}
-        <div className="flex h-[70svh] min-h-0 flex-col rounded-xl border border-border bg-card p-3">
+        <div className="flex h-[calc(100svh-17rem)] min-h-0 min-w-0 flex-col rounded-xl border border-border bg-card p-3 sm:h-[calc(100svh-13rem)]">
           {threadId ? (
             <>
               <Link

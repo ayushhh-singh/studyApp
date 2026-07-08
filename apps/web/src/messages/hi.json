@@ -153,7 +153,8 @@
     "mastery_silver": "रजत",
     "mastery_gold": "स्वर्ण",
     "mastery_exam_ready": "परीक्षा-तैयार",
-    "addToRevisionFailed": "रिवीज़न में जोड़ा नहीं जा सका। कृपया फिर से प्रयास करें।"
+    "addToRevisionFailed": "रिवीज़न में जोड़ा नहीं जा सका। कृपया फिर से प्रयास करें।",
+    "referencedQuestion": "संदर्भित प्रश्न"
   },
   "Practice": {
     "title": "अभ्यास",
@@ -449,7 +450,8 @@
       "national": "राष्ट्रीय",
       "international": "अंतरराष्ट्रीय",
       "awards_sports_misc": "पुरस्कार, खेल एवं विविध"
-    }
+    },
+    "itemNotFound": "यह आइटम नहीं मिला — हो सकता है इसे हटा दिया गया हो।"
   },
   "Revision": {
     "title": "पुनरावृत्ति",

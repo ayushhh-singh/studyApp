@@ -49,17 +49,24 @@ export function CurrentAffairsDetailSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const { data: item, isLoading } = useCurrentAffairsItem(itemId ?? undefined);
+  const { data: item, isLoading, isError } = useCurrentAffairsItem(itemId ?? undefined);
 
   return (
     <Sheet open={itemId !== null} onOpenChange={onOpenChange}>
       <SheetContent side="right" title={item ? item.title_i18n[locale] : ""} className="w-full overflow-y-auto sm:w-[440px]">
-        {isLoading || !item ? (
+        {isLoading ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-4 w-full" />
             <Skeleton className="h-4 w-5/6" />
             <Skeleton className="h-24 w-full" />
           </div>
+        ) : isError || !item ? (
+          // Reachable now that this sheet can be opened directly by a URL/
+          // citation id, not just a click from an already-loaded list row — an
+          // item that's since been unpublished/removed previously left this
+          // stuck on the skeleton forever (isLoading settles false on error,
+          // but `!item` stayed true), rather than saying so.
+          <p className="text-sm text-muted-foreground">{t("CurrentAffairs.itemNotFound")}</p>
         ) : (
           <div className="flex flex-col gap-5">
             {item.detail_i18n && (

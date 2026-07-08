@@ -153,7 +153,8 @@
     "mastery_silver": "Silver",
     "mastery_gold": "Gold",
     "mastery_exam_ready": "Exam-ready",
-    "addToRevisionFailed": "Couldn't add to revision. Please try again."
+    "addToRevisionFailed": "Couldn't add to revision. Please try again.",
+    "referencedQuestion": "Referenced question"
   },
   "Practice": {
     "title": "Practice",
@@ -449,7 +450,8 @@
       "national": "National",
       "international": "International",
       "awards_sports_misc": "Awards, Sports & Misc"
-    }
+    },
+    "itemNotFound": "This item couldn't be found — it may have been removed."
   },
   "Revision": {
     "title": "Revision",

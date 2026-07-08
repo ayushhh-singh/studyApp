@@ -111,9 +111,13 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
       .in("id", questionIds);
     for (const q of data ?? []) {
       const node = q.syllabus_node_id as string | null;
+      // qid: pyq-list.tsx fetches this exact question independently and
+      // surfaces it ring-highlighted (scrolled into view), rather than just
+      // landing on the PYQ tab's first page and leaving the user to hunt for
+      // the cited question themselves.
       titles.set(key("question", q.id as string), {
         title: truncate(q.stem_i18n as BilingualText),
-        link: node ? `/learn/${q.paper_code}/${node}?tab=pyqs` : null,
+        link: node ? `/learn/${q.paper_code}/${node}?tab=pyqs&qid=${q.id}` : null,
       });
     }
   }
@@ -143,7 +147,10 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
     for (const item of data ?? []) {
       titles.set(key("current_affairs", item.id as string), {
         title: truncate(item.title_i18n as BilingualText),
-        link: `/current-affairs`,
+        // ?item=: opens this exact item's detail sheet directly (see
+        // routes/current-affairs.tsx) instead of just landing on the bare,
+        // unfiltered feed and leaving the user to find it themselves.
+        link: `/current-affairs?item=${item.id}`,
       });
     }
   }
