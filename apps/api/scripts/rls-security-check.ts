@@ -185,6 +185,24 @@ async function main() {
       check("API rejects garbage token with 401", badTok.status === 401, `got ${badTok.status}`);
       const goodTok = await fetch(`${apiUrl}/api/v1/profile`, { headers: { authorization: `Bearer ${token}` } });
       check("API accepts a valid token (2xx)", goodTok.ok, `got ${goodTok.status}`);
+
+      // ---- 6. Admin gate (is_admin) both branches --------------------------
+      console.log("6. Admin gate (users_profile.is_admin):");
+      // Promote A to admin, leave B a normal user.
+      const promote = await admin.from("users_profile").update({ is_admin: true }).eq("id", a.id);
+      if (promote.error) throw new Error(`promote A failed: ${promote.error.message}`);
+      const bTok = (await b.client.auth.getSession()).data.session?.access_token ?? "";
+      const authH = (t: string) => ({ authorization: `Bearer ${t}` });
+
+      const statusA = await fetch(`${apiUrl}/api/v1/admin/status`, { headers: authH(token) }).then((r) => r.json());
+      check("admin's /admin/status returns admin_mode=true", statusA?.data?.admin_mode === true);
+      const statusB = await fetch(`${apiUrl}/api/v1/admin/status`, { headers: authH(bTok) }).then((r) => r.json());
+      check("non-admin's /admin/status returns admin_mode=false", statusB?.data?.admin_mode === false);
+
+      const reviewB = await fetch(`${apiUrl}/api/v1/admin/review?tab=mcq&page=1`, { headers: authH(bTok) });
+      check("non-admin hitting /admin/review is 403", reviewB.status === 403, `got ${reviewB.status}`);
+      const reviewA = await fetch(`${apiUrl}/api/v1/admin/review?tab=mcq&page=1`, { headers: authH(token) });
+      check("admin hitting /admin/review is NOT 403", reviewA.status !== 403, `got ${reviewA.status}`);
     }
   } finally {
     // Cleanup: remove uploaded objects, then delete both auth users (cascade
