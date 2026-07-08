@@ -55,6 +55,7 @@ export const queryKeys = {
   dailyQuizArchive: (page: number) => ["daily-quiz", "archive", page] as const,
   notifications: () => ["notifications"] as const,
   cutoffs: (exam: string) => ["mocks", "cutoffs", exam] as const,
+  mastery: (paper?: string) => ["mastery", paper ?? "all"] as const,
   milestones: () => ["milestones"] as const,
   weeklyDigest: () => ["digest", "weekly"] as const,
   leaderboard: () => ["leaderboard"] as const,

@@ -124,7 +124,19 @@
     "outOfSyllabus": "Outside UPPSC syllabus",
     "outOfSyllabusShort": "out",
     "viewTrends": "Weightage & Trends",
-    "notesCoverage": "{{pct}}% notes"
+    "notesCoverage": "{{pct}}% notes",
+    "viewToggle": "Switch view",
+    "outlineView": "Outline",
+    "mapView": "Map",
+    "mapIntro": "Your Conquest Map. Each territory is a syllabus section, sized by how often UPPSC asks it and coloured by your mastery. Pulsing tiles are high-weight sections you haven't secured yet — start there. Tap any territory to open it.",
+    "mapEmptyTitle": "No map yet",
+    "mapEmptyDescription": "This paper has no PYQ-weighted sections to map yet.",
+    "shareMap": "Share map",
+    "mastery_unseen": "Unseen",
+    "mastery_bronze": "Bronze",
+    "mastery_silver": "Silver",
+    "mastery_gold": "Gold",
+    "mastery_exam_ready": "Exam-ready"
   },
   "Practice": {
     "title": "Practice",

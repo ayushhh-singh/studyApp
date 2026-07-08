@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
-import { BarChart3, BookOpen, Brain, Check, ChevronRight, ListChecks, PenSquare } from "lucide-react";
+import { BarChart3, BookOpen, Brain, Check, ChevronRight, ListChecks, Map as MapIcon, PenSquare, Rows3 } from "lucide-react";
 import type { ExamCode, SyllabusNodeWithStats } from "@prayasup/shared";
 import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { WeightageBar } from "@/components/ui-x/weightage-bar";
+import { ConquestMap } from "@/components/learn/conquest-map";
 import { Button } from "@/components/ui/button";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useAddToRevision } from "@/hooks/use-add-to-revision";
@@ -138,6 +139,19 @@ export function Component() {
   const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
   const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
   const { data: tree, isLoading, isError } = usePaperTree(paperCode, exam);
+  const view = searchParams.get("view") === "map" ? "map" : "outline";
+
+  function setView(next: "map" | "outline") {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "map") params.set("view", "map");
+        else params.delete("view");
+        return params;
+      },
+      { replace: true },
+    );
+  }
   const addToRevision = useAddToRevision();
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   // Derived straight from the mutation object rather than tracked separately —
@@ -196,18 +210,46 @@ export function Component() {
         description={tree?.description_i18n?.[locale]}
         action={
           <div className="flex flex-wrap items-center gap-2">
-            <ExamFilter value={exam} onChange={setExam} />
-            <Button asChild variant="outline" size="sm">
-              <Link to={`/${locale}/learn/${paperCode}/trends${exam ? `?exam=${exam}` : ""}`}>
-                <BarChart3 aria-hidden />
-                {t("Learn.viewTrends")}
-              </Link>
-            </Button>
+            <div className="inline-flex rounded-lg border border-border p-0.5" role="tablist" aria-label={t("Learn.viewToggle")}>
+              <Button
+                type="button"
+                variant={view === "outline" ? "default" : "ghost"}
+                size="sm"
+                role="tab"
+                aria-selected={view === "outline"}
+                onClick={() => setView("outline")}
+              >
+                <Rows3 aria-hidden />
+                {t("Learn.outlineView")}
+              </Button>
+              <Button
+                type="button"
+                variant={view === "map" ? "default" : "ghost"}
+                size="sm"
+                role="tab"
+                aria-selected={view === "map"}
+                onClick={() => setView("map")}
+              >
+                <MapIcon aria-hidden />
+                {t("Learn.mapView")}
+              </Button>
+            </div>
+            {view === "outline" && <ExamFilter value={exam} onChange={setExam} />}
+            {view === "outline" && (
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/${locale}/learn/${paperCode}/trends${exam ? `?exam=${exam}` : ""}`}>
+                  <BarChart3 aria-hidden />
+                  {t("Learn.viewTrends")}
+                </Link>
+              </Button>
+            )}
           </div>
         }
       />
 
-      {isLoading || !tree ? (
+      {view === "map" ? (
+        <ConquestMap paperCode={paperCode} locale={locale} />
+      ) : isLoading || !tree ? (
         isError ? (
           <EmptyState
             icon={BookOpen}
