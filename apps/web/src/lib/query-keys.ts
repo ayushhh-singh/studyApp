@@ -61,4 +61,8 @@ export const queryKeys = {
   activityHeatmap: (weeks: number) => ["engagement", "heatmap", weeks] as const,
   timeAttackTopics: () => ["time-attack", "topics"] as const,
   leaderboard: () => ["leaderboard"] as const,
+  srsDue: (limit?: number) => ["srs", "due", limit ?? 30] as const,
+  srsStats: () => ["srs", "stats"] as const,
+  srsCards: (filters?: { query?: string; sourceType?: string; page?: number }) =>
+    ["srs", "cards", filters?.query ?? "", filters?.sourceType ?? "all", filters?.page ?? 1] as const,
 };

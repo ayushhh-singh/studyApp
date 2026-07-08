@@ -80,6 +80,9 @@ importers:
       satori:
         specifier: ^0.26.0
         version: 0.26.0
+      ts-fsrs:
+        specifier: 5.4.1
+        version: 5.4.1
       zod:
         specifier: ^3.23.8
         version: 3.25.76
@@ -3733,6 +3736,10 @@ packages:
 
   ts-algebra@2.0.0:
     resolution: {integrity: sha512-FPAhNPFMrkwz76P7cdjdmiShwMynZYN6SgOujD1urY4oNm80Ou9oMdmbR45LotcKOXoy7wSmHkRFE6Mxbrhefw==}
+
+  ts-fsrs@5.4.1:
+    resolution: {integrity: sha512-mOp9+oexJexBTkwjg/jQI1aSUQRLIAvbimeKHLSmVdNJPwObugFNKmZkoggH5d6kZ0uaWLboP1Al1DnXAfIb9w==}
+    engines: {node: '>=20.0.0'}
 
   ts-morph@26.0.0:
     resolution: {integrity: sha512-ztMO++owQnz8c/gIENcM9XfCEzgoGphTv+nKpYNM1bgsdOVC/jRZuEBf6N+mLLDNg68Kl+GgUZfOySaRiG1/Ug==}
@@ -7408,6 +7415,8 @@ snapshots:
   tree-kill@1.2.2: {}
 
   ts-algebra@2.0.0: {}
+
+  ts-fsrs@5.4.1: {}
 
   ts-morph@26.0.0:
     dependencies:

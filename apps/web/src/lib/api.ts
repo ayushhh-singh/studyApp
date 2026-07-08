@@ -62,4 +62,8 @@ export const api = {
   patch<T extends ZodTypeAny>(path: string, envelopeSchema: T, body?: unknown) {
     return request(path, envelopeSchema, { method: "PATCH", body });
   },
+  async delete(path: string): Promise<void> {
+    const res = await fetch(buildUrl(path), { method: "DELETE" });
+    if (!res.ok) throw new ApiError(res.status, `Request failed (HTTP ${res.status})`);
+  },
 };
