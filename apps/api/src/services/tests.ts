@@ -11,6 +11,7 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { devUserId } from "../lib/dev-user.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
 export { CURRENT_AFFAIRS_PAPER_CODE };
 
@@ -216,10 +217,13 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   // scope (not "test"): a syllabus node's own topic-practice set must never
   // pull in the current-affairs pool's always-unpublished MCQs, even though
   // ca:run does map them to a syllabus_node_id.
+  // Subtree-aware so "Practice this topic" works on a chapter (non-leaf) node,
+  // whose MCQ PYQs live on its leaf sub-topics; a leaf resolves to just [node].
+  const subtreeIds = await resolveSubtreeNodeIds(body.node_id);
   let questionsQuery = supabase()
     .from("questions")
     .select("id, marks")
-    .eq("syllabus_node_id", body.node_id)
+    .in("syllabus_node_id", subtreeIds)
     .eq("type", "mcq")
     .or(questionVisibilityOrFilter("catalog"));
   if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);

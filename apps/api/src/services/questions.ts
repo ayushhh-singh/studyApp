@@ -2,6 +2,7 @@ import type { BilingualText, Question, QuestionsQuery } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
 export const QUESTIONS_PAGE_SIZE = 20;
 
@@ -24,7 +25,13 @@ export async function listQuestions(
     .or(questionVisibilityOrFilter("catalog"));
 
   if (filters.paper) query = query.eq("paper_code", filters.paper);
-  if (filters.node) query = query.eq("syllabus_node_id", filters.node);
+  if (filters.node) {
+    // Subtree-aware: a chapter (non-leaf) node has no questions of its own —
+    // they hang off its leaf sub-topics — so match the whole subtree. For a
+    // leaf this is just [node], i.e. the previous exact-match behaviour.
+    const nodeIds = await resolveSubtreeNodeIds(filters.node);
+    query = query.in("syllabus_node_id", nodeIds);
+  }
   if (filters.year !== undefined) query = query.eq("year", filters.year);
   if (filters.type) query = query.eq("type", filters.type);
   if (filters.exam) query = query.eq("exam_code", filters.exam);

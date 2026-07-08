@@ -13,6 +13,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
+import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import {
   byYearRecord,
   currentExamYear,
@@ -313,10 +314,17 @@ export async function getNodeDetail(
   const prefixes = [""];
   for (let i = 1; i <= segments.length; i++) prefixes.push(segments.slice(0, i).join("/"));
 
+  // Subtree-aware: PYQs, current affairs, accuracy, and weightage all roll up
+  // through this node's descendants, so a chapter (non-leaf) node shows its
+  // sub-topics' content — and the pyq_count badge still matches the list it
+  // labels. For a leaf, the subtree is just [node] (previous exact behaviour).
+  const subtreeIds = await resolveSubtreeNodeIds(nodeId);
+  const subtreeSet = new Set(subtreeIds);
+
   let pyqCountQuery = supabase()
     .from("questions")
     .select("id", { count: "exact", head: true })
-    .eq("syllabus_node_id", nodeId)
+    .in("syllabus_node_id", subtreeIds)
     .eq("is_published", true)
     .eq("review_state", "approved");
   if (exam) pyqCountQuery = pyqCountQuery.eq("exam_code", exam);
@@ -338,7 +346,7 @@ export async function getNodeDetail(
         "id, date, category, is_up_specific, title_i18n, summary_i18n, detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids",
       )
       .eq("is_published", true)
-      .contains("syllabus_node_ids", [nodeId])
+      .overlaps("syllabus_node_ids", subtreeIds)
       .order("date", { ascending: false })
       .limit(10),
   ]);
@@ -357,7 +365,8 @@ export async function getNodeDetail(
   let correct = 0;
   let total = 0;
   for (const row of graded) {
-    if (row.questions?.syllabus_node_id !== nodeId) continue;
+    const nid = row.questions?.syllabus_node_id;
+    if (!nid || !subtreeSet.has(nid)) continue;
     total += 1;
     if (row.is_correct) correct += 1;
   }
@@ -365,13 +374,19 @@ export async function getNodeDetail(
   const relatedCa = relatedCaResult.data;
   const pyqCount = pyqCountResult.count;
 
-  // Own-only weightage for this node (matches the /questions?node= list beside
-  // it). Self-normalised, so share_pct/hotness read 100 when data exists; the
-  // node-detail chip uses total/last_asked_year/years_asked, not those two.
-  const own = weightageMap.get(nodeId);
-  const nodeWeightage: NodeWeightage | null = own
-    ? toNodeWeightage(own.byYear, currentExamYear(), own.total, hotnessRaw(own.byYear, currentExamYear()))
-    : null;
+  // Subtree weightage for this node (matches the subtree /questions?node= list
+  // beside it). Self-normalised, so share_pct/hotness read 100 when data exists;
+  // the node-detail chip uses total/last_asked_year/years_asked, not those two.
+  const mergedByYear = new Map<number, number>();
+  for (const id of subtreeIds) {
+    const w = weightageMap.get(id);
+    if (!w) continue;
+    for (const [year, count] of w.byYear) mergedByYear.set(year, (mergedByYear.get(year) ?? 0) + count);
+  }
+  const cy = currentExamYear();
+  const subtreeTotal = [...mergedByYear.values()].reduce((a, b) => a + b, 0);
+  const nodeWeightage: NodeWeightage | null =
+    subtreeTotal > 0 ? toNodeWeightage(mergedByYear, cy, subtreeTotal, hotnessRaw(mergedByYear, cy)) : null;
 
   return {
     id: node.id,
