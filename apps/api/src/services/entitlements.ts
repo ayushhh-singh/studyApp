@@ -87,16 +87,26 @@ function monthStartUtc(): string {
 }
 
 /**
- * Count answer evaluations "spent". A submission counts once it is being or has
- * been evaluated (status evaluating|complete) — an abandoned draft never does.
- * Free = lifetime; Pro = current IST calendar month.
+ * Count answer evaluations "spent". A submission counts once it has ENTERED
+ * evaluation, so the credit can't be refunded by abandoning it:
+ *   - 'evaluating' / 'complete'                → in flight or done.
+ *   - 'failed' WITH typed_text present         → it reached the model then failed
+ *     or was released. This is the key anti-abuse case: a user who streams the
+ *     full evaluation (strengths/improvements/model answer all arrive before the
+ *     result is persisted) and then disconnects gets the submission flipped to
+ *     'failed' (releaseStuckEvaluation) — without this clause they'd never spend
+ *     a credit and could loop for unlimited free evaluations.
+ * A 'failed' handwritten submission with NO typed_text failed at the OCR stage
+ * (before any evaluation) and correctly does NOT consume an evaluation credit.
+ * An abandoned draft ('pending'/'ocr_done') never counts. Free = lifetime;
+ * Pro = current IST calendar month.
  */
 async function countEvaluations(userId: string, plan: UserPlan): Promise<number> {
   let q = supabase()
     .from("answer_submissions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .in("status", ["evaluating", "complete"]);
+    .or("status.in.(evaluating,complete),and(status.eq.failed,typed_text.not.is.null)");
   if (plan === "pro") q = q.gte("created_at", monthStartUtc());
   const { count, error } = await q;
   if (error) throw new HttpError(500, `evaluation count failed: ${error.message}`);
