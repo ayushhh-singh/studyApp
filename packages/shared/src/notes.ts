@@ -123,7 +123,9 @@ export const noteGenerationMetaSchema = z
     prompt_version: z.string().optional(),
     web_search_used: z.boolean().optional(),
     machine_translated: z.boolean().optional(),
-    critic: noteCriticVerdictSchema.optional(),
+    // Null when the critic pass failed/was skipped (e.g. a mid-run API error);
+    // the note still persists with meta.critic = null, so accept it.
+    critic: noteCriticVerdictSchema.nullable().optional(),
     weightage_snapshot: z
       .object({ total_pyqs: z.number(), top_years: z.array(z.number()) })
       .partial()
