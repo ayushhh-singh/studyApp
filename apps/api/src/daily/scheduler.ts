@@ -15,6 +15,7 @@ import { logger } from "../lib/logger.js";
 import { runDailyBuild } from "./run.js";
 import { runStreakNightly } from "./streak.js";
 import { generateForUser } from "../services/notifications.js";
+import { recomputeMastery } from "../mastery/compute.js";
 import { devUserId } from "../lib/dev-user.js";
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
@@ -38,6 +39,11 @@ export function startDailyScheduler(): void {
     STREAK_NIGHTLY_CRON,
     () => {
       runStreakNightly().catch((err) => logger.error({ err }, "daily: nightly streak settle failed"));
+      // Nightly mastery settle — recency decay means an untouched node's score
+      // must fall even with no new activity, so recompute keeps levels honest.
+      recomputeMastery(devUserId())
+        .then((n) => logger.info(`mastery: nightly recompute updated ${n} node(s)`))
+        .catch((err) => logger.error({ err }, "daily: nightly mastery recompute failed"));
     },
     { timezone: IST_TZ },
   );

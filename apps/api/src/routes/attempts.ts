@@ -13,6 +13,8 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
+import { logger } from "../lib/logger.js";
+import { recomputeMastery } from "../mastery/compute.js";
 import {
   getAttemptDetail,
   getAttemptResult,
@@ -67,7 +69,11 @@ attemptsRouter.post(
   "/attempts/:id/submit",
   asyncHandler(async (req, res) => {
     const { id } = parse(attemptIdParams, req.params);
-    const result = await submitAttempt(devUserId(), id);
+    const userId = devUserId();
+    const result = await submitAttempt(userId, id);
+    // Refresh mastery from the just-graded answers. Best-effort so a recompute
+    // hiccup never fails the submit; the nightly job settles it regardless.
+    recomputeMastery(userId).catch((err) => logger.error({ err }, "mastery: post-submit recompute failed"));
     res.json(attemptSubmitResponseSchema.parse({ data: result, error: null }));
   }),
 );

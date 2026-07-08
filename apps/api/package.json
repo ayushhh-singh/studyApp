@@ -20,6 +20,7 @@
     "ca:compile": "tsx --env-file=.env src/ca/compile.ts",
     "daily:build": "tsx --env-file=.env src/daily/run.ts",
     "mocks:build": "tsx --env-file=.env src/mocks/build.ts",
+    "mastery:build": "tsx --env-file=.env src/mastery/cli.ts",
     "qgen": "tsx --env-file=.env src/qgen/cli.ts",
     "qgen:topup": "tsx --env-file=.env src/qgen/cli.ts --topup",
     "notes:gen": "tsx --env-file=.env src/notes/cli.ts",
