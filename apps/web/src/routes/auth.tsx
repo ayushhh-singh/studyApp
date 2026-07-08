@@ -232,7 +232,6 @@ export function Component() {
                     type="password"
                     autoComplete={mode === "signin" ? "current-password" : "new-password"}
                     required
-                    minLength={8}
                     placeholder={t("Auth.passwordPlaceholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
@@ -255,7 +254,7 @@ export function Component() {
                   type="submit"
                   size="lg"
                   className="h-11 w-full gap-2 text-base"
-                  disabled={busy || !email || password.length < 8}
+                  disabled={busy || !email || !password}
                 >
                   {busy ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />}
                   {mode === "signin" ? t("Auth.signIn") : t("Auth.createAccount")}

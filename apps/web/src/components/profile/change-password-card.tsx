@@ -97,7 +97,6 @@ export function ChangePasswordCard() {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={10}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
               />
@@ -109,13 +108,12 @@ export function ChangePasswordCard() {
                 type="password"
                 autoComplete="new-password"
                 required
-                minLength={10}
                 value={confirm}
                 onChange={(e) => setConfirm(e.target.value)}
               />
             </label>
             <div className="flex flex-wrap gap-2">
-              <Button type="submit" size="sm" disabled={busy || password.length < 10 || confirm.length < 10} className="gap-2">
+              <Button type="submit" size="sm" disabled={busy || !password || !confirm} className="gap-2">
                 {busy && <Loader2 className="size-4 animate-spin" />}
                 {t("Profile.changePasswordSubmit")}
               </Button>

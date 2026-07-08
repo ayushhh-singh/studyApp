@@ -8,7 +8,7 @@
  *
  * Also stamps email_confirm so a never-confirmed account can log in immediately.
  */
-import { checkPasswordStrength, MIN_PASSWORD_LENGTH } from "@prayasup/shared";
+import { checkPasswordStrength } from "@prayasup/shared";
 import { supabase } from "../src/lib/supabase.js";
 
 interface Args {
@@ -30,11 +30,7 @@ async function main() {
   if (!email || !password) throw new Error("Usage: set-password --email <email> --password <password>");
   const strength = checkPasswordStrength(password);
   if (!strength.ok) {
-    throw new Error(
-      strength.reason === "too_short"
-        ? `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
-        : "That password is too common — choose a less guessable one",
-    );
+    throw new Error("Password cannot be empty");
   }
 
   const db = supabase();

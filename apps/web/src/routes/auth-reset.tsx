@@ -158,7 +158,6 @@ export function Component() {
                     type="password"
                     autoComplete="new-password"
                     required
-                    minLength={10}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                   />
@@ -170,7 +169,6 @@ export function Component() {
                     type="password"
                     autoComplete="new-password"
                     required
-                    minLength={10}
                     value={confirm}
                     onChange={(e) => setConfirm(e.target.value)}
                   />
@@ -179,7 +177,7 @@ export function Component() {
                   type="submit"
                   size="lg"
                   className="h-11 w-full gap-2 text-base"
-                  disabled={busy || password.length < 10 || confirm.length < 10}
+                  disabled={busy || !password || !confirm}
                 >
                   {busy ? <Loader2 className="size-5 animate-spin" /> : <KeyRound className="size-5" />}
                   {t("Auth.resetSubmit")}
