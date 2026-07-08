@@ -5,6 +5,7 @@ import {
   timeAttackResultResponseSchema,
   timeAttackStartBodySchema,
   timeAttackStartResponseSchema,
+  timeAttackTopicsQuerySchema,
   timeAttackTopicsResponseSchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
@@ -18,8 +19,9 @@ timeAttackRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
 timeAttackRouter.get(
   "/time-attack/topics",
-  asyncHandler(async (_req, res) => {
-    const topics = await getTimeAttackTopics(currentUserId());
+  asyncHandler(async (req, res) => {
+    const { paper } = parse(timeAttackTopicsQuerySchema, req.query);
+    const topics = await getTimeAttackTopics(currentUserId(), paper);
     res.json(timeAttackTopicsResponseSchema.parse({ data: topics, error: null }));
   }),
 );

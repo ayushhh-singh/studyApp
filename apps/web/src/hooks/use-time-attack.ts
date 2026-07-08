@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { TimeAttackPaperCode } from "@prayasup/shared";
 import {
   timeAttackResultResponseSchema,
   timeAttackStartResponseSchema,
@@ -7,10 +8,10 @@ import {
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-export function useTimeAttackTopics() {
+export function useTimeAttackTopics(paper: TimeAttackPaperCode) {
   return useQuery({
-    queryKey: queryKeys.timeAttackTopics(),
-    queryFn: () => api.get("/api/v1/time-attack/topics", timeAttackTopicsResponseSchema),
+    queryKey: queryKeys.timeAttackTopics(paper),
+    queryFn: () => api.get("/api/v1/time-attack/topics", timeAttackTopicsResponseSchema, { paper }),
   });
 }
 
@@ -26,7 +27,9 @@ export function useFinishTimeAttack() {
   return useMutation({
     mutationFn: ({ attemptId, comboBest }: { attemptId: string; comboBest: number }) =>
       api.post(`/api/v1/time-attack/${attemptId}/finish`, timeAttackResultResponseSchema, { combo_best: comboBest }),
-    // Refresh personal bests on the topic picker after a run.
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.timeAttackTopics() }),
+    // Refresh personal bests on the topic picker after a run — invalidate by
+    // prefix (no paper arg) so both the GS-I and CSAT caches refresh, not just
+    // whichever paper is currently selected.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["time-attack", "topics"] }),
   });
 }

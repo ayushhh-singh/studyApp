@@ -2,13 +2,19 @@ import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { Flame, Timer, Trophy, X, Zap } from "lucide-react";
-import type { TimeAttackResult, TimeAttackStart, TimeAttackTopic } from "@prayasup/shared";
+import type { TimeAttackPaperCode, TimeAttackResult, TimeAttackStart, TimeAttackTopic } from "@prayasup/shared";
 import { TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE } from "@prayasup/shared";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { TestPlayer } from "@/components/practice/test-player";
 import { useTimeAttackTopics, useStartTimeAttack, useFinishTimeAttack } from "@/hooks/use-time-attack";
 import { useLocale } from "@/hooks/use-locale";
+import { cn } from "@/lib/utils";
+
+const PAPERS: { code: TimeAttackPaperCode; labelKey: string }[] = [
+  { code: "PRE_GS1", labelKey: "TimeAttack.paperGs1" },
+  { code: "PRE_CSAT", labelKey: "TimeAttack.paperCsat" },
+];
 
 function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => void }) {
   const { t } = useTranslation();
@@ -28,25 +34,62 @@ function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => 
   );
 }
 
-function TopicPicker({ onPick }: { onPick: (topic: TimeAttackTopic) => void }) {
+function PaperToggle({ paper, onChange }: { paper: TimeAttackPaperCode; onChange: (p: TimeAttackPaperCode) => void }) {
+  const { t } = useTranslation();
+  return (
+    <div role="tablist" className="inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
+      {PAPERS.map((p) => (
+        <button
+          key={p.code}
+          type="button"
+          role="tab"
+          aria-selected={paper === p.code}
+          onClick={() => onChange(p.code)}
+          className={cn(
+            "rounded-md px-3 py-1.5 text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+            paper === p.code ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {t(p.labelKey)}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function TopicPicker({
+  paper,
+  onPaperChange,
+  onPick,
+}: {
+  paper: TimeAttackPaperCode;
+  onPaperChange: (p: TimeAttackPaperCode) => void;
+  onPick: (topic: TimeAttackTopic) => void;
+}) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: topics, isLoading } = useTimeAttackTopics();
+  const { data: topics, isLoading } = useTimeAttackTopics(paper);
   const startTA = useStartTimeAttack();
+  const allLabelKey = paper === "PRE_CSAT" ? "TimeAttack.allCsat" : "TimeAttack.allGs1";
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-3">
         <h1 className="font-display text-2xl">{t("TimeAttack.pickTitle")}</h1>
         <p className="text-sm text-muted-foreground">
           {t("TimeAttack.rules", { count: TIME_ATTACK_SIZE, minutes: TIME_ATTACK_MINUTES })}
         </p>
+        <PaperToggle paper={paper} onChange={onPaperChange} />
       </div>
       {isLoading ? (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />
         </div>
+      ) : (topics ?? []).length === 0 ? (
+        <p className="rounded-xl border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+          {t("TimeAttack.noTopics")}
+        </p>
       ) : (
         <div className="flex flex-col gap-2">
           {(topics ?? []).map((topic) => (
@@ -59,7 +102,7 @@ function TopicPicker({ onPick }: { onPick: (topic: TimeAttackTopic) => void }) {
             >
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate font-semibold" lang={locale}>
-                  {topic.is_all_csat ? t("TimeAttack.allCsat") : topic.title_i18n[locale]}
+                  {topic.is_paper_root ? t(allLabelKey) : topic.title_i18n[locale]}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {t("TimeAttack.available", { count: topic.available })}
@@ -138,6 +181,7 @@ function EndScreen({
 export function Component() {
   const navigate = useNavigate();
   const locale = useLocale();
+  const [paper, setPaper] = useState<TimeAttackPaperCode>("PRE_GS1");
   const [start, setStart] = useState<TimeAttackStart | null>(null);
   const [result, setResult] = useState<TimeAttackResult | null>(null);
   const comboBestRef = useRef(0);
@@ -188,7 +232,7 @@ export function Component() {
       {result ? (
         <EndScreen result={result} onAgain={reset} onDone={exit} />
       ) : (
-        <TopicPicker onPick={pick} />
+        <TopicPicker paper={paper} onPaperChange={setPaper} onPick={pick} />
       )}
     </Shell>
   );

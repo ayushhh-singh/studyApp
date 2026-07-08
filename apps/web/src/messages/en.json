@@ -742,11 +742,15 @@
     "streak_other": "{{count}}-day streak"
   },
   "TimeAttack": {
-    "title": "CSAT Time Attack",
-    "pitch": "Ten CSAT questions, five minutes, one tap each. Instant right/wrong, a combo flame for a hot streak, and your personal best to beat. Speed with accuracy is exactly what CSAT rewards.",
-    "pickTitle": "Pick a CSAT topic",
+    "title": "Time Attack",
+    "pitch": "Ten questions from GS-I or CSAT, five minutes, one tap each. Instant right/wrong, a combo flame for a hot streak, and your personal best to beat. Speed with accuracy is exactly what Prelims rewards.",
+    "pickTitle": "Pick a topic",
     "rules": "{{count}} questions · {{minutes}} minutes · no negative marking",
+    "paperGs1": "GS-I",
+    "paperCsat": "CSAT",
+    "allGs1": "All GS-I",
     "allCsat": "All CSAT",
+    "noTopics": "Not enough published questions yet for this paper's Time Attack — try the other paper.",
     "available_one": "{{count}} question available",
     "available_other": "{{count}} questions available",
     "noBest": "No best yet",
@@ -758,7 +762,7 @@
     "playAgain": "Play again",
     "done": "Done",
     "enter": "Enter Time Attack",
-    "pitchShort": "Beat the clock on CSAT.",
+    "pitchShort": "Beat the clock on GS-I or CSAT.",
     "chipTimer": "10 Q · 5 min",
     "chipBest": "Beat your best"
   },
