@@ -1,0 +1,83 @@
+name: Scheduled — Weekly encrypted DB backup
+
+# Weekly pg_dump of the Supabase project, GPG-encrypted before it ever
+# touches disk as an artifact. This is new — there was no backup workflow
+# before the ₹0-stack pass (Supabase's own point-in-time backups, mentioned
+# in docs/operations.md's manual setup steps, are the primary safety net;
+# this is a cheap independent second copy).
+#
+# IMPORTANT — GitHub-hosted runners do NOT have reliable outbound IPv6, and
+# Supabase's *direct* connection host (db.<ref>.supabase.co, used elsewhere
+# in this repo for `supabase db push` — see the supabase-headless-migrations
+# memory) is IPv6-only. Using that host here will hang/time out. SUPABASE_DB_URL
+# MUST be the **Session pooler** connection string instead (IPv4, and unlike
+# the Transaction pooler it supports the multi-statement session pg_dump
+# needs) — copy it verbatim from Supabase Dashboard → Project Settings →
+# Database → Connection string → "Session pooler", with the real password
+# substituted in, and store that whole string as the SUPABASE_DB_URL secret.
+#
+# NEVER upload an unencrypted dump — Actions artifacts are downloadable by
+# anyone with repo read access (and this repo may not always stay private).
+on:
+  schedule:
+    # Sundays, 03:00 UTC. Backup timing doesn't need to track IST like the
+    # user-facing jobs — this just needs to run once a week off-peak.
+    - cron: "0 3 * * 0"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute backup date
+        id: date
+        run: echo "date=$(date -u +%Y-%m-%d)" >> "$GITHUB_OUTPUT"
+
+      # Ubuntu's default apt repo ships whichever postgresql-client version
+      # matches the Ubuntu release, which can be OLDER than the Supabase
+      # project's Postgres server — pg_dump refuses to run against a NEWER
+      # server ("server version mismatch"). Installing from the official PGDG
+      # apt repo gets the latest client (currently 17), which can dump from
+      # any server version Supabase currently runs.
+      - name: Install PostgreSQL client (latest, via the official PGDG apt repo)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates gnupg lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc --fail \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump database
+        run: pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges --format=custom --file=backup.pgdump
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+
+      - name: Encrypt dump
+        run: |
+          gpg --symmetric --batch --yes --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" \
+            -o backup.pgdump.gpg backup.pgdump
+          rm -f backup.pgdump
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ steps.date.outputs.date }}
+          path: backup.pgdump.gpg
+          retention-days: 90
+          if-no-files-found: error

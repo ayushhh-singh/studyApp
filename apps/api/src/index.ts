@@ -43,10 +43,11 @@ const port = process.env.PORT ?? 4000;
 // ALLOWED_ORIGINS is a comma-separated list (prod web origin + any exact
 // preview origins). Trailing slashes are stripped — an Origin header never
 // has one, so a pasted "https://x.com/" would otherwise silently never match.
-// ALLOWED_ORIGIN_SUFFIXES additionally allows-by-suffix (e.g.
-// ".vercel.app") so Vercel's per-PR preview deploys — a different origin on
-// every build — aren't locked out without hand-maintaining an exact list.
-// localhost:3000 is only auto-allowed outside production.
+// ALLOWED_ORIGIN_SUFFIXES additionally allows-by-suffix (e.g. ".pages.dev"
+// for Cloudflare Pages' per-branch preview deploys, or ".vercel.app" if
+// still on the paid Vercel path) so a different origin on every build isn't
+// locked out without hand-maintaining an exact list. localhost:3000 is only
+// auto-allowed outside production.
 const isProduction = process.env.NODE_ENV === "production";
 const allowedOrigins = new Set(
   (process.env.ALLOWED_ORIGINS ?? "")

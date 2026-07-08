@@ -12,6 +12,10 @@ dist
 dist-ssr
 *.local
 
+# wrangler pages dev's local cache/state (created when verifying the
+# Cloudflare Pages deploy config — see docs/operations.md)
+.wrangler
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

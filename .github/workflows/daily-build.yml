@@ -1,0 +1,47 @@
+name: Scheduled — Daily quiz build
+
+# Free-tier (₹0 stack) replacement for the `prayasup-daily-build` Render Cron
+# Job in render.yaml (kept there, unused, as the paid upgrade path — see
+# docs/operations.md's "Upgrading to paid" section).
+#
+# GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
+# normal) and are auto-disabled after 60 days of repo inactivity — any
+# push/commit resets that clock.
+on:
+  schedule:
+    # 23:30 UTC (previous day) = 05:00 IST — matches render.yaml's
+    # prayasup-daily-build job exactly.
+    - cron: "30 23 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: daily-build
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run daily:build
+        run: pnpm --filter api daily:build
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

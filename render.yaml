@@ -1,3 +1,16 @@
+# *** PAID UPGRADE PATH — NOT the current deploy target. ***
+# The ₹0 stack (see docs/operations.md's "Free-tier (₹0) deploy" section)
+# runs the API on Render's FREE web service tier instead (spins down after
+# ~15 min idle — an UptimeRobot-style external monitor mitigates most cold
+# starts but doesn't eliminate them) and replaces every cron
+# job below with a GitHub Actions scheduled workflow (.github/workflows/
+# ca-run.yml, daily-build.yml, qgen-topup.yml, nightly-settle.yml,
+# notifications.yml) instead of a Render Cron Job. This file is kept, intact
+# and deployable as-is, for when real revenue justifies Render's paid Starter
+# plan (no free spin-down, first-class Cron Jobs with their own run
+# history/retries) — see docs/operations.md's "Upgrading to paid" section for
+# the switchover steps. Do not delete this file.
+#
 # Render Blueprint — deploys the API only (apps/web goes to Vercel/Cloudflare
 # Pages instead; see docs/operations.md). Render was chosen over Railway
 # because Cron Jobs are a first-class resource type here: each background job

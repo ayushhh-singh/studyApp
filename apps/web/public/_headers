@@ -1,0 +1,9 @@
+# Cloudflare Pages caching rules — mirrors apps/web/vercel.json's `headers`
+# block (kept in sync manually; there are only two rules). Vite copies
+# public/* verbatim into dist/, so this ships as dist/_headers.
+
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/sw.js
+  Cache-Control: public, max-age=0, must-revalidate

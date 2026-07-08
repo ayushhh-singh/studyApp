@@ -1,0 +1,51 @@
+name: Scheduled — Nightly settle
+
+# Free-tier (₹0 stack) replacement for the `prayasup-nightly-settle` Render
+# Cron Job in render.yaml (kept there, unused, as the paid upgrade path — see
+# docs/operations.md's "Upgrading to paid" section). Runs
+# `pnpm nightly:settle` (streak settle + Perfect Day + mastery recompute +
+# mentor insights — bundled because src/daily/scheduler.ts's dev equivalent
+# already groups them; see scripts/nightly-settle.ts).
+#
+# GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
+# normal) and are auto-disabled after 60 days of repo inactivity — any
+# push/commit resets that clock.
+on:
+  schedule:
+    # 18:35 UTC (previous day) = 00:05 IST — matches render.yaml's
+    # prayasup-nightly-settle job exactly.
+    - cron: "35 18 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: nightly-settle
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run nightly:settle
+        run: pnpm --filter api nightly:settle
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

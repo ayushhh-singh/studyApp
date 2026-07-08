@@ -1,5 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "_upgradePathNote": "PAID UPGRADE PATH — NOT the current deploy target. The ₹0 stack deploys apps/web to Cloudflare Pages FREE instead (see docs/operations.md's 'Free-tier (₹0) deploy' section; apps/web/public/_redirects + _headers cover the same rewrite/caching rules this file defines). This file is kept, intact and deployable as-is (JSON has no comment syntax, hence this key — Vercel ignores unrecognized top-level fields), for when there's a reason to prefer Vercel's paid tier or its preview-deploy workflow. Do not delete this file.",
   "buildCommand": "pnpm run build",
   "outputDirectory": "dist",
   "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }],

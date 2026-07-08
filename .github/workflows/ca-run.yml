@@ -1,0 +1,56 @@
+name: Scheduled — Current affairs pipeline
+
+# Free-tier (₹0 stack) replacement for the `prayasup-ca-run` Render Cron Job
+# defined in render.yaml (kept there, unused, as the paid upgrade path — see
+# docs/operations.md's "Upgrading to paid" section). Runs `pnpm ca:run`
+# directly on a GitHub-hosted runner instead of a Render container.
+#
+# GitHub Actions schedule triggers are BEST-EFFORT — expect several minutes
+# of drift under GitHub-wide load, never treat this as a precise clock. A
+# schedule is also automatically disabled after 60 days with no activity on
+# the repo (any push/commit resets that clock) — if this silently stops
+# firing, that's almost certainly why; re-enable it from the Actions tab or
+# just push a commit.
+on:
+  schedule:
+    # Every 6h, matching the dev scheduler's cadence (src/ca/scheduler.ts) and
+    # render.yaml's prayasup-ca-run job.
+    - cron: "0 */6 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  # No cancel-in-progress: a slow run finishes rather than getting killed
+  # mid-write; the next scheduled tick queues behind it instead of running
+  # concurrently over the same rows.
+  group: ca-run
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run ca:run
+        run: pnpm --filter api ca:run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

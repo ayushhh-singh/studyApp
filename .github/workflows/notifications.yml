@@ -1,0 +1,53 @@
+name: Scheduled — Notifications
+
+# Free-tier (₹0 stack) replacement for the `prayasup-notifications` Render
+# Cron Job in render.yaml (kept there, unused, as the paid upgrade path — see
+# docs/operations.md's "Upgrading to paid" section). Runs
+# `pnpm notifications:run`: (re)generates/resolves each user's
+# notification_schedule rows, then drains them through the web-push sender
+# (quiz-ready 5AM, SRS 7AM, streak-at-risk ~8PM IST).
+#
+# GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
+# normal) and are auto-disabled after 60 days of repo inactivity — any
+# push/commit resets that clock.
+on:
+  schedule:
+    # Hourly, matching the in-app bell's own hourly self-heal and
+    # render.yaml's prayasup-notifications job.
+    - cron: "0 * * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notifications
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run notifications:run
+        run: pnpm --filter api notifications:run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}

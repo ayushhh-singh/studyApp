@@ -1,0 +1,7 @@
+# Cloudflare Pages SPA fallback — mirrors apps/web/vercel.json's rewrite rule.
+# Vite copies public/* verbatim into dist/, so this ships as dist/_redirects.
+# Cloudflare Pages serves an exact-match static file (e.g. the prerendered
+# dist/en/index.html) BEFORE evaluating this rule, so /en and /hi still hit
+# their prerendered snapshots, not this fallback — verified with
+# `wrangler pages dev dist` (see docs/operations.md's Cloudflare Pages section).
+/*   /index.html   200
