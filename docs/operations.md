@@ -40,7 +40,12 @@
   Environment variables — set for both Production and Preview):
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
   `VITE_API_URL=https://<render-service>.onrender.com`,
-  `VITE_VAPID_PUBLIC_KEY`, optionally `VITE_SENTRY_DSN`.
+  `VITE_VAPID_PUBLIC_KEY`, optionally `VITE_SENTRY_DSN`. Also set
+  `PNPM_VERSION=9.0.0` — Cloudflare Pages auto-detects pnpm from the
+  committed `pnpm-lock.yaml`, but its build image's default pnpm version
+  won't necessarily match this repo's pinned `packageManager: pnpm@9.0.0`
+  (root `package.json`); an unpinned newer major version could parse or
+  regenerate the lockfile differently.
 - **Prerendering is a separate, optional step** — same rationale as before
   (needs a Playwright Chromium binary at build time, fragile on a managed
   build image); it is NOT wired into the Pages build command. Run
@@ -77,17 +82,24 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
   trailing slash in `PageSeo`, or reaching for Cloudflare's `html_handling`
   config; both are scope creep for a deploy-config pass). Flagged for
   whoever next touches SEO.
-- **The `_redirects` file's `/* /index.html 200` rule is actually a no-op on
-  current Cloudflare tooling** — `wrangler pages dev` logs it as an "invalid
-  redirect rule... infinite loop detected" and silently ignores it (a known
-  interaction between an explicit index.html rewrite and Cloudflare's own
-  newer default trailing-slash/html-handling normalization). Confirmed by
-  removing the file entirely: unmatched routes still correctly 200 with the
-  SPA shell, because Cloudflare Pages' asset server has its own built-in
-  SPA-fallback independent of `_redirects`. The rule is kept anyway — it's
-  the standard documented Cloudflare Pages SPA pattern, harmless when
-  ignored, and is exactly what would be needed if Cloudflare's default
-  behavior ever changes.
+- **The `_redirects` file's `/* /index.html 200` rule appears to be a no-op
+  on current Cloudflare tooling** — `wrangler pages dev` (the LOCAL dev
+  simulator; this was not re-checked against a real deployed Pages site,
+  since that needs a Cloudflare account this environment doesn't have) logs
+  it as an "invalid redirect rule... infinite loop detected" and ignores it
+  (a known interaction between an explicit index.html rewrite and
+  Cloudflare's own newer default trailing-slash/html-handling
+  normalization). Confirmed by removing the file entirely in the same local
+  simulator: unmatched routes still correctly 200 with the SPA shell,
+  because Cloudflare Pages' asset server has its own built-in SPA-fallback
+  independent of `_redirects`. wrangler's redirect-parsing is meant to
+  mirror the real edge behavior, so this should hold in production too — but
+  since it wasn't verified against an actual deploy, watch the very first
+  real Cloudflare Pages deployment's build/function logs for the same
+  warning (or any actual redirect-loop symptom) before fully trusting it.
+  The rule is kept regardless — it's the standard documented Cloudflare
+  Pages SPA pattern, harmless if it's really ignored, and is exactly what
+  would be needed if Cloudflare's default behavior ever changes.
 - **`_headers` cache rules verified live**: `GET /assets/<hashed>.js` →
   `Cache-Control: public, max-age=31536000, immutable`; `GET /sw.js` →
   `Cache-Control: public, max-age=0, must-revalidate` — byte-identical intent
@@ -100,22 +112,36 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
   dashboard → New → Web Service → connect the repo, Dockerfile path
   `apps/api/Dockerfile`, build context repo root) instead of via
   `render.yaml`'s Blueprint flow (which defaults every service to
-  `plan: starter`). No Cron Jobs on this tier — every job that would have
-  been a Render Cron Job is now a GitHub Actions scheduled workflow (below).
+  `plan: starter` — confirmed against Render's current Blueprint spec docs:
+  `free` IS a valid `plan` value for a web service, just explicitly **not**
+  for private services, background workers, or Cron Jobs — consistent with
+  "no Cron Jobs on the free tier" below). Render's docs don't explicitly
+  confirm or deny Docker-runtime support specifically on the free plan (only
+  that Docker is a supported runtime in general) — if the dashboard doesn't
+  offer Docker as a free-plan option when you get there, this app doesn't
+  strictly need it: `apps/api` has no build step of its own (`tsx` runs the
+  raw TypeScript directly, per the Runtime note above), so a native **Node**
+  environment works too — build command `pnpm install --filter api...`,
+  start command `pnpm --filter api start`. No Cron Jobs on this tier either
+  way — every job that would have been a Render Cron Job is now a GitHub
+  Actions scheduled workflow (below).
 - **Env vars**: the same set documented in `render.yaml`'s `prayasup-secrets`
   group — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`,
   `OPENAI_API_KEY`, `QGEN_BATCH_MAX_USD` (default `5`), `RAZORPAY_KEY_ID`/
   `_SECRET`/`_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY`/`_PRIVATE_KEY`/`_SUBJECT`,
-  optionally `SENTRY_DSN`, plus `ALLOWED_ORIGINS` (your Pages domain) and
-  `ALLOWED_ORIGIN_SUFFIXES=.pages.dev` (so Cloudflare Pages' per-branch
-  preview deploys, a different exact origin every build, aren't locked out —
-  see `apps/api/src/index.ts`'s CORS setup, unchanged from the paid path).
-  Set these directly on the service via Render's dashboard Environment tab —
+  optionally `SENTRY_DSN`, plus `ALLOWED_ORIGINS` (your Pages domain) and,
+  if you want Cloudflare Pages' per-branch preview deploys to also work
+  against this API, `ALLOWED_ORIGIN_SUFFIXES=.<project-name>.pages.dev` —
+  **scoped to your own project name, NOT the bare `.pages.dev`**, since
+  Cloudflare Pages project names aren't namespaced per account and a bare
+  suffix would trust every Pages project anyone else creates too (see
+  `apps/api/src/index.ts`'s CORS setup, unchanged from the paid path). Set
+  these directly on the service via Render's dashboard Environment tab —
   there's no Blueprint env-var-group convenience on this manual-create path.
-- **FREE-TIER TRADEOFF (state this to users honestly)**: Render's free web
-  services **spin down after ~15 minutes of no inbound traffic**, and the
-  next request pays a **cold start of roughly 30–60 seconds** while the
-  container reboots. Two mitigations, neither eliminates it entirely:
+- **FREE-TIER TRADEOFF (state this to users honestly)**: per Render's own
+  docs, free web services **spin down after 15 minutes of no inbound
+  traffic**, and the next request pays a **cold start of roughly a minute**
+  while the service restarts. Two mitigations, neither eliminates it entirely:
   1. An external uptime monitor (e.g. UptimeRobot's free plan, 5-minute
      interval) pinging `GET https://<render-service>.onrender.com/api/v1/health`
      keeps the service warm during normal traffic hours.
@@ -154,13 +180,30 @@ paused after 60 days with zero repository activity** — any push/commit
 resets that clock. If a job silently stops firing, check the repo's Actions
 tab for a "workflow disabled" banner before assuming something else broke.
 
+**`qgen-topup` is not a quick job** — it submits a real Anthropic Message
+Batch and polls for it to finish (`src/lib/anthropic.ts`'s `runBatch`), which
+this codebase's own comment notes "take[s] minutes, not seconds" in the
+normal case but which Anthropic's SLA allows up to ~24h in the worst case;
+its workflow's `timeout-minutes: 90` is deliberately generous, not tight.
+
+**GitHub Actions minutes aren't unlimited on a private repo** — unlike
+Render Cron Jobs (a flat plan cost), GitHub Free private repos get a monthly
+Actions minutes allowance (check your plan's current limit; it's been
+2,000 min/month historically) before minutes start billing per-use. Five
+short daily/hourly jobs plus a weekly backup comfortably fit within that in
+normal operation, but if `qgen-topup` starts routinely running long (see
+above), or you add more scheduled workflows later, this ₹0 assumption is
+worth re-checking against your repo's actual Actions usage (Settings →
+Billing) — the free web-hosting tiers being ₹0 doesn't automatically mean
+CI/cron compute is unlimited too.
+
 #### Required GitHub repo secrets (Settings → Secrets and variables → Actions)
 
 | Secret | Used by |
 |---|---|
 | `SUPABASE_URL` | all five job workflows |
 | `SUPABASE_SERVICE_ROLE_KEY` | all five job workflows |
-| `ANTHROPIC_API_KEY` | `ca-run`, `qgen-topup`, `nightly-settle` (mentor insights) |
+| `ANTHROPIC_API_KEY` | `ca-run`, `qgen-topup` |
 | `OPENAI_API_KEY` | `ca-run`, `qgen-topup` (embeddings, for dedup/RAG) |
 | `QGEN_BATCH_MAX_USD` | `qgen-topup` (optional — falls back to `5` if unset) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | `notifications` |
@@ -172,12 +215,31 @@ tab for a "workflow disabled" banner before assuming something else broke.
 `backup.yml` runs Sundays: `pg_dump` (custom format, via a freshly-installed
 latest `postgresql-client` from the official PGDG apt repo — avoids a
 client/server major-version mismatch, since Ubuntu's default apt repo can lag
-behind whatever Postgres version Supabase runs) → piped through
-`gpg --symmetric --cipher-algo AES256` → uploaded as a 90-day-retention
-Actions artifact. **The plaintext dump is deleted immediately after
-encryption and never uploaded** — Actions artifacts are downloadable by
-anyone with repo read access, so an unencrypted dump would be a real leak,
-not a hypothetical one.
+behind whatever Postgres version Supabase runs; live-verified against a real
+`ubuntu:24.04` container, the same image `ubuntu-latest` currently resolves
+to) → piped through `gpg --symmetric --cipher-algo AES256` (live-verified
+headless/batch — no pinentry prompt, no TTY needed) → uploaded as a
+90-day-retention Actions artifact. **The plaintext dump is deleted
+immediately after encryption and never uploaded** — Actions artifacts are
+downloadable by anyone with repo read access, so an unencrypted dump would be
+a real leak, not a hypothetical one.
+
+**Scoped to `--schema=public --extension=pgcrypto --extension=vector`**, not
+a full-database dump. A full `pg_dump` of a Supabase project also captures
+`auth.users` (real emails + hashed passwords), storage object metadata, and
+other Supabase-managed schemas — this app doesn't own that data and
+Supabase's own point-in-time backups already cover it, so there's no reason
+for this second, independent backup to collect it too. Live-verified (Docker,
+pg_dump 17.10) that `--schema=public` alone silently drops the
+`CREATE EXTENSION` statements for `pgcrypto`/`vector` (both installed into
+the `extensions` schema by `supabase/migrations/0001_extensions.sql`, and
+referenced by public-schema column defaults/types) — pg_dump excludes
+extensions from a schema-filtered dump unless named explicitly via
+`--extension`, even if `extensions` is itself included in the `--schema`
+list. Also live-verified the fix: with both flags, restoring into a target
+that already has the `extensions` schema present (true of any real Supabase
+project) correctly recreates the extensions from the dump's own
+`CREATE EXTENSION IF NOT EXISTS` statements — no manual pre-step needed.
 
 **IMPORTANT — GitHub-hosted runners do not have reliable outbound IPv6.**
 Supabase's *direct* connection host (`db.<ref>.supabase.co`, used elsewhere in
@@ -189,12 +251,20 @@ memory) is IPv6-only and will hang/time out from a GitHub Actions runner.
 from Supabase Dashboard → Project Settings → Database → Connection string →
 "Session pooler".
 
-**Restore** (decrypt, then restore into the same or a fresh Postgres):
+**Restore** (decrypt, then restore into a target whose `extensions` schema
+already exists — true of any real Supabase project, so restoring into the
+same project or a fresh one both work with no extra step):
 
 ```
 gpg --decrypt --batch --passphrase "$BACKUP_PASSPHRASE" backup.pgdump.gpg > backup.pgdump
-pg_restore --no-owner --no-privileges -d "$SUPABASE_DB_URL" backup.pgdump
+pg_restore --no-owner --no-privileges --clean --if-exists -d "$SUPABASE_DB_URL" backup.pgdump
 ```
+
+`--clean --if-exists` drops each object before recreating it (`--if-exists`
+suppresses errors on a target that doesn't have it yet) — live-verified
+end-to-end (Docker: dump → encrypt → decrypt → restore into a fresh
+Postgres) that this restores cleanly whether the target is empty or already
+has the old data, without hand-editing the command per situation.
 
 **Store `BACKUP_PASSPHRASE` in a real password manager, not only as a GitHub
 secret.** GitHub secrets are write-only — once set, nothing (not even repo

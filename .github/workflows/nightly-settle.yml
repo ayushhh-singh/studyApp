@@ -43,9 +43,13 @@ jobs:
       - name: Install dependencies (api + its workspace deps only)
         run: pnpm install --frozen-lockfile --filter api...
 
+      # No ANTHROPIC_API_KEY needed — src/services/mentor-insights.ts's own
+      # docstring: "Everything is templated from real profile signals — no
+      # LLM call, so it's free and never hallucinates." Confirmed by grepping
+      # every file this job's chain touches (streak, daily-stats, mastery,
+      # mentor-insights, learner-profile) for anthropic/openai imports: none.
       - name: Run nightly:settle
         run: pnpm --filter api nightly:settle
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

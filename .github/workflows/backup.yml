@@ -18,6 +18,11 @@ name: Scheduled — Weekly encrypted DB backup
 #
 # NEVER upload an unencrypted dump — Actions artifacts are downloadable by
 # anyone with repo read access (and this repo may not always stay private).
+#
+# Scoped to the `public` schema (+ the pgcrypto/vector extensions it
+# depends on) — deliberately excludes auth.users/storage/other
+# Supabase-internal schemas. See the "Dump database" step's own comment for
+# why, and for what the restore target needs.
 on:
   schedule:
     # Sundays, 03:00 UTC. Backup timing doesn't need to track IST like the
@@ -61,8 +66,28 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
 
+      # Scoped to --schema=public: an unscoped pg_dump of a Supabase project
+      # also captures auth.users (real emails + hashed passwords), storage
+      # object metadata, and other Supabase-internal schemas — none of which
+      # this app owns or needs a second copy of (Supabase's own point-in-time
+      # backups already cover them), and encrypting the artifact doesn't
+      # justify collecting more of that data than necessary in the first
+      # place. --extension is required alongside --schema: verified live
+      # (Docker, pg_dump 17.10) that --schema=public ALONE silently drops the
+      # `CREATE EXTENSION` statements for pgcrypto/vector (both installed in
+      # the `extensions` schema per supabase/migrations/0001_extensions.sql,
+      # and referenced by public-schema columns/defaults) even when
+      # `--schema=extensions` is also passed — pg_dump's schema filter
+      # excludes extensions from a selective dump unless named explicitly via
+      # --extension. Restore target must already have the `extensions`
+      # SCHEMA present (true of any real Supabase project) — verified live
+      # that pg_restore then recreates the extensions themselves from the
+      # dump's own CREATE EXTENSION statements, no manual step needed.
       - name: Dump database
-        run: pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges --format=custom --file=backup.pgdump
+        run: |
+          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges --format=custom \
+            --schema=public --extension=pgcrypto --extension=vector \
+            --file=backup.pgdump
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
 

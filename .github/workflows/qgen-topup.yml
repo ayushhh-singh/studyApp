@@ -8,6 +8,16 @@ name: Scheduled — Question generation top-up
 # GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
 # normal) and are auto-disabled after 60 days of repo inactivity — any
 # push/commit resets that clock.
+#
+# TIMEOUT NOTE: `qgen:topup` submits an Anthropic Message Batch and POLLS
+# for it to finish (src/lib/anthropic.ts's `runBatch`, 15s cadence, its own
+# internal ~26h giveup ceiling since Anthropic's batch SLA is "ends within
+# 24h") — this is NOT a quick request/response call like the other four
+# scheduled jobs. Real batches at this app's size complete in low minutes
+# per the code's own comment, but the timeout below is set generously (well
+# past normal completion, well short of GitHub's own hard 360min/6h per-job
+# cap) rather than tightly, so an unusually slow Anthropic day fails loudly
+# with a clear Actions-tab signal instead of silently eating the full 6h.
 on:
   schedule:
     # 21:30 UTC (previous day) = 03:00 IST — matches render.yaml's
@@ -25,7 +35,7 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
 
@@ -41,7 +51,7 @@ jobs:
       - name: Install dependencies (api + its workspace deps only)
         run: pnpm install --frozen-lockfile --filter api...
 
-      - name: Run qgen:topup
+      - name: Run qgen:topup (submits + polls an Anthropic Message Batch — see the timeout note above)
         run: pnpm --filter api qgen:topup
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
