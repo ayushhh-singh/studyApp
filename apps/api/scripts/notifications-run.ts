@@ -13,7 +13,7 @@ import { generateForUser } from "../src/services/notifications.js";
 import { runPushSender } from "../src/push/sender.js";
 
 async function main() {
-  await forEachUser("notifications:run", (userId) => generateForUser(userId));
+  await forEachUser("notifications:run", (userId) => generateForUser(userId), { throwOnListFailure: true });
   const result = await runPushSender();
   console.log(`notifications:run: push sender ${result.sent} sent, ${result.skipped} skipped`);
 }

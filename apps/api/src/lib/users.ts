@@ -18,16 +18,27 @@ export async function listAllUserIds(): Promise<string[]> {
 
 /**
  * Run a per-user nightly/hourly job for every onboarded user, isolating
- * failures so one user's error never stops the rest of the batch. Shared by
- * the dev-only in-process scheduler (daily/scheduler.ts) and the standalone
- * CLI entrypoints production's external cron invokes directly (scripts/).
+ * per-user failures so one user's error never stops the rest of the batch.
+ * Shared by the dev-only in-process scheduler (daily/scheduler.ts) and the
+ * standalone CLI entrypoints production's external cron invokes directly
+ * (scripts/). A failure to even LIST users is different from a per-user
+ * failure — in the always-running dev scheduler it's fine to swallow and
+ * retry on the next tick, but a one-shot cron script that swallowed it would
+ * exit 0 having silently done nothing, and Render would report the run as a
+ * success. `throwOnListFailure` lets the CLI scripts opt into surfacing that
+ * as a real, non-zero-exit failure instead.
  */
-export async function forEachUser(label: string, fn: (userId: string) => Promise<unknown>): Promise<void> {
+export async function forEachUser(
+  label: string,
+  fn: (userId: string) => Promise<unknown>,
+  opts: { throwOnListFailure?: boolean } = {},
+): Promise<void> {
   let userIds: string[];
   try {
     userIds = await listAllUserIds();
   } catch (err) {
     logger.error({ err }, `${label} — could not list users`);
+    if (opts.throwOnListFailure) throw err;
     return;
   }
   for (const userId of userIds) {

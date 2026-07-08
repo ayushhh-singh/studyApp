@@ -8,7 +8,7 @@ supabase
 .claude
 .git
 .github
-*.md
-.env
-.env.*
-!.env.example
+**/*.md
+**/.env
+**/.env.*
+!**/.env.example

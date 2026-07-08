@@ -16,10 +16,19 @@
 #
 # All real secrets live in the `prayasup-secrets` env var group below (shared
 # by the web service and every cron job) so they're entered ONCE in the
-# dashboard, not once per service. To deploy: connect this repo in the Render
-# dashboard ("New > Blueprint"); it reads this file and proposes the services
-# below. Fill in every value marked sync:false in the dashboard afterward —
-# never commit real secrets here.
+# dashboard, not once per service. NOTE: Render's docs describe a service-level
+# `envVarGroups` field "matching the format of the root-level envVarGroups
+# field" but don't show a full worked example of a service attaching one by
+# name — this file's shape (a plain list of group names per service) is the
+# most literal reading, but the FIRST TIME you connect this Blueprint, use the
+# dashboard's proposed-changes preview to confirm each cron job actually shows
+# the `prayasup-secrets` vars attached before approving — if it doesn't, link
+# the group to each service manually from its Environment tab instead.
+#
+# To deploy: connect this repo in the Render dashboard ("New > Blueprint");
+# it reads this file and proposes the services below. Fill in every value
+# marked sync:false in the dashboard afterward — never commit real secrets
+# here.
 envVarGroups:
   - name: prayasup-secrets
     envVars:
@@ -67,6 +76,8 @@ services:
         value: production
       - key: ALLOWED_ORIGINS
         sync: false # e.g. https://prayasup.app,https://www.prayasup.app
+      - key: ALLOWED_ORIGIN_SUFFIXES
+        sync: false # optional, e.g. .vercel.app if previews point at this API
 
   # 5:00 AM IST = 23:30 UTC (previous day)
   - type: cron

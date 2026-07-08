@@ -19,14 +19,18 @@ import { computeLearnerProfile } from "../src/services/learner-profile.js";
 import { generateMentorInsights } from "../src/services/mentor-insights.js";
 
 async function main() {
-  await forEachUser("nightly:settle", async (userId) => {
-    await runStreakNightly(userId);
-    await recordPerfectDay(userId);
-    const n = await recomputeMastery(userId);
-    console.log(`mastery: recomputed ${n} node(s) for ${userId}`);
-    await computeLearnerProfile(userId);
-    await generateMentorInsights(userId);
-  });
+  await forEachUser(
+    "nightly:settle",
+    async (userId) => {
+      await runStreakNightly(userId);
+      await recordPerfectDay(userId);
+      const n = await recomputeMastery(userId);
+      console.log(`mastery: recomputed ${n} node(s) for ${userId}`);
+      await computeLearnerProfile(userId);
+      await generateMentorInsights(userId);
+    },
+    { throwOnListFailure: true },
+  );
   console.log("nightly:settle done");
 }
 

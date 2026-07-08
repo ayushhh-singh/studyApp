@@ -40,20 +40,40 @@ await initSentry();
 const app = express();
 const port = process.env.PORT ?? 4000;
 
-// ALLOWED_ORIGINS is a comma-separated list (prod web origin + any preview
-// deploys you want to allow); local dev always works even if it's unset.
+// ALLOWED_ORIGINS is a comma-separated list (prod web origin + any exact
+// preview origins). Trailing slashes are stripped — an Origin header never
+// has one, so a pasted "https://x.com/" would otherwise silently never match.
+// ALLOWED_ORIGIN_SUFFIXES additionally allows-by-suffix (e.g.
+// ".vercel.app") so Vercel's per-PR preview deploys — a different origin on
+// every build — aren't locked out without hand-maintaining an exact list.
+// localhost:3000 is only auto-allowed outside production.
+const isProduction = process.env.NODE_ENV === "production";
 const allowedOrigins = new Set(
   (process.env.ALLOWED_ORIGINS ?? "")
     .split(",")
-    .map((o) => o.trim())
+    .map((o) => o.trim().replace(/\/$/, ""))
     .filter(Boolean)
-    .concat("http://localhost:3000"),
+    .concat(isProduction ? [] : ["http://localhost:3000"]),
 );
+const allowedOriginSuffixes = (process.env.ALLOWED_ORIGIN_SUFFIXES ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+if (isProduction && allowedOrigins.size === 0 && allowedOriginSuffixes.length === 0) {
+  logger.warn(
+    "ALLOWED_ORIGINS is unset in production — every browser request will be rejected by CORS until it's set.",
+  );
+}
+
 app.use(
   cors({
     origin(origin, callback) {
       // No Origin header (curl, server-to-server, the Razorpay webhook) — allow.
-      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.has(origin) || allowedOriginSuffixes.some((s) => origin.endsWith(s))) {
+        return callback(null, true);
+      }
       callback(new Error(`CORS: origin ${origin} not allowed`));
     },
   }),
