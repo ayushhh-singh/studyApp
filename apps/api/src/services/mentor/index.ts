@@ -399,6 +399,7 @@ export async function runDoubtQuiz(userId: string, threadId: string): Promise<Do
   });
 
   const questions = out.questions.slice(0, 3);
+  if (questions.length === 0) throw new HttpError(502, "Couldn't build a quiz — try asking a bit more first.");
   const intro: BilingualText = {
     en: "Here's a quick 3-question quiz on what we just discussed. Wrong answers can be saved to revision.",
     hi: "अभी जो चर्चा हुई उस पर एक छोटी 3-प्रश्नों की क्विज़। गलत उत्तर रिवीज़न में सहेजे जा सकते हैं।",

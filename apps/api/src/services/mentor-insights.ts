@@ -42,10 +42,13 @@ function buildCandidates(profile: Awaited<ReturnType<typeof getLearnerProfile>>,
       kind: "weak_node",
       dedupe_key: `weak_node:${weak.node_id}:${today}`,
       insight_i18n: {
-        en: `You're missing ${weak.title_i18n.en || weak.title_i18n.hi} questions (${weak.accuracy_pct}% of ${weak.answered_count} recently). A 10-minute drill would help.`,
-        hi: `आप ${weak.title_i18n.hi || weak.title_i18n.en} के प्रश्नों में चूक रहे हैं (हाल ही में ${weak.answered_count} में से ${weak.accuracy_pct}%)। 10 मिनट का अभ्यास मदद करेगा।`,
+        en: `You're missing ${weak.title_i18n.en || weak.title_i18n.hi} questions (${weak.accuracy_pct}% of ${weak.answered_count} recently). Revise the topic and drill its PYQs.`,
+        hi: `आप ${weak.title_i18n.hi || weak.title_i18n.en} के प्रश्नों में चूक रहे हैं (हाल ही में ${weak.answered_count} में से ${weak.accuracy_pct}%)। विषय दोहराएँ और इसके PYQ हल करें।`,
       },
-      cta_link: `/practice?node=${weak.node_id}`,
+      // Link to the section's Learn page (notes / PYQs / CA tabs) — PYQs attach
+      // to leaf nodes, so a /practice?node=<section> filter would be empty. This
+      // matches the dashboard weakness-card convention.
+      cta_link: `/learn/${weak.paper_code}/${weak.node_id}`,
     });
   }
 

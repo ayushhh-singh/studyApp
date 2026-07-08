@@ -91,9 +91,11 @@ export function MentorChat({
           />
         ))}
 
-        {/* In-flight turn */}
+        {/* In-flight turn. The assistant block is gated on `answer` (not
+            isStreaming) so the streamed text stays visible between the `done`
+            event and the refetch landing — otherwise it would blink out. */}
         {pendingUser && <MentorMessage message={{ role: "user", content: pendingUser }} />}
-        {stream.isStreaming && (
+        {(stream.isStreaming || stream.answer) && !stream.error && (
           <MentorMessage
             message={{
               role: "assistant",
