@@ -10,6 +10,7 @@ import { ImprovementProofCard } from "@/components/profile/improvement-proof-car
 import { MicroDrillsCard } from "@/components/profile/micro-drills-card";
 import { StudyPlanCard } from "@/components/profile/study-plan-card";
 import { SettingsCard } from "@/components/profile/settings-card";
+import { PlanBanner } from "@/components/billing/plan-banner";
 import { useProfile } from "@/hooks/use-profile";
 import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
 
@@ -25,6 +26,8 @@ export function Component() {
       <PageHeader title={t("Profile.title")} description={t("Profile.description")} />
 
       <ProfileCard profile={profile} isLoading={profileLoading} />
+
+      <PlanBanner />
 
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.analyticsSectionTitle")}</h2>
 

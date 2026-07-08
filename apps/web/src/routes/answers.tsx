@@ -9,6 +9,7 @@ import { PyqPicker } from "@/components/answers/pyq-picker";
 import { SubmissionHistoryList } from "@/components/answers/submission-history-list";
 import { useTodaysQuestion } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
+import { EvaluationQuotaChip } from "@/components/billing/quota-chip";
 
 export const handle = { titleKey: "Nav.answers" };
 
@@ -23,10 +24,13 @@ export function Component() {
         title={t("Answers.title")}
         description={t("Answers.description")}
         action={
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-marigold/15 px-3 py-1 text-xs font-semibold text-marigold-foreground">
-            <NotebookPen className="size-3.5" aria-hidden />
-            {t("Answers.flagshipBadge")}
-          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <EvaluationQuotaChip />
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-marigold/15 px-3 py-1 text-xs font-semibold text-marigold-foreground">
+              <NotebookPen className="size-3.5" aria-hidden />
+              {t("Answers.flagshipBadge")}
+            </span>
+          </div>
         }
       />
 

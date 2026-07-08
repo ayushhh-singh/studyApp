@@ -18,6 +18,7 @@ import { useDraftAutosave, readDraft, clearDraft } from "@/hooks/use-draft-autos
 import { useLocale } from "@/hooks/use-locale";
 import { ApiError } from "@/lib/api";
 import { prepareAnswerImage, uploadAnswerImage } from "@/lib/answer-images";
+import { usePaywallStore, toPaywallFeature } from "@/stores/paywall-store";
 
 const INPUT_CLASS =
   "h-9 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -87,6 +88,12 @@ export function Component() {
   );
 
   const createSubmission = useCreateSubmission();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
+  // A 402 from the create-submission call means the eval credit / OCR gate hit —
+  // raise the matching upgrade paywall instead of only showing an inline error.
+  const handleSubmitError = (err: unknown) => {
+    if (err instanceof ApiError && err.status === 402) openPaywall(toPaywallFeature(err.feature));
+  };
 
   const wordLimit = questionId ? (question?.word_limit ?? null) : customWordLimit;
   const hasQuestion = questionId ? true : customQuestionText.trim().length > 0;
@@ -116,6 +123,7 @@ export function Component() {
             clearDraft(draftKey);
             navigate(`/${locale}/answers/evaluation/${submission.id}`);
           },
+          onError: handleSubmitError,
         },
       );
       return;
@@ -138,6 +146,7 @@ export function Component() {
           onSuccess: (submission) => {
             navigate(`/${locale}/answers/confirm/${submission.id}`);
           },
+          onError: handleSubmitError,
         },
       );
     } catch (err) {

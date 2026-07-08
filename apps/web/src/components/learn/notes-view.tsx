@@ -8,6 +8,7 @@ import {
   ExternalLink,
   Layers,
   ListTree,
+  Lock,
   MapPin,
   Sparkles,
   TrendingUp,
@@ -19,6 +20,8 @@ import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { useNoteForNode, useAddNoteDeck, useAddNoteBlock } from "@/hooks/use-notes";
 import { useRecordEvent } from "@/hooks/use-record-event";
+import { usePaywallStore } from "@/stores/paywall-store";
+import { billingCopy as bc, pick } from "@/lib/billing-copy";
 import { cn } from "@/lib/utils";
 
 type BlockKey = "overview" | "key_facts" | "up_angle" | "pyq_analysis" | "mnemonics" | "quick_revision" | "further_reading";
@@ -121,6 +124,13 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
         description={t("Notes.emptyDescription")}
       />
     );
+  }
+
+  // Free users get the top-5 notes per paper in full; any other note comes back
+  // `locked` (content trimmed to the overview). Show that preview, then an
+  // upgrade gate — first-block preview + upgrade, per the paywall spec.
+  if (note.locked) {
+    return <LockedNote overview={body.overview} locale={locale} />;
   }
 
   function markAdded(key: string) {
@@ -426,6 +436,30 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
           )}
         </div>
       </article>
+    </div>
+  );
+}
+
+/** Free-tier gate for a note outside the top-5-per-paper allowance. */
+function LockedNote({ overview, locale }: { overview: string; locale: Locale }) {
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
+  return (
+    <div className="flex flex-col gap-4">
+      {/* Overview preview, fading into the gate. */}
+      <div className="relative max-h-56 overflow-hidden">
+        <Prose locale={locale}>{overview}</Prose>
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
+      </div>
+      <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
+        <span className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
+          <Lock className="size-5" aria-hidden />
+        </span>
+        <div>
+          <h3 className="text-base font-semibold">{pick(locale, bc.lockedNoteHeading)}</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{pick(locale, bc.paywallNotesBody)}</p>
+        </div>
+        <Button onClick={() => openPaywall("all_notes")}>{pick(locale, bc.upgradeToPro)}</Button>
+      </div>
     </div>
   );
 }

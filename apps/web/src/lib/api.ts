@@ -14,9 +14,12 @@ async function authHeaders(hasBody: boolean): Promise<Record<string, string>> {
 
 export class ApiError extends Error {
   status: number;
-  constructor(status: number, message: string) {
+  /** For 402 paywalls: which feature was gated (e.g. "evaluation", "handwritten_ocr"). */
+  feature?: string;
+  constructor(status: number, message: string, feature?: string) {
     super(message);
     this.status = status;
+    this.feature = feature;
   }
 }
 
@@ -62,7 +65,10 @@ async function request<T extends ZodTypeAny>(
 
   const envelope = parsed.data as { data: unknown; error: string | null };
   if (!res.ok || envelope.error) {
-    throw new ApiError(res.status, envelope.error ?? `Request failed (HTTP ${res.status})`);
+    // `feature` is an out-of-schema field the API adds to 402 paywall errors; read
+    // it from the raw JSON since the envelope schema strips unknown keys.
+    const feature = (json as { feature?: string }).feature;
+    throw new ApiError(res.status, envelope.error ?? `Request failed (HTTP ${res.status})`, feature);
   }
   return envelope.data as NonNullable<z.infer<T>["data"]>;
 }

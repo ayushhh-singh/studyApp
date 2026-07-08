@@ -6,19 +6,26 @@ import { BottomTabBar } from "@/components/app-shell/bottom-tab-bar";
 import { CommandPalette } from "@/components/ui-x/command-palette";
 import { MilestoneToaster } from "@/components/app-shell/milestone-toaster";
 import { FloatingMentorButton } from "@/components/mentor/floating-mentor-button";
+import { PaywallModal } from "@/components/billing/paywall-modal";
+import { useLocale } from "@/hooks/use-locale";
 
 interface RouteHandle {
   titleKey?: string;
+  /** A raw bilingual title for routes without a messages/*.json key (e.g. billing). */
+  titleI18n?: { en: string; hi: string };
 }
 
 export function Component() {
   const { t } = useTranslation();
+  const locale = useLocale();
   const matches = useMatches();
   const activeHandle = [...matches]
     .reverse()
     .map((match) => match.handle as RouteHandle | undefined)
-    .find((handle) => handle?.titleKey);
-  const title = t(activeHandle?.titleKey ?? "Nav.dashboard");
+    .find((handle) => handle?.titleKey || handle?.titleI18n);
+  const title = activeHandle?.titleI18n
+    ? activeHandle.titleI18n[locale]
+    : t(activeHandle?.titleKey ?? "Nav.dashboard");
 
   return (
     <div className="flex min-h-svh bg-background">
@@ -33,6 +40,7 @@ export function Component() {
       <CommandPalette />
       <MilestoneToaster />
       <FloatingMentorButton />
+      <PaywallModal />
     </div>
   );
 }
