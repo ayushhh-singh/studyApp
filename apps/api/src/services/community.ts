@@ -144,6 +144,15 @@ export async function createThread(
   title: string,
   body: string,
 ): Promise<DiscussionThread> {
+  // shared_answer-anchored threads are system-managed: shareAnswerForPeerReview
+  // creates exactly one per shared answer and every other read (getSharedAnswer,
+  // the re-share idempotency check) looks it up with .maybeSingle(), which
+  // errors if more than one row matches. Letting an arbitrary user create a
+  // second thread on the same anchor via this generic endpoint would break
+  // those lookups for everyone, not just the caller.
+  if (anchorType === "shared_answer") {
+    throw badRequest("Peer-review threads are created automatically when an answer is shared");
+  }
   await assertAnchorExists(anchorType, anchorId);
 
   const { data: thread, error } = await supabase()
@@ -310,12 +319,15 @@ export async function addPost(userId: string, threadId: string, body: string): P
 export async function editPost(userId: string, postId: string, body: string): Promise<DiscussionPost> {
   const { data: existing, error: fetchError } = await supabase()
     .from("discussion_posts")
-    .select("id, user_id, is_deleted")
+    .select("id, user_id, is_deleted, moderation_status")
     .eq("id", postId)
     .maybeSingle();
   if (fetchError) throw new HttpError(500, `post lookup failed: ${fetchError.message}`);
   if (!existing || existing.user_id !== userId) throw notFound("Post not found");
   if ((existing as { is_deleted: boolean }).is_deleted) throw badRequest("Cannot edit a deleted post");
+  if ((existing as { moderation_status: string }).moderation_status === "removed") {
+    throw badRequest("This post was removed by a moderator and can no longer be edited");
+  }
 
   const { data: post, error } = await supabase()
     .from("discussion_posts")
@@ -349,6 +361,17 @@ export async function votePost(
   postId: string,
   value: -1 | 1,
 ): Promise<{ vote_score: number; my_vote: -1 | 0 | 1 }> {
+  const { data: targetPost, error: targetError } = await supabase()
+    .from("discussion_posts")
+    .select("user_id")
+    .eq("id", postId)
+    .maybeSingle();
+  if (targetError) throw new HttpError(500, `post lookup failed: ${targetError.message}`);
+  if (!targetPost) throw notFound("Post not found");
+  if ((targetPost as { user_id: string }).user_id === userId) {
+    throw badRequest("You cannot vote on your own post");
+  }
+
   const { data: existing, error: existingError } = await supabase()
     .from("post_votes")
     .select("id, value")
@@ -468,6 +491,32 @@ function truncate(text: string, max = 80): string {
   return trimmed.length > max ? `${trimmed.slice(0, max - 1)}…` : trimmed;
 }
 
+/** Look up an already-shared answer's row + its anchor thread, if one exists. */
+async function findExistingShare(submissionId: string): Promise<{ id: string; created_at: string; threadId: string } | null> {
+  const { data: existing, error: existingError } = await supabase()
+    .from("shared_answers")
+    .select("id, created_at")
+    .eq("submission_id", submissionId)
+    .maybeSingle();
+  if (existingError) throw new HttpError(500, `shared answer lookup failed: ${existingError.message}`);
+  if (!existing) return null;
+
+  const { data: existingThread, error: threadLookupError } = await supabase()
+    .from("discussion_threads")
+    .select("id")
+    .eq("anchor_type", "shared_answer")
+    .eq("anchor_id", (existing as { id: string }).id)
+    .maybeSingle();
+  if (threadLookupError) throw new HttpError(500, `thread lookup failed: ${threadLookupError.message}`);
+  if (!existingThread) throw new HttpError(500, "shared answer is missing its discussion thread");
+
+  return {
+    id: (existing as { id: string }).id,
+    created_at: (existing as { created_at: string }).created_at,
+    threadId: (existingThread as { id: string }).id,
+  };
+}
+
 export async function shareAnswerForPeerReview(userId: string, submissionId: string): Promise<SharedAnswer> {
   const { data: submission, error: subError } = await supabase()
     .from("answer_submissions")
@@ -481,27 +530,9 @@ export async function shareAnswerForPeerReview(userId: string, submissionId: str
   if (!sub || sub.user_id !== userId) throw notFound("Submission not found");
   if (sub.status !== "complete") throw badRequest("This answer hasn't finished evaluating yet");
 
-  const { data: existing, error: existingError } = await supabase()
-    .from("shared_answers")
-    .select("id, created_at")
-    .eq("submission_id", submissionId)
-    .maybeSingle();
-  if (existingError) throw new HttpError(500, `shared answer lookup failed: ${existingError.message}`);
+  const existing = await findExistingShare(submissionId);
   if (existing) {
-    const { data: existingThread, error: threadLookupError } = await supabase()
-      .from("discussion_threads")
-      .select("id")
-      .eq("anchor_type", "shared_answer")
-      .eq("anchor_id", (existing as { id: string }).id)
-      .maybeSingle();
-    if (threadLookupError) throw new HttpError(500, `thread lookup failed: ${threadLookupError.message}`);
-    if (!existingThread) throw new HttpError(500, "shared answer is missing its discussion thread");
-    return buildSharedAnswer(
-      (existing as { id: string }).id,
-      submissionId,
-      (existingThread as { id: string }).id,
-      (existing as { created_at: string }).created_at,
-    );
+    return buildSharedAnswer(existing.id, submissionId, existing.threadId, existing.created_at);
   }
 
   const { data: shared, error: shareError } = await supabase()
@@ -509,7 +540,17 @@ export async function shareAnswerForPeerReview(userId: string, submissionId: str
     .insert({ submission_id: submissionId, user_id: userId })
     .select("id, created_at")
     .single();
-  if (shareError) throw new HttpError(500, `share failed: ${shareError.message}`);
+  if (shareError) {
+    // 23505 = unique violation on submission_id — a concurrent request beat
+    // us to it between the check above and this insert. Rather than surface
+    // a raw 500 for what is really a successful (idempotent) share, look up
+    // and return whatever the other request just created.
+    if (shareError.code === "23505") {
+      const wonByOther = await findExistingShare(submissionId);
+      if (wonByOther) return buildSharedAnswer(wonByOther.id, submissionId, wonByOther.threadId, wonByOther.created_at);
+    }
+    throw new HttpError(500, `share failed: ${shareError.message}`);
+  }
   const sharedRow = shared as { id: string; created_at: string };
 
   const questionExcerpt = truncate(sub.questions?.stem_i18n?.en ?? sub.custom_question_text_i18n?.en ?? "an answer");
@@ -657,7 +698,27 @@ export async function reportContent(
     .eq("reporter_id", reporterId)
     .maybeSingle();
   if (existingError) throw new HttpError(500, `report lookup failed: ${existingError.message}`);
-  if (existing) return existing as { id: string; status: string };
+
+  // The unique index is on (target_type, target_id, reporter_id), so a
+  // reporter can only ever have ONE row per target — including one an admin
+  // already dismissed/actioned. If we just returned that stale row as-is, the
+  // same reporter could never report the same content again even if it later
+  // became newly problematic (e.g. edited after a dismissal for an unrelated
+  // reason). Only short-circuit for a still-open report; otherwise reopen the
+  // existing row with the fresh reason/detail rather than silently no-op'ing.
+  if (existing && (existing as { status: string }).status === "open") {
+    return existing as { id: string; status: string };
+  }
+  if (existing) {
+    const { data: reopened, error: reopenError } = await supabase()
+      .from("reports")
+      .update({ status: "open", reason, detail: detail ?? null, resolved_by: null, resolved_at: null })
+      .eq("id", (existing as { id: string }).id)
+      .select("id, status")
+      .single();
+    if (reopenError) throw new HttpError(500, `report reopen failed: ${reopenError.message}`);
+    return reopened as { id: string; status: string };
+  }
 
   const { data: report, error } = await supabase()
     .from("reports")

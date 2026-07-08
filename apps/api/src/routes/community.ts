@@ -48,8 +48,12 @@ import {
 export const communityRouter = Router();
 communityRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
 // Posting is rate-limited more tightly than reads — the non-negotiable
-// per-user posts/hour cap (CLAUDE.md's moderation requirement).
-communityRouter.use(["/community/threads", "/community/posts"], rateLimit({ windowMs: 3_600_000, max: 30 }));
+// per-user posts/hour cap (CLAUDE.md's moderation requirement). Applied only
+// to the two content-creation routes below, NOT router.use()'d onto the
+// "/community/threads"/"/community/posts" path prefixes — those prefixes also
+// cover GET (listing threads, reading a thread's posts), and a path-prefix
+// limiter would silently burn a user's post budget just from browsing.
+const postCreationLimit = rateLimit({ windowMs: 3_600_000, max: 30 });
 
 const idParams = z.object({ id: z.string().uuid() });
 
@@ -72,6 +76,7 @@ communityRouter.get(
 
 communityRouter.post(
   "/community/threads",
+  postCreationLimit,
   asyncHandler(async (req, res) => {
     const body = parse(createDiscussionThreadBodySchema, req.body);
     const thread = await createThread(currentUserId(), body.anchor_type, body.anchor_id, body.title, body.body);
@@ -91,6 +96,7 @@ communityRouter.get(
 
 communityRouter.post(
   "/community/threads/:id/posts",
+  postCreationLimit,
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
     const body = parse(createDiscussionPostBodySchema, req.body);
