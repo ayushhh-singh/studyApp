@@ -8,6 +8,7 @@ import {
   Sparkles,
   ShieldCheck,
   User,
+  MessagesSquare,
   type LucideIcon,
 } from "lucide-react";
 
@@ -37,6 +38,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },
   { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain },
+  { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
   { id: "review", to: "review", labelKey: "Nav.review", icon: ShieldCheck, adminOnly: true },
   { id: "profile", to: "profile", labelKey: "Nav.profile", icon: User },
 ];

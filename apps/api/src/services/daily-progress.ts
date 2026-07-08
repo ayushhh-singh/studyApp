@@ -32,6 +32,8 @@ export interface DailyProgress {
   answer_submissions_today: number;
   /** Fired a reading event today (note_read / syllabus_node_view). */
   read_today: boolean;
+  /** Posted a discussion reply/thread or cast a post vote today. */
+  community_activity_today: boolean;
 }
 
 async function headCount(build: () => PromiseLike<{ count: number | null; error: { message: string } | null }>): Promise<number> {
@@ -69,7 +71,8 @@ export async function getDailyProgress(userId: string, date: string = istToday()
       )) > 0;
   }
 
-  const [attemptsToday, srsReviewsToday, submissionsToday, readTodayCount, answerSet, srsDue] = await Promise.all([
+  const [attemptsToday, srsReviewsToday, submissionsToday, readTodayCount, answerSet, srsDue, postsToday, votesToday] =
+    await Promise.all([
     headCount(() =>
       supabase()
         .from("attempts")
@@ -112,6 +115,22 @@ export async function getDailyProgress(userId: string, date: string = istToday()
         .eq("user_id", userId)
         .lte("fsrs_state->>due_at", nowIso),
     ),
+    headCount(() =>
+      supabase()
+        .from("discussion_posts")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", startUtc)
+        .lt("created_at", endUtc),
+    ),
+    headCount(() =>
+      supabase()
+        .from("post_votes")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", startUtc)
+        .lt("created_at", endUtc),
+    ),
   ]);
   const readToday = readTodayCount > 0;
 
@@ -125,6 +144,7 @@ export async function getDailyProgress(userId: string, date: string = istToday()
     srs_reviews_today: srsReviewsToday,
     answer_submissions_today: submissionsToday,
     read_today: readToday,
+    community_activity_today: postsToday > 0 || votesToday > 0,
   };
 }
 
@@ -165,6 +185,7 @@ export function hadActivity(p: DailyProgress): boolean {
     p.attempts_today >= 1 ||
     p.srs_reviews_today >= SRS_ACTIVITY_THRESHOLD ||
     p.answer_submissions_today >= 1 ||
+    p.community_activity_today ||
     checklist.completed === checklist.total
   );
 }

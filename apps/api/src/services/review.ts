@@ -21,6 +21,7 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { reviewNotesCount } from "./notes.js";
+import { reportsCounts } from "./community-admin.js";
 
 export const REVIEW_PAGE_SIZE = 10;
 
@@ -159,7 +160,7 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
 
 export async function reviewCounts(): Promise<ReviewCounts> {
   const tabs: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs"];
-  const [questionEntries, notes] = await Promise.all([
+  const [questionEntries, notes, reports] = await Promise.all([
     Promise.all(
       tabs.map(async (tab) => {
         const { count, error } = await applyTab(
@@ -171,8 +172,13 @@ export async function reviewCounts(): Promise<ReviewCounts> {
       }),
     ),
     reviewNotesCount(),
+    reportsCounts(),
   ]);
-  return { ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes">), notes };
+  return {
+    ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes" | "reports">),
+    notes,
+    reports: reports.open,
+  };
 }
 
 // ---------------------------------------------------------------------------

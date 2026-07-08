@@ -14,11 +14,17 @@ import {
   reviewNoteRejectBodySchema,
   reviewNotesQuerySchema,
   reviewNotesResponseSchema,
+  reportActionResponseSchema,
+  reportsQueueQuerySchema,
+  reportsQueueResponseSchema,
+  reportTargetTypeSchema,
+  resolveReportBodySchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { isCurrentUserAdmin, requireAdmin } from "../lib/admin.js";
+import { currentUserId } from "../lib/user-context.js";
 import {
   approveQuestion,
   bulkApprove,
@@ -35,6 +41,7 @@ import {
   NOTES_REVIEW_PAGE_SIZE,
   rejectNote,
 } from "../services/notes.js";
+import { listReportsQueue, REPORTS_PAGE_SIZE, resolveReportsForTarget } from "../services/community-admin.js";
 
 export const adminRouter = Router();
 
@@ -51,6 +58,7 @@ adminRouter.get(
 // Everything below is admin-gated.
 adminRouter.use("/admin/review", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/notes", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
+adminRouter.use("/admin/community", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 
 adminRouter.get(
   "/admin/review",
@@ -166,5 +174,45 @@ adminRouter.patch(
     const { id } = parse(idParams, req.params);
     const body = parse(reviewNoteEditBodySchema, req.body);
     res.json(reviewNoteActionResponseSchema.parse({ data: await editNote(id, body), error: null }));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Community reports (the Review Queue's Reports tab). Reports are user
+// complaints about user-generated content, not AI-generated drafts awaiting a
+// publish gate, so — like notes above — they get their own list/counts/action
+// endpoints rather than reusing listReviewQueue's questions-shaped machinery.
+// ---------------------------------------------------------------------------
+adminRouter.get(
+  "/admin/community/reports",
+  asyncHandler(async (req, res) => {
+    const { page } = parse(reportsQueueQuerySchema, req.query);
+    const { items, total } = await listReportsQueue(page);
+    res.json(
+      reportsQueueResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: REPORTS_PAGE_SIZE,
+            total,
+            total_pages: Math.max(1, Math.ceil(total / REPORTS_PAGE_SIZE)),
+          },
+        },
+        error: null,
+      }),
+    );
+  }),
+);
+
+const reportTargetParams = z.object({ targetType: reportTargetTypeSchema, targetId: z.string().uuid() });
+
+adminRouter.post(
+  "/admin/community/reports/:targetType/:targetId/resolve",
+  asyncHandler(async (req, res) => {
+    const { targetType, targetId } = parse(reportTargetParams, req.params);
+    const { action } = parse(resolveReportBodySchema, req.body);
+    const result = await resolveReportsForTarget(currentUserId(), targetType, targetId, action);
+    res.json(reportActionResponseSchema.parse({ data: result, error: null }));
   }),
 );

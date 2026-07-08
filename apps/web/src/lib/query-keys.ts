@@ -72,4 +72,13 @@ export const queryKeys = {
   doubtThreads: () => ["doubts", "threads"] as const,
   doubtThread: (id: string) => ["doubts", "threads", id] as const,
   mentorInsights: () => ["mentor", "insights"] as const,
+  communityHub: () => ["community", "hub"] as const,
+  communityThreads: (anchorType: string, anchorId: string, page?: number) =>
+    ["community", "threads", anchorType, anchorId, page ?? 1] as const,
+  communityThread: (id: string, page?: number) => ["community", "thread", id, page ?? 1] as const,
+  sharedAnswers: (page?: number) => ["community", "shared-answers", page ?? 1] as const,
+  sharedAnswer: (id: string) => ["community", "shared-answers", "detail", id] as const,
+  communityBlocks: () => ["community", "blocks"] as const,
+  adminReports: (page: number) => ["admin", "community", "reports", page] as const,
+  adminReportsCounts: () => ["admin", "community", "reports", "counts"] as const,
 };

@@ -204,6 +204,57 @@ async function main() {
       const reviewA = await fetch(`${apiUrl}/api/v1/admin/review?tab=mcq&page=1`, { headers: authH(token) });
       check("admin hitting /admin/review is NOT 403", reviewA.status !== 403, `got ${reviewA.status}`);
     }
+
+    // ---- 7. Community (0055/0056): public threads, owner-only votes, --------
+    // ----    write-only reports --------------------------------------------
+    console.log("7. Community RLS (discussion_threads/posts/post_votes/reports):");
+    const { data: thread, error: threadErr } = await admin
+      .from("discussion_threads")
+      .insert({ anchor_type: "node", anchor_id: crypto.randomUUID(), title: "rls probe thread", user_id: a.id })
+      .select("id")
+      .single();
+    if (threadErr || !thread) throw new Error(`seed thread failed: ${threadErr?.message}`);
+    const { data: post, error: postErr } = await admin
+      .from("discussion_posts")
+      .insert({ thread_id: thread.id, user_id: a.id, body: "rls probe post" })
+      .select("id")
+      .single();
+    if (postErr || !post) throw new Error(`seed post failed: ${postErr?.message}`);
+
+    // A visible thread/post authored by A is publicly readable by B (content_read).
+    const bReadsThread = await b.client.from("discussion_threads").select("id").eq("id", thread.id).maybeSingle();
+    check("discussion_threads: B can read A's visible thread", !bReadsThread.error && !!bReadsThread.data);
+    const bReadsPost = await b.client.from("discussion_posts").select("id").eq("id", post.id).maybeSingle();
+    check("discussion_posts: B can read A's visible post", !bReadsPost.error && !!bReadsPost.data);
+
+    // Flip the thread to 'removed' — it must disappear for B but stay visible to its owner A.
+    const flip = await admin.from("discussion_threads").update({ moderation_status: "removed" }).eq("id", thread.id);
+    if (flip.error) throw new Error(`flip thread status failed: ${flip.error.message}`);
+    const bReadsRemoved = await b.client.from("discussion_threads").select("id").eq("id", thread.id).maybeSingle();
+    check("discussion_threads: B cannot read A's removed thread", !bReadsRemoved.data);
+    const aReadsOwnRemoved = await a.client.from("discussion_threads").select("id").eq("id", thread.id).maybeSingle();
+    check("discussion_threads: A can still read its own removed thread", !!aReadsOwnRemoved.data);
+
+    // post_votes is plain owner-only: both A and B can vote on the SAME post,
+    // but neither can see the other's vote row.
+    const aVote = await a.client.from("post_votes").insert({ post_id: post.id, user_id: a.id, value: 1 });
+    check("post_votes: A can cast its own vote", aVote.error === null, aVote.error?.message);
+    const bVote = await b.client.from("post_votes").insert({ post_id: post.id, user_id: b.id, value: 1 });
+    check("post_votes: B can cast its own vote", bVote.error === null, bVote.error?.message);
+    const aSeesVotes = await a.client.from("post_votes").select("id,user_id").eq("post_id", post.id);
+    const aSawB = (aSeesVotes.data ?? []).some((r) => (r as { user_id: string }).user_id === b.id);
+    check("post_votes: A's select on the shared post excludes B's vote", !aSeesVotes.error && !aSawB);
+
+    // reports has NO select policy at all — even the reporter cannot read it back.
+    const report = await a.client.from("reports").insert({
+      target_type: "post",
+      target_id: post.id,
+      reporter_id: a.id,
+      reason: "spam",
+    });
+    check("reports: A can insert its own report", report.error === null, report.error?.message);
+    const readBack = await a.client.from("reports").select("id").eq("reporter_id", a.id);
+    check("reports: A cannot read reports back (no select policy)", (readBack.data?.length ?? 0) === 0);
   } finally {
     // Cleanup: remove uploaded objects, then delete both auth users (cascade
     // removes their profile + every seeded row).

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
-import { BookOpen, ListChecks, Newspaper, PenSquare } from "lucide-react";
+import { BookOpen, ListChecks, MessagesSquare, Newspaper, PenSquare } from "lucide-react";
 import type { ExamCode } from "@prayasup/shared";
 import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -14,6 +14,7 @@ import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { Button } from "@/components/ui/button";
 import { PyqList } from "@/components/learn/pyq-list";
 import { NotesView } from "@/components/learn/notes-view";
+import { DiscussionPanel } from "@/components/community/discussion-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useRecordEvent } from "@/hooks/use-record-event";
@@ -35,7 +36,7 @@ export function Component() {
   const createTest = useCreateCustomTest();
   const page = Number(searchParams.get("page") ?? "1") || 1;
   const tabParam = searchParams.get("tab");
-  const tab = tabParam === "pyqs" || tabParam === "ca" ? tabParam : "notes";
+  const tab = tabParam === "pyqs" || tabParam === "ca" || tabParam === "discussion" ? tabParam : "notes";
 
   function setTab(next: string) {
     setSearchParams(
@@ -186,6 +187,9 @@ export function Component() {
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="discussion">
+            <MessagesSquare className="size-4" aria-hidden /> {t("Community.tab")}
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="notes">
@@ -226,6 +230,12 @@ export function Component() {
                 ))}
               </ul>
             )}
+          </SectionCard>
+        </TabsContent>
+
+        <TabsContent value="discussion">
+          <SectionCard title={t("Community.tab")}>
+            <DiscussionPanel anchorType="node" anchorId={nodeId} />
           </SectionCard>
         </TabsContent>
       </Tabs>

@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { ReviewCard } from "@/components/review/review-card";
 import { ReviewEditForm } from "@/components/review/review-edit-form";
 import { NotesReviewPanel } from "@/components/review/notes-review-panel";
+import { ReportsReviewPanel } from "@/components/review/reports-review-panel";
 import {
   useAdminStatus,
   useReviewApprove,
@@ -31,7 +32,14 @@ import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Nav.review" };
 
-const TABS: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs", "notes"];
+const TABS: ReviewTab[] = [
+  "generated_mcq",
+  "generated_descriptive",
+  "machine_translated",
+  "current_affairs",
+  "notes",
+  "reports",
+];
 
 /** A generated item is "high-confidence" (bulk-approvable) when the blind verify agreed and no factual flags were raised. */
 function isHighConfidence(q: ReviewQuestion): boolean {
@@ -55,7 +63,8 @@ export function Component() {
   const queryClient = useQueryClient();
   const counts = useReviewCounts(adminMode);
   const isNotesTab = tab === "notes";
-  const queue = useReviewQueue(tab, page, adminMode && !isNotesTab);
+  const isReportsTab = tab === "reports";
+  const queue = useReviewQueue(tab, page, adminMode && !isNotesTab && !isReportsTab);
   const items = useMemo(() => queue.data?.items ?? [], [queue.data]);
   const totalPages = queue.data?.pagination.total_pages ?? 1;
 
@@ -222,6 +231,8 @@ export function Component() {
 
       {isNotesTab ? (
         <NotesReviewPanel />
+      ) : isReportsTab ? (
+        <ReportsReviewPanel />
       ) : queue.isLoading ? (
         <Skeleton className="h-72 w-full" />
       ) : items.length === 0 ? (

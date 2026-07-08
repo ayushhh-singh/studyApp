@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams } from "react-router";
+import { Link, useNavigate, useParams } from "react-router";
 import { FileQuestion, Loader2, PenLine, Share2, Sparkles } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -17,6 +17,7 @@ import { useEvaluationStream } from "@/hooks/use-evaluation-stream";
 import { useAddEvaluationToRevision } from "@/hooks/use-add-to-revision";
 import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
+import { useShareAnswer } from "@/hooks/use-community";
 
 export const handle = { titleKey: "Nav.answers" };
 
@@ -32,10 +33,12 @@ const PHASE_LABEL_KEYS: Record<string, string> = {
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
+  const navigate = useNavigate();
   const { submissionId = "" } = useParams<{ submissionId: string }>();
   const { data: detail, isLoading: isDetailLoading } = useSubmissionDetail(submissionId);
   const stream = useEvaluationStream(submissionId);
   const addToRevision = useAddEvaluationToRevision();
+  const shareAnswer = useShareAnswer();
   const { data: catalogedQuestion } = useQuestion(detail?.submission.question_id ?? undefined);
 
   useEffect(() => {
@@ -146,11 +149,22 @@ export function Component() {
             <Sparkles aria-hidden />
             {addToRevision.isSuccess ? t("Learn.addedToRevision") : t("Answers.addKeyPointsCta")}
           </Button>
-          <Button variant="ghost" disabled title={t("Answers.shareComingSoon")}>
+          <Button
+            variant="ghost"
+            disabled={shareAnswer.isPending}
+            onClick={() =>
+              shareAnswer.mutate(submissionId, {
+                onSuccess: (shared) => navigate(`/${locale}/community/shared-answers/${shared.id}`),
+              })
+            }
+          >
             <Share2 aria-hidden />
             {t("Answers.shareCta")}
           </Button>
         </div>
+      )}
+      {shareAnswer.isError && (
+        <p className="text-center text-sm text-coral">{shareAnswer.error.message}</p>
       )}
     </div>
   );

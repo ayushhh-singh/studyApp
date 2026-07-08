@@ -58,6 +58,10 @@ export const router = createBrowserRouter([
               { path: "doubts", lazy: () => import("@/routes/doubts") },
               { path: "magazine", lazy: () => import("@/routes/magazine-index") },
               { path: "revision", lazy: () => import("@/routes/revision") },
+              { path: "community", lazy: () => import("@/routes/community") },
+              { path: "community/shared-answers", lazy: () => import("@/routes/community-shared-answers") },
+              { path: "community/shared-answers/:id", lazy: () => import("@/routes/community-shared-answer") },
+              { path: "community/thread/:threadId", lazy: () => import("@/routes/community-thread") },
               { path: "review", lazy: () => import("@/routes/review") },
               // Built but hidden: reachable by URL, not linked in nav (see leaderboard.tsx).
               { path: "leaderboard", lazy: () => import("@/routes/leaderboard") },

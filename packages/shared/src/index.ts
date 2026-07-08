@@ -24,4 +24,5 @@ export * from "./mentor";
 export * from "./profile-analytics";
 export * from "./micro-drill";
 export * from "./study-plan";
+export * from "./community";
 export * from "./billing";
