@@ -89,6 +89,9 @@ importers:
       ts-fsrs:
         specifier: 5.4.1
         version: 5.4.1
+      tsx:
+        specifier: ^4.19.1
+        version: 4.23.0
       web-push:
         specifier: ^3.6.7
         version: 3.6.7
@@ -114,9 +117,6 @@ importers:
       pino-pretty:
         specifier: ^11.2.2
         version: 11.3.0
-      tsx:
-        specifier: ^4.19.1
-        version: 4.23.0
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

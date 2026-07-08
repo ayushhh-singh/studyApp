@@ -40,9 +40,22 @@ await initSentry();
 const app = express();
 const port = process.env.PORT ?? 4000;
 
+// ALLOWED_ORIGINS is a comma-separated list (prod web origin + any preview
+// deploys you want to allow); local dev always works even if it's unset.
+const allowedOrigins = new Set(
+  (process.env.ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((o) => o.trim())
+    .filter(Boolean)
+    .concat("http://localhost:3000"),
+);
 app.use(
   cors({
-    origin: "http://localhost:3000",
+    origin(origin, callback) {
+      // No Origin header (curl, server-to-server, the Razorpay webhook) — allow.
+      if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+      callback(new Error(`CORS: origin ${origin} not allowed`));
+    },
   }),
 );
 app.use(helmet());

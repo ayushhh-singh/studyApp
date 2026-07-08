@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+apps/web
+content-raw
+docs
+supabase
+.claude
+.git
+.github
+*.md
+.env
+.env.*
+!.env.example

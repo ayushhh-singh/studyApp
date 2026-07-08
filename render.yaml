@@ -1,0 +1,139 @@
+# Render Blueprint — deploys the API only (apps/web goes to Vercel/Cloudflare
+# Pages instead; see docs/operations.md). Render was chosen over Railway
+# because Cron Jobs are a first-class resource type here: each background job
+# (ca:run, daily:build, qgen:topup, nightly:settle, notifications:run) gets
+# its own scheduled one-off container with its own logs/history/retries,
+# rather than all of them living inside node-cron ticks in the always-on web
+# service (a single process crash would silently kill every job at once, and
+# there'd be no per-job run history). The always-on web service still needs
+# to stay up continuously for SSE (evaluation/OCR/drills/study-plan streams)
+# and Express itself — that's the `prayasup-api` service below.
+#
+# Render Cron Job schedules are evaluated in UTC (no IANA timezone field) —
+# every schedule below is the UTC equivalent of the IST time the feature is
+# actually keyed to (see each job's comment). Reconfirm this against Render's
+# current docs before relying on it; platform specifics change.
+#
+# All real secrets live in the `prayasup-secrets` env var group below (shared
+# by the web service and every cron job) so they're entered ONCE in the
+# dashboard, not once per service. To deploy: connect this repo in the Render
+# dashboard ("New > Blueprint"); it reads this file and proposes the services
+# below. Fill in every value marked sync:false in the dashboard afterward —
+# never commit real secrets here.
+envVarGroups:
+  - name: prayasup-secrets
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: QGEN_BATCH_MAX_USD
+        value: "5"
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: RAZORPAY_WEBHOOK_SECRET
+        sync: false
+      - key: VAPID_PUBLIC_KEY
+        sync: false
+      - key: VAPID_PRIVATE_KEY
+        sync: false
+      - key: VAPID_SUBJECT
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+services:
+  - type: web
+    name: prayasup-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: starter
+    region: singapore
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVarGroups:
+      - prayasup-secrets
+    envVars:
+      - key: PORT
+        value: "4000"
+      - key: NODE_ENV
+        value: production
+      - key: ALLOWED_ORIGINS
+        sync: false # e.g. https://prayasup.app,https://www.prayasup.app
+
+  # 5:00 AM IST = 23:30 UTC (previous day)
+  - type: cron
+    name: prayasup-daily-build
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    dockerCommand: pnpm daily:build
+    plan: starter
+    region: singapore
+    schedule: "30 23 * * *"
+    envVarGroups:
+      - prayasup-secrets
+
+  # Every 6 hours, matching the dev scheduler's cadence.
+  - type: cron
+    name: prayasup-ca-run
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    dockerCommand: pnpm ca:run
+    plan: starter
+    region: singapore
+    schedule: "0 */6 * * *"
+    envVarGroups:
+      - prayasup-secrets
+
+  # 3:00 AM IST = 21:30 UTC (previous day) — kept off-peak, away from ca:run/
+  # daily:build, since it's the one job with a real per-run LLM spend (capped
+  # by QGEN_BATCH_MAX_USD).
+  - type: cron
+    name: prayasup-qgen-topup
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    dockerCommand: pnpm qgen:topup
+    plan: starter
+    region: singapore
+    schedule: "30 21 * * *"
+    envVarGroups:
+      - prayasup-secrets
+
+  # 00:05 IST = 18:35 UTC (previous day) — streak settle + Perfect Day +
+  # mastery recompute + mentor insights (see scripts/nightly-settle.ts for why
+  # these four are one job).
+  - type: cron
+    name: prayasup-nightly-settle
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    dockerCommand: pnpm nightly:settle
+    plan: starter
+    region: singapore
+    schedule: "35 18 * * *"
+    envVarGroups:
+      - prayasup-secrets
+
+  # Hourly — regenerate/resolve notification_schedule rows, then send web push
+  # for anything now due (quiz-ready 5AM, SRS 7AM, streak-at-risk ~8PM IST).
+  - type: cron
+    name: prayasup-notifications
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    dockerCommand: pnpm notifications:run
+    plan: starter
+    region: singapore
+    schedule: "0 * * * *"
+    envVarGroups:
+      - prayasup-secrets

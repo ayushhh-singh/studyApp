@@ -20,25 +20,7 @@ import { recomputeMastery } from "../mastery/compute.js";
 import { recordPerfectDay } from "../services/daily-stats.js";
 import { computeLearnerProfile } from "../services/learner-profile.js";
 import { generateMentorInsights } from "../services/mentor-insights.js";
-import { listAllUserIds } from "../lib/users.js";
-
-/** Run a per-user nightly/hourly job for every onboarded user, isolating failures. */
-async function forEachUser(label: string, fn: (userId: string) => Promise<unknown>): Promise<void> {
-  let userIds: string[];
-  try {
-    userIds = await listAllUserIds();
-  } catch (err) {
-    logger.error({ err }, `daily: ${label} — could not list users`);
-    return;
-  }
-  for (const userId of userIds) {
-    try {
-      await fn(userId);
-    } catch (err) {
-      logger.error({ err, userId }, `daily: ${label} failed for user`);
-    }
-  }
-}
+import { forEachUser } from "../lib/users.js";
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
 const STREAK_NIGHTLY_CRON = "5 0 * * *"; // 00:05 every day — settle the streak just after IST midnight
@@ -60,7 +42,7 @@ export function startDailyScheduler(): void {
   cron.schedule(
     STREAK_NIGHTLY_CRON,
     () => {
-      void forEachUser("nightly settle", async (userId) => {
+      void forEachUser("daily: nightly settle", async (userId) => {
         await runStreakNightly(userId);
         // Settle yesterday's Perfect Day before the IST date rolls fully over.
         await recordPerfectDay(userId);
@@ -80,7 +62,7 @@ export function startDailyScheduler(): void {
   cron.schedule(
     NOTIFICATIONS_CRON,
     () => {
-      void forEachUser("notification generation", (userId) => generateForUser(userId)).then(() =>
+      void forEachUser("daily: notification generation", (userId) => generateForUser(userId)).then(() =>
         runPushSender().catch((err) => logger.error({ err }, "daily: push sender failed")),
       );
     },
