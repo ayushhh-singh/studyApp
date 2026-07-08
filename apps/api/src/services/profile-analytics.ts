@@ -18,6 +18,7 @@ import type {
 import { RUBRIC_DIMENSION_KEYS } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
@@ -55,7 +56,10 @@ async function getScoreTrajectory(userId: string): Promise<PaperScoreTrajectory[
   const byPaper = new Map<string, { date: string; overall_pct: number }[]>();
   for (const row of (attemptsRes.data ?? []) as unknown as AttemptTrajectoryRow[]) {
     const paperCode = row.tests?.paper_code;
-    if (!paperCode) continue;
+    // The current-affairs quiz isn't a syllabus paper the user is tracking
+    // progress in — it has no syllabus_nodes root row, so it would otherwise
+    // render as a paper literally titled "CURRENT_AFFAIRS".
+    if (!paperCode || paperCode === CURRENT_AFFAIRS_PAPER_CODE) continue;
     const total = row.total ?? 0;
     if (total <= 0) continue;
     const points = byPaper.get(paperCode) ?? [];
