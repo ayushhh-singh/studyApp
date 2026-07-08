@@ -51,10 +51,32 @@ jobs:
       # Ubuntu's default apt repo ships whichever postgresql-client version
       # matches the Ubuntu release, which can be OLDER than the Supabase
       # project's Postgres server — pg_dump refuses to run against a NEWER
-      # server ("server version mismatch"). Installing from the official PGDG
-      # apt repo gets the latest client (currently 17), which can dump from
-      # any server version Supabase currently runs.
-      - name: Install PostgreSQL client (latest, via the official PGDG apt repo)
+      # server ("server version mismatch"). Supabase upgrades their Postgres
+      # major version periodically (this project is currently on 17.6), so
+      # this step deliberately does NOT hardcode a client major version: it
+      # installs from the official PGDG apt repo and
+      # resolves whichever postgresql-client-NN package is the HIGHEST
+      # available there at run time. PGDG always keeps that at or ahead of
+      # every actively-supported Postgres major, and pg_dump can always dump
+      # an OLDER server than itself (never a newer one), so "latest
+      # available" is always the safe choice here — this exact mismatch
+      # will otherwise recur every time Supabase bumps their major version.
+      #
+      # FIX NOTE (confirmed in a live Actions run): a hardcoded
+      # `postgresql-client-17` here still resulted in pg_dump 16.14 running
+      # in the next step and aborting against the 17.6 server with "server
+      # version mismatch". Root cause: GitHub's hosted runner images ship
+      # their own preinstalled postgresql-client (older, matching the
+      # runner's own Ubuntu release), and depending on how THAT package
+      # registered itself, it can still win bare `pg_dump` PATH resolution
+      # over the one this step installs — update-alternatives isn't
+      # guaranteed to be the only thing on PATH ahead of it. So this step
+      # also records the resolved major version as a step output, and the
+      # "Dump database" step below invokes pg_dump by its FULL versioned
+      # path (/usr/lib/postgresql/<major>/bin/pg_dump) instead of the bare
+      # `pg_dump` on PATH, removing that ambiguity entirely.
+      - name: Install PostgreSQL client (latest available, via the official PGDG apt repo)
+        id: pg_client
         run: |
           sudo apt-get update
           sudo apt-get install -y curl ca-certificates gnupg lsb-release
@@ -64,7 +86,13 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          pkg="$(apt-cache search -n '^postgresql-client-[0-9]+$' \
+            | grep -oE '^postgresql-client-[0-9]+' | sort -t- -k3 -n | tail -1)"
+          major="${pkg##*-}"
+          echo "Installing $pkg (PGDG's newest available major version)"
+          sudo apt-get install -y "$pkg"
+          "/usr/lib/postgresql/$major/bin/pg_dump" --version
+          echo "major=$major" >> "$GITHUB_OUTPUT"
 
       # Scoped to --schema=public: an unscoped pg_dump of a Supabase project
       # also captures auth.users (real emails + hashed passwords), storage
@@ -85,7 +113,8 @@ jobs:
       # dump's own CREATE EXTENSION statements, no manual step needed.
       - name: Dump database
         run: |
-          pg_dump "$SUPABASE_DB_URL" --no-owner --no-privileges --format=custom \
+          "/usr/lib/postgresql/${{ steps.pg_client.outputs.major }}/bin/pg_dump" \
+            "$SUPABASE_DB_URL" --no-owner --no-privileges --format=custom \
             --schema=public --extension=pgcrypto --extension=vector \
             --file=backup.pgdump
         env:
