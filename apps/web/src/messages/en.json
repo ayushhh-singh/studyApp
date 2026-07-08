@@ -88,7 +88,10 @@
     "heatmapMore": "More",
     "perfectDay": "Perfect Day",
     "perfectDaysCount_one": "{{count}} Perfect Day",
-    "perfectDaysCount_other": "{{count}} Perfect Days"
+    "perfectDaysCount_other": "{{count}} Perfect Days",
+    "freezesBanked_one": "{{count}} streak freeze banked",
+    "freezesBanked_other": "{{count}} streak freezes banked",
+    "freezeUsed": "Freeze used — streak safe. You missed a day, but a banked freeze kept your streak alive."
   },
   "Learn": {
     "title": "Learn",

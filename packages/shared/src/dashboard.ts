@@ -20,6 +20,10 @@ export const dashboardGreetingSchema = z.object({
   streak_incremented_today: z.boolean(),
   /** Today already counts toward the streak. */
   streak_active_today: z.boolean(),
+  /** Banked streak freezes (0–2). */
+  streak_freezes: z.number().int(),
+  /** A freeze recently saved the streak — show "Freeze used — streak safe". */
+  freeze_used_recently: z.boolean(),
   next_exam: dashboardNextExamSchema,
 });
 export type DashboardGreeting = z.infer<typeof dashboardGreetingSchema>;

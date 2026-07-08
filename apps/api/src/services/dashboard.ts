@@ -69,6 +69,8 @@ async function getGreeting(userId: string, today: string, streak: StreakState): 
     streak_count: streak.streak_count,
     streak_incremented_today: streak.incremented_today,
     streak_active_today: streak.active_today,
+    streak_freezes: streak.streak_freezes,
+    freeze_used_recently: streak.freeze_used_recently,
     next_exam: examRow
       ? {
           exam_stage: examRow.exam_stage,

@@ -88,7 +88,10 @@
     "heatmapMore": "अधिक",
     "perfectDay": "पर्फेक्ट दिन",
     "perfectDaysCount_one": "{{count}} पर्फेक्ट दिन",
-    "perfectDaysCount_other": "{{count}} पर्फेक्ट दिन"
+    "perfectDaysCount_other": "{{count}} पर्फेक्ट दिन",
+    "freezesBanked_one": "{{count}} स्ट्रीक फ़्रीज़ बैंक में",
+    "freezesBanked_other": "{{count}} स्ट्रीक फ़्रीज़ बैंक में",
+    "freezeUsed": "फ़्रीज़ इस्तेमाल हुआ — स्ट्रीक सुरक्षित। आपने एक दिन छोड़ा, पर बैंक किए फ़्रीज़ ने आपकी स्ट्रीक बचा ली।"
   },
   "Learn": {
     "title": "अध्ययन",
