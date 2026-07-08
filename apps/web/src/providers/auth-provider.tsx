@@ -9,6 +9,14 @@ interface AuthContextValue {
   /** True until the initial getSession() resolves — gate route guards on this. */
   loading: boolean;
   signInWithGoogle: (redirectTo: string) => Promise<void>;
+  /** Email + password sign-in (no email sent — sidesteps the OTP rate limit). */
+  signInWithPassword: (email: string, password: string) => Promise<void>;
+  /**
+   * Create an account with email + password. Returns `needsConfirmation: true`
+   * when the project requires email confirmation (no session yet); `false` when
+   * the sign-up logged the user straight in.
+   */
+  signUpWithPassword: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   /** Send a 6-digit email OTP. shouldCreateUser so first-time sign-ups work. */
   sendEmailOtp: (email: string) => Promise<void>;
   verifyEmailOtp: (email: string, token: string) => Promise<void>;
@@ -61,6 +69,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           options: { redirectTo },
         });
         if (error) throw error;
+      },
+      async signInWithPassword(email, password) {
+        const { error } = await supabaseBrowser().auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      },
+      async signUpWithPassword(email, password) {
+        const { data, error } = await supabaseBrowser().auth.signUp({ email, password });
+        if (error) throw error;
+        // With email confirmation on, signUp returns a user but no session.
+        return { needsConfirmation: !data.session };
       },
       async sendEmailOtp(email) {
         const { error } = await supabaseBrowser().auth.signInWithOtp({

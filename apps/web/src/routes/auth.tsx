@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { Navigate, useSearchParams, useNavigate, Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Loader2, Mail, ArrowLeft } from "lucide-react";
+import { Loader2, Mail, ArrowLeft, LogIn } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
@@ -34,21 +34,26 @@ function GoogleIcon() {
 }
 
 type Step = "options" | "otp";
+type Mode = "signin" | "signup";
 
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const navigate = useNavigate();
   const [params] = useSearchParams();
-  const { session, loading, signInWithGoogle, sendEmailOtp, verifyEmailOtp } = useAuth();
+  const { session, loading, signInWithGoogle, signInWithPassword, signUpWithPassword, sendEmailOtp, verifyEmailOtp } =
+    useAuth();
 
   const redirectTarget = params.get("redirect") || `/${locale}/dashboard`;
 
   const [step, setStep] = useState<Step>("options");
+  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   if (loading) return <FullScreenLoader />;
   // Already signed in — RequireAuth handles the onboarding gate downstream.
@@ -69,10 +74,42 @@ export function Component() {
     }
   }
 
-  async function handleSendOtp(e: FormEvent) {
+  // Email + password — the primary path (sends no email, so it's never blocked
+  // by the OTP email rate limit).
+  async function handlePassword(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
+    setNotice(null);
+    try {
+      if (mode === "signin") {
+        await signInWithPassword(email.trim(), password);
+        navigate(redirectTarget, { replace: true });
+      } else {
+        const { needsConfirmation } = await signUpWithPassword(email.trim(), password);
+        if (needsConfirmation) {
+          setNotice(t("Auth.signupCheckEmail"));
+          setMode("signin");
+          setPassword("");
+        } else {
+          navigate(redirectTarget, { replace: true });
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("Auth.signInError"));
+      setBusy(false);
+    }
+  }
+
+  // OTP is now the fallback — reached from "Email me a one-time code instead".
+  async function handleUseCode() {
+    if (!email.trim()) {
+      setError(t("Auth.enterEmailFirst"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    setNotice(null);
     try {
       await sendEmailOtp(email.trim());
       setStep("otp");
@@ -115,6 +152,14 @@ export function Component() {
               {error}
             </p>
           ) : null}
+          {notice ? (
+            <p
+              role="status"
+              className="mt-5 rounded-lg border border-tulsi/40 bg-tulsi/10 px-3 py-2 text-sm text-tulsi-foreground"
+            >
+              {notice}
+            </p>
+          ) : null}
 
           {step === "options" ? (
             <div className="mt-6 space-y-4">
@@ -138,7 +183,7 @@ export function Component() {
                 <span className="h-px flex-1 bg-border" />
               </div>
 
-              <form onSubmit={handleSendOtp} className="space-y-3">
+              <form onSubmit={handlePassword} className="space-y-3">
                 <label className="block">
                   <span className="mb-1.5 block text-sm font-medium">{t("Auth.emailLabel")}</span>
                   <Input
@@ -151,11 +196,60 @@ export function Component() {
                     onChange={(e) => setEmail(e.target.value)}
                   />
                 </label>
-                <Button type="submit" size="lg" className="h-11 w-full gap-2 text-base" disabled={busy || !email}>
-                  {busy ? <Loader2 className="size-5 animate-spin" /> : <Mail className="size-5" />}
-                  {t("Auth.emailContinue")}
+                <label className="block">
+                  <span className="mb-1.5 block text-sm font-medium">{t("Auth.passwordLabel")}</span>
+                  <Input
+                    type="password"
+                    autoComplete={mode === "signin" ? "current-password" : "new-password"}
+                    required
+                    minLength={8}
+                    placeholder={t("Auth.passwordPlaceholder")}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                </label>
+                <Button
+                  type="submit"
+                  size="lg"
+                  className="h-11 w-full gap-2 text-base"
+                  disabled={busy || !email || password.length < 8}
+                >
+                  {busy ? <Loader2 className="size-5 animate-spin" /> : <LogIn className="size-5" />}
+                  {mode === "signin" ? t("Auth.signIn") : t("Auth.createAccount")}
                 </Button>
               </form>
+
+              <button
+                type="button"
+                className="block w-full text-center text-sm font-medium text-primary hover:underline"
+                onClick={() => {
+                  setMode((m) => (m === "signin" ? "signup" : "signin"));
+                  setError(null);
+                  setNotice(null);
+                }}
+              >
+                {mode === "signin" ? t("Auth.noAccount") : t("Auth.haveAccount")}
+              </button>
+
+              <div className="flex items-center gap-3 py-1">
+                <span className="h-px flex-1 bg-border" />
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("Auth.or")}
+                </span>
+                <span className="h-px flex-1 bg-border" />
+              </div>
+
+              <Button
+                type="button"
+                variant="ghost"
+                size="lg"
+                className="h-11 w-full gap-2 text-base"
+                onClick={handleUseCode}
+                disabled={busy}
+              >
+                <Mail className="size-5" />
+                {t("Auth.useCodeInstead")}
+              </Button>
 
               <p className="text-center text-xs leading-relaxed text-muted-foreground">{t("Auth.phoneSoon")}</p>
             </div>

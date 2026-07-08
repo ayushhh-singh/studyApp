@@ -26,7 +26,8 @@
     "notes:gen": "tsx --env-file=.env src/notes/cli.ts",
     "notes:embed": "tsx --env-file=.env src/notes/embed.ts",
     "migrate:dev-user": "tsx --env-file=.env scripts/migrate-dev-user.ts",
-    "security:rls": "tsx --env-file=.env --env-file=../web/.env.local scripts/rls-security-check.ts"
+    "security:rls": "tsx --env-file=.env --env-file=../web/.env.local scripts/rls-security-check.ts",
+    "set-password": "tsx --env-file=.env scripts/set-password.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",
