@@ -75,6 +75,15 @@ analytics, RAG doubt-solving chatbot.
 ## Definition of done for any UI session
 Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 1440px, both locales render (language toggle), no console errors.
 
+## TODO / outstanding setup
+These are known-pending items (mostly owner/dashboard actions the code can't do for itself). Keep this list current — cross items off as they land.
+- **Enable Google OAuth (dashboard config, not code).** `/auth/v1/settings` currently reports `external.google=false`, so "Continue with Google" fails. The app code (`signInWithOAuth`) is correct. To enable: (1) Google Cloud Console → create an OAuth 2.0 Web Client, add authorized redirect URI `https://pohytjetprffterkzafp.supabase.co/auth/v1/callback`; (2) Supabase → Auth → Providers → Google → enable + paste Client ID/Secret; (3) Supabase → Auth → URL Configuration → add `http://localhost:3000` (and the eventual prod origin) to the Site URL / redirect allowlist.
+- **Custom SMTP for auth emails.** Supabase's built-in email sender is hard-throttled (a few/hour → the "email rate limit exceeded" on the sign-in screen). Configure a real provider (Resend/SendGrid) in Supabase → Auth → Emails so OTP + signup-confirmation emails aren't rate-limited. Until then, prefer email+password login (sends no email; `pnpm --filter api set-password --email <e> --password <p>` sets one on an OTP/Google-created account).
+- **In-app change/reset-password UI.** Passwords can currently only be set via the `set-password` CLI. Add a "change password" control in profile/account settings and a "forgot password" (reset-via-email) flow on the auth page. Also consider a min-strength check — the founder account is currently on a weak dev password (`123456789`), fine for local dev, change before any real deploy.
+- **Rate-limit shared store for multi-instance deploy.** `lib/rate-limit.ts` is an in-process Map keyed by user id — correct for single-instance, but a multi-instance/autoscaled deploy MUST swap it for Redis/Postgres keyed the same way (noted in the file).
+- **`standard` model pricing is a placeholder.** `lib/models.ts` `MODEL_PRICING[*].standard` is a guess (intro pricing is real). Update once Anthropic publishes post-intro prices for `claude-sonnet-5`/`claude-haiku-4-5` (see Session 13).
+- **Data-migration idempotency confirmed done.** `migrate:dev-user` has already folded the pre-auth dev data into the founder's real account (dev profile deleted); the script now correctly refuses to re-run. Nothing to do — listed so nobody re-runs it.
+
 ## Session log
 - Session 0 (2026-07-05): repo initialized, CLAUDE.md created, empty workspace skeleton committed. Pushed to private GitHub repo github.com/ayushhh-singh/studyApp.
 - Pre-Session-1 (2026-07-05): apps/api/.env and apps/web/.env.local created (gitignored). ANTHROPIC_API_KEY and OPENAI_API_KEY reused from the same account's nyay-sahayak project. SUPABASE_URL/keys still need a NEW cloud Supabase project — not reused, since nyay-sahayak's is a local-only instance with an unrelated schema.
