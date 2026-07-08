@@ -22,7 +22,8 @@
     "qgen": "pnpm --filter api qgen",
     "qgen:topup": "pnpm --filter api qgen:topup",
     "notes:gen": "pnpm --filter api notes:gen",
-    "notes:embed": "pnpm --filter api notes:embed"
+    "notes:embed": "pnpm --filter api notes:embed",
+    "migrate:dev-user": "pnpm --filter api migrate:dev-user"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

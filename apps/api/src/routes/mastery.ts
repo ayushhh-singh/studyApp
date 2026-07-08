@@ -4,7 +4,7 @@ import { examCodeSchema, localeSchema, masteryMapResponseSchema } from "@prayasu
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import { getMasteryMap } from "../mastery/compute.js";
 import { renderMasteryMapPng } from "../services/share-image.js";
 
@@ -16,7 +16,7 @@ masteryRouter.get(
   "/mastery",
   asyncHandler(async (req, res) => {
     const { paper, exam } = parse(z.object({ paper: z.string().optional(), exam: examCodeSchema.optional() }), req.query);
-    const map = await getMasteryMap(devUserId(), paper, exam);
+    const map = await getMasteryMap(currentUserId(), paper, exam);
     res.json(masteryMapResponseSchema.parse({ data: map, error: null }));
   }),
 );
@@ -29,7 +29,7 @@ masteryRouter.get(
       z.object({ paper: z.string(), locale: localeSchema.default("en") }),
       req.query,
     );
-    const map = await getMasteryMap(devUserId(), paper);
+    const map = await getMasteryMap(currentUserId(), paper);
     const png = await renderMasteryMapPng(map, locale);
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");

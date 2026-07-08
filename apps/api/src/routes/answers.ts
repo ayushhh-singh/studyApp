@@ -12,7 +12,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import {
   confirmOcr,
   createSubmission,
@@ -45,7 +45,7 @@ answersRouter.get(
 answersRouter.get(
   "/answers/daily-set",
   asyncHandler(async (_req, res) => {
-    const set = await getDailyAnswerSet(devUserId());
+    const set = await getDailyAnswerSet(currentUserId());
     res.json(dailyAnswerSetResponseSchema.parse({ data: set, error: null }));
   }),
 );
@@ -54,7 +54,7 @@ answersRouter.get(
   "/answers/submissions",
   asyncHandler(async (req, res) => {
     const { page } = parse(listQuerySchema, req.query);
-    const { items, total } = await listSubmissions(devUserId(), page);
+    const { items, total } = await listSubmissions(currentUserId(), page);
     res.json(
       submissionListResponseSchema.parse({
         data: {
@@ -76,7 +76,7 @@ answersRouter.post(
   "/answers/submissions",
   asyncHandler(async (req, res) => {
     const body = parse(createSubmissionBodySchema, req.body);
-    const submission = await createSubmission(devUserId(), body);
+    const submission = await createSubmission(currentUserId(), body);
     res.status(201).json(submissionResponseSchema.parse({ data: submission, error: null }));
   }),
 );
@@ -85,7 +85,7 @@ answersRouter.get(
   "/answers/submissions/:submissionId",
   asyncHandler(async (req, res) => {
     const { submissionId } = parse(submissionIdParams, req.params);
-    const detail = await getSubmissionDetail(devUserId(), submissionId);
+    const detail = await getSubmissionDetail(currentUserId(), submissionId);
     res.json(submissionDetailResponseSchema.parse({ data: detail, error: null }));
   }),
 );
@@ -101,7 +101,7 @@ answersRouter.patch(
   asyncHandler(async (req, res) => {
     const { submissionId } = parse(submissionIdParams, req.params);
     const { text } = parse(confirmOcrBodySchema, req.body);
-    const submission = await confirmOcr(devUserId(), submissionId, text);
+    const submission = await confirmOcr(currentUserId(), submissionId, text);
     res.json(submissionResponseSchema.parse({ data: submission, error: null }));
   }),
 );

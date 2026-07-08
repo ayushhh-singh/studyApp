@@ -19,7 +19,25 @@ import { recomputeMastery } from "../mastery/compute.js";
 import { recordPerfectDay } from "../services/daily-stats.js";
 import { computeLearnerProfile } from "../services/learner-profile.js";
 import { generateMentorInsights } from "../services/mentor-insights.js";
-import { devUserId } from "../lib/dev-user.js";
+import { listAllUserIds } from "../lib/users.js";
+
+/** Run a per-user nightly/hourly job for every onboarded user, isolating failures. */
+async function forEachUser(label: string, fn: (userId: string) => Promise<unknown>): Promise<void> {
+  let userIds: string[];
+  try {
+    userIds = await listAllUserIds();
+  } catch (err) {
+    logger.error({ err }, `daily: ${label} — could not list users`);
+    return;
+  }
+  for (const userId of userIds) {
+    try {
+      await fn(userId);
+    } catch (err) {
+      logger.error({ err, userId }, `daily: ${label} failed for user`);
+    }
+  }
+}
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
 const STREAK_NIGHTLY_CRON = "5 0 * * *"; // 00:05 every day — settle the streak just after IST midnight
@@ -41,20 +59,19 @@ export function startDailyScheduler(): void {
   cron.schedule(
     STREAK_NIGHTLY_CRON,
     () => {
-      runStreakNightly().catch((err) => logger.error({ err }, "daily: nightly streak settle failed"));
-      // Settle yesterday's Perfect Day before the IST date rolls fully over.
-      recordPerfectDay(devUserId()).catch((err) => logger.error({ err }, "daily: nightly perfect-day record failed"));
-      // Nightly mastery settle — recency decay means an untouched node's score
-      // must fall even with no new activity, so recompute keeps levels honest.
-      recomputeMastery(devUserId())
-        .then((n) => logger.info(`mastery: nightly recompute updated ${n} node(s)`))
-        .catch((err) => logger.error({ err }, "daily: nightly mastery recompute failed"));
-      // Refresh the learner profile, then derive today's proactive mentor
-      // insight cards from it (both idempotent).
-      computeLearnerProfile(devUserId())
-        .then(() => generateMentorInsights(devUserId()))
-        .then(() => logger.info("mentor: nightly profile + insights refreshed"))
-        .catch((err) => logger.error({ err }, "daily: nightly mentor refresh failed"));
+      void forEachUser("nightly settle", async (userId) => {
+        await runStreakNightly(userId);
+        // Settle yesterday's Perfect Day before the IST date rolls fully over.
+        await recordPerfectDay(userId);
+        // Nightly mastery settle — recency decay means an untouched node's score
+        // must fall even with no new activity, so recompute keeps levels honest.
+        const n = await recomputeMastery(userId);
+        logger.info(`mastery: nightly recompute updated ${n} node(s) for ${userId}`);
+        // Refresh the learner profile, then derive today's proactive mentor
+        // insight cards from it (both idempotent).
+        await computeLearnerProfile(userId);
+        await generateMentorInsights(userId);
+      });
     },
     { timezone: IST_TZ },
   );
@@ -62,7 +79,7 @@ export function startDailyScheduler(): void {
   cron.schedule(
     NOTIFICATIONS_CRON,
     () => {
-      generateForUser(devUserId()).catch((err) => logger.error({ err }, "daily: notification generation failed"));
+      void forEachUser("notification generation", (userId) => generateForUser(userId));
     },
     { timezone: IST_TZ },
   );

@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
+import { AccountMenu } from "@/components/app-shell/account-menu";
 import { useLocale } from "@/hooks/use-locale";
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile";
 import { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, switchLocale, type Locale } from "@/lib/locale";
@@ -81,6 +82,8 @@ export function TopBar({ title }: { title: string }) {
       <Button type="button" variant="ghost" size="icon" aria-label={t("TopBar.toggleTheme")} onClick={toggleTheme}>
         {theme === "dark" ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
       </Button>
+
+      <AccountMenu />
     </header>
   );
 }

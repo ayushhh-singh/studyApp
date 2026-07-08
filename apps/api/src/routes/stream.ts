@@ -5,7 +5,7 @@ import { createSseConnection } from "../lib/sse.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import { MODELS, streamText, translate } from "../lib/anthropic.js";
 import { getQuestionForExplain, persistQuestionExplanation } from "../services/questions.js";
 import { executeDoubtStream, planDoubtMessage, type MentorEmit } from "../services/mentor/index.js";
@@ -94,7 +94,7 @@ streamRouter.get(
           (correctOption ? ` (${correctOption.text_i18n[locale]})` : "") +
           `\n\nExplain this answer in ${locale === "hi" ? "Hindi (Devanagari)" : "English"}.`,
         purpose: "mcq_explanation",
-        userId: devUserId(),
+        userId: currentUserId(),
         onDelta: (delta) => {
           generated += delta;
           send("delta", { text: delta });
@@ -135,7 +135,7 @@ streamRouter.get(
     const { submissionId } = parse(ocrParamsSchema, req.params);
 
     // Pre-flight before opening SSE so 404/400 return as JSON, not a stream.
-    const plan = await planOcr(devUserId(), submissionId);
+    const plan = await planOcr(currentUserId(), submissionId);
 
     const { send, close } = createSseConnection(req, res);
     const emit: OcrEmit = (event, data) => {
@@ -192,7 +192,7 @@ streamRouter.post(
     const body = parse(doubtMessageBodySchema, req.body);
 
     // Pre-flight (JSON errors) before opening SSE.
-    const plan = await planDoubtMessage(devUserId(), threadId, body, locale);
+    const plan = await planDoubtMessage(currentUserId(), threadId, body, locale);
 
     const { send, close } = createSseConnection(req, res);
     const emit: MentorEmit = (event, data) => {
@@ -203,7 +203,7 @@ streamRouter.post(
     req.on("close", () => abort.abort());
 
     try {
-      await executeDoubtStream(devUserId(), plan, emit, abort.signal);
+      await executeDoubtStream(currentUserId(), plan, emit, abort.signal);
     } catch (err) {
       emit("error", { message: err instanceof Error ? err.message : "Mentor failed to answer" });
     } finally {
@@ -230,7 +230,7 @@ streamRouter.get(
     const { submissionId } = parse(evaluationParamsSchema, req.params);
 
     // Pre-flight before opening SSE so 404/409/400 return as JSON, not a stream.
-    const plan = await planEvaluation(devUserId(), submissionId);
+    const plan = await planEvaluation(currentUserId(), submissionId);
 
     const { send, close } = createSseConnection(req, res);
     const emit: EvalEmit = (event, data) => {
@@ -280,7 +280,7 @@ streamRouter.get(
   asyncHandler(async (req, res) => {
     const { sessionId } = parse(drillEvaluationParamsSchema, req.params);
 
-    const plan = await planDrillEvaluation(devUserId(), sessionId);
+    const plan = await planDrillEvaluation(currentUserId(), sessionId);
 
     const { send, close } = createSseConnection(req, res);
     const emit: DrillEmit = (event, data) => {
@@ -318,7 +318,7 @@ streamRouter.post(
     const body = parse(generatePlanBodySchema, req.body);
 
     // Pre-flight (409 if the plan was already regenerated today) before opening SSE.
-    const genInput = await planGenerate(devUserId(), body.hours_per_day);
+    const genInput = await planGenerate(currentUserId(), body.hours_per_day);
 
     const { send, close } = createSseConnection(req, res);
     const emit: PlanEmit = (event, data) => {

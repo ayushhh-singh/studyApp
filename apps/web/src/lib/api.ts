@@ -1,6 +1,16 @@
 import type { ZodTypeAny, z } from "zod";
+import { getAccessToken, handleUnauthorized } from "./auth";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
+
+/** Build request headers, attaching the current access token when signed in. */
+async function authHeaders(hasBody: boolean): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {};
+  if (hasBody) headers["Content-Type"] = "application/json";
+  const token = await getAccessToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  return headers;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -29,9 +39,14 @@ async function request<T extends ZodTypeAny>(
 ): Promise<NonNullable<z.infer<T>["data"]>> {
   const res = await fetch(buildUrl(path, opts.query), {
     method: opts.method,
-    headers: opts.body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers: await authHeaders(opts.body !== undefined),
     body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
   });
+
+  if (res.status === 401) {
+    handleUnauthorized();
+    throw new ApiError(401, "Your session has expired. Please sign in again.");
+  }
 
   let json: unknown;
   try {
@@ -63,7 +78,11 @@ export const api = {
     return request(path, envelopeSchema, { method: "PATCH", body });
   },
   async delete(path: string): Promise<void> {
-    const res = await fetch(buildUrl(path), { method: "DELETE" });
+    const res = await fetch(buildUrl(path), { method: "DELETE", headers: await authHeaders(false) });
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new ApiError(401, "Your session has expired. Please sign in again.");
+    }
     if (!res.ok) throw new ApiError(res.status, `Request failed (HTTP ${res.status})`);
   },
 };

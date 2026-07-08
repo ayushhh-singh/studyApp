@@ -48,8 +48,17 @@ export function useEvaluationStream(submissionId: string) {
           switch (event) {
             case "status":
               return { ...prev, phase: (data as { phase: EvalStatusPhase }).phase };
-            case "dimension_score":
-              return { ...prev, dimensions: [...prev.dimensions, data as DimensionScoreEvent] };
+            case "dimension_score": {
+              // Idempotent by dimension key: a replay (or a re-run stream, e.g.
+              // React StrictMode invoking the effect twice in dev) re-emits all
+              // six, so replace-or-append rather than blindly accumulating.
+              const dim = data as DimensionScoreEvent;
+              const existing = prev.dimensions.findIndex((d) => d.key === dim.key);
+              if (existing === -1) return { ...prev, dimensions: [...prev.dimensions, dim] };
+              const next = prev.dimensions.slice();
+              next[existing] = dim;
+              return { ...prev, dimensions: next };
+            }
             case "analysis":
               return { ...prev, analysis: data as AnalysisEvent };
             case "feedback_delta": {

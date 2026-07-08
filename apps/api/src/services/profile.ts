@@ -1,11 +1,11 @@
-import type { BilingualText, Profile, ProfileUpdateBody } from "@prayasup/shared";
+import type { BilingualText, OnboardingBody, Profile, ProfileUpdateBody } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError, notFound } from "../lib/http-error.js";
+import { HttpError, conflict, notFound } from "../lib/http-error.js";
 import { istToday, daysBetween } from "../lib/ist.js";
 
 const PROFILE_COLUMNS =
-  "id, display_name, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date, " +
-  "streak_freezes, streak_freeze_used_on";
+  "id, display_name, handle, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date, " +
+  "streak_freezes, streak_freeze_used_on, onboarding_completed, study_hours_per_day";
 
 /**
  * Days until the next scheduled Prelims (from exam_calendar), same lookup
@@ -48,6 +48,37 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
     getNextExamInfo(),
   ]);
   if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
+  return { ...(data as unknown as Profile), ...examInfo };
+}
+
+/**
+ * Complete the onboarding wizard: write the collected fields and flip
+ * onboarding_completed so RequireAuth stops redirecting here. A taken handle
+ * surfaces as a 409 (unique violation, Postgres 23505) so the wizard can ask
+ * for another.
+ */
+export async function completeOnboarding(userId: string, body: OnboardingBody): Promise<Profile> {
+  const [{ data, error }, examInfo] = await Promise.all([
+    supabase()
+      .from("users_profile")
+      .update({
+        display_name: body.display_name,
+        handle: body.handle ?? null,
+        medium: body.medium,
+        preferred_locale: body.preferred_locale,
+        target_exam_year: body.target_exam_year,
+        study_hours_per_day: body.study_hours_per_day,
+        onboarding_completed: true,
+      })
+      .eq("id", userId)
+      .select(PROFILE_COLUMNS)
+      .single(),
+    getNextExamInfo(),
+  ]);
+  if (error) {
+    if (error.code === "23505") throw conflict("That handle is already taken");
+    throw new HttpError(500, `onboarding failed: ${error.message}`);
+  }
   return { ...(data as unknown as Profile), ...examInfo };
 }
 

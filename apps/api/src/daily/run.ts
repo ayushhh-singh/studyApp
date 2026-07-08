@@ -6,35 +6,43 @@
  * (daily/scheduler.ts) and runnable by hand for a specific date. Idempotent —
  * re-running a date rebuilds that day's content in place.
  */
-import { devUserId } from "../lib/dev-user.js";
 import { istToday } from "../lib/ist.js";
 import { logger } from "../lib/logger.js";
+import { listAllUserIds } from "../lib/users.js";
 import { buildDailyQuiz } from "./quiz.js";
 import { getDailyAnswerSet } from "../services/answer-set.js";
 
 export interface DailyBuildOptions {
   date?: string;
   size?: number;
+  /** Build for one user; omit to build for every onboarded user. */
   userId?: string;
   log?: (msg: string) => void;
 }
 
 export async function runDailyBuild(opts: DailyBuildOptions = {}): Promise<void> {
   const date = opts.date ?? istToday();
-  const userId = opts.userId ?? devUserId();
   const log = opts.log ?? ((m: string) => logger.info(`daily: ${m}`));
+  const userIds = opts.userId ? [opts.userId] : await listAllUserIds();
 
-  log(`building daily content for ${date}`);
-  const quiz = await buildDailyQuiz({ userId, date, size: opts.size, log });
-  if (!quiz) log("daily quiz: skipped (no questions available)");
+  if (userIds.length === 0) {
+    log("no onboarded users — nothing to build");
+    return;
+  }
 
-  // The answer set is computed deterministically on demand (no storage) — verify
-  // and log today's composition so the scheduled run surfaces any supply gap.
-  const answerSet = await getDailyAnswerSet(userId, date);
-  log(
-    `daily answer set: ${answerSet.items.length} question(s) — ` +
-      answerSet.items.map((i) => `${i.paper_code}(${i.kind})`).join(" "),
-  );
+  for (const userId of userIds) {
+    log(`building daily content for ${date} (user ${userId})`);
+    const quiz = await buildDailyQuiz({ userId, date, size: opts.size, log });
+    if (!quiz) log("daily quiz: skipped (no questions available)");
+
+    // The answer set is computed deterministically on demand (no storage) —
+    // verify and log today's composition so the run surfaces any supply gap.
+    const answerSet = await getDailyAnswerSet(userId, date);
+    log(
+      `daily answer set: ${answerSet.items.length} question(s) — ` +
+        answerSet.items.map((i) => `${i.paper_code}(${i.kind})`).join(" "),
+    );
+  }
 }
 
 function parseArgs(argv: string[]): DailyBuildOptions {

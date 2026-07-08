@@ -1,12 +1,15 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 /**
- * Browser Supabase client — anon key only, used solely for direct-to-Storage
- * uploads of handwritten answer photos (bucket `answer-images`). Everything
- * else (all Postgres reads/writes) goes through the Express API; storage is
- * the one exception, so multi-megabyte image bytes aren't proxied through it.
- * The bucket's dev-permissive RLS policy (migration 0030) is what makes the
- * anon key sufficient pre-auth — see CLAUDE.md, replaced in the auth phase.
+ * Browser Supabase client (anon key). Two jobs:
+ *   1. Authentication — Google OAuth (PKCE) + email OTP. Session is persisted
+ *      and auto-refreshed by supabase-js; the OAuth redirect is exchanged
+ *      automatically via detectSessionInUrl.
+ *   2. Direct-to-Storage uploads of handwritten answer photos (bucket
+ *      `answer-images`) — the one place the browser talks to Supabase directly
+ *      instead of through the Express API (avoids proxying multi-MB image bytes).
+ *
+ * A single shared instance so the persisted session backs both.
  */
 let client: SupabaseClient | null = null;
 
@@ -19,7 +22,14 @@ export function supabaseBrowser(): SupabaseClient {
     if (!url || !anonKey) {
       throw new Error("Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY (apps/web/.env.local)");
     }
-    client = createClient(url, anonKey, { auth: { persistSession: false } });
+    client = createClient(url, anonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        flowType: "pkce",
+      },
+    });
   }
   return client;
 }

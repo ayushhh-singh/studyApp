@@ -1,4 +1,5 @@
 import { fetchEventSource, type EventSourceMessage } from "@microsoft/fetch-event-source";
+import { getAccessToken } from "./auth";
 
 export interface StreamOptions {
   url: string;
@@ -22,37 +23,44 @@ export interface StreamOptions {
 export function streamEvents(opts: StreamOptions): AbortController {
   const controller = new AbortController();
 
-  fetchEventSource(opts.url, {
-    method: opts.method ?? "GET",
-    headers: {
-      "Content-Type": "application/json",
-      ...opts.headers,
-    },
-    body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
-    signal: controller.signal,
-    openWhenHidden: true,
-    async onopen(response) {
-      if (!response.ok) {
-        throw new Error(`SSE connection failed (HTTP ${response.status})`);
-      }
-    },
-    onmessage(msg: EventSourceMessage) {
-      const event = msg.event || "message";
-      let data: unknown = msg.data;
-      try {
-        data = JSON.parse(msg.data);
-      } catch {
-        // Not JSON — pass the raw string through.
-      }
-      opts.onEvent(event, data);
-    },
-    onclose() {
-      opts.onClose?.();
-    },
-    onerror(err) {
-      throw err;
-    },
-  }).catch((err) => {
+  // Resolve the access token first, then open the stream with it attached.
+  // fetchEventSource headers must be a plain object, so we can't do this inline;
+  // the sync AbortController is returned immediately either way.
+  void (async () => {
+    const token = await getAccessToken();
+    await fetchEventSource(opts.url, {
+      method: opts.method ?? "GET",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...opts.headers,
+      },
+      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      signal: controller.signal,
+      openWhenHidden: true,
+      async onopen(response) {
+        if (!response.ok) {
+          throw new Error(`SSE connection failed (HTTP ${response.status})`);
+        }
+      },
+      onmessage(msg: EventSourceMessage) {
+        const event = msg.event || "message";
+        let data: unknown = msg.data;
+        try {
+          data = JSON.parse(msg.data);
+        } catch {
+          // Not JSON — pass the raw string through.
+        }
+        opts.onEvent(event, data);
+      },
+      onclose() {
+        opts.onClose?.();
+      },
+      onerror(err) {
+        throw err;
+      },
+    });
+  })().catch((err) => {
     if (!controller.signal.aborted) opts.onError?.(err);
   });
 

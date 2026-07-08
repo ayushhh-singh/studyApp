@@ -19,7 +19,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import {
   addCurrentAffairsFactToRevision,
   addEvaluationToRevision,
@@ -43,7 +43,7 @@ srsRouter.post(
   "/srs/cards/from-node",
   asyncHandler(async (req, res) => {
     const body = parse(createSrsCardFromNodeBodySchema, req.body);
-    const card = await addNodeToRevision(devUserId(), body.node_id);
+    const card = await addNodeToRevision(currentUserId(), body.node_id);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );
@@ -52,7 +52,7 @@ srsRouter.post(
   "/srs/cards/from-question",
   asyncHandler(async (req, res) => {
     const body = parse(createSrsCardFromQuestionBodySchema, req.body);
-    const card = await addQuestionToRevision(devUserId(), body.question_id);
+    const card = await addQuestionToRevision(currentUserId(), body.question_id);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );
@@ -61,7 +61,7 @@ srsRouter.post(
   "/srs/cards/from-evaluation",
   asyncHandler(async (req, res) => {
     const body = parse(createSrsCardFromEvaluationBodySchema, req.body);
-    const card = await addEvaluationToRevision(devUserId(), body.submission_id);
+    const card = await addEvaluationToRevision(currentUserId(), body.submission_id);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );
@@ -70,7 +70,7 @@ srsRouter.post(
   "/srs/cards/from-current-affairs-fact",
   asyncHandler(async (req, res) => {
     const body = parse(createSrsCardFromCurrentAffairsFactBodySchema, req.body);
-    const card = await addCurrentAffairsFactToRevision(devUserId(), body.item_id, body.fact_index);
+    const card = await addCurrentAffairsFactToRevision(currentUserId(), body.item_id, body.fact_index);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );
@@ -79,7 +79,7 @@ srsRouter.get(
   "/srs/due",
   asyncHandler(async (req, res) => {
     const query = parse(srsDueQuerySchema, req.query);
-    const queue = await getDueQueue(devUserId(), query.limit);
+    const queue = await getDueQueue(currentUserId(), query.limit);
     res.json(srsDueQueueResponseSchema.parse({ data: queue, error: null }));
   }),
 );
@@ -87,7 +87,7 @@ srsRouter.get(
 srsRouter.get(
   "/srs/stats",
   asyncHandler(async (req, res) => {
-    const stats = await getStats(devUserId());
+    const stats = await getStats(currentUserId());
     res.json(srsStatsResponseSchema.parse({ data: stats, error: null }));
   }),
 );
@@ -96,7 +96,7 @@ srsRouter.post(
   "/srs/reviews",
   asyncHandler(async (req, res) => {
     const body = parse(submitSrsReviewsBodySchema, req.body);
-    const results = await submitReviews(devUserId(), body.reviews);
+    const results = await submitReviews(currentUserId(), body.reviews);
     res.status(201).json(submitSrsReviewsResponseSchema.parse({ data: { results }, error: null }));
   }),
 );
@@ -105,7 +105,7 @@ srsRouter.get(
   "/srs/cards",
   asyncHandler(async (req, res) => {
     const query = parse(srsCardsQuerySchema, req.query);
-    const result = await listCards(devUserId(), { query: query.query, sourceType: query.source_type, page: query.page });
+    const result = await listCards(currentUserId(), { query: query.query, sourceType: query.source_type, page: query.page });
     res.json(listSrsCardsResponseSchema.parse({ data: result, error: null }));
   }),
 );
@@ -114,7 +114,7 @@ srsRouter.post(
   "/srs/cards",
   asyncHandler(async (req, res) => {
     const body = parse(createManualSrsCardBodySchema, req.body);
-    const card = await createManualCard(devUserId(), body.front_i18n, body.back_i18n);
+    const card = await createManualCard(currentUserId(), body.front_i18n, body.back_i18n);
     res.status(201).json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );
@@ -123,7 +123,7 @@ srsRouter.patch(
   "/srs/cards/:id",
   asyncHandler(async (req, res) => {
     const body = parse(updateSrsCardBodySchema, req.body);
-    const card = await updateCard(devUserId(), req.params.id, body);
+    const card = await updateCard(currentUserId(), req.params.id, body);
     res.json(srsCardResponseSchema.parse({ data: card, error: null }));
   }),
 );
@@ -131,7 +131,7 @@ srsRouter.patch(
 srsRouter.delete(
   "/srs/cards/:id",
   asyncHandler(async (req, res) => {
-    await deleteCard(devUserId(), req.params.id);
+    await deleteCard(currentUserId(), req.params.id);
     res.status(204).end();
   }),
 );
@@ -139,7 +139,7 @@ srsRouter.delete(
 srsRouter.post(
   "/srs/seed/wrong-answers",
   asyncHandler(async (req, res) => {
-    const result = await seedWrongAnswers(devUserId());
+    const result = await seedWrongAnswers(currentUserId());
     res.status(201).json(seedRevisionResponseSchema.parse({ data: result, error: null }));
   }),
 );
@@ -147,7 +147,7 @@ srsRouter.post(
 srsRouter.post(
   "/srs/seed/note-facts",
   asyncHandler(async (req, res) => {
-    const result = await seedNoteFacts(devUserId());
+    const result = await seedNoteFacts(currentUserId());
     res.status(201).json(seedRevisionResponseSchema.parse({ data: result, error: null }));
   }),
 );

@@ -4,6 +4,7 @@ import helmet from "helmet";
 import { pinoHttp } from "pino-http";
 import { logger } from "./lib/logger.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
+import { requireAuth } from "./middleware/require-auth.js";
 import { healthRouter } from "./routes/health.js";
 import { streamRouter } from "./routes/stream.js";
 import { syllabusRouter } from "./routes/syllabus.js";
@@ -42,7 +43,13 @@ app.use(helmet());
 app.use(express.json());
 app.use(pinoHttp({ logger }));
 
+// Public — no auth (liveness probe + JWKS warmup happen here).
 app.use("/api/v1", healthRouter);
+
+// Everything below requires a valid Supabase session. requireAuth verifies the
+// JWT, derives the user id, and binds it to the request's async context.
+app.use("/api/v1", requireAuth);
+
 app.use("/api/v1", streamRouter);
 app.use("/api/v1", syllabusRouter);
 app.use("/api/v1", questionsRouter);

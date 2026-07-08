@@ -9,6 +9,7 @@ import "@fontsource/noto-sans-devanagari/700.css";
 import "@/lib/i18n";
 import "@/index.css";
 import { router } from "@/router";
+import { AuthProvider } from "@/providers/auth-provider";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,7 +23,9 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </QueryClientProvider>
   </StrictMode>,
 );

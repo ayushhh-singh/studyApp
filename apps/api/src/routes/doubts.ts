@@ -13,7 +13,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import {
   createThread,
   deleteThread,
@@ -39,7 +39,7 @@ doubtsRouter.post(
   "/doubts/threads",
   asyncHandler(async (req, res) => {
     const body = parse(createThreadBodySchema, req.body ?? {});
-    const thread = await createThread(devUserId(), body.title);
+    const thread = await createThread(currentUserId(), body.title);
     res.status(201).json(doubtThreadResponseSchema.parse({ data: thread, error: null }));
   }),
 );
@@ -47,7 +47,7 @@ doubtsRouter.post(
 doubtsRouter.get(
   "/doubts/threads",
   asyncHandler(async (_req, res) => {
-    const items = await listThreads(devUserId());
+    const items = await listThreads(currentUserId());
     res.json(doubtThreadListResponseSchema.parse({ data: { items }, error: null }));
   }),
 );
@@ -56,7 +56,7 @@ doubtsRouter.get(
   "/doubts/threads/:threadId",
   asyncHandler(async (req, res) => {
     const { threadId } = parse(threadParams, req.params);
-    const detail = await getThreadDetail(devUserId(), threadId);
+    const detail = await getThreadDetail(currentUserId(), threadId);
     res.json(doubtThreadDetailResponseSchema.parse({ data: detail, error: null }));
   }),
 );
@@ -65,7 +65,7 @@ doubtsRouter.delete(
   "/doubts/threads/:threadId",
   asyncHandler(async (req, res) => {
     const { threadId } = parse(threadParams, req.params);
-    await deleteThread(devUserId(), threadId);
+    await deleteThread(currentUserId(), threadId);
     res.status(204).end();
   }),
 );
@@ -74,7 +74,7 @@ doubtsRouter.post(
   "/doubts/threads/:threadId/quiz",
   asyncHandler(async (req, res) => {
     const { threadId } = parse(threadParams, req.params);
-    const message = await runDoubtQuiz(devUserId(), threadId);
+    const message = await runDoubtQuiz(currentUserId(), threadId);
     res.status(201).json(doubtMessageResponseSchema.parse({ data: message, error: null }));
   }),
 );
@@ -82,7 +82,7 @@ doubtsRouter.post(
 doubtsRouter.get(
   "/mentor/insights",
   asyncHandler(async (_req, res) => {
-    const insights = await listInsights(devUserId());
+    const insights = await listInsights(currentUserId());
     res.json(mentorInsightsResponseSchema.parse({ data: { insights }, error: null }));
   }),
 );
@@ -91,7 +91,7 @@ doubtsRouter.post(
   "/mentor/insights/:id/dismiss",
   asyncHandler(async (req, res) => {
     const { id } = parse(insightParams, req.params);
-    const insight = await dismissInsight(devUserId(), id);
+    const insight = await dismissInsight(currentUserId(), id);
     res.json(mentorInsightResponseSchema.parse({ data: insight, error: null }));
   }),
 );
@@ -99,7 +99,7 @@ doubtsRouter.post(
 doubtsRouter.post(
   "/mentor/profile/refresh",
   asyncHandler(async (_req, res) => {
-    const profile = await getLearnerProfile(devUserId(), { refresh: true });
+    const profile = await getLearnerProfile(currentUserId(), { refresh: true });
     res.json(learnerProfileResponseSchema.parse({ data: profile, error: null }));
   }),
 );

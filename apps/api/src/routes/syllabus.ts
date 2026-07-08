@@ -13,7 +13,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import {
   getNodeDetail,
   getPaperSummaries,
@@ -39,7 +39,7 @@ syllabusRouter.get(
 syllabusRouter.get(
   "/syllabus/papers",
   asyncHandler(async (_req, res) => {
-    const papers = await getPaperSummaries(devUserId());
+    const papers = await getPaperSummaries(currentUserId());
     res.json(papersResponseSchema.parse({ data: papers, error: null }));
   }),
 );
@@ -49,7 +49,7 @@ syllabusRouter.get(
   asyncHandler(async (req, res) => {
     const { code } = parse(z.object({ code: z.string().min(1) }), req.params);
     const { exam } = parse(examFilterQuerySchema, req.query);
-    const tree = await getPaperTree(devUserId(), code, exam);
+    const tree = await getPaperTree(currentUserId(), code, exam);
     res.json(paperTreeResponseSchema.parse({ data: tree, error: null }));
   }),
 );
@@ -69,7 +69,7 @@ syllabusRouter.get(
   asyncHandler(async (req, res) => {
     const { id } = parse(z.object({ id: z.string().uuid() }), req.params);
     const { exam } = parse(examFilterQuerySchema, req.query);
-    const node = await getNodeDetail(devUserId(), id, exam);
+    const node = await getNodeDetail(currentUserId(), id, exam);
     res.json(syllabusNodeDetailResponseSchema.parse({ data: node, error: null }));
   }),
 );

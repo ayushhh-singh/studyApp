@@ -9,7 +9,7 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
@@ -79,7 +79,7 @@ export async function getBestScoresByTest(testIds: string[]): Promise<Map<string
   const { data, error } = await supabase()
     .from("attempts")
     .select("test_id, score")
-    .eq("user_id", devUserId())
+    .eq("user_id", currentUserId())
     .not("test_id", "is", null)
     .not("submitted_at", "is", null)
     .in("test_id", testIds);

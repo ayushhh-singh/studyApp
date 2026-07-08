@@ -22,7 +22,6 @@
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
-import { devUserId } from "../lib/dev-user.js";
 import { daysBetween, istToday, shiftDate } from "../lib/ist.js";
 import { getDailyProgress, hadActivity, type DailyProgress } from "../services/daily-progress.js";
 
@@ -149,7 +148,7 @@ export async function refreshStreak(
 }
 
 /** Nightly settle just after IST midnight (keeps the streak honest without an app open). */
-export async function runStreakNightly(userId: string = devUserId()): Promise<StreakState> {
+export async function runStreakNightly(userId: string): Promise<StreakState> {
   const state = await refreshStreak(userId);
   logger.info({ state }, "streak: nightly settle");
   return state;

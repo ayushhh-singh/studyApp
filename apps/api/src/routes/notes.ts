@@ -9,7 +9,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { devUserId } from "../lib/dev-user.js";
+import { currentUserId } from "../lib/user-context.js";
 import { addNoteBlockToRevision, addNoteDeckToRevision, getNoteForNode } from "../services/notes.js";
 
 export const notesRouter = Router();
@@ -33,7 +33,7 @@ notesRouter.post(
   "/notes/:id/deck",
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
-    const result = await addNoteDeckToRevision(devUserId(), id);
+    const result = await addNoteDeckToRevision(currentUserId(), id);
     res.status(201).json(noteDeckResponseSchema.parse({ data: result, error: null }));
   }),
 );
@@ -44,7 +44,7 @@ notesRouter.post(
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
     const body = parse(noteRevisionBodySchema, req.body);
-    const result = await addNoteBlockToRevision(devUserId(), id, body);
+    const result = await addNoteBlockToRevision(currentUserId(), id, body);
     res.status(201).json(noteRevisionResponseSchema.parse({ data: result, error: null }));
   }),
 );
