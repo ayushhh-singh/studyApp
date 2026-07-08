@@ -23,7 +23,11 @@ function flatten(nodes: SyllabusNodeWithStats[], depth = 0): FlatNode[] {
 export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { data: papers } = usePaperSummaries();
+  const { data: allPapers } = usePaperSummaries();
+  // MCQ practice is Prelims-only (matches the same gate on "Practice this
+  // topic" in learn-node.tsx) — Mains papers are entirely descriptive, so
+  // building an MCQ custom set from one always errors with "no MCQ PYQs".
+  const papers = useMemo(() => (allPapers ?? []).filter((p) => p.exam_stage === "prelims"), [allPapers]);
   const [paperCode, setPaperCode] = useState<string>("");
   const { data: tree } = usePaperTree(paperCode || undefined);
   const [nodeId, setNodeId] = useState<string>("");
@@ -68,7 +72,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
           }}
         >
           <option value="">{t("Practice.customPaperPlaceholder")}</option>
-          {(papers ?? []).map((paper) => (
+          {papers.map((paper) => (
             <option key={paper.paper_code} value={paper.paper_code}>
               {paper.title_i18n[locale]}
             </option>
