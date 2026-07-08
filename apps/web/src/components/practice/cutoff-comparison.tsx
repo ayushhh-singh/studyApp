@@ -31,7 +31,7 @@ export function CutoffComparison({ result }: { result: AttemptResultDetail }) {
               {qualified ? t("Practice.cutoffQualified") : t("Practice.cutoffNotQualified")}
             </span>
             <span className="text-xs text-muted-foreground">
-              {t("Practice.cutoffCsatHint", { your: Math.round((scorePct / 100) * 200) })}
+              {t("Practice.cutoffCsatHint", { your: Math.max(0, Math.round((scorePct / 100) * 200)) })}
             </span>
           </div>
         </div>
@@ -40,7 +40,8 @@ export function CutoffComparison({ result }: { result: AttemptResultDetail }) {
   }
 
   const general = (cutoffs ?? []).filter((c) => c.category === "general").sort((a, b) => b.year - a.year);
-  const yourMark = Math.round((scorePct / 100) * 200);
+  // Negative marking can push a raw score below 0; clamp the displayed /200 equivalent.
+  const yourMark = Math.max(0, Math.round((scorePct / 100) * 200));
 
   return (
     <SectionCard title={t("Practice.cutoffTitle")} description={t("Practice.cutoffDescription", { your: yourMark })}>

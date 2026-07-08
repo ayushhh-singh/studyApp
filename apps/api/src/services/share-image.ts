@@ -13,13 +13,22 @@ import type { Locale, WeeklyDigest } from "@prayasup/shared";
 const require = createRequire(import.meta.url);
 const font = (spec: string) => readFileSync(require.resolve(spec));
 
-// Loaded once at module init (cold-start cost, not per request).
-const FONTS = [
-  { name: "Inter", data: font("@fontsource/inter/files/inter-latin-400-normal.woff"), weight: 400 as const, style: "normal" as const },
-  { name: "Inter", data: font("@fontsource/inter/files/inter-latin-700-normal.woff"), weight: 700 as const, style: "normal" as const },
-  { name: "Noto Sans Devanagari", data: font("@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff"), weight: 400 as const, style: "normal" as const },
-  { name: "Noto Sans Devanagari", data: font("@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-700-normal.woff"), weight: 700 as const, style: "normal" as const },
-];
+type LoadedFont = { name: string; data: Buffer; weight: 400 | 700; style: "normal" };
+
+// Loaded lazily on first render and cached — NOT at module init. A missing/renamed
+// font file then surfaces as a 500 on this one endpoint (caught by asyncHandler)
+// rather than crashing the whole API at boot when routes/engagement.ts is imported.
+let fontsCache: LoadedFont[] | null = null;
+function loadFonts(): LoadedFont[] {
+  if (fontsCache) return fontsCache;
+  fontsCache = [
+    { name: "Inter", data: font("@fontsource/inter/files/inter-latin-400-normal.woff"), weight: 400, style: "normal" },
+    { name: "Inter", data: font("@fontsource/inter/files/inter-latin-700-normal.woff"), weight: 700, style: "normal" },
+    { name: "Noto Sans Devanagari", data: font("@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-400-normal.woff"), weight: 400, style: "normal" },
+    { name: "Noto Sans Devanagari", data: font("@fontsource/noto-sans-devanagari/files/noto-sans-devanagari-devanagari-700-normal.woff"), weight: 700, style: "normal" },
+  ];
+  return fontsCache;
+}
 
 const FONT_STACK = 'Inter, "Noto Sans Devanagari"';
 
@@ -77,7 +86,7 @@ function digestElement(d: WeeklyDigest, locale: Locale): El {
 }
 
 export async function renderWeeklyDigestPng(digest: WeeklyDigest, locale: Locale): Promise<Buffer> {
-  const svg = await satori(digestElement(digest, locale) as never, { width: 1200, height: 630, fonts: FONTS });
+  const svg = await satori(digestElement(digest, locale) as never, { width: 1200, height: 630, fonts: loadFonts() });
   const png = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
   return png;
 }
