@@ -2,7 +2,7 @@ import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema, examCodeSchema } from "./types";
 import { difficultySchema, questionSchema } from "./questions";
 
-export const testKindSchema = z.enum(["pyq_full", "sectional", "daily_quiz", "custom", "mock"]);
+export const testKindSchema = z.enum(["pyq_full", "sectional", "daily_quiz", "custom", "mock", "time_attack"]);
 export type TestKind = z.infer<typeof testKindSchema>;
 
 export const markingSchemeSchema = z

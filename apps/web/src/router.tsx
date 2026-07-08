@@ -61,6 +61,8 @@ export const router = createBrowserRouter([
       // full-screen experience with its own minimal header, not the normal
       // sidebar/bottom-tab chrome.
       { path: "practice/test/:testId", lazy: () => import("@/routes/practice-test") },
+      // Full-screen CSAT Time Attack (own chrome, instant feedback + big timer).
+      { path: "practice/time-attack", lazy: () => import("@/routes/practice-time-attack") },
       // The monthly magazine is a print-styled document (own header + print
       // button, no app chrome) so print-to-PDF is clean.
       { path: "magazine/:month", lazy: () => import("@/routes/magazine") },

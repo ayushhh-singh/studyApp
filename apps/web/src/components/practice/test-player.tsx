@@ -52,6 +52,8 @@ export function TestPlayer({
   answerKey,
   autoAdvance = false,
   onExit,
+  bigTimer = false,
+  onComboBest,
 }: {
   test: TestDetail;
   attemptId: string;
@@ -67,11 +69,15 @@ export function TestPlayer({
   autoAdvance?: boolean;
   /** Override the exit (X) target; defaults to the Practice list. */
   onExit?: () => void;
+  /** Render a prominent "big timer" (Time Attack). */
+  bigTimer?: boolean;
+  /** Reports the run's best combo as it grows (for the Time Attack end screen). */
+  onComboBest?: (best: number) => void;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const reveal = instantFeedback && !!answerKey;
-  const { combo, register } = useCombo();
+  const { combo, best, register } = useCombo();
   const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [displayLocale, setDisplayLocale] = useState<Locale>(locale);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -184,6 +190,10 @@ export function TestPlayer({
     return () => window.removeEventListener("beforeunload", onBeforeUnload);
   }, []);
 
+  useEffect(() => {
+    onComboBest?.(best);
+  }, [best, onComboBest]);
+
   const statuses: QuestionStatus[] = test.questions.map((q) =>
     marked.has(q.id) ? "marked" : answers[q.id]?.chosen_option_key ? "answered" : "unanswered",
   );
@@ -218,7 +228,7 @@ export function TestPlayer({
           >
             <Languages aria-hidden />
           </Button>
-          {deadline && <CountdownTimer deadline={deadline} onExpire={handleSubmit} />}
+          {deadline && <CountdownTimer deadline={deadline} onExpire={handleSubmit} size={bigTimer ? "lg" : "sm"} />}
         </div>
       </header>
 

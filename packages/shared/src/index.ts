@@ -18,3 +18,4 @@ export * from "./notifications";
 export * from "./mocks";
 export * from "./engagement";
 export * from "./mastery";
+export * from "./time-attack";

@@ -12,7 +12,16 @@ function formatClock(totalSeconds: number): string {
 }
 
 /** Countdown derived from the server-authoritative attempt.started_at + test duration — never a client-side clock. */
-export function CountdownTimer({ deadline, onExpire }: { deadline: number; onExpire: () => void }) {
+export function CountdownTimer({
+  deadline,
+  onExpire,
+  size = "sm",
+}: {
+  deadline: number;
+  onExpire: () => void;
+  /** "lg" is the Time Attack "big timer". */
+  size?: "sm" | "lg";
+}) {
   const [now, setNow] = useState(() => Date.now());
   const firedRef = useRef(false);
 
@@ -36,11 +45,12 @@ export function CountdownTimer({ deadline, onExpire }: { deadline: number; onExp
   return (
     <span
       className={cn(
-        "flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold tabular-nums",
+        "flex items-center gap-1.5 rounded-full font-semibold tabular-nums",
+        size === "lg" ? "px-4 py-1.5 text-2xl font-display" : "px-3 py-1 text-sm",
         low ? "bg-coral/15 text-coral-foreground" : "bg-muted text-foreground",
       )}
     >
-      <Clock className="size-4" aria-hidden />
+      <Clock className={size === "lg" ? "size-5" : "size-4"} aria-hidden />
       {formatClock(remainingMs / 1000)}
     </span>
   );

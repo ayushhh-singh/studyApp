@@ -59,5 +59,6 @@ export const queryKeys = {
   milestones: () => ["milestones"] as const,
   weeklyDigest: () => ["digest", "weekly"] as const,
   activityHeatmap: (weeks: number) => ["engagement", "heatmap", weeks] as const,
+  timeAttackTopics: () => ["time-attack", "topics"] as const,
   leaderboard: () => ["leaderboard"] as const,
 };

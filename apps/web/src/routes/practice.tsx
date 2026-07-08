@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { PenSquare, X } from "lucide-react";
+import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
 import type { ExamCode } from "@prayasup/shared";
 import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -20,7 +20,7 @@ import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "Nav.practice" };
 
-const TABS = ["daily", "pyq", "sectional", "mock", "custom"] as const;
+const TABS = ["daily", "pyq", "sectional", "mock", "timeattack", "custom"] as const;
 type Tab = (typeof TABS)[number];
 
 function isTab(value: string | null): value is Tab {
@@ -142,6 +142,38 @@ function CustomTestsPanel() {
   );
 }
 
+function TimeAttackPanel() {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  return (
+    <div className="flex flex-col items-start gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+      <span className="flex size-12 items-center justify-center rounded-xl bg-marigold/15 text-marigold">
+        <Zap className="size-6" aria-hidden />
+      </span>
+      <div className="flex flex-col gap-1.5">
+        <h3 className="text-lg font-semibold">{t("TimeAttack.title")}</h3>
+        <p className="max-w-prose text-sm text-muted-foreground">{t("TimeAttack.pitch")}</p>
+      </div>
+      <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+        <span className="flex items-center gap-1.5">
+          <Timer className="size-4 text-primary" aria-hidden />
+          {t("TimeAttack.chipTimer")}
+        </span>
+        <span className="flex items-center gap-1.5">
+          <Trophy className="size-4 text-marigold" aria-hidden />
+          {t("TimeAttack.chipBest")}
+        </span>
+      </div>
+      <Button asChild>
+        <Link to={`/${locale}/practice/time-attack`}>
+          <Zap aria-hidden />
+          {t("TimeAttack.enter")}
+        </Link>
+      </Button>
+    </div>
+  );
+}
+
 export function Component() {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -179,6 +211,7 @@ export function Component() {
           <TabsTrigger value="pyq">{t("Practice.tabPyq")}</TabsTrigger>
           <TabsTrigger value="sectional">{t("Practice.tabSectional")}</TabsTrigger>
           <TabsTrigger value="mock">{t("Practice.tabMock")}</TabsTrigger>
+          <TabsTrigger value="timeattack">{t("Practice.tabTimeAttack")}</TabsTrigger>
           <TabsTrigger value="custom">{t("Practice.tabCustom")}</TabsTrigger>
         </TabsList>
         <TabsContent value="daily">
@@ -200,6 +233,9 @@ export function Component() {
           <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription")}>
             <TestListPanel kind="mock" />
           </SectionCard>
+        </TabsContent>
+        <TabsContent value="timeattack">
+          <TimeAttackPanel />
         </TabsContent>
         <TabsContent value="custom">
           <CustomTestsPanel />
