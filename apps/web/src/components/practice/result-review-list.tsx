@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
+import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { CheckCircle2, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { AttemptReviewItem, BilingualText, Locale } from "@prayasup/shared";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,9 @@ function ExplanationBlock({
   if (error) {
     return (
       <div className="flex flex-col gap-1.5">
-        <p className="text-xs text-coral">{error}</p>
+        <p className="text-xs text-coral-foreground" role="alert">
+          {error}
+        </p>
         <Button
           type="button"
           variant="outline"
@@ -69,9 +72,13 @@ function ExplanationBlock({
 
   if (isStreaming || text) {
     return (
-      <div className="rounded-md bg-muted/50 p-2.5 text-xs" lang={locale}>
+      <div className="rounded-md bg-muted/50 p-2.5 text-xs" lang={locale} aria-live="polite">
         {text}
-        {isStreaming && <span className="animate-pulse">▍</span>}
+        {isStreaming && (
+          <span className="animate-pulse" aria-hidden>
+            ▍
+          </span>
+        )}
       </div>
     );
   }
@@ -110,39 +117,46 @@ function ReviewItem({
   const addToRevision = useAddQuestionToRevision();
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
+    <div role="listitem" className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
       <p className="text-sm" lang={locale}>
         {item.stem_i18n[locale]}
       </p>
       {item.options_i18n && (
         <ul className="flex flex-col gap-1 text-xs">
-          {item.options_i18n.map((option) => (
-            <li
-              key={option.key}
-              className={cn(
-                "flex items-start gap-1.5",
-                option.key === item.correct_option_key && "font-semibold text-tulsi",
-                option.key === item.chosen_option_key &&
-                  option.key !== item.correct_option_key &&
-                  "font-semibold text-coral",
-              )}
-            >
-              <span>{option.key}.</span>
-              <span lang={locale}>{option.text_i18n[locale]}</span>
-            </li>
-          ))}
+          {item.options_i18n.map((option) => {
+            const isCorrectOpt = option.key === item.correct_option_key;
+            const isWrongChosen = option.key === item.chosen_option_key && !isCorrectOpt;
+            return (
+              <li
+                key={option.key}
+                className={cn(
+                  "flex items-start gap-1.5",
+                  // text-*-foreground, not the raw token: on a card background the
+                  // raw --tulsi/--coral colors read as low as ~2.5:1 in light mode.
+                  isCorrectOpt && "font-semibold text-tulsi-foreground",
+                  isWrongChosen && "font-semibold text-coral-foreground",
+                )}
+              >
+                <span>{option.key}.</span>
+                <span lang={locale}>{option.text_i18n[locale]}</span>
+                {/* Color/weight alone convey correctness visually — mirror it as text for screen readers. */}
+                {isCorrectOpt && <span className="sr-only"> — {t("Practice.resultsCorrect")}</span>}
+                {isWrongChosen && <span className="sr-only"> — {t("Practice.resultsIncorrect")}</span>}
+              </li>
+            );
+          })}
         </ul>
       )}
 
       <div className="flex flex-wrap items-center gap-3 text-xs">
         {item.is_correct === true && (
-          <span className="flex items-center gap-1 text-tulsi">
+          <span className="flex items-center gap-1 text-tulsi-foreground">
             <CheckCircle2 className="size-3.5" aria-hidden />
             {t("Practice.resultsCorrect")}
           </span>
         )}
         {item.is_correct === false && (
-          <span className="flex items-center gap-1 text-coral">
+          <span className="flex items-center gap-1 text-coral-foreground">
             <XCircle className="size-3.5" aria-hidden />
             {t("Practice.resultsIncorrect")}
           </span>
@@ -185,10 +199,16 @@ function ReviewItem({
           </Link>
         </Button>
       </div>
-    </li>
+    </div>
   );
 }
 
+// Mock/full-length papers put 100-150 review rows on this one page below the
+// score summary; each row's height varies (option count, whether an
+// explanation is expanded/streaming), so this window-scrolled virtualizer
+// re-measures rows via ResizeObserver rather than assuming a fixed size —
+// short lists (a 5-question custom test) just render every row with no
+// virtualization overhead since the estimate covers the whole viewport.
 export function ResultReviewList({
   items,
   locale,
@@ -200,17 +220,41 @@ export function ResultReviewList({
   attemptId: string;
   onExplanationGenerated: (questionId: string, explanation: BilingualText) => void;
 }) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const virtualizer = useWindowVirtualizer({
+    count: items.length,
+    estimateSize: () => 160,
+    overscan: 6,
+    scrollMargin: listRef.current?.offsetTop ?? 0,
+  });
+  const virtualItems = virtualizer.getVirtualItems();
+
   return (
-    <ul className="flex flex-col gap-3">
-      {items.map((item) => (
-        <ReviewItem
-          key={item.question_id}
-          item={item}
-          locale={locale}
-          attemptId={attemptId}
-          onExplanationGenerated={onExplanationGenerated}
-        />
-      ))}
-    </ul>
+    <div
+      ref={listRef}
+      role="list"
+      className="relative flex flex-col"
+      style={{ height: virtualizer.getTotalSize() }}
+    >
+      {virtualItems.map((virtualRow) => {
+        const item = items[virtualRow.index];
+        return (
+          <div
+            key={item.question_id}
+            data-index={virtualRow.index}
+            ref={virtualizer.measureElement}
+            className="absolute inset-x-0 pb-3"
+            style={{ transform: `translateY(${virtualRow.start - virtualizer.options.scrollMargin}px)` }}
+          >
+            <ReviewItem
+              item={item}
+              locale={locale}
+              attemptId={attemptId}
+              onExplanationGenerated={onExplanationGenerated}
+            />
+          </div>
+        );
+      })}
+    </div>
   );
 }

@@ -19,6 +19,7 @@ export function useQuestions(filters?: {
   return useQuery({
     queryKey: queryKeys.questions(filters),
     queryFn: () => api.get("/api/v1/questions", questionsResponseSchema, filters),
+    staleTime: 5 * 60_000,
   });
 }
 
@@ -27,5 +28,6 @@ export function useQuestion(questionId: string | undefined) {
     queryKey: ["questions", "detail", questionId ?? ""],
     queryFn: () => api.get(`/api/v1/questions/${questionId}`, questionResponseSchema),
     enabled: !!questionId,
+    staleTime: 5 * 60_000,
   });
 }

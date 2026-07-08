@@ -2,14 +2,24 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
+import { HelmetProvider } from "react-helmet-async";
 import "@fontsource-variable/inter";
-import "@fontsource/noto-sans-devanagari/400.css";
-import "@fontsource/noto-sans-devanagari/500.css";
-import "@fontsource/noto-sans-devanagari/700.css";
+// Devanagari-only subset files (not the generic 400.css/etc, which bundle
+// every script Noto Sans Devanagari ships — latin, Devanagari, and more, each
+// its own @font-face) — this font is only ever used for Devanagari glyphs
+// here, Latin text renders in Inter.
+import "@fontsource/noto-sans-devanagari/devanagari-400.css";
+import "@fontsource/noto-sans-devanagari/devanagari-500.css";
+import "@fontsource/noto-sans-devanagari/devanagari-700.css";
 import "@/lib/i18n";
 import "@/index.css";
 import { router } from "@/router";
 import { AuthProvider } from "@/providers/auth-provider";
+import { PwaUpdateToast } from "@/components/app-shell/pwa-update-toast";
+import { RootErrorBoundary } from "@/components/app-shell/root-error-boundary";
+import { initSentry } from "@/lib/sentry";
+
+void initSentry();
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,10 +32,15 @@ const queryClient = new QueryClient({
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <RouterProvider router={router} />
-      </AuthProvider>
-    </QueryClientProvider>
+    <RootErrorBoundary>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <RouterProvider router={router} />
+            <PwaUpdateToast />
+          </AuthProvider>
+        </QueryClientProvider>
+      </HelmetProvider>
+    </RootErrorBoundary>
   </StrictMode>,
 );

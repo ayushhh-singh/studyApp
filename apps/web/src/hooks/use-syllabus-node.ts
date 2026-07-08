@@ -8,5 +8,6 @@ export function useSyllabusNode(nodeId: string | undefined, exam?: ExamCode) {
     queryKey: queryKeys.syllabusNode(nodeId ?? "", exam),
     queryFn: () => api.get(`/api/v1/syllabus/nodes/${nodeId}`, syllabusNodeDetailResponseSchema, { exam }),
     enabled: !!nodeId,
+    staleTime: 60_000,
   });
 }

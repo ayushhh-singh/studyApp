@@ -109,6 +109,11 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
             <button
               type="button"
               onClick={() => !revealed && setRevealed(true)}
+              // Once revealed this button no longer does anything (rating happens via
+              // the buttons below) — take it out of the tab order rather than leave a
+              // focusable no-op control.
+              tabIndex={revealed ? -1 : 0}
+              aria-disabled={revealed}
               className="flex min-h-64 w-full flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <p className="text-lg leading-relaxed font-medium text-card-foreground" data-locale={displayLocale}>
@@ -145,6 +150,8 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
                       className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${config.className}`}
                     >
                       <span>{t(config.labelKey)}</span>
+                      {/* Digits are language-neutral, so this needs no separate hi/en copy. */}
+                      <span className="sr-only"> ({rating})</span>
                       <span className="text-xs font-normal opacity-80 tabular-nums">
                         {formatSrsInterval(preview.due_at)}
                       </span>
@@ -155,6 +162,7 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
             ) : (
               <Button size="lg" className="w-full" onClick={() => setRevealed(true)}>
                 {t("Revision.reveal")}
+                <span className="sr-only"> — {t("Revision.tapToReveal")}</span>
               </Button>
             )}
           </motion.div>

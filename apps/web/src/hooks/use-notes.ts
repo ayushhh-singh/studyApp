@@ -14,6 +14,9 @@ export function useNoteForNode(nodeId: string) {
     queryKey: queryKeys.noteForNode(nodeId),
     queryFn: () => api.get(`/api/v1/notes/node/${nodeId}`, noteDetailResponseSchema),
     enabled: !!nodeId,
+    // Notes are AI-generated in batches and reviewed before publish — they
+    // don't change within a study session.
+    staleTime: 10 * 60_000,
   });
 }
 

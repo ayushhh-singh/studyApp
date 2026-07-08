@@ -7,5 +7,6 @@ export function usePaperSummaries() {
   return useQuery({
     queryKey: queryKeys.paperSummaries(),
     queryFn: () => api.get("/api/v1/syllabus/papers", papersResponseSchema),
+    staleTime: 5 * 60_000,
   });
 }

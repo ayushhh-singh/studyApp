@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/marketing/brand-mark";
 import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
+import { PageSeo } from "@/components/seo/page-seo";
 import { cn } from "@/lib/utils";
 
 const FEATURE_ICONS = [PenLine, Target, BookOpen, BarChart3] as const;
@@ -38,6 +39,12 @@ export function Component() {
 
   return (
     <div className="min-h-svh bg-background">
+      <PageSeo
+        locale={locale}
+        path=""
+        title={`${t("Landing.brand")} — ${locale === "hi" ? t("Landing.heroTitleHi") : t("Landing.heroTitleEn")}`}
+        description={t("Landing.heroSub")}
+      />
       {/* Nav */}
       <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
         <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">

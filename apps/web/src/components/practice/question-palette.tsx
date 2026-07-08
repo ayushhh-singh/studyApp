@@ -31,18 +31,29 @@ export function QuestionPalette({
         {Array.from({ length: count }, (_, i) => {
           const status = statuses[i];
           const isCurrent = i === currentIndex;
+          const statusLabel =
+            status === "answered"
+              ? t("Practice.paletteAnswered")
+              : status === "marked"
+                ? t("Practice.paletteMarked")
+                : t("Practice.paletteUnanswered");
           return (
             <button
               key={i}
               type="button"
               onClick={() => onSelect(i)}
               aria-current={isCurrent}
-              aria-label={t("Practice.paletteGoTo", { number: i + 1 })}
+              aria-label={`${t("Practice.paletteGoTo", { number: i + 1 })} — ${statusLabel}`}
               className={cn(
-                "flex size-11 items-center justify-center rounded-md text-sm font-semibold tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                status === "answered" && "bg-tulsi text-tulsi-foreground",
-                status === "marked" && "bg-marigold text-marigold-foreground",
-                status === "unanswered" && "bg-muted text-muted-foreground",
+                "flex size-11 items-center justify-center rounded-md border text-sm font-semibold tabular-nums outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
+                // Solid full-opacity fills of --tulsi/--marigold paired with their
+                // -foreground text fail contrast (as low as ~1.3:1 in dark mode) —
+                // the design system's -foreground tokens are calibrated for the
+                // /15-ish tint pairing, not a 100%-opacity fill. A tint + border
+                // keeps the "filled cell" read while passing AA in both themes.
+                status === "answered" && "border-tulsi/60 bg-tulsi/20 text-tulsi-foreground",
+                status === "marked" && "border-marigold/60 bg-marigold/20 text-marigold-foreground",
+                status === "unanswered" && "border-transparent bg-muted text-muted-foreground",
                 isCurrent && "ring-2 ring-primary ring-offset-2 ring-offset-background",
               )}
             >

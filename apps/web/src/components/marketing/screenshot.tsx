@@ -37,8 +37,11 @@ export function Screenshot({
           src={src}
           alt={alt}
           loading="lazy"
+          decoding="async"
+          width={1200}
+          height={900}
           onError={() => setErrored(true)}
-          className="block w-full"
+          className="block aspect-[4/3] w-full object-cover"
         />
       )}
     </div>

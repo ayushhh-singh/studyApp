@@ -9,5 +9,7 @@ export function useCutoffs(exam = "PRE_GS1", enabled = true) {
     queryKey: queryKeys.cutoffs(exam),
     queryFn: () => api.get("/api/v1/mocks/cutoffs", examCutoffsResponseSchema, { exam }),
     enabled,
+    // Official cut-offs only change once a year, at most.
+    staleTime: 60 * 60_000,
   });
 }

@@ -1,0 +1,6 @@
+User-agent: *
+Allow: /en
+Allow: /hi
+Disallow: /
+
+Sitemap: https://prayasup.app/sitemap.xml

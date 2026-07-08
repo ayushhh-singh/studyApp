@@ -204,7 +204,7 @@ export function Component() {
       />
 
       {/* tabs */}
-      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+      <div role="tablist" aria-label={t("Review.title")} className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {TABS.map((tb) => {
           const c = counts.data?.[tb] ?? 0;
           const active = tb === tab;
@@ -212,6 +212,8 @@ export function Component() {
             <button
               key={tb}
               type="button"
+              role="tab"
+              aria-selected={active}
               onClick={() => setTab(tb)}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

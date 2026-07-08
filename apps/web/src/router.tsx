@@ -1,5 +1,6 @@
 import { createBrowserRouter, redirect } from "react-router";
 import { DEFAULT_LOCALE } from "@/lib/locale";
+import { Component as AppErrorBoundary } from "@/components/app-shell/app-error-boundary";
 
 function RedirectPending() {
   return null;
@@ -14,11 +15,16 @@ export const router = createBrowserRouter([
     },
     Component: RedirectPending,
     HydrateFallback: RedirectPending,
+    ErrorBoundary: AppErrorBoundary,
   },
   {
     path: "/:locale",
     lazy: () => import("@/routes/locale-layout"),
     HydrateFallback: RedirectPending,
+    // Catches: unmatched sub-paths (a genuine 404, e.g. /en/nonexistent),
+    // every loader's thrown errors, and every render error anywhere in the
+    // locale subtree that isn't caught by a more specific boundary.
+    ErrorBoundary: AppErrorBoundary,
     children: [
       // Public marketing landing.
       { index: true, lazy: () => import("@/routes/landing") },
@@ -87,6 +93,20 @@ export const router = createBrowserRouter([
           // button, no app chrome) so print-to-PDF is clean.
           { path: "magazine/:month", lazy: () => import("@/routes/magazine") },
         ],
+      },
+      // A path with a VALID locale prefix but no matching child (e.g.
+      // /en/nonexistent) previously fell through to the top-level "*" route
+      // below, which silently redirects to the landing page — no 404, no
+      // signal anything was wrong. This explicit wildcard makes /:locale
+      // itself the match, so its ErrorBoundary (AppErrorBoundary) renders a
+      // real "page not found" instead. The top-level "*" route still handles
+      // paths with no locale segment at all (e.g. bare "/xyz").
+      {
+        path: "*",
+        loader: () => {
+          throw new Response("Not Found", { status: 404 });
+        },
+        Component: RedirectPending,
       },
     ],
   },

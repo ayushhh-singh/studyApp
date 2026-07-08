@@ -265,7 +265,10 @@ export function TestPlayer({
             <span
               className={cn(
                 "hidden items-center gap-1 text-xs sm:flex",
-                autosaveStatus === "error" ? "text-coral" : "text-muted-foreground",
+                // text-coral-foreground, not text-coral: the raw --coral token on a
+                // light background is ~3.7:1, under the 4.5:1 needed for this small
+                // text — the -foreground pairing is the higher-contrast variant.
+                autosaveStatus === "error" ? "text-coral-foreground" : "text-muted-foreground",
               )}
               role="status"
             >
@@ -349,6 +352,10 @@ export function TestPlayer({
                   <span lang={displayLocale} className={cn(displayLocale === "hi" && "leading-[1.75]")}>
                     {option.text_i18n[displayLocale]}
                   </span>
+                  {/* Correctness is conveyed by border/background color alone visually —
+                      mirror it as text for screen readers once the answer is revealed. */}
+                  {isCorrectOpt && <span className="sr-only"> — {t("Practice.resultsCorrect")}</span>}
+                  {isWrongChosen && <span className="sr-only"> — {t("Practice.resultsIncorrect")}</span>}
                 </button>
               );
             })}
@@ -364,7 +371,12 @@ export function TestPlayer({
               <ChevronLeft aria-hidden />
               {t("Practice.previous")}
             </Button>
-            <Button type="button" variant={marked.has(question.id) ? "default" : "outline"} onClick={toggleMark}>
+            <Button
+              type="button"
+              variant={marked.has(question.id) ? "default" : "outline"}
+              aria-pressed={marked.has(question.id)}
+              onClick={toggleMark}
+            >
               <Flag aria-hidden />
               {marked.has(question.id) ? t("Practice.unmark") : t("Practice.mark")}
             </Button>

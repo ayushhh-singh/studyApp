@@ -10,6 +10,7 @@ import { ImprovementProofCard } from "@/components/profile/improvement-proof-car
 import { MicroDrillsCard } from "@/components/profile/micro-drills-card";
 import { StudyPlanCard } from "@/components/profile/study-plan-card";
 import { SettingsCard } from "@/components/profile/settings-card";
+import { PushNotificationsCard } from "@/components/profile/push-notifications-card";
 import { PlanBanner } from "@/components/billing/plan-banner";
 import { useProfile } from "@/hooks/use-profile";
 import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
@@ -60,6 +61,8 @@ export function Component() {
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.settingsSectionTitle")}</h2>
 
       <SettingsCard />
+
+      <PushNotificationsCard />
     </div>
   );
 }

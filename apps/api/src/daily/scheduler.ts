@@ -15,6 +15,7 @@ import { logger } from "../lib/logger.js";
 import { runDailyBuild } from "./run.js";
 import { runStreakNightly } from "./streak.js";
 import { generateForUser } from "../services/notifications.js";
+import { runPushSender } from "../push/sender.js";
 import { recomputeMastery } from "../mastery/compute.js";
 import { recordPerfectDay } from "../services/daily-stats.js";
 import { computeLearnerProfile } from "../services/learner-profile.js";
@@ -79,7 +80,9 @@ export function startDailyScheduler(): void {
   cron.schedule(
     NOTIFICATIONS_CRON,
     () => {
-      void forEachUser("notification generation", (userId) => generateForUser(userId));
+      void forEachUser("notification generation", (userId) => generateForUser(userId)).then(() =>
+        runPushSender().catch((err) => logger.error({ err }, "daily: push sender failed")),
+      );
     },
     { timezone: IST_TZ },
   );

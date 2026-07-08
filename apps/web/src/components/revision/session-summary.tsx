@@ -9,11 +9,14 @@ const RATING_LABEL: Record<SrsRating, string> = {
   3: "Revision.good",
   4: "Revision.easy",
 };
+// text-*-foreground, not the raw --coral/--marigold/--tulsi tokens: at this
+// size (text-xl, not bold-large enough to drop to the 3:1 UI-text floor in
+// every case) the raw tokens read as low as ~2.1:1 on a light card.
 const RATING_COLOR: Record<SrsRating, string> = {
-  1: "text-coral",
-  2: "text-marigold",
+  1: "text-coral-foreground",
+  2: "text-marigold-foreground",
   3: "text-primary",
-  4: "text-tulsi",
+  4: "text-tulsi-foreground",
 };
 
 export function SessionSummary({

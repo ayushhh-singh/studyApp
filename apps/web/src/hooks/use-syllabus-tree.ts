@@ -7,5 +7,8 @@ export function useSyllabusTree(stage?: ExamStage) {
   return useQuery({
     queryKey: queryKeys.syllabusTree(stage),
     queryFn: () => api.get("/api/v1/syllabus/tree", syllabusTreeResponseSchema, { stage }),
+    // Content-ingestion cadence (days), never per-session — avoid refetching
+    // this large tree on every tab focus/remount.
+    staleTime: 10 * 60_000,
   });
 }

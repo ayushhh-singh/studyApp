@@ -8,6 +8,9 @@ export function usePaperTree(paperCode: string | undefined, exam?: ExamCode) {
     queryKey: queryKeys.paperTree(paperCode ?? "", exam),
     queryFn: () => api.get(`/api/v1/syllabus/papers/${paperCode}/tree`, paperTreeResponseSchema, { exam }),
     enabled: !!paperCode,
+    // Includes per-node PYQ/accuracy stats that DO change with new activity,
+    // so this stays shorter than the plain syllabus tree's staleTime.
+    staleTime: 60_000,
   });
 }
 
@@ -16,5 +19,6 @@ export function usePaperTrends(paperCode: string | undefined, exam?: ExamCode) {
     queryKey: queryKeys.paperTrends(paperCode ?? "", exam),
     queryFn: () => api.get(`/api/v1/syllabus/papers/${paperCode}/trends`, paperTrendsResponseSchema, { exam }),
     enabled: !!paperCode,
+    staleTime: 60_000,
   });
 }

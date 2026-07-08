@@ -8,6 +8,7 @@ import { MilestoneToaster } from "@/components/app-shell/milestone-toaster";
 import { FloatingMentorButton } from "@/components/mentor/floating-mentor-button";
 import { PaywallModal } from "@/components/billing/paywall-modal";
 import { useLocale } from "@/hooks/use-locale";
+import { usePushNavigation } from "@/hooks/use-push-navigation";
 
 interface RouteHandle {
   titleKey?: string;
@@ -26,6 +27,8 @@ export function Component() {
   const title = activeHandle?.titleI18n
     ? activeHandle.titleI18n[locale]
     : t(activeHandle?.titleKey ?? "Nav.dashboard");
+
+  usePushNavigation();
 
   return (
     <div className="flex min-h-svh bg-background">

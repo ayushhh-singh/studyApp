@@ -30,8 +30,12 @@ import { drillsRouter } from "./routes/drills.js";
 import { studyPlanRouter } from "./routes/study-plan.js";
 import { communityRouter } from "./routes/community.js";
 import { billingRouter, billingWebhookRouter } from "./routes/billing.js";
+import { pushRouter } from "./routes/push.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
+import { initSentry } from "./lib/sentry.js";
+
+await initSentry();
 
 const app = express();
 const port = process.env.PORT ?? 4000;
@@ -82,6 +86,7 @@ app.use("/api/v1", drillsRouter);
 app.use("/api/v1", studyPlanRouter);
 app.use("/api/v1", communityRouter);
 app.use("/api/v1", billingRouter);
+app.use("/api/v1", pushRouter);
 app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);

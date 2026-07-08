@@ -21,6 +21,13 @@ export function Component() {
     }
     document.documentElement.lang = locale;
     document.documentElement.dataset.locale = locale;
+    // vite-plugin-pwa injects the English manifest link at build time; swap
+    // it to the static Hindi manifest (public/manifest.hi.webmanifest) so
+    // "Add to home screen" installs with the right name/description — the
+    // Web App Manifest spec has no built-in i18n, so two static files + this
+    // runtime swap is the pragmatic bilingual approach.
+    const link = document.querySelector<HTMLLinkElement>('link[rel="manifest"]');
+    if (link) link.href = locale === "hi" ? "/manifest.hi.webmanifest" : "/manifest.webmanifest";
   }, [locale, i18n]);
 
   return <Outlet />;

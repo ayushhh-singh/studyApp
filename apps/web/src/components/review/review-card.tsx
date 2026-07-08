@@ -79,7 +79,9 @@ export function ReviewCard({ question: q }: { question: ReviewQuestion }) {
                   <span>{o.text_i18n.en}</span>
                   <span className="text-foreground/75" lang="hi">{o.text_i18n.hi}</span>
                 </span>
-                {correct && <Check className="ml-auto size-4 shrink-0 text-tulsi" aria-label="correct" />}
+                {correct && (
+                  <Check className="ml-auto size-4 shrink-0 text-tulsi" aria-label={t("Review.correctAnswer")} />
+                )}
               </li>
             );
           })}

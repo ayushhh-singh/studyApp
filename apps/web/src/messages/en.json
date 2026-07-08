@@ -597,6 +597,7 @@
     },
     "willPublish": "Will publish",
     "wontPublish": "Incomplete — won’t publish",
+    "correctAnswer": "Correct answer",
     "question": "Question",
     "explanation": "Explanation",
     "markingPoints": "Marking points",
@@ -1022,5 +1023,23 @@
     "dismiss": "Dismiss",
     "removeContent": "Remove content",
     "lockThread": "Lock thread"
+  },
+  "Pwa": {
+    "updateAvailable": "A new version is ready.",
+    "refresh": "Refresh",
+    "offlineReady": "PrayasUP is ready to work offline.",
+    "settingsTitle": "Push notifications",
+    "settingsDescription": "Get a nudge when today's quiz is ready, revision is due, or your streak needs a save.",
+    "disabledHint": "Notifications are off.",
+    "blockedHint": "Notifications are blocked in your browser settings for this site. Enable them from your browser's site settings to turn this on.",
+    "enabled": "Notifications on",
+    "turnOff": "Turn off",
+    "enableButton": "Enable notifications",
+    "notNow": "Not now",
+    "enableError": "Couldn't enable notifications — please try again.",
+    "prePromptBody": "PrayasUP can send a quiet nudge when your daily quiz is ready, revision cards are due, or your streak is about to break. No spam — just study reminders, and you can turn any of these off anytime.",
+    "prefQuizReady": "Daily quiz ready",
+    "prefSrsDue": "Revision due",
+    "prefStreakAtRisk": "Streak at risk"
   }
 }
