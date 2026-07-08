@@ -1,0 +1,55 @@
+import { Router } from "express";
+import {
+  createDrillBodySchema,
+  drillHistoryResponseSchema,
+  drillRecommendationResponseSchema,
+  drillSessionResponseSchema,
+  submitDrillResponsesBodySchema,
+} from "@prayasup/shared";
+import { z } from "zod";
+import { asyncHandler } from "../lib/async-handler.js";
+import { parse } from "../lib/validation.js";
+import { rateLimit } from "../lib/rate-limit.js";
+import { devUserId } from "../lib/dev-user.js";
+import { createDrillSession, getDrillHistory, getRecommendation, saveDrillResponses } from "../services/micro-drills.js";
+
+export const drillsRouter = Router();
+drillsRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
+
+drillsRouter.get(
+  "/drills/recommendation",
+  asyncHandler(async (_req, res) => {
+    const recommendation = await getRecommendation(devUserId());
+    res.json(drillRecommendationResponseSchema.parse({ data: recommendation, error: null }));
+  }),
+);
+
+drillsRouter.post(
+  "/drills",
+  rateLimit({ windowMs: 60_000, max: 20 }),
+  asyncHandler(async (req, res) => {
+    const body = parse(createDrillBodySchema, req.body);
+    const session = await createDrillSession(devUserId(), body.drill_type);
+    res.json(drillSessionResponseSchema.parse({ data: session, error: null }));
+  }),
+);
+
+const drillParamsSchema = z.object({ id: z.string().uuid() });
+
+drillsRouter.patch(
+  "/drills/:id/responses",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(drillParamsSchema, req.params);
+    const body = parse(submitDrillResponsesBodySchema, req.body);
+    const session = await saveDrillResponses(devUserId(), id, body.responses);
+    res.json(drillSessionResponseSchema.parse({ data: session, error: null }));
+  }),
+);
+
+drillsRouter.get(
+  "/drills/history",
+  asyncHandler(async (_req, res) => {
+    const history = await getDrillHistory(devUserId());
+    res.json(drillHistoryResponseSchema.parse({ data: history, error: null }));
+  }),
+);

@@ -8,8 +8,10 @@ import type {
   DashboardToday,
   DashboardWeaknessNode,
   ExamStage,
+  PlanDay,
   TestKind,
   TestSummary,
+  TodayPlanTask,
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
@@ -175,6 +177,30 @@ async function getContinue(userId: string): Promise<DashboardContinue> {
   return attemptCandidate ?? syllabusCandidate ?? { type: "none" };
 }
 
+/**
+ * Today's tasks from the user's active AI study plan, if any. Best-effort —
+ * ANY failure here (no plan, malformed jsonb, missing day) must degrade to an
+ * empty array rather than ever break the dashboard load.
+ */
+async function getTodayPlanTasks(userId: string, today: string): Promise<TodayPlanTask[]> {
+  try {
+    const { data, error } = await supabase()
+      .from("study_plans")
+      .select("plan")
+      .eq("user_id", userId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (error || !data) return [];
+    const planJson = data.plan as { days?: PlanDay[] } | null;
+    const day = planJson?.days?.find((d) => d.date === today);
+    if (!day) return [];
+    return day.tasks.map((t) => ({ id: t.id, title_i18n: t.title_i18n, kind: t.kind, done: t.done }));
+  } catch (err) {
+    logger.warn({ err, userId }, "today plan-tasks lookup failed; degrading to empty");
+    return [];
+  }
+}
+
 async function getToday(userId: string, today: string, progress: DailyProgress): Promise<DashboardToday> {
   const srsDue = progress.srs_due;
 
@@ -226,6 +252,7 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
     : null;
 
   const checklist = buildChecklist(progress);
+  const planTasks = await getTodayPlanTasks(userId, today);
 
   return {
     srs_due_count: srsDue,
@@ -234,6 +261,7 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
     checklist: checklist.items,
     checklist_completed: checklist.completed,
     checklist_total: checklist.total,
+    plan_tasks: planTasks,
   };
 }
 

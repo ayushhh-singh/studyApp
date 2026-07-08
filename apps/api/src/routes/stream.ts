@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { doubtMessageBodySchema, localeSchema, type BilingualText } from "@prayasup/shared";
+import { doubtMessageBodySchema, generatePlanBodySchema, localeSchema, type BilingualText } from "@prayasup/shared";
 import { createSseConnection } from "../lib/sse.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -20,6 +20,13 @@ import {
   type EvalEmit,
   type OcrEmit,
 } from "../services/evaluation/evaluate.js";
+import {
+  executeDrillEvaluation,
+  planDrillEvaluation,
+  replayDrillEvaluation,
+  type DrillEmit,
+} from "../services/micro-drills.js";
+import { executeGeneratePlan, planGenerate, type PlanEmit } from "../services/study-plan.js";
 
 export const streamRouter = Router();
 
@@ -251,6 +258,80 @@ streamRouter.get(
       finished = true;
     } catch (err) {
       emit("error", { message: err instanceof Error ? err.message : "Evaluation failed" });
+    } finally {
+      close();
+    }
+  }),
+);
+
+const drillEvaluationParamsSchema = z.object({ sessionId: z.string().uuid() });
+
+/**
+ * Micro-drill scoring — a single claude-sonnet-5 call scoring all 3 items of a
+ * drill session against structure_flow alone (see services/micro-drills.ts).
+ * Independent of the flagship evaluation pipeline by design. Pre-flight
+ * (existence 404, missing-responses 400) runs before the stream opens; a
+ * completed session replays its stored scores instead of re-billing.
+ * Event order: status -> item_score (x3) -> done.
+ */
+streamRouter.get(
+  "/stream/drills/:sessionId/evaluate",
+  rateLimit({ windowMs: 60_000, max: 20 }),
+  asyncHandler(async (req, res) => {
+    const { sessionId } = parse(drillEvaluationParamsSchema, req.params);
+
+    const plan = await planDrillEvaluation(devUserId(), sessionId);
+
+    const { send, close } = createSseConnection(req, res);
+    const emit: DrillEmit = (event, data) => {
+      if (!res.writableEnded) send(event, data);
+    };
+
+    const abort = new AbortController();
+    req.on("close", () => abort.abort());
+
+    try {
+      if (plan.kind === "replay") {
+        replayDrillEvaluation(plan.session, emit);
+      } else {
+        await executeDrillEvaluation(plan, emit, abort.signal);
+      }
+    } catch (err) {
+      emit("error", { message: err instanceof Error ? err.message : "Drill evaluation failed" });
+    } finally {
+      close();
+    }
+  }),
+);
+
+/**
+ * AI Study Plan generation — a single claude-sonnet-5 call producing 7 days of
+ * tasks from the learner's profile, exam date, weak sections, and SRS backlog
+ * (see services/study-plan.ts). POST (not GET) since it carries a body; the
+ * pre-flight (409 if already regenerated today) runs, and the body is parsed,
+ * BEFORE the SSE stream opens. Event order: status -> done.
+ */
+streamRouter.post(
+  "/stream/study-plan/generate",
+  rateLimit({ windowMs: 60_000, max: 10 }),
+  asyncHandler(async (req, res) => {
+    const body = parse(generatePlanBodySchema, req.body);
+
+    // Pre-flight (409 if the plan was already regenerated today) before opening SSE.
+    const genInput = await planGenerate(devUserId(), body.hours_per_day);
+
+    const { send, close } = createSseConnection(req, res);
+    const emit: PlanEmit = (event, data) => {
+      if (!res.writableEnded) send(event, data);
+    };
+
+    const abort = new AbortController();
+    req.on("close", () => abort.abort());
+
+    try {
+      await executeGeneratePlan(genInput, emit, abort.signal);
+    } catch (err) {
+      emit("error", { message: err instanceof Error ? err.message : "Study plan generation failed" });
     } finally {
       close();
     }

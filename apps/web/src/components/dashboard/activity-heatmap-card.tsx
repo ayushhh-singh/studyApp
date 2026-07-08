@@ -16,9 +16,9 @@ function LegendCell({ background, className }: { background: string; className?:
   return <span className={cn("inline-block size-3 rounded-[3px]", className)} style={{ background }} />;
 }
 
-export function ActivityHeatmapCard() {
+export function ActivityHeatmapCard({ weeks }: { weeks?: number } = {}) {
   const { t } = useTranslation();
-  const { data, isLoading } = useActivityHeatmap();
+  const { data, isLoading } = useActivityHeatmap(weeks);
 
   return (
     <SectionCard

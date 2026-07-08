@@ -15,6 +15,10 @@ export const queryKeys = {
   attemptResult: (id: string) => ["attempts", "result", id] as const,
   dashboardSummary: () => ["dashboard", "summary"] as const,
   profile: () => ["profile"] as const,
+  profileAnalytics: () => ["profile", "analytics"] as const,
+  drillRecommendation: () => ["drills", "recommendation"] as const,
+  drillHistory: () => ["drills", "history"] as const,
+  activePlan: () => ["study-plan", "active"] as const,
   currentAffairs: (filters?: { date?: string; category?: string; up_only?: boolean; page?: number }) =>
     [
       "current-affairs",

@@ -1,28 +1,78 @@
-import type { Profile, ProfileUpdateBody } from "@prayasup/shared";
+import type { BilingualText, Profile, ProfileUpdateBody } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
+import { istToday, daysBetween } from "../lib/ist.js";
 
 const PROFILE_COLUMNS =
-  "id, display_name, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date";
+  "id, display_name, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date, " +
+  "streak_freezes, streak_freeze_used_on";
+
+/**
+ * Days until the next scheduled Prelims (from exam_calendar), same lookup
+ * pattern as dashboard.ts's getGreeting — null if nothing is scheduled.
+ */
+async function getNextExamInfo(): Promise<{
+  days_to_exam: number | null;
+  next_exam_label_i18n: { hi: string; en: string } | null;
+}> {
+  const today = istToday();
+  const { data, error } = await supabase()
+    .from("exam_calendar")
+    .select("title_i18n, exam_date")
+    .eq("exam_stage", "prelims")
+    .gte("exam_date", today)
+    .order("exam_date", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `exam calendar lookup failed: ${error.message}`);
+  if (!data) return { days_to_exam: null, next_exam_label_i18n: null };
+  return {
+    days_to_exam: daysBetween(today, data.exam_date as string),
+    next_exam_label_i18n: data.title_i18n as BilingualText,
+  };
+}
 
 export async function getProfile(userId: string): Promise<Profile> {
-  const { data, error } = await supabase()
-    .from("users_profile")
-    .select(PROFILE_COLUMNS)
-    .eq("id", userId)
-    .maybeSingle();
+  const [{ data, error }, examInfo] = await Promise.all([
+    supabase().from("users_profile").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle(),
+    getNextExamInfo(),
+  ]);
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
   if (!data) throw notFound("Profile not found");
-  return data as unknown as Profile;
+  return { ...(data as unknown as Profile), ...examInfo };
 }
 
 export async function updateProfile(userId: string, patch: ProfileUpdateBody): Promise<Profile> {
-  const { data, error } = await supabase()
-    .from("users_profile")
-    .update(patch)
-    .eq("id", userId)
-    .select(PROFILE_COLUMNS)
-    .single();
+  const [{ data, error }, examInfo] = await Promise.all([
+    supabase().from("users_profile").update(patch).eq("id", userId).select(PROFILE_COLUMNS).single(),
+    getNextExamInfo(),
+  ]);
   if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
-  return data as unknown as Profile;
+  return { ...(data as unknown as Profile), ...examInfo };
+}
+
+/**
+ * GET /profile/export — a raw data-portability dump (attempts + their answers,
+ * answer submissions + their evaluations). Not a typed/shared-schema response;
+ * this is a one-off download, not a UI-consumed endpoint.
+ */
+export async function exportUserData(
+  userId: string,
+): Promise<{ attempts: unknown[]; submissions: unknown[] }> {
+  const [attemptsRes, submissionsRes] = await Promise.all([
+    supabase()
+      .from("attempts")
+      .select("*, attempt_answers(*)")
+      .eq("user_id", userId)
+      .order("started_at", { ascending: false }),
+    supabase()
+      .from("answer_submissions")
+      .select("*, evaluations(*)")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+  ]);
+  if (attemptsRes.error) throw new HttpError(500, `export attempts query failed: ${attemptsRes.error.message}`);
+  if (submissionsRes.error)
+    throw new HttpError(500, `export submissions query failed: ${submissionsRes.error.message}`);
+  return { attempts: attemptsRes.data ?? [], submissions: submissionsRes.data ?? [] };
 }

@@ -13,6 +13,11 @@ export const profileSchema = z.object({
   plan: userPlanSchema,
   streak_count: z.number().int(),
   last_active_date: z.string().nullable(),
+  streak_freezes: z.number().int(),
+  streak_freeze_used_on: z.string().nullable(),
+  /** Days until the next known exam date (from exam_calendar), null if none scheduled. */
+  days_to_exam: z.number().int().nullable(),
+  next_exam_label_i18n: z.object({ hi: z.string(), en: z.string() }).nullable(),
 });
 export type Profile = z.infer<typeof profileSchema>;
 

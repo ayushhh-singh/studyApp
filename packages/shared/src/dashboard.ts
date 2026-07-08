@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema, examStageSchema } from "./types";
 import { testSummarySchema } from "./tests";
+import { todayPlanTaskSchema } from "./study-plan";
 
 export const dashboardNextExamSchema = z
   .object({
@@ -65,6 +66,8 @@ export const dashboardTodaySchema = z.object({
   checklist: z.array(dashboardChecklistItemSchema),
   checklist_completed: z.number().int(),
   checklist_total: z.number().int(),
+  /** Today's tasks from the active AI study plan, if one exists — best-effort, absent on any error. */
+  plan_tasks: z.array(todayPlanTaskSchema).optional(),
 });
 export type DashboardToday = z.infer<typeof dashboardTodaySchema>;
 

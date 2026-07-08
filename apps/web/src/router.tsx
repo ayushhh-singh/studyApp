@@ -56,6 +56,10 @@ export const router = createBrowserRouter([
           // Built but hidden: reachable by URL, not linked in nav (see leaderboard.tsx).
           { path: "leaderboard", lazy: () => import("@/routes/leaderboard") },
           { path: "profile", lazy: () => import("@/routes/profile") },
+          // A multi-step flow (write -> score) but not a distraction-mode
+          // full-screen experience, so it stays inside app-shell like the
+          // rest of Profile — just its own route for clean back-navigation.
+          { path: "profile/drill", lazy: () => import("@/routes/profile-drill") },
         ],
       },
       // Outside app-shell, deliberately: the test player is a distraction-free
