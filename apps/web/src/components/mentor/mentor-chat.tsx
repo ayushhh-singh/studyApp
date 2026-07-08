@@ -15,17 +15,26 @@ import { cn } from "@/lib/utils";
  * The shared mentor chat surface — a thread's message list + composer, used by
  * both the full /doubts page and the floating slide-over. `nodeId` scopes RAG
  * retrieval to the page's syllabus context when opened from Learn.
- * `seed` pre-fills the composer with page context (the note/question in view).
+ * `seed` supplies page context (the question/note in view) — either pre-filled
+ * into the composer for the user to review and send, or sent immediately if
+ * `autoSend` is set (the "Ask a doubt" flow: the mentor should already be
+ * answering by the time the page appears, not sitting with unsent text the
+ * user has to notice and click). `onNotFound` fires once if the thread turns
+ * out not to exist (e.g. a deleted or invalid id in the URL).
  */
 export function MentorChat({
   threadId,
   nodeId,
   seed,
+  autoSend = false,
+  onNotFound,
   className,
 }: {
   threadId: string;
   nodeId?: string;
   seed?: string;
+  autoSend?: boolean;
+  onNotFound?: () => void;
   className?: string;
 }) {
   const { t } = useTranslation();
@@ -35,10 +44,11 @@ export function MentorChat({
   const stream = useDoubtStream(threadId, locale);
   const quiz = useQuizMe(threadId);
 
-  const [input, setInput] = useState(seed ?? "");
+  const [input, setInput] = useState(autoSend ? "" : seed ?? "");
   const [revision, setRevision] = useState(false);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const autoSentRef = useRef(false);
 
   const messages = detail.data?.messages ?? [];
 
@@ -48,12 +58,12 @@ export function MentorChat({
 
   const busy = stream.isStreaming || quiz.isPending;
 
-  const submit = () => {
-    const content = input.trim();
-    if (!content || busy) return;
+  const sendMessage = (content: string) => {
+    const trimmed = content.trim();
+    if (!trimmed || busy) return;
     setInput("");
-    setPendingUser(content);
-    stream.send(content, {
+    setPendingUser(trimmed);
+    stream.send(trimmed, {
       mode: revision ? "revision" : "normal",
       nodeId,
       onDone: async () => {
@@ -81,6 +91,28 @@ export function MentorChat({
       },
     });
   };
+
+  const submit = () => sendMessage(input);
+
+  // Auto-send the seeded doubt once the thread is confirmed genuinely empty —
+  // gated on the thread detail having actually loaded (not just `seed` being
+  // present) so this can never fire twice for a thread that already has real
+  // history (e.g. revisiting a previously-seeded thread's bookmarked URL).
+  useEffect(() => {
+    if (!autoSend || !seed || autoSentRef.current) return;
+    if (detail.isLoading || messages.length > 0) return;
+    autoSentRef.current = true;
+    sendMessage(seed);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoSend, seed, detail.isLoading, messages.length]);
+
+  const notifiedNotFoundRef = useRef(false);
+  useEffect(() => {
+    if (detail.isError && !notifiedNotFoundRef.current) {
+      notifiedNotFoundRef.current = true;
+      onNotFound?.();
+    }
+  }, [detail.isError, onNotFound]);
 
   const doneMessageLanded =
     stream.doneMessageId != null && messages.some((m) => m.id === stream.doneMessageId);

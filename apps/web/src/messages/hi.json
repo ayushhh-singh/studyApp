@@ -807,7 +807,8 @@
     "phase_answering": "उत्तर दे रहा हूँ…",
     "threadCreateFailed": "बातचीत शुरू नहीं हो सकी। कृपया फिर से प्रयास करें।",
     "retry": "पुनः प्रयास करें",
-    "seedFromQuestion": "मुझे इस प्रश्न को लेकर एक संदेह है: {{stem}}"
+    "seedFromQuestion": "मुझे इस प्रश्न को लेकर एक संदेह है: {{stem}}",
+    "openFullConversation": "पूरी बातचीत खोलें"
   },
   "MicroDrill": {
     "title": "माइक्रो-ड्रिल",

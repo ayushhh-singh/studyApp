@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Plus, MessageSquare, Trash2, ChevronLeft, Sparkles, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Button } from "@/components/ui/button";
@@ -12,55 +12,84 @@ import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Mentor.title" };
 
+/**
+ * The active thread lives in the URL (/doubts/:threadId), not local component
+ * state — a specific conversation is now bookmarkable, survives a refresh, and
+ * behaves correctly with browser back/forward. Bare /doubts (no id) always
+ * shows the thread list + a neutral empty state — deliberately NOT an
+ * auto-redirect into "your most recent thread": that would fight the mobile
+ * "back to list" link (which returns to bare /doubts specifically to show the
+ * list) and, worse, re-select a thread the user just deleted from underneath
+ * them. An explicit click is always what puts you in a thread, except the one
+ * well-justified automatic case below.
+ *
+ * Arriving from "Ask a doubt" on a practice result (/doubts?question=<id>) —
+ * see components/practice/result-review-list.tsx — creates a fresh thread,
+ * moves the question id onto the new thread's own URL
+ * (/doubts/:threadId?question=<id>), and has MentorChat send it immediately:
+ * the mentor should already be answering by the time this page appears, not
+ * sitting with unsent text the user still has to notice and click Send on.
+ * The `?question=` marker survives the redirect so revisiting/bookmarking
+ * that exact thread URL later still identifies what it was seeded from —
+ * harmless since MentorChat only ever auto-sends into a thread it confirms is
+ * genuinely empty.
+ */
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
+  const navigate = useNavigate();
+  const { threadId } = useParams<{ threadId?: string }>();
   const [searchParams] = useSearchParams();
-  // Arriving from "Ask a doubt" on a practice result (?question=<id>) — see
-  // components/practice/result-review-list.tsx. Previously this page ignored
-  // the param entirely and just opened the most recent (unrelated) thread,
-  // so the link was a context-blind stub even though it looked functional.
   const seedQuestionId = searchParams.get("question") ?? undefined;
   const { data: seedQuestion, isLoading: isSeedQuestionLoading } = useQuestion(seedQuestionId);
 
   const threads = useDoubtThreads();
   const createThread = useCreateThread();
   const deleteThread = useDeleteThread();
-  const [selected, setSelected] = useState<string | null>(null);
-  const seededRef = useRef(false);
+  const seededForRef = useRef<string | null>(null);
 
   const items = threads.data?.items ?? [];
 
-  // A question to ask about always starts a FRESH thread seeded with that
-  // context, rather than reusing/auto-selecting an unrelated existing one.
-  // Waits for the question lookup to settle first so the composer's initial
-  // seed text (passed to MentorChat below) is correct the moment it mounts —
-  // MentorChat only reads its `seed` prop once, on mount.
+  // The ONE automatic navigation: a question to seed always starts a fresh
+  // thread. Guarded by a ref keyed to the question id so it can only ever
+  // fire once per distinct question — not on every render, and not again once
+  // the redirect below lands (threadId becomes truthy and this whole effect
+  // is skipped). Re-visiting /doubts?question=X again later (a second "Ask a
+  // doubt" click) legitimately creates a second fresh thread — consistent
+  // with "New doubt" always starting a new conversation, not a bug to guard against.
   useEffect(() => {
-    if (!seedQuestionId || seededRef.current || selected || isSeedQuestionLoading) return;
-    seededRef.current = true;
-    createThread.mutate(undefined, { onSuccess: (thr) => setSelected(thr.id) });
-  }, [seedQuestionId, selected, isSeedQuestionLoading, createThread]);
-
-  // Otherwise, auto-select the most recent thread once loaded.
-  useEffect(() => {
-    if (!seedQuestionId && !selected && items.length > 0) setSelected(items[0].id);
-  }, [seedQuestionId, selected, items]);
+    if (threadId || !seedQuestionId || isSeedQuestionLoading) return;
+    if (seededForRef.current === seedQuestionId) return;
+    seededForRef.current = seedQuestionId;
+    createThread.mutate(undefined, {
+      onSuccess: (thr) => navigate(`/${locale}/doubts/${thr.id}?question=${seedQuestionId}`, { replace: true }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [threadId, seedQuestionId, isSeedQuestionLoading]);
 
   const seedText = seedQuestion
     ? t("Mentor.seedFromQuestion", { stem: seedQuestion.stem_i18n[locale] })
     : undefined;
 
   const newThread = () =>
-    createThread.mutate(undefined, { onSuccess: (thr) => setSelected(thr.id) });
+    createThread.mutate(undefined, { onSuccess: (thr) => navigate(`/${locale}/doubts/${thr.id}`) });
 
   const remove = (id: string) => {
-    deleteThread.mutate(id, {
-      onSuccess: () => {
-        if (selected === id) setSelected(null);
-      },
-    });
+    // Navigate away eagerly, before the request even settles, when deleting
+    // the thread currently being viewed — there's no ambiguity to wait on a
+    // network round-trip for (the user just asked to leave this exact
+    // conversation), and doing it inside the mutation's onSuccess callback
+    // instead was a real, intermittent race: MentorChat's own thread-detail
+    // query can win the redraw first with its LAST successful cached result
+    // before the delete's callback (or MentorChat's onNotFound 404 fallback)
+    // gets a chance to run, silently leaving the deleted thread on screen.
+    if (threadId === id) navigate(`/${locale}/doubts`, { replace: true });
+    deleteThread.mutate(id);
   };
+
+  // A stale/deleted thread id in the URL (bookmarked, or removed in another
+  // tab) redirects to the bare list instead of leaving a broken, blank chat pane.
+  const handleNotFound = () => navigate(`/${locale}/doubts`, { replace: true });
 
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-4">
@@ -76,7 +105,7 @@ export function Component() {
 
       <div className="grid min-h-0 gap-4 md:grid-cols-[16rem_1fr]">
         {/* Thread list */}
-        <aside className={cn("flex flex-col gap-1", selected && "hidden md:flex")}>
+        <aside className={cn("flex flex-col gap-1", threadId && "hidden md:flex")}>
           {threads.isLoading ? (
             // Previously this briefly showed "No threads yet" even for a
             // returning user with real history, since `items` defaults to []
@@ -97,10 +126,13 @@ export function Component() {
               key={thr.id}
               className={cn(
                 "group flex items-center gap-2 rounded-lg border px-3 py-2 text-left",
-                selected === thr.id ? "border-primary/40 bg-primary/5" : "border-border hover:bg-accent",
+                threadId === thr.id ? "border-primary/40 bg-primary/5" : "border-border hover:bg-accent",
               )}
             >
-              <button type="button" onClick={() => setSelected(thr.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none">
+              <Link
+                to={`/${locale}/doubts/${thr.id}`}
+                className="flex min-w-0 flex-1 items-center gap-2 text-left outline-none"
+              >
                 <MessageSquare className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{thr.title ?? t("Mentor.untitled")}</span>
@@ -108,7 +140,7 @@ export function Component() {
                     <span className="block truncate text-xs text-muted-foreground">{thr.last_message_preview}</span>
                   )}
                 </span>
-              </button>
+              </Link>
               <button
                 type="button"
                 onClick={() => remove(thr.id)}
@@ -123,22 +155,27 @@ export function Component() {
 
         {/* Chat */}
         <div className="flex h-[70svh] min-h-0 flex-col rounded-xl border border-border bg-card p-3">
-          {selected ? (
+          {threadId ? (
             <>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
+              <Link
+                to={`/${locale}/doubts`}
                 className="mb-1 flex items-center gap-1 self-start text-xs text-muted-foreground hover:text-foreground md:hidden"
               >
                 <ChevronLeft className="size-4" aria-hidden /> {t("Mentor.backToThreads")}
-              </button>
-              <MentorChat threadId={selected} nodeId={seedQuestion?.syllabus_node_id ?? undefined} seed={seedText} />
+              </Link>
+              <MentorChat
+                key={threadId}
+                threadId={threadId}
+                nodeId={seedQuestion?.syllabus_node_id ?? undefined}
+                seed={seedText}
+                autoSend={!!seedQuestionId}
+                onNotFound={handleNotFound}
+              />
             </>
           ) : seedQuestionId ? (
-            // Arriving with a question to seed: show a loading state instead
-            // of the generic "ask me anything" empty state + New Doubt button,
-            // which would otherwise flash misleadingly while the seeded
-            // thread is still being created underneath.
+            // The seeded-thread creation above is in flight — show a spinner
+            // instead of the "ask me anything" empty state, which would
+            // otherwise flash misleadingly for the instant before it redirects.
             <div className="flex flex-1 items-center justify-center">
               <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
             </div>

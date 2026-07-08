@@ -807,7 +807,8 @@
     "phase_answering": "Answering…",
     "threadCreateFailed": "Couldn't start a conversation. Please try again.",
     "retry": "Retry",
-    "seedFromQuestion": "I have a doubt about this question: {{stem}}"
+    "seedFromQuestion": "I have a doubt about this question: {{stem}}",
+    "openFullConversation": "Open full conversation"
   },
   "MicroDrill": {
     "title": "Micro-drills",

@@ -62,6 +62,10 @@ export const router = createBrowserRouter([
               },
               { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
               { path: "doubts", lazy: () => import("@/routes/doubts") },
+      // A specific conversation gets its own URL — bookmarkable, survives a
+      // refresh, and behaves correctly with browser back/forward, unlike
+      // the previous local-component-state thread selection.
+      { path: "doubts/:threadId", lazy: () => import("@/routes/doubts") },
               { path: "magazine", lazy: () => import("@/routes/magazine-index") },
               { path: "revision", lazy: () => import("@/routes/revision") },
               { path: "community", lazy: () => import("@/routes/community") },

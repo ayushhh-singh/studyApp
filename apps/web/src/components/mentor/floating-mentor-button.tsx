@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { useLocation, useParams } from "react-router";
+import { Link, useLocation, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2, Maximize2 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { Button } from "@/components/ui/button";
 import { useCreateThread } from "@/hooks/use-mentor";
+import { useLocale } from "@/hooks/use-locale";
 import { MentorChat } from "./mentor-chat";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils";
  */
 export function FloatingMentorButton() {
   const { t } = useTranslation();
+  const locale = useLocale();
   const location = useLocation();
   const params = useParams<{ nodeId?: string }>();
   const [open, setOpen] = useState(false);
@@ -65,7 +67,20 @@ export function FloatingMentorButton() {
       <Sheet open={open} onOpenChange={setOpen}>
         <SheetContent side="right" title={t("Mentor.title")} className="w-[92vw] sm:w-[30rem]">
           {threadId ? (
-            <MentorChat threadId={threadId} nodeId={params.nodeId} />
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              {/* Connects this quick, in-context chat to the full /doubts page
+                  (thread history, delete, other conversations) — the two
+                  entry points previously had no link between them at all. */}
+              <Link
+                to={`/${locale}/doubts/${threadId}`}
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-1.5 self-end text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Maximize2 className="size-3.5" aria-hidden />
+                {t("Mentor.openFullConversation")}
+              </Link>
+              <MentorChat threadId={threadId} nodeId={params.nodeId} className="min-h-0 flex-1" />
+            </div>
           ) : createThread.isError ? (
             // Previously there was no error path at all here — a failed thread
             // creation left this spinner spinning forever with no way to retry
