@@ -211,12 +211,18 @@ async function activate(sub: SubRow, paymentId: string | undefined, now: Date): 
     .eq("id", sub.id);
   if (subErr) throw new HttpError(500, `subscription activate failed: ${subErr.message}`);
 
+  // Never shorten an existing Pro grant: if the user already had Pro expiring
+  // later (e.g. an early re-purchase while still active), keep the later date.
+  const { data: prof } = await supabase().from("users_profile").select("plan_expires_at").eq("id", sub.user_id).maybeSingle();
+  const existing = prof?.plan_expires_at ? new Date(prof.plan_expires_at as string) : null;
+  const grantUntil = existing && existing > periodEnd ? existing : periodEnd;
+
   const { error: profErr } = await supabase()
     .from("users_profile")
-    .update({ plan: "pro", plan_expires_at: periodEnd.toISOString() })
+    .update({ plan: "pro", plan_expires_at: grantUntil.toISOString() })
     .eq("id", sub.user_id);
   if (profErr) throw new HttpError(500, `plan flip failed: ${profErr.message}`);
-  logger.info({ userId: sub.user_id, subId: sub.id, until: periodEnd.toISOString() }, "billing: activated Pro");
+  logger.info({ userId: sub.user_id, subId: sub.id, until: grantUntil.toISOString() }, "billing: activated Pro");
 }
 
 /** Renewal: extend the period from its current end and push Pro expiry out. */
@@ -280,24 +286,33 @@ export async function processWebhookEvent(eventId: string, evt: RazorpayEvent): 
     return { handled: false, duplicate: false, event: evt.event };
   }
 
-  switch (evt.event) {
-    case "payment.captured":
-    case "order.paid":
-      await activate(sub, evt.payload.payment?.entity?.id, now);
-      break;
-    case "payment.failed":
-      await fail(sub);
-      break;
-    case "subscription.charged":
-      await renew(sub, now);
-      break;
-    case "subscription.cancelled":
-    case "subscription.halted":
-      await cancel(sub, now);
-      break;
-    default:
-      logger.info({ event: evt.event }, "billing: unhandled webhook event (recorded)");
-      return { handled: false, duplicate: false, event: evt.event };
+  // The idempotency row was written BEFORE the state transition. If the
+  // transition now throws, roll that row back so Razorpay's automatic retry can
+  // re-process the event — otherwise the retry would hit the unique index, be
+  // treated as a duplicate, no-op, and the paid user would never be activated.
+  try {
+    switch (evt.event) {
+      case "payment.captured":
+      case "order.paid":
+        await activate(sub, evt.payload.payment?.entity?.id, now);
+        break;
+      case "payment.failed":
+        await fail(sub);
+        break;
+      case "subscription.charged":
+        await renew(sub, now);
+        break;
+      case "subscription.cancelled":
+      case "subscription.halted":
+        await cancel(sub, now);
+        break;
+      default:
+        logger.info({ event: evt.event }, "billing: unhandled webhook event (recorded)");
+        return { handled: false, duplicate: false, event: evt.event };
+    }
+  } catch (err) {
+    await supabase().from("billing_events").delete().eq("razorpay_event_id", eventId);
+    throw err;
   }
   return { handled: true, duplicate: false, event: evt.event };
 }

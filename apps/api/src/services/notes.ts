@@ -11,7 +11,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
-import { canReadFullNote } from "./entitlements.js";
+import { canReadFullNote, paywall } from "./entitlements.js";
 
 /**
  * Drop a note's RAG chunks when it leaves `published` (rejected or regenerated),
@@ -95,13 +95,18 @@ export async function addNoteDeckToRevision(
 ): Promise<{ added: number; already: number }> {
   const { data: note, error } = await supabase()
     .from("notes")
-    .select("id, srs_candidates")
+    .select("id, syllabus_node_id, srs_candidates")
     .eq("id", noteId)
     .eq("status", "published")
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
-  const row = note as unknown as PublishedNoteForDeck | null;
+  const row = note as unknown as (PublishedNoteForDeck & { syllabus_node_id: string }) | null;
   if (!row) throw notFound("Note not found");
+  // Gate: the note reader trims a locked note to its overview, so its SRS
+  // candidates must not be harvestable by calling this endpoint directly.
+  if (!(await canReadFullNote(userId, row.syllabus_node_id))) {
+    throw paywall("all_notes", "This note is a Pro topic. Upgrade to add its revision deck.");
+  }
   const candidates = row.srs_candidates ?? [];
   if (candidates.length === 0) return { added: 0, already: 0 };
 
