@@ -127,14 +127,19 @@ export function Component() {
         title={node.title_i18n[locale]}
         description={node.description_i18n?.[locale]}
         action={
-          <Button
-            type="button"
-            onClick={() => createTest.mutate({ node_id: nodeId, count: Math.min(node.pyq_count, 20), exam })}
-            disabled={node.pyq_count === 0 || createTest.isPending}
-          >
-            <PenSquare aria-hidden />
-            {t("Learn.practiceThisTopic")}
-          </Button>
+          // MCQ topic-practice only makes sense for Prelims; Mains topics are
+          // answer-writing (the Answers section), and building an MCQ set from
+          // one would just error ("no MCQ PYQs"). Hide it for Mains nodes.
+          node.exam_stage === "prelims" ? (
+            <Button
+              type="button"
+              onClick={() => createTest.mutate({ node_id: nodeId, count: Math.min(node.pyq_count, 20), exam })}
+              disabled={node.pyq_count === 0 || createTest.isPending}
+            >
+              <PenSquare aria-hidden />
+              {t("Learn.practiceThisTopic")}
+            </Button>
+          ) : undefined
         }
       />
 
