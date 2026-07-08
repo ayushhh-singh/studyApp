@@ -16,6 +16,7 @@ import { runDailyBuild } from "./run.js";
 import { runStreakNightly } from "./streak.js";
 import { generateForUser } from "../services/notifications.js";
 import { recomputeMastery } from "../mastery/compute.js";
+import { recordPerfectDay } from "../services/daily-stats.js";
 import { devUserId } from "../lib/dev-user.js";
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
@@ -39,6 +40,8 @@ export function startDailyScheduler(): void {
     STREAK_NIGHTLY_CRON,
     () => {
       runStreakNightly().catch((err) => logger.error({ err }, "daily: nightly streak settle failed"));
+      // Settle yesterday's Perfect Day before the IST date rolls fully over.
+      recordPerfectDay(devUserId()).catch((err) => logger.error({ err }, "daily: nightly perfect-day record failed"));
       // Nightly mastery settle — recency decay means an untouched node's score
       // must fall even with no new activity, so recompute keeps levels honest.
       recomputeMastery(devUserId())

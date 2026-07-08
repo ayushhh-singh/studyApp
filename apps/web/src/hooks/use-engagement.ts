@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  activityHeatmapResponseSchema,
   leaderboardResponseSchema,
   milestoneListResponseSchema,
   milestoneResponseSchema,
@@ -12,6 +13,14 @@ export function useWeeklyDigest() {
   return useQuery({
     queryKey: queryKeys.weeklyDigest(),
     queryFn: () => api.get("/api/v1/digest/weekly", weeklyDigestResponseSchema),
+  });
+}
+
+/** Activity heatmap incl. Perfect Days for the dashboard. */
+export function useActivityHeatmap(weeks?: number) {
+  return useQuery({
+    queryKey: queryKeys.activityHeatmap(weeks ?? 13),
+    queryFn: () => api.get("/api/v1/engagement/heatmap", activityHeatmapResponseSchema, { weeks }),
   });
 }
 

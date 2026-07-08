@@ -79,7 +79,16 @@
     "guidedItem_daily_quiz": "Take the daily quiz",
     "guidedItem_answer_set": "Write 2 answers",
     "guidedItem_revision": "Clear your revision",
-    "guidedItem_continue_reading": "Continue reading"
+    "guidedItem_continue_reading": "Continue reading",
+    "heatmapTitle": "Your study rhythm",
+    "heatmapIntro": "Every day you study lights up. Days where you finished the whole Today checklist are Perfect Days.",
+    "heatmapActivity_one": "{{count}} activity",
+    "heatmapActivity_other": "{{count}} activities",
+    "heatmapLess": "Less",
+    "heatmapMore": "More",
+    "perfectDay": "Perfect Day",
+    "perfectDaysCount_one": "{{count}} Perfect Day",
+    "perfectDaysCount_other": "{{count}} Perfect Days"
   },
   "Learn": {
     "title": "Learn",
@@ -140,6 +149,7 @@
   },
   "Practice": {
     "title": "Practice",
+    "combo": "{{count}} in a row",
     "description": "PYQ-based MCQ practice sets.",
     "available": "Available tests",
     "emptyTitle": "No tests available yet",

@@ -58,5 +58,6 @@ export const queryKeys = {
   mastery: (paper?: string) => ["mastery", paper ?? "all"] as const,
   milestones: () => ["milestones"] as const,
   weeklyDigest: () => ["digest", "weekly"] as const,
+  activityHeatmap: (weeks: number) => ["engagement", "heatmap", weeks] as const,
   leaderboard: () => ["leaderboard"] as const,
 };

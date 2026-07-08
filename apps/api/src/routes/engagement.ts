@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  activityHeatmapResponseSchema,
   leaderboardResponseSchema,
   localeSchema,
   milestoneListResponseSchema,
@@ -13,6 +14,7 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
 import { evaluateMilestones, listUnseenMilestones, markMilestoneSeen } from "../services/milestones.js";
 import { getLeaderboard, getWeeklyDigest } from "../services/digest.js";
+import { getActivityHeatmap } from "../services/daily-stats.js";
 import { renderWeeklyDigestPng } from "../services/share-image.js";
 
 export const engagementRouter = Router();
@@ -34,6 +36,15 @@ engagementRouter.post(
     const { id } = parse(z.object({ id: z.string().uuid() }), req.params);
     const m = await markMilestoneSeen(devUserId(), id);
     res.json(milestoneResponseSchema.parse({ data: m, error: null }));
+  }),
+);
+
+engagementRouter.get(
+  "/engagement/heatmap",
+  asyncHandler(async (req, res) => {
+    const { weeks } = parse(z.object({ weeks: z.coerce.number().int().optional() }), req.query);
+    const heatmap = await getActivityHeatmap(devUserId(), weeks ?? 13);
+    res.json(activityHeatmapResponseSchema.parse({ data: heatmap, error: null }));
   }),
 );
 

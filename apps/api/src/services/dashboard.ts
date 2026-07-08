@@ -13,9 +13,11 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
+import { logger } from "../lib/logger.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { getBestScoresByTest } from "./tests.js";
 import { buildChecklist, getDailyProgress, type DailyProgress } from "./daily-progress.js";
+import { recordPerfectDay } from "./daily-stats.js";
 import { refreshStreak, type StreakState } from "../daily/streak.js";
 
 function round2(n: number): number {
@@ -379,6 +381,9 @@ export async function getDashboardSummary(userId: string): Promise<DashboardSumm
   // Today checklist so they agree and don't double-query.
   const progress = await getDailyProgress(userId, today);
   const streak = await refreshStreak(userId, today, progress);
+  // Record a Perfect Day if the whole checklist is done — best-effort so it never
+  // blocks the dashboard; the nightly job also settles it.
+  recordPerfectDay(userId, today, progress).catch((err) => logger.error({ err }, "perfect-day record failed"));
   const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
     getGreeting(userId, today, streak),
     getContinue(userId),

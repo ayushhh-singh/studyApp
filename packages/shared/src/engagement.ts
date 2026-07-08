@@ -35,6 +35,26 @@ export type WeeklyDigest = z.infer<typeof weeklyDigestSchema>;
 export const weeklyDigestResponseSchema = apiEnvelopeSchema(weeklyDigestSchema);
 export type WeeklyDigestResponse = z.infer<typeof weeklyDigestResponseSchema>;
 
+// Activity heatmap + Perfect Days (the full Today checklist done in one IST day).
+export const heatmapDaySchema = z.object({
+  date: z.string(),
+  /** Activity intensity: attempts + SRS reviews + answer submissions + reads that day. */
+  count: z.number().int(),
+  is_perfect: z.boolean(),
+  is_future: z.boolean(),
+});
+export type HeatmapDay = z.infer<typeof heatmapDaySchema>;
+
+export const activityHeatmapSchema = z.object({
+  weeks: z.number().int(),
+  days: z.array(heatmapDaySchema),
+  perfect_days_total: z.number().int(),
+});
+export type ActivityHeatmap = z.infer<typeof activityHeatmapSchema>;
+
+export const activityHeatmapResponseSchema = apiEnvelopeSchema(activityHeatmapSchema);
+export type ActivityHeatmapResponse = z.infer<typeof activityHeatmapResponseSchema>;
+
 // Leaderboard — built but hidden (no nav entry) until opt-in social features land.
 export const leaderboardEntrySchema = z.object({
   rank: z.number().int(),

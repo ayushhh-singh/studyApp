@@ -10,6 +10,7 @@ import { PerformanceCard } from "@/components/dashboard/performance-card";
 import { WeaknessCard } from "@/components/dashboard/weakness-card";
 import { AnswerSpotlightCard } from "@/components/dashboard/answer-spotlight-card";
 import { WeeklyDigestCard } from "@/components/dashboard/weekly-digest-card";
+import { ActivityHeatmapCard } from "@/components/dashboard/activity-heatmap-card";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 
 export const handle = { titleKey: "Nav.dashboard" };
@@ -63,6 +64,8 @@ export function Component() {
       </div>
 
       <WeeklyDigestCard />
+
+      <ActivityHeatmapCard />
 
       <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
         <PerformanceCard data={data.performance} />

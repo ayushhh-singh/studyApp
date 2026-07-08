@@ -79,7 +79,16 @@
     "guidedItem_daily_quiz": "डेली क्विज़ हल करें",
     "guidedItem_answer_set": "2 उत्तर लिखें",
     "guidedItem_revision": "रिवीजन पूरा करें",
-    "guidedItem_continue_reading": "पढ़ना जारी रखें"
+    "guidedItem_continue_reading": "पढ़ना जारी रखें",
+    "heatmapTitle": "आपकी अध्ययन लय",
+    "heatmapIntro": "हर वह दिन जब आप पढ़ते हैं, यहाँ जगमगाता है। जिन दिनों आपने पूरी 'आज' चेकलिस्ट पूरी की, वे पर्फेक्ट दिन हैं।",
+    "heatmapActivity_one": "{{count}} गतिविधि",
+    "heatmapActivity_other": "{{count}} गतिविधियाँ",
+    "heatmapLess": "कम",
+    "heatmapMore": "अधिक",
+    "perfectDay": "पर्फेक्ट दिन",
+    "perfectDaysCount_one": "{{count}} पर्फेक्ट दिन",
+    "perfectDaysCount_other": "{{count}} पर्फेक्ट दिन"
   },
   "Learn": {
     "title": "अध्ययन",
@@ -140,6 +149,7 @@
   },
   "Practice": {
     "title": "अभ्यास",
+    "combo": "लगातार {{count}}",
     "description": "PYQ आधारित MCQ अभ्यास सेट।",
     "available": "उपलब्ध टेस्ट",
     "emptyTitle": "अभी कोई टेस्ट उपलब्ध नहीं",

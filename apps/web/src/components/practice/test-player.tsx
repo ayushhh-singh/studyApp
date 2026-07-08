@@ -9,8 +9,10 @@ import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { CountdownTimer } from "./countdown-timer";
 import { QuestionPalette, type QuestionStatus } from "./question-palette";
 import { SubmitConfirmDialog } from "./submit-confirm-dialog";
+import { ComboFlame } from "./combo-flame";
 import { useAttemptAnswers } from "@/hooks/use-attempt-answers";
 import { useSubmitAttempt } from "@/hooks/use-attempt";
+import { useCombo } from "@/hooks/use-combo";
 import { cn } from "@/lib/utils";
 
 interface AnswerState {
@@ -46,6 +48,10 @@ export function TestPlayer({
   initialAnswers,
   onSubmitted,
   locale,
+  instantFeedback = false,
+  answerKey,
+  autoAdvance = false,
+  onExit,
 }: {
   test: TestDetail;
   attemptId: string;
@@ -53,9 +59,20 @@ export function TestPlayer({
   initialAnswers: AttemptAnswerRecord[];
   onSubmitted: (result: AttemptSubmitResult) => void;
   locale: Locale;
+  /** Instant-feedback game mode (Time Attack, Ghost Battle): reveal correctness live + track a combo. */
+  instantFeedback?: boolean;
+  /** question_id -> correct_option_key. Required for instantFeedback to reveal. */
+  answerKey?: Record<string, string>;
+  /** Auto-advance to the next question shortly after an answer is revealed. */
+  autoAdvance?: boolean;
+  /** Override the exit (X) target; defaults to the Practice list. */
+  onExit?: () => void;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const reveal = instantFeedback && !!answerKey;
+  const { combo, register } = useCombo();
+  const [revealed, setRevealed] = useState<Set<string>>(new Set());
   const [displayLocale, setDisplayLocale] = useState<Locale>(locale);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, AnswerState>>(() => {
@@ -96,10 +113,22 @@ export function TestPlayer({
   }
 
   function selectOption(optionKey: string) {
+    // Instant-feedback modes lock a question once answered (you can't re-pick to
+    // fish for the right one) and reveal correctness immediately.
+    if (reveal && revealed.has(question.id)) return;
     const existing = answers[question.id] ?? { chosen_option_key: null, time_spent_seconds: 0 };
     const next = { ...existing, chosen_option_key: optionKey };
     setAnswers((prev) => ({ ...prev, [question.id]: next }));
     saveAnswer({ question_id: question.id, ...next });
+    if (reveal) {
+      flushTimeFor(question.id);
+      setRevealed((prev) => new Set(prev).add(question.id));
+      register(answerKey![question.id] === optionKey);
+      if (autoAdvance && currentIndex < test.questions.length - 1) {
+        const nextIndex = currentIndex + 1;
+        window.setTimeout(() => setCurrentIndex(nextIndex), 750);
+      }
+    }
   }
 
   function toggleMark() {
@@ -172,13 +201,14 @@ export function TestPlayer({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => navigate(`/${locale}/practice`)}
+          onClick={() => (onExit ? onExit() : navigate(`/${locale}/practice`))}
           aria-label={t("Practice.exit")}
         >
           <X aria-hidden />
         </Button>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{test.title_i18n[displayLocale]}</span>
         <div className="flex shrink-0 items-center gap-2">
+          <ComboFlame combo={combo} />
           <Button
             type="button"
             variant="ghost"
@@ -214,15 +244,25 @@ export function TestPlayer({
           <div className="flex flex-col gap-2">
             {question.options_i18n?.map((option) => {
               const selected = answers[question.id]?.chosen_option_key === option.key;
+              const isRevealed = reveal && revealed.has(question.id);
+              const isCorrectOpt = isRevealed && option.key === answerKey![question.id];
+              const isWrongChosen = isRevealed && selected && !isCorrectOpt;
               return (
                 <button
                   key={option.key}
                   type="button"
                   onClick={() => selectOption(option.key)}
                   aria-pressed={selected}
+                  disabled={isRevealed}
                   className={cn(
-                    "flex min-h-11 items-start gap-2 rounded-lg border px-3 py-2.5 text-start text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring",
-                    selected ? "border-primary bg-primary/10" : "border-border bg-background hover:bg-accent",
+                    "flex min-h-11 items-start gap-2 rounded-lg border px-3 py-2.5 text-start text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default",
+                    isCorrectOpt
+                      ? "border-tulsi bg-tulsi/15"
+                      : isWrongChosen
+                        ? "border-coral bg-coral/15"
+                        : selected
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-background hover:bg-accent",
                   )}
                 >
                   <span className="font-semibold">{option.key}.</span>
