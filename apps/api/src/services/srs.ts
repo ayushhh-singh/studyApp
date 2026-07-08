@@ -261,17 +261,21 @@ async function headCount(
 }
 
 /**
- * Cards due now (fsrs_state->>due_at <= now), each carrying a preview of the
- * next due date for all four ratings so the review player can show interval
- * hints before the user commits a rating.
+ * Cards due today — fsrs_state->>due_at before the end of the IST calendar
+ * day, the SAME cutoff getStats' `due_today`/day-0 forecast bucket uses (not
+ * a strict `<= now`). Keeping these aligned matters: the "Start review (N
+ * due)" button reads `due_today` from getStats, and if this query used a
+ * stricter cutoff a short-interval relearning card (due in a few minutes,
+ * still "today") could be promised by the button but missing from the
+ * session it opens — the two numbers must never disagree.
  */
 export async function getDueQueue(userId: string, limit = 30): Promise<{ cards: SrsQueueCard[]; due_count: number }> {
-  const nowIso = new Date().toISOString();
+  const { endUtc: todayEndUtc } = istDayRangeUtc(istToday());
 
   const dueCount = await headCount(() =>
-    supabase().from("srs_cards").select("id", { count: "exact", head: true }).eq("user_id", userId).lte(
+    supabase().from("srs_cards").select("id", { count: "exact", head: true }).eq("user_id", userId).lt(
       "fsrs_state->>due_at",
-      nowIso,
+      todayEndUtc,
     ),
   );
 
@@ -279,7 +283,7 @@ export async function getDueQueue(userId: string, limit = 30): Promise<{ cards: 
     .from("srs_cards")
     .select(SRS_CARD_COLUMNS_WITH_STATE)
     .eq("user_id", userId)
-    .lte("fsrs_state->>due_at", nowIso)
+    .lt("fsrs_state->>due_at", todayEndUtc)
     .order("fsrs_state->>due_at", { ascending: true })
     .limit(limit);
   if (error) throw new HttpError(500, `srs due queue failed: ${error.message}`);
@@ -370,11 +374,20 @@ export async function submitReviews(
   if (cardsError) throw new HttpError(500, `srs card lookup failed: ${cardsError.message}`);
   const stateById = new Map((cards ?? []).map((c) => [c.id as string, c.fsrs_state as FsrsStateJson]));
 
+  // Validate every card up front, before writing anything. Reviews arrive as a
+  // batch from the offline queue, which retries the WHOLE batch on any failure —
+  // if we wrote reviews 1..k and then threw on review k+1, the client would
+  // retry all of them (including the ones that already landed), double-logging
+  // and double-advancing their FSRS state. Failing fast here keeps the batch
+  // all-or-nothing at the write stage.
+  for (const { card_id } of reviews) {
+    if (!stateById.has(card_id)) throw notFound(`Card not found: ${card_id}`);
+  }
+
   const now = new Date();
   const results: { card_id: string; rating: SrsRating; due_at: string; state: number }[] = [];
   for (const { card_id, rating } of reviews) {
-    const currentState = stateById.get(card_id);
-    if (!currentState) throw notFound(`Card not found: ${card_id}`);
+    const currentState = stateById.get(card_id)!;
     const { state: nextState, elapsed_days, scheduled_days } = reviewCard(currentState, rating, now);
 
     const { error: updateError } = await supabase()

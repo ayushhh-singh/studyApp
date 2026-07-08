@@ -44,6 +44,13 @@ export function useSrsReviewQueue(): {
   );
 
   useEffect(() => {
+    // Flush on mount too, not just on unmount: the queue is localStorage-durable
+    // and outlives a single session, so a review stranded by a closed tab or a
+    // connection drop shouldn't sit unsent until the user happens to rate a NEW
+    // card in some future session — the "online" listener inside the queue only
+    // fires on a reconnect transition, not just because the app is freshly open
+    // while already online.
+    void queue.flushNow();
     return () => {
       void queue.flushNow();
     };

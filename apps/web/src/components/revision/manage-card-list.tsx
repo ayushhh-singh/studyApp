@@ -62,6 +62,7 @@ function CardRow({ card }: { card: SrsCardListItem }) {
             aria-label={t("Revision.deleteConfirm")}
             disabled={del.isPending}
             onClick={() => del.mutate(card.id)}
+            onBlur={() => setConfirmDelete(false)}
           >
             <Trash2 className="size-4" aria-hidden />
           </Button>
@@ -102,6 +103,16 @@ export function ManageCardList() {
     sourceType: sourceType === "all" ? undefined : sourceType,
     page,
   });
+
+  // Deleting the last card on a later page leaves that page empty — without
+  // this, total_pages drops to 1 (hiding the pager) while `page` is still
+  // stale at 2+, so the list shows "No cards found" with no way back to the
+  // cards that still exist on an earlier page.
+  useEffect(() => {
+    if (data && data.items.length === 0 && page > 1) {
+      setPage(data.pagination.total_pages);
+    }
+  }, [data, page]);
 
   return (
     <div className="flex flex-col gap-4">
