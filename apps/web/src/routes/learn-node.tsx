@@ -163,7 +163,7 @@ export function Component() {
       {createTest.isSuccess && (
         <div className="rounded-lg border border-tulsi/30 bg-tulsi/10 px-4 py-3 text-sm text-tulsi-foreground">
           {t("Learn.customTestCreated", { count: createTest.data.question_count })}{" "}
-          <Link to={`/${locale}/practice`} className="font-semibold underline">
+          <Link to={`/${locale}/practice/test/${createTest.data.id}`} className="font-semibold underline">
             {t("Learn.goToPractice")}
           </Link>
         </div>
