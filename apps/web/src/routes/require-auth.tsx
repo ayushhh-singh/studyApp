@@ -1,14 +1,38 @@
 import { Navigate, Outlet, useLocation } from "react-router";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useProfile } from "@/hooks/use-profile";
 import { useLocale } from "@/hooks/use-locale";
+import { Button } from "@/components/ui/button";
 
 /** Centered full-screen spinner used while auth/profile state resolves. */
 export function FullScreenLoader() {
   return (
     <div className="flex min-h-svh items-center justify-center bg-background">
       <Loader2 className="size-6 animate-spin text-muted-foreground" aria-label="Loading" />
+    </div>
+  );
+}
+
+/**
+ * Shown when the profile fetch itself fails (429 rate limit, a network blip,
+ * a transient 5xx) rather than just being slow. Previously neither guard
+ * checked this at all — once the query settled (even via an ERROR, which
+ * still clears isPending/isLoading), `profileQuery.data` stayed undefined and
+ * both guards read that identically to "not onboarded", forcing a real user
+ * with onboarding_completed=true in the database into a redirect loop with
+ * no way out except waiting for the rate limit to clear on its own. A manual
+ * retry — not a silent redirect — is the correct response to an error.
+ */
+export function ProfileLoadError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div className="flex min-h-svh flex-col items-center justify-center gap-3 bg-background px-6 text-center">
+      <p className="max-w-xs text-sm text-muted-foreground">{t("Auth.profileLoadError")}</p>
+      <Button type="button" variant="outline" size="sm" onClick={onRetry}>
+        {t("Auth.retry")}
+      </Button>
     </div>
   );
 }
@@ -42,7 +66,22 @@ export function Component() {
     return <Navigate to={`/${locale}/auth?${params.toString()}`} replace />;
   }
 
-  if (profileQuery.isLoading) return <FullScreenLoader />;
+  // isPending (not isLoading): isLoading is `isPending && isFetching`, so on
+  // the exact render where this query first flips from disabled to enabled
+  // (right as `session`/`loading` resolve above), `isFetching` can still read
+  // false for that one render even though no data has ever arrived — isLoading
+  // is briefly false, profileQuery.data is undefined, and the onboarding check
+  // below reads `onboarding_completed` as false and redirects to /onboarding
+  // even for an account that has already completed it. isPending is true
+  // for the entire span until real data (or an error) exists, which is the
+  // actual condition we need to gate this redirect decision on.
+  if (profileQuery.isPending) return <FullScreenLoader />;
+
+  // A failed fetch (429, network blip, transient 5xx) is NOT the same as
+  // "no data because this account hasn't onboarded" — treating them the same
+  // is what forced a real onboarded user into a redirect loop. Offer a manual
+  // retry instead of guessing.
+  if (profileQuery.isError) return <ProfileLoadError onRetry={() => profileQuery.refetch()} />;
 
   const onboarded = profileQuery.data?.onboarding_completed ?? false;
   if (!onboarded && !isOnboardingRoute) {

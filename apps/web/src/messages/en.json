@@ -903,7 +903,9 @@
     "resetLinkInvalidCta": "Request a new link",
     "passwordTooShort": "Password must be at least 10 characters.",
     "passwordTooCommon": "That password is too common. Please choose a stronger one.",
-    "passwordHint": "At least 10 characters, and not a commonly used password."
+    "passwordHint": "At least 10 characters, and not a commonly used password.",
+    "profileLoadError": "Couldn't load your profile. Please check your connection and try again.",
+    "retry": "Retry"
   },
   "Onboarding": {
     "step1Title": "Welcome! Let's set you up",

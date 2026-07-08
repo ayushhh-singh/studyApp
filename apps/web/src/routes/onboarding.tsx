@@ -10,7 +10,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BrandMark } from "@/components/marketing/brand-mark";
-import { FullScreenLoader } from "@/routes/require-auth";
+import { FullScreenLoader, ProfileLoadError } from "@/routes/require-auth";
 import { cn } from "@/lib/utils";
 
 const CURRENT_YEAR = 2026;
@@ -45,7 +45,14 @@ export function Component() {
   // Seed the name field once the profile/user metadata resolves.
   const nameValue = displayName || defaultName;
 
-  if (profileQuery.isLoading) return <FullScreenLoader />;
+  // isPending, not isLoading — see the identical fix + explanation in
+  // routes/require-auth.tsx. Same query key, same underlying gotcha: isLoading
+  // can read false for a render or two before real data has actually arrived.
+  if (profileQuery.isPending) return <FullScreenLoader />;
+  // A failed fetch (429, network blip) isn't "we don't know yet" — without
+  // this, an already-onboarded user hitting a rate-limited profile fetch
+  // would silently see the onboarding wizard again instead of a clear retry.
+  if (profileQuery.isError) return <ProfileLoadError onRetry={() => profileQuery.refetch()} />;
   // Already onboarded (e.g. hit /onboarding directly) → straight to the app.
   if (profileQuery.data?.onboarding_completed) return <Navigate to={`/${locale}/dashboard`} replace />;
 
