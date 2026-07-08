@@ -41,11 +41,18 @@ export function Component() {
 
   useEffect(() => {
     // Prefer an already-confirmed typed_text (resuming this screen after a
-    // prior confirm) over the raw OCR replay, so a re-visit never discards edits.
-    if (stream.done && editedText === null) {
+    // prior confirm) over the raw OCR replay, so a re-visit never discards
+    // edits. Gated on `!isDetailLoading` (not just `detail` truthiness): the
+    // OCR SSE stream and the submission-detail REST call are two independent,
+    // uncoordinated fetches, so `stream.done` can resolve before `detail`
+    // does — reading `detail?.submission.typed_text` while it's still
+    // undefined-from-loading would wrongly fall through to the raw OCR text
+    // and, because of the `editedText === null` guard below, get stuck there
+    // even once the real typed_text arrives a moment later.
+    if (stream.done && editedText === null && !isDetailLoading) {
       setEditedText(detail?.submission.typed_text || stream.done.ocr_text);
     }
-  }, [stream.done, editedText, detail]);
+  }, [stream.done, editedText, detail, isDetailLoading]);
 
   const questionText = detail?.submission.question_id
     ? catalogedQuestion?.stem_i18n[locale]

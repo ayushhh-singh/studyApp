@@ -50,9 +50,11 @@ export function useSrsReviewQueue(): {
     // card in some future session — the "online" listener inside the queue only
     // fires on a reconnect transition, not just because the app is freshly open
     // while already online.
-    void queue.flushNow();
+    // flushNow() can reject on a genuine send failure; the queue's own
+    // retry-on-error scheduling already covers recovery, so swallow here.
+    queue.flushNow().catch(() => {});
     return () => {
-      void queue.flushNow();
+      queue.flushNow().catch(() => {});
     };
   }, [queue]);
 

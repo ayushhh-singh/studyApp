@@ -235,12 +235,16 @@ export function Component() {
               {totalPages > 1 && ` · ${t("Learn.pageOf", { page, total: totalPages })}`}
             </span>
             <div className="flex gap-1">
+              {/* Disabled while editing: an open edit form isn't keyed to
+                  `current`, so navigating without saving/canceling first
+                  used to leave stale text in the form while its Save button
+                  silently submitted onto the NEWLY-navigated-to item's id. */}
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
                 aria-label={t("Review.prev")}
-                disabled={index <= 0}
+                disabled={index <= 0 || editing}
                 onClick={() => setIndex((i) => Math.max(0, i - 1))}
               >
                 <ChevronLeft className="size-4" />
@@ -250,7 +254,7 @@ export function Component() {
                 variant="outline"
                 size="icon-sm"
                 aria-label={t("Review.next")}
-                disabled={index >= items.length - 1}
+                disabled={index >= items.length - 1 || editing}
                 onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}
               >
                 <ChevronRight className="size-4" />
@@ -259,7 +263,19 @@ export function Component() {
           </div>
 
           {editing ? (
-            <ReviewEditForm question={current} onSubmit={onEditSubmit} onCancel={() => setEditing(false)} pending={pending} />
+            // key={current.id}: forces a full remount (fresh local state) if
+            // `current` ever changes while editing — e.g. the items.length-1
+            // clamp effect above shifting `index` after a concurrent
+            // approve/reject elsewhere shrinks the queue — so the form can
+            // never show item A's stale text while onSubmit closes over item
+            // B's id. Belt-and-suspenders alongside disabling prev/next above.
+            <ReviewEditForm
+              key={current.id}
+              question={current}
+              onSubmit={onEditSubmit}
+              onCancel={() => setEditing(false)}
+              pending={pending}
+            />
           ) : (
             <>
               <ReviewCard question={current} />

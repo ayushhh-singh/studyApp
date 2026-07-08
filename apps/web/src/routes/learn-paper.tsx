@@ -27,6 +27,7 @@ function NodeRow({
   expanded,
   onToggle,
   locale,
+  exam,
   addedIds,
   addingId,
   onAddToRevision,
@@ -37,6 +38,7 @@ function NodeRow({
   expanded: Set<string>;
   onToggle: (id: string) => void;
   locale: "hi" | "en";
+  exam?: ExamCode;
   addedIds: Set<string>;
   addingId: string | null;
   onAddToRevision: (nodeId: string) => void;
@@ -91,7 +93,12 @@ function NodeRow({
           <WeightageBar weightage={node.weightage} />
           {node.own_pyq_count > 0 && (
             <Button asChild variant="ghost" size="xs">
-              <Link to={`/${locale}/practice?node=${node.id}`}>
+              {/* Forwards the active exam filter — practice.tsx's PyqFilterView
+                  reads the same `?exam=` param, so without this a "UPPSC only"
+                  filter on this outline silently reset to "All exams" the
+                  moment you followed this link (the sibling "View trends"
+                  link a few lines up already does forward it). */}
+              <Link to={`/${locale}/practice?node=${node.id}${exam ? `&exam=${exam}` : ""}`}>
                 <PenSquare aria-hidden />
                 {t("Learn.practicePyqs")}
               </Link>
@@ -120,6 +127,7 @@ function NodeRow({
               expanded={expanded}
               onToggle={onToggle}
               locale={locale}
+              exam={exam}
               addedIds={addedIds}
               addingId={addingId}
               onAddToRevision={onAddToRevision}
@@ -234,7 +242,10 @@ export function Component() {
                 {t("Learn.mapView")}
               </Button>
             </div>
-            {view === "outline" && <ExamFilter value={exam} onChange={setExam} />}
+            {/* Shown in both views now — it used to disappear entirely in Map
+                view, silently reading as "the filter doesn't apply here"
+                when actually the map was just never wired to it at all. */}
+            <ExamFilter value={exam} onChange={setExam} />
             {view === "outline" && (
               <Button asChild variant="outline" size="sm">
                 <Link to={`/${locale}/learn/${paperCode}/trends${exam ? `?exam=${exam}` : ""}`}>
@@ -248,7 +259,7 @@ export function Component() {
       />
 
       {view === "map" ? (
-        <ConquestMap paperCode={paperCode} locale={locale} />
+        <ConquestMap paperCode={paperCode} locale={locale} exam={exam} />
       ) : isLoading || !tree ? (
         isError ? (
           <EmptyState
@@ -266,22 +277,28 @@ export function Component() {
       ) : tree.children.length === 0 ? (
         <EmptyState icon={BookOpen} title={t("Learn.emptyTitle")} description={t("Learn.emptyDescription")} />
       ) : (
-        <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-card p-3 shadow-sm">
-          {tree.children.map((node) => (
-            <NodeRow
-              key={node.id}
-              node={node}
-              depth={0}
-              paperCode={paperCode}
-              expanded={expanded}
-              onToggle={toggleNode}
-              locale={locale}
-              addedIds={addedIds}
-              addingId={pendingId}
-              onAddToRevision={handleAddToRevision}
-            />
-          ))}
-        </div>
+        <>
+          {addToRevision.isError && (
+            <p className="text-sm text-coral">{t("Learn.addToRevisionFailed")}</p>
+          )}
+          <div className="flex flex-col gap-0.5 rounded-xl border border-border bg-card p-3 shadow-sm">
+            {tree.children.map((node) => (
+              <NodeRow
+                key={node.id}
+                node={node}
+                depth={0}
+                paperCode={paperCode}
+                expanded={expanded}
+                onToggle={toggleNode}
+                locale={locale}
+                exam={exam}
+                addedIds={addedIds}
+                addingId={pendingId}
+                onAddToRevision={handleAddToRevision}
+              />
+            ))}
+          </div>
+        </>
       )}
     </div>
   );

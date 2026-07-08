@@ -286,10 +286,11 @@ export function NotesReviewPanel() {
           {totalPages > 1 && ` · ${t("Learn.pageOf", { page, total: totalPages })}`}
         </span>
         <div className="flex gap-1">
-          <Button type="button" variant="outline" size="icon-sm" aria-label={t("Review.prev")} disabled={index <= 0} onClick={() => setIndex((i) => Math.max(0, i - 1))}>
+          {/* Disabled while editing — see the same fix + comment in routes/review.tsx. */}
+          <Button type="button" variant="outline" size="icon-sm" aria-label={t("Review.prev")} disabled={index <= 0 || editing} onClick={() => setIndex((i) => Math.max(0, i - 1))}>
             <ChevronLeft className="size-4" />
           </Button>
-          <Button type="button" variant="outline" size="icon-sm" aria-label={t("Review.next")} disabled={index >= items.length - 1} onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}>
+          <Button type="button" variant="outline" size="icon-sm" aria-label={t("Review.next")} disabled={index >= items.length - 1 || editing} onClick={() => setIndex((i) => Math.min(items.length - 1, i + 1))}>
             <ChevronRight className="size-4" />
           </Button>
         </div>
@@ -302,7 +303,12 @@ export function NotesReviewPanel() {
       )}
 
       {editing ? (
+        // key={current.id}: forces a remount if `current` ever changes while
+        // editing (e.g. a concurrent action elsewhere shrinks the queue and
+        // the index-clamp effect above shifts `current`) — same fix as
+        // routes/review.tsx's ReviewEditForm.
         <NoteEditForm
+          key={current.id}
           note={current}
           pending={pending}
           onCancel={() => setEditing(false)}

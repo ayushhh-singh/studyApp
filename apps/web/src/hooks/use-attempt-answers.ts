@@ -33,7 +33,10 @@ export function useAttemptAnswers(attemptId: string | undefined): {
 
   useEffect(() => {
     return () => {
-      void queue?.flushNow();
+      // Best-effort on unmount — flushNow() can now reject if the send
+      // genuinely fails; nothing left mounted to react to that, so swallow it
+      // (the queue's own retry-on-error scheduling still runs in the background).
+      queue?.flushNow().catch(() => {});
     };
   }, [queue]);
 

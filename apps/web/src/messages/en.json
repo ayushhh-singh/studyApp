@@ -149,7 +149,8 @@
     "mastery_bronze": "Bronze",
     "mastery_silver": "Silver",
     "mastery_gold": "Gold",
-    "mastery_exam_ready": "Exam-ready"
+    "mastery_exam_ready": "Exam-ready",
+    "addToRevisionFailed": "Couldn't add to revision. Please try again."
   },
   "Practice": {
     "title": "Practice",
@@ -264,7 +265,15 @@
     "cutoffProvisional": "provisional",
     "cutoffQualified": "You'd clear the CSAT qualifying bar",
     "cutoffNotQualified": "Below the CSAT qualifying bar",
-    "cutoffCsatHint": "CSAT qualifies at 33% (66/200). Your equivalent: {{your}}/200."
+    "cutoffCsatHint": "CSAT qualifies at 33% (66/200). Your equivalent: {{your}}/200.",
+    "leaveConfirmTitle": "Leave this test?",
+    "leaveConfirmDescription": "Your progress on this attempt hasn't been submitted yet. If you leave now, you can still resume later — your answers are autosaved — but the timer keeps running.",
+    "leaveConfirmStay": "Stay",
+    "leaveConfirmLeave": "Leave anyway",
+    "submitSyncFailed": "Couldn't confirm your last answer was saved. Check your connection and try submitting again.",
+    "submitFailed": "Submit failed. Please try again.",
+    "syncError": "Sync error",
+    "saving": "Saving…"
   },
   "Answers": {
     "title": "Answer Writing",
@@ -404,7 +413,8 @@
     "paper_MAINS_GS5": "GS-V (UP)",
     "paper_MAINS_GS6": "GS-VI (UP)",
     "paper_MAINS_ESSAY": "Essay",
-    "paper_MAINS_GH": "General Hindi"
+    "paper_MAINS_GH": "General Hindi",
+    "handwrittenOverflowFiles": "{{count}} photo(s) skipped — max {{max}} pages per answer."
   },
   "CurrentAffairs": {
     "title": "Current Affairs",
@@ -498,9 +508,7 @@
   "Profile": {
     "title": "Profile",
     "description": "Your account and exam preferences.",
-    "plan": "Plan",
-    "streak": "Streak",
-    "settings": "Settings",
+    "editProfileTitle": "Edit profile",
     "displayName": "Display name",
     "displayNamePlaceholder": "Your name",
     "targetYear": "Target exam year",
@@ -659,7 +667,8 @@
     "deckAdded": "Deck added ({{count}})",
     "practiceThesePyqs": "Practice these PYQs",
     "ourWordsNote": "Notes are written in our own words and grounded in cited sources — never reproduced from any book or coaching material.",
-    "factCardBack": "Recall this fact for the exam."
+    "factCardBack": "Recall this fact for the exam.",
+    "addToRevisionFailed": "Couldn't add to revision. Please try again."
   },
   "ReviewNotes": {
     "emptyTitle": "No notes to review",
@@ -791,7 +800,10 @@
     "dismiss": "Dismiss",
     "phase_retrieving": "Searching your content…",
     "phase_thinking": "Thinking…",
-    "phase_answering": "Answering…"
+    "phase_answering": "Answering…",
+    "threadCreateFailed": "Couldn't start a conversation. Please try again.",
+    "retry": "Retry",
+    "seedFromQuestion": "I have a doubt about this question: {{stem}}"
   },
   "MicroDrill": {
     "title": "Micro-drills",
@@ -800,7 +812,6 @@
     "weakestDimension": "Your weakest area right now is {{dimension}}.",
     "startIntro": "Start an intro drill",
     "startConclusion": "Start a conclusion drill",
-    "recommended": "Recommended",
     "historyTitle": "Recent drills",
     "historyEmptyTitle": "No drills yet",
     "historyEmptyDescription": "Your completed drills will show up here with their scores.",

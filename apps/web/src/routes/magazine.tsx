@@ -90,10 +90,14 @@ export function Component() {
           >
             <Languages className="size-4" /> {locale === "hi" ? "EN" : "हिं"}
           </button>
+          {/* Disabled until the article has actually loaded — printing while
+              isLoading would print a page of gray skeleton bars instead of
+              the article. */}
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            disabled={isLoading || isError || !mag}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
           >
             <Printer className="size-4" /> {t("Magazine.print")}
           </button>

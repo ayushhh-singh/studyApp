@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
-import { ChevronLeft, ChevronRight, Flag, Grid3x3, Languages, X } from "lucide-react";
+import { useBlocker, useNavigate } from "react-router";
+import { AlertCircle, ChevronLeft, ChevronRight, Flag, Grid3x3, Languages, Loader2, X } from "lucide-react";
 import type { AttemptAnswerRecord, AttemptSubmitResult, Locale, TestDetail } from "@prayasup/shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
@@ -9,6 +9,7 @@ import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { CountdownTimer } from "./countdown-timer";
 import { QuestionPalette, type QuestionStatus } from "./question-palette";
 import { SubmitConfirmDialog } from "./submit-confirm-dialog";
+import { LeaveConfirmDialog } from "./leave-confirm-dialog";
 import { ComboFlame } from "./combo-flame";
 import { GhostMarker } from "./ghost-marker";
 import { useAttemptAnswers } from "@/hooks/use-attempt-answers";
@@ -95,10 +96,31 @@ export function TestPlayer({
   const [marked, setMarked] = useState<Set<string>>(() => loadMarked(attemptId));
   const [submitOpen, setSubmitOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const activeSinceRef = useRef(Date.now());
+  // Synchronous re-entrancy lock: handleSubmit awaits flushNow() before it
+  // ever calls submitAttempt.mutate(), so submitAttempt.isPending is false
+  // during that whole window — a second trigger (the countdown expiring right
+  // as the user clicks Confirm) could otherwise start a second concurrent
+  // submit. A ref is set synchronously at the top of handleSubmit, closing
+  // that gap; submitAttempt.isPending isn't enough on its own.
+  const submittingRef = useRef(false);
+  // Set once the attempt has actually been submitted (right before the
+  // onSubmitted navigation fires), so the leave-guard below stops blocking
+  // that specific navigation.
+  const submittedRef = useRef(false);
 
-  const { saveAnswer, flushNow } = useAttemptAnswers(attemptId);
+  const { saveAnswer, flushNow, status: autosaveStatus } = useAttemptAnswers(attemptId);
   const submitAttempt = useSubmitAttempt();
+
+  // Guard against silently abandoning an unsubmitted attempt — covers the
+  // header X button (it calls navigate()/onExit(), which IS an in-app
+  // navigation and so is intercepted here too), browser back/forward, and any
+  // other in-app navigation attempt while this route is mounted.
+  const blocker = useBlocker(
+    ({ currentLocation, nextLocation }) =>
+      !submittedRef.current && currentLocation.pathname !== nextLocation.pathname,
+  );
 
   const question = test.questions[currentIndex];
 
@@ -152,15 +174,32 @@ export function TestPlayer({
   }
 
   async function handleSubmit() {
+    if (submittingRef.current) return;
+    submittingRef.current = true;
+    setSubmitError(null);
     flushTimeFor(question.id);
-    // Wait for the answer queue to actually reach the server first — firing
-    // submit immediately after the last option pick would otherwise race the
-    // autosave POST and could grade the final question as unanswered.
-    await flushNow();
+    try {
+      // Wait for the answer queue to actually reach the server first — firing
+      // submit immediately after the last option pick would otherwise race
+      // the autosave POST and could grade the final question as unanswered.
+      // flushNow() now genuinely waits for the request to land (even if
+      // another autosave flush was already in flight) and rejects if it
+      // truly failed, rather than resolving early.
+      await flushNow();
+    } catch {
+      submittingRef.current = false;
+      setSubmitError(t("Practice.submitSyncFailed"));
+      return;
+    }
     submitAttempt.mutate(attemptId, {
       onSuccess: (result) => {
+        submittedRef.current = true;
         localStorage.removeItem(markedStorageKey(attemptId));
         onSubmitted(result);
+      },
+      onError: () => {
+        submittingRef.current = false;
+        setSubmitError(t("Practice.submitFailed"));
       },
     });
   }
@@ -222,6 +261,25 @@ export function TestPlayer({
         </Button>
         <span className="min-w-0 flex-1 truncate text-sm font-semibold">{test.title_i18n[displayLocale]}</span>
         <div className="flex shrink-0 items-center gap-2">
+          {autosaveStatus !== "idle" && (
+            <span
+              className={cn(
+                "hidden items-center gap-1 text-xs sm:flex",
+                autosaveStatus === "error" ? "text-coral" : "text-muted-foreground",
+              )}
+              role="status"
+            >
+              {autosaveStatus === "error" ? (
+                <>
+                  <AlertCircle className="size-3.5" aria-hidden /> {t("Practice.syncError")}
+                </>
+              ) : (
+                <>
+                  <Loader2 className="size-3.5 animate-spin" aria-hidden /> {t("Practice.saving")}
+                </>
+              )}
+            </span>
+          )}
           {ghost && (
             <GhostMarker
               startedAt={startedAt}
@@ -345,6 +403,13 @@ export function TestPlayer({
         unansweredCount={unansweredCount}
         isSubmitting={submitAttempt.isPending}
         onConfirm={handleSubmit}
+        error={submitError}
+      />
+
+      <LeaveConfirmDialog
+        open={blocker.state === "blocked"}
+        onConfirm={() => blocker.state === "blocked" && blocker.proceed()}
+        onCancel={() => blocker.state === "blocked" && blocker.reset()}
       />
     </div>
   );

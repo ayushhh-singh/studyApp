@@ -91,6 +91,18 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
 
   const body: NoteBody | null = useMemo(() => (note ? note.content_i18n[locale] : null), [note, locale]);
 
+  // Derived from the single shared addBlock mutation's own variables (not a
+  // second isPending flag per button) — previously every "add to revision"
+  // button in this note (overview, up_angle, every key fact) all read the same
+  // addBlock.isPending, so clicking fact #1 disabled fact #2/#3's buttons too,
+  // even though they were never clicked and nothing was happening to them.
+  const pendingBlockKey =
+    addBlock.isPending && addBlock.variables
+      ? addBlock.variables.body.block === "key_fact"
+        ? `fact:${addBlock.variables.body.index}`
+        : `sec:${addBlock.variables.body.block}`
+      : null;
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-2">
@@ -235,6 +247,13 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
                 : t("Notes.addDeck", { count: note.srs_candidates.length })}
             </Button>
           )}
+          {/* Previously a failed "add to revision" (overview/up_angle/any key
+              fact/the whole deck) just silently returned the button to its
+              normal enabled state with no feedback — indistinguishable from
+              never having clicked it. */}
+          {(addBlock.isError || addDeck.isError) && (
+            <p className="text-xs text-coral">{t("Notes.addToRevisionFailed")}</p>
+          )}
         </div>
       </aside>
 
@@ -263,7 +282,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
                 {s.key === "overview" && (
                   <AddButton
                     added={added.has("sec:overview")}
-                    pending={addBlock.isPending}
+                    pending={pendingBlockKey === "sec:overview"}
                     onClick={() => addSection("overview", s.label)}
                     label={t("Notes.addToRevision")}
                   />
@@ -271,7 +290,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
                 {s.key === "up_angle" && (
                   <AddButton
                     added={added.has("sec:up_angle")}
-                    pending={addBlock.isPending}
+                    pending={pendingBlockKey === "sec:up_angle"}
                     onClick={() => addSection("up_angle", s.label)}
                     label={t("Notes.addToRevision")}
                   />
@@ -327,7 +346,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
                         </span>
                         <AddButton
                           added={added.has(`fact:${i}`)}
-                          pending={addBlock.isPending}
+                          pending={pendingBlockKey === `fact:${i}`}
                           onClick={() => addFact(i, f.fact)}
                           label={t("Notes.addToRevision")}
                         />

@@ -149,7 +149,8 @@
     "mastery_bronze": "कांस्य",
     "mastery_silver": "रजत",
     "mastery_gold": "स्वर्ण",
-    "mastery_exam_ready": "परीक्षा-तैयार"
+    "mastery_exam_ready": "परीक्षा-तैयार",
+    "addToRevisionFailed": "रिवीज़न में जोड़ा नहीं जा सका। कृपया फिर से प्रयास करें।"
   },
   "Practice": {
     "title": "अभ्यास",
@@ -264,7 +265,15 @@
     "cutoffProvisional": "अनंतिम",
     "cutoffQualified": "आप सीसैट क्वालिफाइंग सीमा पार कर लेते",
     "cutoffNotQualified": "सीसैट क्वालिफाइंग सीमा से नीचे",
-    "cutoffCsatHint": "सीसैट 33% (66/200) पर क्वालिफाई। आपका समकक्ष: {{your}}/200।"
+    "cutoffCsatHint": "सीसैट 33% (66/200) पर क्वालिफाई। आपका समकक्ष: {{your}}/200।",
+    "leaveConfirmTitle": "यह टेस्ट छोड़ें?",
+    "leaveConfirmDescription": "इस प्रयास का सबमिशन अभी बाकी है। अभी छोड़ने पर आप बाद में फिर से शुरू कर सकते हैं — आपके उत्तर ऑटो-सेव हैं — लेकिन टाइमर चलता रहेगा।",
+    "leaveConfirmStay": "रुकें",
+    "leaveConfirmLeave": "फिर भी छोड़ें",
+    "submitSyncFailed": "आपका अंतिम उत्तर सहेजा गया है इसकी पुष्टि नहीं हो सकी। अपना कनेक्शन जाँचें और दोबारा सबमिट करें।",
+    "submitFailed": "सबमिट नहीं हो सका। कृपया फिर से प्रयास करें।",
+    "syncError": "सिंक त्रुटि",
+    "saving": "सहेजा जा रहा है…"
   },
   "Answers": {
     "title": "उत्तर लेखन",
@@ -404,7 +413,8 @@
     "paper_MAINS_GS5": "जीएस-V (यूपी)",
     "paper_MAINS_GS6": "जीएस-VI (यूपी)",
     "paper_MAINS_ESSAY": "निबंध",
-    "paper_MAINS_GH": "सामान्य हिंदी"
+    "paper_MAINS_GH": "सामान्य हिंदी",
+    "handwrittenOverflowFiles": "{{count}} फ़ोटो छोड़ी गईं — प्रति उत्तर अधिकतम {{max}} पृष्ठ।"
   },
   "CurrentAffairs": {
     "title": "करेंट अफेयर्स",
@@ -498,9 +508,7 @@
   "Profile": {
     "title": "प्रोफ़ाइल",
     "description": "आपका खाता और परीक्षा प्राथमिकताएँ।",
-    "plan": "प्लान",
-    "streak": "स्ट्रीक",
-    "settings": "सेटिंग्स",
+    "editProfileTitle": "प्रोफ़ाइल संपादित करें",
     "displayName": "प्रदर्शित नाम",
     "displayNamePlaceholder": "आपका नाम",
     "targetYear": "लक्ष्य परीक्षा वर्ष",
@@ -659,7 +667,8 @@
     "deckAdded": "डेक जोड़ा गया ({{count}})",
     "practiceThesePyqs": "ये PYQ हल करें",
     "ourWordsNote": "नोट्स हमारे अपने शब्दों में लिखे गए हैं और उद्धृत स्रोतों पर आधारित हैं — किसी पुस्तक या कोचिंग सामग्री से नकल नहीं।",
-    "factCardBack": "परीक्षा के लिए इस तथ्य को याद रखें।"
+    "factCardBack": "परीक्षा के लिए इस तथ्य को याद रखें।",
+    "addToRevisionFailed": "रिवीज़न में जोड़ा नहीं जा सका। कृपया फिर से प्रयास करें।"
   },
   "ReviewNotes": {
     "emptyTitle": "समीक्षा हेतु कोई नोट्स नहीं",
@@ -791,7 +800,10 @@
     "dismiss": "खारिज करें",
     "phase_retrieving": "आपकी सामग्री खोजी जा रही है…",
     "phase_thinking": "सोच रहा हूँ…",
-    "phase_answering": "उत्तर दे रहा हूँ…"
+    "phase_answering": "उत्तर दे रहा हूँ…",
+    "threadCreateFailed": "बातचीत शुरू नहीं हो सकी। कृपया फिर से प्रयास करें।",
+    "retry": "पुनः प्रयास करें",
+    "seedFromQuestion": "मुझे इस प्रश्न को लेकर एक संदेह है: {{stem}}"
   },
   "MicroDrill": {
     "title": "माइक्रो-ड्रिल",

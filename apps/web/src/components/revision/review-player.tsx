@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Languages, X } from "lucide-react";
@@ -30,9 +30,18 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
 
   const card = cards[index];
   const done = index >= cards.length;
+  // Guards against rating the same card twice from a single tap/press: the
+  // keydown listener below re-subscribes with a fresh `card` closure inside a
+  // useEffect, which runs a tick AFTER the state update commits — so OS
+  // keyboard auto-repeat (holding a rating key) can fire a second event against
+  // the still-attached, stale-closure listener before that resubscription
+  // happens, double-rating the same card and skipping the next one. A ref is
+  // synchronous (unlike the `revealed` state check), so it closes this gap.
+  const lastRatedIdRef = useRef<string | null>(null);
 
   function rate(rating: SrsRating) {
-    if (!card) return;
+    if (!card || lastRatedIdRef.current === card.id) return;
+    lastRatedIdRef.current = card.id;
     saveReview({ card_id: card.id, rating });
     setRatings((r) => ({ ...r, [rating]: (r[rating] ?? 0) + 1 }));
     setRevealed(false);
@@ -58,7 +67,9 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
 
   useEffect(() => {
     return () => {
-      void flushNow();
+      // flushNow() can reject on a genuine send failure; the queue's own
+      // retry-on-error scheduling already covers recovery, so swallow here.
+      flushNow().catch(() => {});
     };
   }, [flushNow]);
 

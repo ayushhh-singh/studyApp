@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { localeSchema, masteryMapResponseSchema } from "@prayasup/shared";
+import { examCodeSchema, localeSchema, masteryMapResponseSchema } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
@@ -15,8 +15,8 @@ masteryRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
 masteryRouter.get(
   "/mastery",
   asyncHandler(async (req, res) => {
-    const { paper } = parse(z.object({ paper: z.string().optional() }), req.query);
-    const map = await getMasteryMap(devUserId(), paper);
+    const { paper, exam } = parse(z.object({ paper: z.string().optional(), exam: examCodeSchema.optional() }), req.query);
+    const map = await getMasteryMap(devUserId(), paper, exam);
     res.json(masteryMapResponseSchema.parse({ data: map, error: null }));
   }),
 );

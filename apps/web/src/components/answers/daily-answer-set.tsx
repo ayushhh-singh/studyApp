@@ -22,9 +22,16 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
   const pct =
     item.overall_score != null && item.max_score ? (item.overall_score / item.max_score) * 100 : null;
 
+  // An already-evaluated item should reopen its existing result, not discard
+  // that context by sending the user to write a brand-new answer from scratch.
+  const href =
+    evaluated && item.submission_id
+      ? `/${locale}/answers/evaluation/${item.submission_id}`
+      : `/${locale}/answers/write?question=${item.question_id}`;
+
   return (
     <Link
-      to={`/${locale}/answers/write?question=${item.question_id}`}
+      to={href}
       className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex flex-wrap items-center gap-2">

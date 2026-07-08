@@ -26,6 +26,7 @@ export function HandwrittenUpload({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [rejectedCount, setRejectedCount] = useState(0);
+  const [overflowCount, setOverflowCount] = useState(0);
 
   function addFiles(fileList: FileList | null) {
     if (!fileList || fileList.length === 0) return;
@@ -38,6 +39,11 @@ export function HandwrittenUpload({
     setRejectedCount(selected.length - images.length);
     const room = MAX_ANSWER_IMAGES - pages.length;
     const files = images.slice(0, room);
+    // A single picker action can select more valid images than remaining
+    // room (e.g. picking 5 at once while already at 4/6) — previously the
+    // extras beyond `room` were truncated with no message at all, since
+    // rejectedCount only ever counted non-image files, not this case.
+    setOverflowCount(images.length - files.length);
     const added: AnswerPageImage[] = files.map((file) => ({
       id: crypto.randomUUID(),
       file,
@@ -186,6 +192,11 @@ export function HandwrittenUpload({
       {rejectedCount > 0 && (
         <p className="text-xs text-coral">
           {t("Answers.handwrittenRejectedFiles", { count: rejectedCount })}
+        </p>
+      )}
+      {overflowCount > 0 && (
+        <p className="text-xs text-coral">
+          {t("Answers.handwrittenOverflowFiles", { count: overflowCount, max: MAX_ANSWER_IMAGES })}
         </p>
       )}
     </div>

@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Share2 } from "lucide-react";
-import type { Locale, MasteryNode } from "@prayasup/shared";
+import type { ExamCode, Locale, MasteryNode } from "@prayasup/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { useMastery } from "@/hooks/use-mastery";
@@ -66,9 +66,9 @@ function Tile({ rect, node, locale, paperCode }: {
   );
 }
 
-export function ConquestMap({ paperCode, locale }: { paperCode: string; locale: Locale }) {
+export function ConquestMap({ paperCode, locale, exam }: { paperCode: string; locale: Locale; exam?: ExamCode }) {
   const { t } = useTranslation();
-  const { data, isLoading, isError } = useMastery(paperCode);
+  const { data, isLoading, isError } = useMastery(paperCode, exam);
 
   const sections = useMemo(
     () => (data?.nodes ?? []).filter((n) => n.depth === 1 && n.pyq_count > 0),

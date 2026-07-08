@@ -25,7 +25,7 @@ export function createOfflineQueue<T>(opts: {
   const listeners = new Set<() => void>();
   let status: QueueStatus = "idle";
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
-  let flushing = false;
+  let activeFlush: Promise<void> | null = null;
 
   function readQueue(): Map<string, T> {
     try {
@@ -56,18 +56,20 @@ export function createOfflineQueue<T>(opts: {
     if (flushTimer) clearTimeout(flushTimer);
     flushTimer = setTimeout(() => {
       flushTimer = null;
-      void flush();
+      // Background-triggered flushes (from enqueue/online) swallow their own
+      // failure — status already reflects "error" and a retry is already
+      // scheduled inside runOnce's catch. An explicit flushNow() caller still
+      // sees the rejection (see flush() below).
+      flush().catch(() => {});
     }, delay);
   }
 
-  async function flush(): Promise<void> {
-    if (flushing) return;
+  async function runOnce(): Promise<void> {
     const queue = readQueue();
     if (queue.size === 0) {
       setStatus("idle");
       return;
     }
-    flushing = true;
     setStatus("pending");
     const items = [...queue.values()];
     try {
@@ -75,16 +77,40 @@ export function createOfflineQueue<T>(opts: {
       const remaining = readQueue();
       for (const item of items) remaining.delete(opts.dedupeKey(item));
       writeQueue(remaining);
-      flushing = false;
-      if (remaining.size > 0) {
-        scheduleFlush(0);
-      } else {
-        setStatus("idle");
-      }
-    } catch {
-      flushing = false;
+      setStatus(remaining.size > 0 ? "pending" : "idle");
+    } catch (err) {
       setStatus("error");
       scheduleFlush(retryDelayMs);
+      throw err;
+    }
+  }
+
+  /**
+   * Flush the queue, guaranteeing the returned promise only resolves once
+   * everything that was in the queue at call time has actually reached the
+   * server. Concurrent callers (e.g. an autosave-triggered background flush
+   * racing an explicit flushNow() from a submit handler) piggyback on the
+   * in-flight round instead of returning immediately — the old code let a
+   * caller return before ANY request had actually completed if another flush
+   * was already running, which could let a caller proceed (e.g. submitting a
+   * test) before the last autosaved answer was confirmed persisted.
+   */
+  async function flush(): Promise<void> {
+    if (activeFlush) {
+      await activeFlush.catch(() => {});
+      if (readQueue().size === 0) return;
+    }
+    const run = runOnce();
+    activeFlush = run;
+    try {
+      await run;
+    } finally {
+      if (activeFlush === run) activeFlush = null;
+    }
+    // Items enqueued while this round was in flight aren't covered by it —
+    // flush those too before resolving.
+    if (readQueue().size > 0) {
+      await flush();
     }
   }
 

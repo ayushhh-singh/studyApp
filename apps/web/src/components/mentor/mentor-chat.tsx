@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Send, Sparkles, ListChecks, Loader2 } from "lucide-react";
+import type { DoubtThreadDetail } from "@prayasup/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useDoubtThread, useQuizMe } from "@/hooks/use-mentor";
 import { useDoubtStream } from "@/hooks/use-doubt-stream";
@@ -60,22 +61,49 @@ export function MentorChat({
           qc.invalidateQueries({ queryKey: queryKeys.doubtThread(threadId) }),
           qc.invalidateQueries({ queryKey: queryKeys.doubtThreads() }),
         ]);
-        stream.reset();
-        setPendingUser(null);
+        // invalidateQueries() resolves once the triggered refetch settles —
+        // including when that refetch itself errored (TanStack Query doesn't
+        // reject here). Only clear the transient streamed bubble once the
+        // assistant's turn is confirmed to have actually landed in the
+        // refetched messages; otherwise a flaky refetch would make the
+        // just-completed exchange silently vanish (both the question and the
+        // streamed answer gone, with nothing having taken their place). The
+        // render below independently suppresses the transient bubble once the
+        // persisted message shows up, so leaving it visible here never risks
+        // a duplicate — worst case it just stays until a later successful
+        // refetch (e.g. next thread open) picks up what the server already persisted.
+        const refreshed = qc.getQueryData<DoubtThreadDetail>(queryKeys.doubtThread(threadId));
+        const landed = stream.doneMessageId != null && refreshed?.messages.some((m) => m.id === stream.doneMessageId);
+        if (landed) {
+          stream.reset();
+          setPendingUser(null);
+        }
       },
     });
   };
+
+  const doneMessageLanded =
+    stream.doneMessageId != null && messages.some((m) => m.id === stream.doneMessageId);
 
   const askQuiz = () => {
     if (busy) return;
     quiz.mutate();
   };
 
-  const isEmpty = messages.length === 0 && !pendingUser && !stream.isStreaming;
+  const isEmpty = !detail.isLoading && messages.length === 0 && !pendingUser && !stream.isStreaming;
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
       <div ref={scrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto px-1 py-2">
+        {/* Previously this briefly flashed the "ask me anything" empty state
+            for an EXISTING thread with real history, since `messages` reads
+            [] while the thread's first fetch is still in flight. */}
+        {detail.isLoading && (
+          <div className="flex flex-col gap-3 px-1 py-2">
+            <div className="h-10 w-2/3 animate-pulse self-end rounded-2xl bg-muted" />
+            <div className="h-16 w-3/4 animate-pulse rounded-2xl bg-muted" />
+          </div>
+        )}
         {isEmpty && (
           <div className="flex h-full flex-col items-center justify-center gap-2 py-8 text-center text-muted-foreground">
             <Sparkles className="size-8 text-primary" aria-hidden />
@@ -93,9 +121,12 @@ export function MentorChat({
 
         {/* In-flight turn. The assistant block is gated on `answer` (not
             isStreaming) so the streamed text stays visible between the `done`
-            event and the refetch landing — otherwise it would blink out. */}
-        {pendingUser && <MentorMessage message={{ role: "user", content: pendingUser }} />}
-        {(stream.isStreaming || stream.answer) && !stream.error && (
+            event and the refetch landing — otherwise it would blink out.
+            Also suppressed once doneMessageLanded, so if onDone's own refetch
+            check above ever lags behind this render, the persisted message
+            list and the transient bubble can never show the same turn twice. */}
+        {pendingUser && !doneMessageLanded && <MentorMessage message={{ role: "user", content: pendingUser }} />}
+        {(stream.isStreaming || stream.answer) && !stream.error && !doneMessageLanded && (
           <MentorMessage
             message={{
               role: "assistant",

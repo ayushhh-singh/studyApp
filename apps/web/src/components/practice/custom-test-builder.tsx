@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import type { Difficulty, ExamCode, Locale, SyllabusNodeWithStats } from "@prayasup/shared";
@@ -45,6 +45,17 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
     [tree],
   );
   const selectedNode = flatNodes.find((f) => f.node.id === nodeId)?.node;
+
+  // Reclamp the count whenever the selected topic changes — its own_pyq_count
+  // (the input's max) can shrink on a new topic, but the input's value doesn't
+  // reclamp itself, so a count typed for a larger topic (e.g. 100) would
+  // otherwise silently survive a switch to a topic with far fewer PYQs (e.g.
+  // 5) and get sent to the API as-is.
+  useEffect(() => {
+    if (!selectedNode) return;
+    const max = Math.max(1, Math.min(100, selectedNode.own_pyq_count));
+    setCount((c) => Math.min(c, max));
+  }, [selectedNode]);
 
   function handleSubmit() {
     if (!nodeId) return;

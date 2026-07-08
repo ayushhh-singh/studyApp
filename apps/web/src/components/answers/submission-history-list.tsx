@@ -54,26 +54,30 @@ export function SubmissionHistoryList() {
                   </div>
                 </div>
               );
-              // A handwritten submission not yet confirmed/evaluated can resume the
-              // trust-loop confirm screen; a completed one (any mode) reopens its result.
+              // Every status now resolves to a real destination — there used to be
+              // no click target at all for a typed submission stuck in
+              // 'evaluating' (e.g. the tab was closed mid-stream), 'failed'
+              // (the model call errored), or a transient 'pending', even though
+              // the evaluation page can resume/retry all three (planEvaluation
+              // replays a finished run, reclaims a genuinely stale 'evaluating'
+              // row, or retries a 'failed'/'pending' one fresh — see
+              // apps/api/src/services/evaluation/evaluate.ts). A handwritten
+              // submission not yet confirmed (pending/ocr_processing/ocr_done)
+              // still needs the confirm screen first.
               const resumeHref =
-                item.status === "complete"
+                item.status === "complete" || item.status === "evaluating" || item.status === "failed"
                   ? `/${locale}/answers/evaluation/${item.id}`
-                  : item.mode === "handwritten" && item.status !== "evaluating"
+                  : item.mode === "handwritten"
                     ? `/${locale}/answers/confirm/${item.id}`
-                    : null;
+                    : `/${locale}/answers/evaluation/${item.id}`;
               return (
                 <li key={item.id}>
-                  {resumeHref ? (
-                    <Link
-                      to={resumeHref}
-                      className="block rounded-lg transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    >
-                      {row}
-                    </Link>
-                  ) : (
-                    row
-                  )}
+                  <Link
+                    to={resumeHref}
+                    className="block rounded-lg transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {row}
+                  </Link>
                 </li>
               );
             })}

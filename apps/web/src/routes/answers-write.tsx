@@ -24,6 +24,38 @@ const INPUT_CLASS =
 
 export const handle = { titleKey: "Nav.answers" };
 
+interface CustomDraft {
+  question: string;
+  answer: string;
+}
+
+/**
+ * Every custom (non-catalogued) question shares the single localStorage key
+ * `answers-draft:custom` — unlike a catalogued question, which gets its own
+ * key per question_id. Persisting only the answer text under that shared key
+ * meant returning to Write Room for an unrelated custom prompt silently
+ * pre-filled its editor with a PREVIOUS custom prompt's stale answer, with no
+ * indication anything was wrong (the question box started blank, looking like
+ * a fresh session). Storing {question, answer} together and restoring both
+ * makes a resumed draft visibly consistent — the user sees their old
+ * question alongside its answer, not an orphaned answer under an empty box —
+ * so a stale draft is obviously stale rather than silently misleading.
+ */
+function readCustomDraft(key: string): CustomDraft {
+  const raw = readDraft(key);
+  if (!raw) return { question: "", answer: "" };
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed && typeof parsed === "object" && typeof (parsed as CustomDraft).answer === "string") {
+      const p = parsed as Partial<CustomDraft>;
+      return { question: typeof p.question === "string" ? p.question : "", answer: p.answer ?? "" };
+    }
+  } catch {
+    // Pre-existing plain-string draft from before this fix — treat as answer-only.
+  }
+  return { question: "", answer: raw };
+}
+
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
@@ -36,16 +68,23 @@ export function Component() {
 
   const [language, setLanguage] = useState<Locale>(locale);
   const [mode, setMode] = useState<SubmissionMode>("typed");
-  const [answerText, setAnswerText] = useState(() => readDraft(draftKey));
+  const [answerText, setAnswerText] = useState(() => (questionId ? readDraft(draftKey) : readCustomDraft(draftKey).answer));
   const [pages, setPages] = useState<AnswerPageImage[]>([]);
-  const [customQuestionText, setCustomQuestionText] = useState("");
+  const [customQuestionText, setCustomQuestionText] = useState(() => (questionId ? "" : readCustomDraft(draftKey).question));
   const [customWordLimit, setCustomWordLimit] = useState(150);
   const [customMarks, setCustomMarks] = useState(10);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const draftIdRef = useRef(crypto.randomUUID());
 
-  useDraftAutosave(draftKey, answerText);
+  // Catalogued questions keep the simple plain-string draft (their key is
+  // already unique per question_id, so there's nothing to disambiguate);
+  // custom questions serialize {question, answer} together — see
+  // readCustomDraft's docstring above.
+  useDraftAutosave(
+    draftKey,
+    questionId ? answerText : JSON.stringify({ question: customQuestionText, answer: answerText }),
+  );
 
   const createSubmission = useCreateSubmission();
 

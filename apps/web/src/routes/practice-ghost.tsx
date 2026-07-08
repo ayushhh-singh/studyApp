@@ -23,11 +23,12 @@ function fmt(seconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 
-function GhostEndScreen({ start, newAttemptId, onAgain, onDone }: {
+function GhostEndScreen({ start, newAttemptId, onAgain, onDone, raceAgainPending }: {
   start: GhostStart;
   newAttemptId: string;
   onAgain: () => void;
   onDone: () => void;
+  raceAgainPending: boolean;
 }) {
   const { t } = useTranslation();
   const { data: result, isLoading } = useAttemptResult(newAttemptId);
@@ -113,11 +114,11 @@ function GhostEndScreen({ start, newAttemptId, onAgain, onDone }: {
       </div>
 
       <div className="flex flex-wrap items-center justify-center gap-2">
-        <Button onClick={onAgain}>
+        <Button onClick={onAgain} disabled={raceAgainPending}>
           <Ghost aria-hidden />
           {t("Ghost.raceAgain")}
         </Button>
-        <Button variant="outline" onClick={onDone}>{t("Ghost.viewResult")}</Button>
+        <Button variant="outline" onClick={onDone} disabled={raceAgainPending}>{t("Ghost.viewResult")}</Button>
       </div>
       <p className="text-center text-xs text-muted-foreground">{t("Ghost.masteryNote")}</p>
     </div>
@@ -142,6 +143,7 @@ export function Component() {
   const backToResult = () => navigate(`/${locale}/practice/attempt/${attemptId}/result`);
 
   function raceAgain() {
+    if (startGhost.isPending) return;
     setStart(null);
     setFinishedAttemptId(null);
     startGhost.mutate(attemptId, { onSuccess: setStart });
@@ -189,7 +191,13 @@ export function Component() {
       </header>
       <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 p-4 sm:p-6">
         {start && finishedAttemptId ? (
-          <GhostEndScreen start={start} newAttemptId={finishedAttemptId} onAgain={raceAgain} onDone={backToResult} />
+          <GhostEndScreen
+            start={start}
+            newAttemptId={finishedAttemptId}
+            onAgain={raceAgain}
+            onDone={backToResult}
+            raceAgainPending={startGhost.isPending}
+          />
         ) : (
           <Skeleton className="h-64 w-full rounded-xl" />
         )}
