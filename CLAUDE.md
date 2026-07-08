@@ -46,6 +46,19 @@ analytics, RAG doubt-solving chatbot.
 - NO mock data anywhere. Every screen reads real rows from Supabase.
 
 ## Dev conventions
+- **Node 22+ is a hard requirement, not just a preference.**
+  `@supabase/supabase-js`'s realtime client requires native `WebSocket`,
+  which only exists in Node 22+ — on Node 20 it throws "Node.js detected
+  but native WebSocket not found" the moment any Supabase client is
+  constructed (`apps/api/src/lib/supabase.ts`, called at boot from
+  `index.ts`). This broke for real: `ca-run.yml` was failing in CI and the
+  Render deploy (`apps/api/Dockerfile`, `node:20-slim`) was very likely
+  crash-looping on every boot. Fixed by moving every pinned Node version
+  to 22: `apps/api/Dockerfile` base image, root `package.json`
+  `engines.node`, and `node-version:` in every `.github/workflows/*.yml`
+  that runs Node (`ca-run`, `ci`, `daily-build`, `nightly-settle`,
+  `notifications`, `qgen-topup` — `backup.yml` runs no Node, untouched).
+  Never downgrade any of these back to 20.
 - pnpm workspaces. `pnpm dev` runs web (:3000) + api (:4000) concurrently.
 - Env: /apps/web/.env.local uses VITE_* and holds browser-safe values ONLY
   (Supabase URL, anon key, API URL). /apps/api/.env holds all secrets (service

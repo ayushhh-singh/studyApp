@@ -3,7 +3,7 @@
 # set to "apps/api/Dockerfile". This is required because the workspace
 # package @prayasup/shared has to be present alongside apps/api for pnpm to
 # resolve it (see pnpm-workspace.yaml at the repo root).
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
 WORKDIR /app
 

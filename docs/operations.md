@@ -163,7 +163,7 @@ equivalent GitHub Actions scheduled workflow under `.github/workflows/`:
 `ca-run.yml`, `daily-build.yml`, `qgen-topup.yml`, `nightly-settle.yml`,
 `notifications.yml` — plus a new `backup.yml` with no Render equivalent (see
 "Weekly encrypted DB backup" below). Each workflow: checks out the repo,
-sets up pnpm + Node 20 (with pnpm's dependency cache), runs
+sets up pnpm + Node 22 (with pnpm's dependency cache), runs
 `pnpm install --frozen-lockfile --filter api...` (installs only `apps/api`
 and its workspace deps — `@prayasup/shared` — not `apps/web`'s much heavier
 toolchain), then runs the relevant `pnpm --filter api <script>` with secrets
