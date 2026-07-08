@@ -63,6 +63,18 @@ export function Component() {
     if (!params.get("code")) setLinkError(t("Auth.resetLinkInvalid"));
   }, [authLoading, recoveryReady, linkError, params, t]);
 
+  // A code that's already been consumed (a pre-clicked/scanned link, a
+  // double-open) fails the exchange silently: no PASSWORD_RECOVERY event, no
+  // session — but the code param stays in the URL, so the effect above never
+  // fires either. Without this, the page would spin on <FullScreenLoader/>
+  // forever. Give the exchange a generous real-world window, then treat a
+  // still-not-ready state as an honest invalid-link error instead.
+  useEffect(() => {
+    if (!params.get("code") || recoveryReady || linkError) return;
+    const timer = setTimeout(() => setLinkError(t("Auth.resetLinkInvalid")), 8000);
+    return () => clearTimeout(timer);
+  }, [params, recoveryReady, linkError, t]);
+
   if (authLoading) return <FullScreenLoader />;
 
   async function handleSubmit(e: FormEvent) {

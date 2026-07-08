@@ -5,6 +5,7 @@ import { Check, Sparkles, Smartphone, X } from "lucide-react";
 import { paiseToRupeeString, type Plan } from "@prayasup/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
+import { useProfile } from "@/hooks/use-profile";
 import { usePlans, useBillingSubscription, useCreateOrder, useRefreshBilling } from "@/hooks/use-billing";
 import { openRazorpayCheckout } from "@/lib/razorpay-checkout";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,11 @@ export function Component() {
   const { session } = useAuth();
   const plans = usePlans();
   const subscription = useBillingSubscription({ enabled: !!session });
+  // Pricing sits outside RequireAuth (it's public), so its own onboarding
+  // gate — checkout must never be reachable before onboarding, same as when
+  // this page lived inside the auth-gated subtree.
+  const profileQuery = useProfile({ enabled: !!session });
+  const needsOnboarding = !!session && profileQuery.data != null && !profileQuery.data.onboarding_completed;
   const createOrder = useCreateOrder();
   const refreshBilling = useRefreshBilling();
 
@@ -68,6 +74,16 @@ export function Component() {
     if (!session) {
       const params = new URLSearchParams({ redirect: `/${locale}/pricing` });
       navigate(`/${locale}/auth?${params.toString()}`);
+      return;
+    }
+    // Don't decide before we actually know onboarding status — the button is
+    // disabled while this is true, but guard here too against a click that
+    // lands before that render.
+    if (profileQuery.isLoading) return;
+    // Signed in but hasn't finished onboarding — finish that first, same
+    // protection RequireAuth gave this page before it became public.
+    if (needsOnboarding) {
+      navigate(`/${locale}/onboarding`);
       return;
     }
     setMessage(null);
@@ -213,7 +229,7 @@ export function Component() {
                 size="lg"
                 variant={highlight ? "default" : "outline"}
                 className="mt-auto w-full"
-                disabled={busy || isPro || status === "activating"}
+                disabled={busy || isPro || status === "activating" || (!!session && profileQuery.isLoading)}
                 onClick={() => choose(plan)}
               >
                 {busy ? pick(locale, c.processing) : isPro ? pick(locale, c.currentPlan) : pick(locale, c.choosePlan)}
