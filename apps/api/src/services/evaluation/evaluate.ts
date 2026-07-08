@@ -138,11 +138,19 @@ export async function createSubmission(userId: string, body: CreateSubmissionBod
   }
 
   if (body.mode === "handwritten") {
-    // Fail fast with a clear 400 if any uploaded path doesn't actually exist in
-    // the bucket, rather than accepting a garbage/guessed path that only
-    // surfaces as a confusing 500 later, mid-OCR. This does not scope paths to
-    // the uploading user — real per-user Storage scoping needs auth (Session
-    // 15, matching the RLS policy's own "REPLACED IN AUTH PHASE" note).
+    // Scope every uploaded path to THIS user's folder (`<uid>/...`). The Storage
+    // RLS policy (migration 0053) already blocks a client from writing outside
+    // its own prefix; this is the server-side twin that stops a caller from
+    // referencing someone else's object by path (the API downloads bytes with
+    // the service role, which bypasses RLS, so we must enforce ownership here).
+    for (const path of body.image_paths!) {
+      if ((path.split("/")[0] ?? "") !== userId) {
+        throw badRequest("image path is not under the authenticated user's folder");
+      }
+    }
+    // Then fail fast with a clear 400 if any path doesn't actually exist in the
+    // bucket, rather than accepting a guessed path that only surfaces as a
+    // confusing 500 later, mid-OCR.
     await assertImagesExist(body.image_paths!);
   }
 

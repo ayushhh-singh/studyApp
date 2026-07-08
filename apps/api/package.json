@@ -25,7 +25,8 @@
     "qgen:topup": "tsx --env-file=.env src/qgen/cli.ts --topup",
     "notes:gen": "tsx --env-file=.env src/notes/cli.ts",
     "notes:embed": "tsx --env-file=.env src/notes/embed.ts",
-    "migrate:dev-user": "tsx --env-file=.env scripts/migrate-dev-user.ts"
+    "migrate:dev-user": "tsx --env-file=.env scripts/migrate-dev-user.ts",
+    "security:rls": "tsx --env-file=.env --env-file=../web/.env.local scripts/rls-security-check.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

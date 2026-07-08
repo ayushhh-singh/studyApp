@@ -91,7 +91,7 @@ function reportResults(results: NodeGenerationResult[]): void {
     )}`,
   );
   console.log(`  Cost per accepted question: $${perAccepted.toFixed(4)} (~₹${(perAccepted * 86).toFixed(2)})`);
-  console.log(`  Review them at /<locale>/review (ADMIN_MODE=true).`);
+  console.log(`  Review them at /<locale>/review (sign in as an admin — users_profile.is_admin).`);
 }
 
 async function main(): Promise<void> {

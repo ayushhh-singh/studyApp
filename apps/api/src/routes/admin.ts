@@ -18,7 +18,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { isAdminMode, requireAdmin } from "../lib/admin.js";
+import { isCurrentUserAdmin, requireAdmin } from "../lib/admin.js";
 import {
   approveQuestion,
   bulkApprove,
@@ -38,11 +38,13 @@ import {
 
 export const adminRouter = Router();
 
-/** Public: lets the SPA decide whether to render the Review Queue at all. */
+/** Lets the SPA decide whether to render the Review Queue — true only for admins. */
 adminRouter.get(
   "/admin/status",
   asyncHandler(async (_req, res) => {
-    res.json(adminStatusResponseSchema.parse({ data: { admin_mode: isAdminMode() }, error: null }));
+    res.json(
+      adminStatusResponseSchema.parse({ data: { admin_mode: await isCurrentUserAdmin() }, error: null }),
+    );
   }),
 );
 

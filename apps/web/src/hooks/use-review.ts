@@ -10,7 +10,7 @@ import {
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-/** Whether ADMIN_MODE is enabled server-side. Cached hard — it changes only on a server restart. */
+/** Whether the signed-in user is an admin (users_profile.is_admin). Cached hard — a user's admin status doesn't change mid-session. */
 export function useAdminStatus() {
   return useQuery({
     queryKey: queryKeys.adminStatus(),

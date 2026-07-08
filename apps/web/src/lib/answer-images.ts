@@ -50,10 +50,19 @@ export async function prepareAnswerImage(file: File, rotationDeg: number): Promi
   });
 }
 
-/** Uploads one prepared page image directly to the answer-images bucket; returns its storage path. */
+/**
+ * Uploads one prepared page image directly to the answer-images bucket; returns
+ * its storage path. The key is prefixed with the signed-in user's id
+ * (`<uid>/<draftId>/page-N-<uuid>.jpg`) so the per-user-folder Storage RLS policy
+ * (migration 0053) admits it — a user can only write under their own uid prefix.
+ */
 export async function uploadAnswerImage(blob: Blob, draftId: string, index: number): Promise<string> {
-  const path = `${draftId}/page-${index + 1}-${crypto.randomUUID()}.jpg`;
-  const { error } = await supabaseBrowser()
+  const client = supabaseBrowser();
+  const { data: sessionData } = await client.auth.getSession();
+  const uid = sessionData.session?.user.id;
+  if (!uid) throw new Error("Not signed in — cannot upload answer image.");
+  const path = `${uid}/${draftId}/page-${index + 1}-${crypto.randomUUID()}.jpg`;
+  const { error } = await client
     .storage.from(ANSWER_IMAGES_BUCKET)
     .upload(path, blob, { contentType: "image/jpeg", upsert: false });
   if (error) throw new Error(`Upload failed: ${error.message}`);

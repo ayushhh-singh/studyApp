@@ -102,7 +102,7 @@ async function main(): Promise<void> {
     );
   }
   console.log(`\n  ${results.length} note(s) → needs_review · total $${cost.toFixed(4)} (≈ ₹${(cost * 86).toFixed(2)})`);
-  console.log("  Review + publish at /<locale>/review (Notes tab, ADMIN_MODE=true).");
+  console.log("  Review + publish at /<locale>/review (Notes tab — sign in as an admin, users_profile.is_admin).");
 }
 
 main().catch((err) => {
