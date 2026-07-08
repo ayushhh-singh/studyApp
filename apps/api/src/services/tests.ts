@@ -50,6 +50,13 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
   if (filters.kind === "pyq_full" || filters.kind === "sectional") {
     query = query.like("paper_code", "PRE_%");
   }
+  // "Quiz me on this week" (createCustomTestFromCurrentAffairs) also stamps
+  // kind="custom" — exclude it from the Custom tab's "your custom sets" list
+  // so a user's own topic-built sets aren't buried under repeat CA-quiz
+  // clicks; the Current Affairs page is that quiz's own dedicated entry point.
+  if (filters.kind === "custom") {
+    query = query.neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+  }
 
   const { data, error } = await query;
   if (error) throw new HttpError(500, `tests query failed: ${error.message}`);
@@ -277,13 +284,48 @@ function currentAffairsQuizTitle(days: number): BilingualText {
   return { en: `Current Affairs — Last ${days} Days`, hi: `करेंट अफेयर्स — पिछले ${days} दिन` };
 }
 
+// One sitting shouldn't be every CA MCQ generated over the window (that grows
+// unbounded as the ca:run pipeline keeps producing more) — cap it like the
+// daily quiz's own defaultSize (daily/config.ts). A repeat "Quiz me" click
+// mostly draws fresh (never-attempted-by-this-user) questions, with a small
+// reinforcement slice of ones the user has seen before, so it neither repeats
+// the exact same set nor is 100% novel every time.
+const CURRENT_AFFAIRS_QUIZ_SIZE = 25;
+const CURRENT_AFFAIRS_REINFORCEMENT_RATIO = 0.2;
+
+/** Question ids this user has already been given in a past "Quiz me on this week" attempt. */
+async function seenCurrentAffairsQuestionIds(userId: string): Promise<Set<string>> {
+  const { data: caTests, error: caTestsError } = await supabase()
+    .from("tests")
+    .select("id")
+    .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+  if (caTestsError) throw new HttpError(500, `past CA quiz lookup failed: ${caTestsError.message}`);
+  const caTestIds = (caTests ?? []).map((t) => t.id as string);
+  if (caTestIds.length === 0) return new Set();
+
+  const { data: pastAttempts, error: attemptsError } = await supabase()
+    .from("attempts")
+    .select("meta")
+    .eq("user_id", userId)
+    .in("test_id", caTestIds);
+  if (attemptsError) throw new HttpError(500, `past CA attempt lookup failed: ${attemptsError.message}`);
+
+  const seen = new Set<string>();
+  for (const row of pastAttempts ?? []) {
+    const questionIds = (row.meta as { question_ids?: string[] } | null)?.question_ids ?? [];
+    for (const id of questionIds) seen.add(id);
+  }
+  return seen;
+}
+
 /**
- * "Quiz me on this week" — a custom test built from every generated MCQ
- * linked off a current_affairs_items row dated within the last `days` days
+ * "Quiz me on this week" — a custom test built from generated MCQs linked off
+ * current_affairs_items rows dated within the last `days` days
  * (mcq_question_ids, populated by the ca:run pipeline for "important"
- * items). Mirrors createCustomTestFromNode's shape/behaviour (shuffle,
- * compensating delete on a partial insert failure) but pools questions
- * across many source items instead of one syllabus node.
+ * items), capped to CURRENT_AFFAIRS_QUIZ_SIZE and mixed with a reinforcement
+ * slice of previously-seen questions. Mirrors createCustomTestFromNode's
+ * shape/behaviour (shuffle, compensating delete on a partial insert failure)
+ * but pools questions across many source items instead of one syllabus node.
  *
  * Uses "test" scope (lib/question-visibility.ts): CA-generated MCQs are
  * always inserted with is_published=false (see ca/pipeline.ts's
@@ -321,7 +363,25 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
     throw badRequest(`No current-affairs practice MCQs are available for the last ${days} days yet`);
   }
 
-  const selected = shuffled(available);
+  const seenIds = await seenCurrentAffairsQuestionIds(currentUserId());
+  const freshPool = available.filter((q) => !seenIds.has(q.id));
+  const seenPool = available.filter((q) => seenIds.has(q.id));
+
+  const targetSize = Math.min(CURRENT_AFFAIRS_QUIZ_SIZE, available.length);
+  const targetReinforcement =
+    seenPool.length > 0 ? Math.min(seenPool.length, Math.round(targetSize * CURRENT_AFFAIRS_REINFORCEMENT_RATIO)) : 0;
+  const targetFresh = targetSize - targetReinforcement;
+
+  let selected = [...shuffled(freshPool).slice(0, targetFresh), ...shuffled(seenPool).slice(0, targetReinforcement)];
+  if (selected.length < targetSize) {
+    // Either pool came up short (e.g. a brand-new user has no seenPool yet,
+    // or most of the window's questions have already been reinforced) —
+    // top off from whatever's left rather than shipping a thin quiz.
+    const usedIds = new Set(selected.map((q) => q.id));
+    const leftover = shuffled(available.filter((q) => !usedIds.has(q.id)));
+    selected = [...selected, ...leftover.slice(0, targetSize - selected.length)];
+  }
+  selected = shuffled(selected);
   const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
 
   const { data: test, error: testError } = await supabase()

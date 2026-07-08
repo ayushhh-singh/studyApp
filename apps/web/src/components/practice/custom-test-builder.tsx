@@ -29,10 +29,14 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   // building an MCQ custom set from one always errors with "no MCQ PYQs".
   const papers = useMemo(() => (allPapers ?? []).filter((p) => p.exam_stage === "prelims"), [allPapers]);
   const [paperCode, setPaperCode] = useState<string>("");
-  const { data: tree } = usePaperTree(paperCode || undefined);
   const [nodeId, setNodeId] = useState<string>("");
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [exam, setExam] = useState<ExamCode | undefined>(undefined);
+  // Scope the tree fetch by the same exam filter used at creation time —
+  // otherwise own_pyq_count (and which topics even appear) reflects "all
+  // exams" while a single-exam pick could deliver fewer questions than shown,
+  // or an empty set for a topic that only has PYQs from a different exam.
+  const { data: tree } = usePaperTree(paperCode || undefined, exam);
   const [count, setCount] = useState(20);
   const createTest = useCreateCustomTest();
 
@@ -69,7 +73,15 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-sm font-medium">{t("Exam.filterLabel")}</span>
-        <ExamFilter value={exam} onChange={setExam} />
+        <ExamFilter
+          value={exam}
+          onChange={(next) => {
+            setExam(next);
+            // The previously selected topic's own_pyq_count was computed
+            // under the old exam scope — it may no longer be valid/visible.
+            setNodeId("");
+          }}
+        />
       </div>
 
       <label className="flex flex-col gap-1.5 text-sm font-medium">
