@@ -9,7 +9,8 @@
     "profile": "Profile",
     "more": "More",
     "sectionsLabel": "Sections",
-    "review": "Review"
+    "review": "Review",
+    "doubts": "Mentor"
   },
   "TopBar": {
     "search": "Search",
@@ -710,5 +711,33 @@
     "masteryNote": "Your mastery has been updated from this run.",
     "errorTitle": "Couldn't start the race",
     "errorDescription": "This attempt can't be raced right now."
+  },
+  "Mentor": {
+    "title": "AI Mentor",
+    "pageDescription": "Ask doubts — grounded in your syllabus and your own prep.",
+    "newDoubt": "New doubt",
+    "noThreads": "No conversations yet.",
+    "untitled": "New doubt",
+    "deleteThread": "Delete conversation",
+    "backToThreads": "Conversations",
+    "emptyTitle": "Ask me anything",
+    "emptyHint": "Concepts, distinctions, PYQ doubts, current affairs — I answer from the platform's content and cite my sources.",
+    "placeholder": "Ask a doubt…",
+    "send": "Send",
+    "revisionMode": "Revision mode",
+    "quizMe": "Quiz me",
+    "buildingQuiz": "Building a quick quiz…",
+    "quizIntro": "A quick quiz on what we discussed:",
+    "saveToRevision": "Save to revision",
+    "savedToRevision": "Saved to revision",
+    "fromSimilarDoubt": "From a similar doubt",
+    "notCovered": "Not covered in platform content yet — answered from general exam knowledge.",
+    "askMentor": "Ask mentor",
+    "insightLabel": "Mentor tip",
+    "insightCta": "Start",
+    "dismiss": "Dismiss",
+    "phase_retrieving": "Searching your content…",
+    "phase_thinking": "Thinking…",
+    "phase_answering": "Answering…"
   }
 }

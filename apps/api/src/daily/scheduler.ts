@@ -17,6 +17,8 @@ import { runStreakNightly } from "./streak.js";
 import { generateForUser } from "../services/notifications.js";
 import { recomputeMastery } from "../mastery/compute.js";
 import { recordPerfectDay } from "../services/daily-stats.js";
+import { computeLearnerProfile } from "../services/learner-profile.js";
+import { generateMentorInsights } from "../services/mentor-insights.js";
 import { devUserId } from "../lib/dev-user.js";
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
@@ -47,6 +49,12 @@ export function startDailyScheduler(): void {
       recomputeMastery(devUserId())
         .then((n) => logger.info(`mastery: nightly recompute updated ${n} node(s)`))
         .catch((err) => logger.error({ err }, "daily: nightly mastery recompute failed"));
+      // Refresh the learner profile, then derive today's proactive mentor
+      // insight cards from it (both idempotent).
+      computeLearnerProfile(devUserId())
+        .then(() => generateMentorInsights(devUserId()))
+        .then(() => logger.info("mentor: nightly profile + insights refreshed"))
+        .catch((err) => logger.error({ err }, "daily: nightly mentor refresh failed"));
     },
     { timezone: IST_TZ },
   );

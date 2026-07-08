@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { localeSchema, type BilingualText } from "@prayasup/shared";
+import { doubtMessageBodySchema, localeSchema, type BilingualText } from "@prayasup/shared";
 import { createSseConnection } from "../lib/sse.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -8,6 +8,7 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { devUserId } from "../lib/dev-user.js";
 import { MODELS, streamText, translate } from "../lib/anthropic.js";
 import { getQuestionForExplain, persistQuestionExplanation } from "../services/questions.js";
+import { executeDoubtStream, planDoubtMessage, type MentorEmit } from "../services/mentor/index.js";
 import {
   executeEvaluation,
   executeOcr,
@@ -158,6 +159,46 @@ streamRouter.get(
       finished = true;
     } catch (err) {
       emit("error", { message: err instanceof Error ? err.message : "Transcription failed" });
+    } finally {
+      close();
+    }
+  }),
+);
+
+const doubtParamsSchema = z.object({ threadId: z.string().uuid() });
+const doubtQuerySchema = z.object({ locale: localeSchema.default("en") });
+
+/**
+ * The AI Mentor's streamed doubt answer (POST — carries the message body).
+ * Pre-flight (thread ownership 404, daily-limit 429, empty 400) + the user-turn
+ * insert run in planDoubtMessage BEFORE the SSE opens, so they surface as real
+ * JSON HTTP errors. Event order: status -> citations -> source -> delta ×N ->
+ * done. A FAQ-cache hit skips the model and replays the stored answer as a
+ * single delta. Hindi in -> Hindi retrieval -> Hindi out (locale query param).
+ */
+streamRouter.post(
+  "/stream/doubts/:threadId/messages",
+  rateLimit({ windowMs: 60_000, max: 30 }),
+  asyncHandler(async (req, res) => {
+    const { threadId } = parse(doubtParamsSchema, req.params);
+    const { locale } = parse(doubtQuerySchema, req.query);
+    const body = parse(doubtMessageBodySchema, req.body);
+
+    // Pre-flight (JSON errors) before opening SSE.
+    const plan = await planDoubtMessage(devUserId(), threadId, body, locale);
+
+    const { send, close } = createSseConnection(req, res);
+    const emit: MentorEmit = (event, data) => {
+      if (!res.writableEnded) send(event, data);
+    };
+
+    const abort = new AbortController();
+    req.on("close", () => abort.abort());
+
+    try {
+      await executeDoubtStream(devUserId(), plan, emit, abort.signal);
+    } catch (err) {
+      emit("error", { message: err instanceof Error ? err.message : "Mentor failed to answer" });
     } finally {
       close();
     }

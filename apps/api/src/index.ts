@@ -24,6 +24,7 @@ import { notificationsRouter } from "./routes/notifications.js";
 import { engagementRouter } from "./routes/engagement.js";
 import { masteryRouter } from "./routes/mastery.js";
 import { timeAttackRouter } from "./routes/time-attack.js";
+import { doubtsRouter } from "./routes/doubts.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
 
@@ -58,6 +59,7 @@ app.use("/api/v1", notificationsRouter);
 app.use("/api/v1", engagementRouter);
 app.use("/api/v1", masteryRouter);
 app.use("/api/v1", timeAttackRouter);
+app.use("/api/v1", doubtsRouter);
 app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);

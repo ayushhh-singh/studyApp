@@ -370,6 +370,60 @@ export async function streamText(opts: {
     .join("");
 }
 
+/**
+ * Stream plain text from a multi-turn conversation (a `messages` array), with
+ * an optional cached system prompt — the mentor chat builds on this. Unlike
+ * streamText (single user turn), this passes the full message history so a
+ * back-and-forth doubt thread stays coherent. Put stable content (persona,
+ * learner profile) in `system` segments marked `cache:true` so it's billed at
+ * cache-read rates across a thread; keep the per-message retrieved context and
+ * question in the last user turn (after the cache breakpoint).
+ */
+export async function streamChat(opts: {
+  model: ModelId;
+  system?: SystemParam;
+  messages: Anthropic.MessageParam[];
+  maxTokens?: number;
+  effort?: "low" | "medium" | "high";
+  purpose: string;
+  userId?: string;
+  onDelta?: (text: string) => void;
+  onUsage?: (usage: LlmUsage) => void;
+  signal?: AbortSignal;
+}): Promise<string> {
+  const stream = anthropic().messages.stream(
+    {
+      model: opts.model,
+      max_tokens: opts.maxTokens ?? 4000,
+      ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
+      ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+      messages: opts.messages,
+    } as Anthropic.MessageStreamParams,
+    opts.signal ? { signal: opts.signal } : undefined,
+  );
+
+  stream.on("text", (delta) => opts.onDelta?.(delta));
+
+  const message = await stream.finalMessage();
+  emitUsage(opts.model, message, opts.onUsage);
+  await recordLlmCall({
+    model: opts.model,
+    purpose: opts.purpose,
+    userId: opts.userId,
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+    cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+    cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
+  });
+  if (message.stop_reason === "refusal") {
+    throw new Error(`Model refused (${message.stop_details?.category ?? "unknown"})`);
+  }
+  return message.content
+    .filter((b): b is Anthropic.TextBlock => b.type === "text")
+    .map((b) => b.text)
+    .join("");
+}
+
 // ---------------------------------------------------------------------------
 // Web research (server-side web_search tool) — for grounding study notes on
 // CURRENT facts (UP schemes, latest data) that our local bank can't supply.

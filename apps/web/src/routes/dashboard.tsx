@@ -11,6 +11,7 @@ import { WeaknessCard } from "@/components/dashboard/weakness-card";
 import { AnswerSpotlightCard } from "@/components/dashboard/answer-spotlight-card";
 import { WeeklyDigestCard } from "@/components/dashboard/weekly-digest-card";
 import { ActivityHeatmapCard } from "@/components/dashboard/activity-heatmap-card";
+import { MentorInsightCard } from "@/components/dashboard/mentor-insight-card";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
 
 export const handle = { titleKey: "Nav.dashboard" };
@@ -55,6 +56,8 @@ export function Component() {
   return (
     <div className="flex flex-col gap-6">
       <GreetingHeader greeting={data.greeting} />
+
+      <MentorInsightCard />
 
       <GuidedTodayCard today={data.today} cont={data.continue} locale={locale} />
 

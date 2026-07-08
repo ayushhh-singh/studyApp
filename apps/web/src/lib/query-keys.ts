@@ -65,4 +65,7 @@ export const queryKeys = {
   srsStats: () => ["srs", "stats"] as const,
   srsCards: (filters?: { query?: string; sourceType?: string; page?: number }) =>
     ["srs", "cards", filters?.query ?? "", filters?.sourceType ?? "all", filters?.page ?? 1] as const,
+  doubtThreads: () => ["doubts", "threads"] as const,
+  doubtThread: (id: string) => ["doubts", "threads", id] as const,
+  mentorInsights: () => ["mentor", "insights"] as const,
 };

@@ -5,6 +5,7 @@ import { TopBar } from "@/components/app-shell/top-bar";
 import { BottomTabBar } from "@/components/app-shell/bottom-tab-bar";
 import { CommandPalette } from "@/components/ui-x/command-palette";
 import { MilestoneToaster } from "@/components/app-shell/milestone-toaster";
+import { FloatingMentorButton } from "@/components/mentor/floating-mentor-button";
 
 interface RouteHandle {
   titleKey?: string;
@@ -31,6 +32,7 @@ export function Component() {
       <BottomTabBar />
       <CommandPalette />
       <MilestoneToaster />
+      <FloatingMentorButton />
     </div>
   );
 }
