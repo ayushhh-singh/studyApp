@@ -1,9 +1,13 @@
 export class HttpError extends Error {
+  /** Optional machine code the client can branch on (e.g. a paywall feature). */
+  public feature?: string;
   constructor(
     public status: number,
     message: string,
+    options?: { feature?: string },
   ) {
     super(message);
+    this.feature = options?.feature;
   }
 }
 

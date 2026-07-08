@@ -18,6 +18,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { assertMicroDrill } from "./entitlements.js";
 import { MODELS, structuredJson } from "../lib/anthropic.js";
 import { fetchRecentEvaluations, computeDimensionInsights } from "./profile-analytics.js";
 
@@ -148,6 +149,7 @@ async function pickDrillQuestions(userId: string): Promise<{ id: string; stem_i1
 }
 
 export async function createDrillSession(userId: string, drillType: DrillType): Promise<DrillSession> {
+  await assertMicroDrill(userId); // Pro-only
   const questions = await pickDrillQuestions(userId);
   const items: DrillItem[] = questions.map((q) => ({
     question_id: q.id,

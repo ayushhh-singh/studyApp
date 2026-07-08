@@ -16,6 +16,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { assertMockTests } from "./entitlements.js";
 
 interface AttemptMeta {
   question_ids: string[];
@@ -97,11 +98,13 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
   if (body.test_id) {
     const { data: test, error: testError } = await supabase()
       .from("tests")
-      .select("id, is_published, meta")
+      .select("id, is_published, kind, meta")
       .eq("id", body.test_id)
       .maybeSingle();
     if (testError) throw new HttpError(500, `test lookup failed: ${testError.message}`);
     if (!test || !test.is_published) throw notFound("Test not found");
+    // The mock test series is Pro-only.
+    if (test.kind === "mock") await assertMockTests(userId);
     markingScheme = ((test.meta as { marking_scheme?: MarkingScheme } | null)?.marking_scheme ??
       null) as MarkingScheme;
 

@@ -28,6 +28,7 @@ import { timeAttackRouter } from "./routes/time-attack.js";
 import { doubtsRouter } from "./routes/doubts.js";
 import { drillsRouter } from "./routes/drills.js";
 import { studyPlanRouter } from "./routes/study-plan.js";
+import { billingRouter, billingWebhookRouter } from "./routes/billing.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
 
@@ -40,8 +41,15 @@ app.use(
   }),
 );
 app.use(helmet());
-app.use(express.json());
 app.use(pinoHttp({ logger }));
+
+// Razorpay webhook is mounted FIRST, with its own raw-body parser, so the HMAC
+// signature can be verified against the exact bytes Razorpay signed — before
+// express.json() consumes and re-serializes the stream. It is public (no auth):
+// Razorpay authenticates via the signature, not a Supabase JWT.
+app.use("/api/v1", billingWebhookRouter);
+
+app.use(express.json());
 
 // Public — no auth (liveness probe + JWKS warmup happen here).
 app.use("/api/v1", healthRouter);
@@ -71,6 +79,7 @@ app.use("/api/v1", timeAttackRouter);
 app.use("/api/v1", doubtsRouter);
 app.use("/api/v1", drillsRouter);
 app.use("/api/v1", studyPlanRouter);
+app.use("/api/v1", billingRouter);
 app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);

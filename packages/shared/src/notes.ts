@@ -72,6 +72,12 @@ export const noteDetailSchema = z.object({
   sources: z.array(noteSourceSchema),
   srs_candidates: z.array(noteSrsCandidateSchema),
   updated_at: z.string(),
+  /**
+   * True when the reader is a Free user and this note is outside the free
+   * top-5-per-paper allowance: content_i18n is trimmed to the overview block
+   * only, and the UI shows an upgrade gate below the preview.
+   */
+  locked: z.boolean().default(false),
 });
 export type NoteDetail = z.infer<typeof noteDetailSchema>;
 

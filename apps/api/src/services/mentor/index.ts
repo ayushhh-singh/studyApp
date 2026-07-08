@@ -21,12 +21,12 @@ import type {
   MentorCitation,
   MentorQuizQuestion,
 } from "@prayasup/shared";
-import { MAX_DOUBT_CHARS, DOUBT_DAILY_LIMIT } from "@prayasup/shared";
+import { MAX_DOUBT_CHARS } from "@prayasup/shared";
+import { getMentorQuota, LIMITS } from "../entitlements.js";
 import { supabase } from "../../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";
 import { logger } from "../../lib/logger.js";
 import { MODELS, streamChat, structuredJson } from "../../lib/anthropic.js";
-import { istDayRangeUtc, istToday } from "../../lib/ist.js";
 import { getLearnerProfile, formatProfileForPrompt } from "../learner-profile.js";
 import { buildMentorPersona, buildProfileSegment, buildUserTurn } from "./prompts.js";
 import {
@@ -138,19 +138,19 @@ export async function deleteThread(userId: string, threadId: string): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
-// Daily rate limit (20 messages/day, IST) — API-enforced, plan-aware later.
+// Daily rate limit (plan-aware: Free 10/day, Pro 100/day, IST) — the count and
+// the limit both live in entitlements.ts so the mentor UI's remaining-chip and
+// this enforcement can never disagree.
 // ---------------------------------------------------------------------------
 async function enforceDailyLimit(userId: string): Promise<void> {
-  const { startUtc } = istDayRangeUtc(istToday());
-  const { count, error } = await supabase()
-    .from("doubt_messages")
-    .select("id, doubt_threads!inner(user_id)", { count: "exact", head: true })
-    .eq("doubt_threads.user_id", userId)
-    .eq("role", "user")
-    .gte("created_at", startUtc);
-  if (error) throw new HttpError(500, `daily limit check failed: ${error.message}`);
-  if ((count ?? 0) >= DOUBT_DAILY_LIMIT) {
-    throw new HttpError(429, `Daily mentor limit reached (${DOUBT_DAILY_LIMIT} messages). Try again tomorrow.`);
+  const quota = await getMentorQuota(userId);
+  if (quota.remaining <= 0) {
+    throw new HttpError(
+      429,
+      quota.plan === "pro"
+        ? `Daily mentor limit reached (${quota.limit} messages). Try again tomorrow.`
+        : `Daily mentor limit reached (${quota.limit} messages). Upgrade to Pro for ${LIMITS.pro.mentorPerDay}/day, or try again tomorrow.`,
+    );
   }
 }
 

@@ -54,6 +54,7 @@ import {
   type Pass1Result,
 } from "./prompts.js";
 import { assertImagesExist, downloadImageAsBase64, getOcrProvider, type OcrResult } from "../ocr/index.js";
+import { assertEvaluationCredit, assertHandwrittenOcr } from "../entitlements.js";
 
 /** SSE-style emitter: (event, payload). Route wraps res.write; harness captures. */
 export type EvalEmit = (event: string, data: unknown) => void;
@@ -117,6 +118,13 @@ const EVALUATION_COLUMNS =
 // Create submission
 // ---------------------------------------------------------------------------
 export async function createSubmission(userId: string, body: CreateSubmissionBody): Promise<Submission> {
+  // Entitlement gates (early paywall, before we write a draft): handwritten
+  // upload is Pro-only, and every submission consumes an evaluation credit
+  // (Free 3-lifetime / Pro 60-month). planEvaluation re-checks the credit at the
+  // billing point — this is the friendlier "block the 4th before you write" pass.
+  if (body.mode === "handwritten") await assertHandwrittenOcr(userId);
+  await assertEvaluationCredit(userId);
+
   let question_id: string | null = null;
   let custom_question_text_i18n: BilingualText | null = null;
 
@@ -322,6 +330,12 @@ export async function planEvaluation(userId: string, submissionId: string): Prom
   // was lost (e.g. a disconnect race) — so a re-request never re-bills the model.
   const existing = await fetchEvaluation(submissionId);
   if (existing) return { kind: "replay", submission, evaluation: existing };
+
+  // The authoritative credit gate, at the billing point (after the replay
+  // short-circuit, so re-viewing a finished evaluation is never charged and
+  // never blocked). A user who created several drafts under the cap can't
+  // evaluate past it — this is the throttle that actually bounds model spend.
+  await assertEvaluationCredit(userId);
 
   // A handwritten submission has no typed_text until the user reviews and
   // confirms its OCR transcription (PATCH .../confirm-ocr) — never fall back to
@@ -703,6 +717,9 @@ export type OcrPlan =
   | { kind: "run"; submission: SubmissionRow };
 
 export async function planOcr(userId: string, submissionId: string): Promise<OcrPlan> {
+  // Handwritten OCR is Pro-only (defense in depth — createSubmission already
+  // gated the handwritten write, but the OCR stream is a separate entry point).
+  await assertHandwrittenOcr(userId);
   const submission = await fetchSubmission(userId, submissionId);
   if (submission.mode !== "handwritten") {
     throw badRequest("This submission is not a handwritten (photo) submission");

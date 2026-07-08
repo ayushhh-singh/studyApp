@@ -23,7 +23,7 @@ notesRouter.get(
   "/notes/node/:nodeId",
   asyncHandler(async (req, res) => {
     const { nodeId } = parse(nodeParams, req.params);
-    const note = await getNoteForNode(nodeId);
+    const note = await getNoteForNode(currentUserId(), nodeId);
     res.json(noteDetailResponseSchema.parse({ data: note, error: null }));
   }),
 );

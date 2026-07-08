@@ -11,6 +11,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
+import { canReadFullNote } from "./entitlements.js";
 
 /**
  * Drop a note's RAG chunks when it leaves `published` (rejected or regenerated),
@@ -33,8 +34,14 @@ export async function deleteNoteEmbeddings(noteId: string): Promise<void> {
 const NOTE_DETAIL_COLUMNS =
   "id, syllabus_node_id, status, version, content_i18n, sources, srs_candidates, updated_at";
 
-/** GET /notes/node/:nodeId — the PUBLISHED note for a topic, or null. */
-export async function getNoteForNode(nodeId: string): Promise<NoteDetail | null> {
+/**
+ * GET /notes/node/:nodeId — the PUBLISHED note for a topic, or null.
+ *
+ * Entitlement: Free users read the full note only for the top-5 notes per paper
+ * (by weightage). Any other note comes back `locked` with content trimmed to
+ * the overview block — the reader shows that preview plus an upgrade gate.
+ */
+export async function getNoteForNode(userId: string, nodeId: string): Promise<NoteDetail | null> {
   const { data, error } = await supabase()
     .from("notes")
     .select(NOTE_DETAIL_COLUMNS)
@@ -42,7 +49,27 @@ export async function getNoteForNode(nodeId: string): Promise<NoteDetail | null>
     .eq("status", "published")
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
-  return (data as NoteDetail | null) ?? null;
+  const note = (data as NoteDetail | null) ?? null;
+  if (!note) return null;
+
+  if (await canReadFullNote(userId, nodeId)) return { ...note, locked: false };
+
+  // Locked: keep only the overview block in each locale, drop everything else
+  // (facts, up-angle, mnemonics, further reading) and the SRS candidates.
+  const emptyBody = (overview: string) => ({
+    overview,
+    key_facts: [],
+    up_angle: "",
+    pyq_analysis: "",
+    mnemonics: [],
+    quick_revision: [],
+    further_reading: [],
+  });
+  const trimmed: NoteContentI18n = {
+    hi: emptyBody(note.content_i18n?.hi?.overview ?? ""),
+    en: emptyBody(note.content_i18n?.en?.overview ?? ""),
+  };
+  return { ...note, content_i18n: trimmed, sources: [], srs_candidates: [], locked: true };
 }
 
 // ---------------------------------------------------------------------------
