@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { useLocale } from "@/hooks/use-locale";
+import { useMediaQuery } from "@/hooks/use-media-query";
 import { useAdminStatus } from "@/hooks/use-review";
 import { useSrsStats } from "@/hooks/use-srs";
 import { MOBILE_MORE_NAV, MOBILE_PRIMARY_NAV } from "@/lib/nav";
@@ -29,7 +30,13 @@ export function BottomTabBar() {
   const location = useLocation();
   const [moreOpen, setMoreOpen] = useState(false);
   const { data: admin } = useAdminStatus();
-  const { data: srsStats } = useSrsStats();
+  // This component is always mounted (app-shell.tsx renders it unconditionally
+  // and relies on `md:hidden` to hide it visually on desktop) — without this
+  // gate, every authenticated page load/navigation on DESKTOP would fire a
+  // GET /srs/stats purely to power a badge that's never actually visible
+  // there. matches Tailwind's own `md` breakpoint (768px) exactly.
+  const isMobile = useMediaQuery("(max-width: 767px)");
+  const { data: srsStats } = useSrsStats({ enabled: isMobile });
   const moreItems = MOBILE_MORE_NAV.filter((item) => !item.adminOnly || admin?.admin_mode);
 
   const moreActive = moreItems.some((item) => location.pathname.includes(`/${item.to}`));

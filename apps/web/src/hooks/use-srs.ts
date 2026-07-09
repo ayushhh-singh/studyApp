@@ -18,10 +18,11 @@ export function useSrsDueQueue(limit?: number) {
   });
 }
 
-export function useSrsStats() {
+export function useSrsStats(opts?: { enabled?: boolean }) {
   return useQuery({
     queryKey: queryKeys.srsStats(),
     queryFn: () => api.get("/api/v1/srs/stats", srsStatsResponseSchema),
+    enabled: opts?.enabled,
   });
 }
 
