@@ -37,6 +37,7 @@ function mapRow(row: DailyQuizRow, best: Map<string, { best: number; count: numb
     question_count: row.test_questions[0]?.count ?? 0,
     best_score: best.get(row.id)?.best ?? null,
     attempts_count: best.get(row.id)?.count ?? 0,
+    year: null,
     scheduled_date: row.scheduled_date,
   };
 }

@@ -25,6 +25,8 @@ export const testSummarySchema = z.object({
   question_count: z.number().int(),
   best_score: z.number().nullable(),
   attempts_count: z.number().int(),
+  /** Only set on pyq_full tests (from meta.year at ingest time) — the real exam year this paper is from. */
+  year: z.number().int().nullable(),
 });
 export type TestSummary = z.infer<typeof testSummarySchema>;
 

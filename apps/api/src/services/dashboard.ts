@@ -248,6 +248,7 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
         question_count: quizRow.test_questions[0]?.count ?? 0,
         best_score: quizBestScore?.best ?? null,
         attempts_count: quizBestScore?.count ?? 0,
+        year: null,
       }
     : null;
 

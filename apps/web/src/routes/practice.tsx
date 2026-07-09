@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
-import type { ExamCode } from "@prayasup/shared";
+import type { ExamCode, TestSummary } from "@prayasup/shared";
 import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -81,6 +81,20 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
   );
 }
 
+/** Groups tests by their real exam year, descending; a missing year (shouldn't happen for pyq_full, kept safe anyway) sorts last. */
+function groupByYearDescending(tests: TestSummary[]): [string, TestSummary[]][] {
+  const groups = new Map<string, TestSummary[]>();
+  for (const test of tests) {
+    const key = test.year != null ? String(test.year) : "unknown";
+    (groups.get(key) ?? groups.set(key, []).get(key)!).push(test);
+  }
+  return [...groups.entries()].sort(([a], [b]) => {
+    if (a === "unknown") return 1;
+    if (b === "unknown") return -1;
+    return Number(b) - Number(a);
+  });
+}
+
 function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" | "mock" }) {
   const { t } = useTranslation();
   const locale = useLocale();
@@ -102,14 +116,39 @@ function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" | "mock" }) {
     );
   }
 
+  // pyq_full tests are real per-year full papers — group them under a year
+  // heading so "attempt the whole 2024 paper" is one obvious click instead of
+  // a flat, unordered list. Sectional pools across years by design and mock
+  // has no year at all, so both stay flat.
+  if (kind !== "pyq_full") {
+    return (
+      <ul className="flex flex-col gap-2">
+        {tests.map((test) => (
+          <li key={test.id}>
+            <TestCard test={test} locale={locale} />
+          </li>
+        ))}
+      </ul>
+    );
+  }
+
   return (
-    <ul className="flex flex-col gap-2">
-      {tests.map((test) => (
-        <li key={test.id}>
-          <TestCard test={test} locale={locale} />
-        </li>
+    <div className="flex flex-col gap-4">
+      {groupByYearDescending(tests).map(([year, yearTests]) => (
+        <div key={year} className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {year === "unknown" ? t("Practice.yearUnknown") : year}
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {yearTests.map((test) => (
+              <li key={test.id}>
+                <TestCard test={test} locale={locale} />
+              </li>
+            ))}
+          </ul>
+        </div>
       ))}
-    </ul>
+    </div>
   );
 }
 

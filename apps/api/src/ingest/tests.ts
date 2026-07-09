@@ -133,6 +133,7 @@ async function main(): Promise<void> {
     };
     const meta = {
       source: "pyq",
+      year,
       marking_scheme: isPrelims
         ? { type: "uppsc_prelims", negative_marking: PRELIMS_NEGATIVE, note: "one-third (1/3) negative marking" }
         : { type: "descriptive", negative_marking: 0 },

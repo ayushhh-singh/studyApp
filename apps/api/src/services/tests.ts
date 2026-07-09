@@ -28,13 +28,14 @@ interface TestListRow {
   paper_code: string | null;
   duration_minutes: number | null;
   total_marks: number | null;
+  meta: { year?: number } | null;
   test_questions: { count: number }[];
 }
 
 export async function listTests(filters: TestListFilters): Promise<TestSummary[]> {
   let query = supabase()
     .from("tests")
-    .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)")
+    .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, meta, test_questions(count)")
     .eq("is_published", true)
     .order("created_at", { ascending: false });
 
@@ -75,6 +76,7 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
     question_count: row.test_questions[0]?.count ?? 0,
     best_score: bestScores.get(row.id)?.best ?? null,
     attempts_count: bestScores.get(row.id)?.count ?? 0,
+    year: row.meta?.year ?? null,
   }));
 }
 
@@ -176,8 +178,8 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
     marks: row.marks ?? row.questions.marks,
   }));
 
-  const markingScheme = ((test.meta as { marking_scheme?: MarkingScheme } | null)?.marking_scheme ??
-    null) as MarkingScheme;
+  const meta = test.meta as { marking_scheme?: MarkingScheme; year?: number } | null;
+  const markingScheme = (meta?.marking_scheme ?? null) as MarkingScheme;
   const bestScore = (await getBestScoresByTest([testId])).get(testId);
 
   return {
@@ -191,6 +193,7 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
     question_count: questions.length,
     best_score: bestScore?.best ?? null,
     attempts_count: bestScore?.count ?? 0,
+    year: meta?.year ?? null,
     marking_scheme: markingScheme,
     questions,
   };
