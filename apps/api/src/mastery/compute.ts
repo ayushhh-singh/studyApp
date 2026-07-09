@@ -167,7 +167,18 @@ export async function getMasteryMap(userId: string, paperCode?: string, exam?: E
   const [masteryRes, questionRes] = await Promise.all([
     supabase().from("node_mastery").select("syllabus_node_id, level, score, meta").eq("user_id", userId).in("syllabus_node_id", nodeIds),
     (() => {
-      let q = supabase().from("questions").select("paper_code, syllabus_node_id").eq("type", "mcq").not("syllabus_node_id", "is", null).or(questionVisibilityOrFilter("catalog"));
+      // Weight (PYQ count/tile sizing) is a content-classification stat, not
+      // an accuracy one — it must count descriptive PYQs too, or every Mains
+      // paper's Conquest Map (all-descriptive) renders as permanently empty
+      // regardless of drill depth. The *mastery level* rows queried above
+      // stay MCQ-only correctly (they come from attempt_answers, which has
+      // no descriptive analogue) — a Mains tile just shows its real weight
+      // colored "unseen" until this app has some other graded signal for it.
+      let q = supabase()
+        .from("questions")
+        .select("paper_code, syllabus_node_id")
+        .not("syllabus_node_id", "is", null)
+        .or(questionVisibilityOrFilter("catalog"));
       if (paperCode) q = q.eq("paper_code", paperCode);
       else q = q.in("paper_code", papers);
       // Matches the same `exam` filter the Outline view applies (getNodeDetail's
