@@ -213,6 +213,13 @@ streamRouter.post(
 );
 
 const evaluationParamsSchema = z.object({ submissionId: z.string().uuid() });
+// Optional: a replay in a locale OTHER than the one the evaluation was
+// generated in gets its feedback text lazily translated (and cached) rather
+// than left in whatever language the answer was submitted in — see
+// replayEvaluation/resolveEvaluationContent. Omitted entirely = old
+// behavior (emit the stored content as-is), so a caller that hasn't been
+// updated to send it yet doesn't break.
+const evaluationQuerySchema = z.object({ locale: localeSchema.optional() });
 
 /**
  * Two-pass AI evaluation of a descriptive answer submission, streamed as SSE.
@@ -228,6 +235,7 @@ streamRouter.get(
   rateLimit({ windowMs: 60_000, max: 20 }),
   asyncHandler(async (req, res) => {
     const { submissionId } = parse(evaluationParamsSchema, req.params);
+    const { locale } = parse(evaluationQuerySchema, req.query);
 
     // Pre-flight before opening SSE so 404/409/400 return as JSON, not a stream.
     const plan = await planEvaluation(currentUserId(), submissionId);
@@ -251,7 +259,7 @@ streamRouter.get(
 
     try {
       if (plan.kind === "replay") {
-        replayEvaluation(plan.evaluation, emit);
+        await replayEvaluation(plan.evaluation, emit, locale, currentUserId());
       } else {
         await executeEvaluation(plan, emit, abort.signal);
       }

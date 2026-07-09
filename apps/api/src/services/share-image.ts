@@ -32,11 +32,32 @@ function loadFonts(): LoadedFont[] {
 
 const FONT_STACK = 'Inter, "Noto Sans Devanagari"';
 
+// satori has no complex-script text shaper (no HarfBuzz) -- it draws each
+// character's glyph in raw logical/storage order with no Indic reordering,
+// so Devanagari's one pre-base vowel sign (U+093F, the short "i" matra --
+// stored AFTER its consonant per the Unicode encoding model, but drawn
+// BEFORE it) comes out visually wrong (confirmed live: the word for "day"
+// rendered with its letters out of order). Every other Devanagari vowel
+// sign already renders in logical order and is unaffected. The fix is to
+// do the reordering ourselves before satori ever sees the string, moving
+// U+093F to precede the full consonant conjunct it modifies (not just the
+// conjunct's final consonant) so satori's naive left-to-right layout
+// produces the visually correct result.
+const DEVANAGARI_CONSONANT = "[\u0915-\u0939\u0958-\u095F]";
+const PRE_BASE_MATRA_RE = new RegExp(`(${DEVANAGARI_CONSONANT}(?:\u094D${DEVANAGARI_CONSONANT})*)\u093F`, "gu");
+function reorderDevanagariPreBaseMatra(text: string): string {
+  return text.replace(PRE_BASE_MATRA_RE, (_match, cluster: string) => `\u093F${cluster}`);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type El = { type: string; props: Record<string, any> };
+function fixText(child: El | string): El | string {
+  return typeof child === "string" ? reorderDevanagariPreBaseMatra(child) : child;
+}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function el(type: string, style: Record<string, any>, children?: (El | string)[] | string): El {
-  return { type, props: { style, children } };
+  const fixed = Array.isArray(children) ? children.map(fixText) : children !== undefined ? fixText(children) : children;
+  return { type, props: { style, children: fixed } };
 }
 
 const COPY = {

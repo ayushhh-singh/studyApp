@@ -17,6 +17,7 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDayRangeUtc, istToday } from "../lib/ist.js";
 import { loadNodeWeightage } from "../lib/weightage.js";
+import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { logger } from "../lib/logger.js";
 
 // ---------------------------------------------------------------------------
@@ -204,11 +205,29 @@ export async function listFreeNoteNodeIds(): Promise<Set<string>> {
     syllabus_node_id: string;
     syllabus_nodes: { paper_code: string } | { paper_code: string }[] | null;
   }
+  const rows = (data ?? []) as Row[];
+
+  // Rank by SUBTREE weight (this node's own PYQs plus every descendant's),
+  // not just the node's own directly-tagged count. Most depth-1 sections
+  // have their PYQs tagged to depth-2 sub-topic leaves rather than the
+  // section node itself, so an own-count-only ranking picked the WRONG top-5
+  // (e.g. a 57-PYQ section with its own direct tags beat a 500+-PYQ section
+  // whose PYQs all sit on its sub-topics). Every other weightage-ranking
+  // surface (syllabus tree endpoints, mastery/Conquest Map's is_priority)
+  // already rolls counts up through the subtree before ranking — this
+  // brings the notes paywall in line with that convention.
+  const subtreeWeights = await Promise.all(
+    rows.map(async (r) => {
+      const subtreeIds = await resolveSubtreeNodeIds(r.syllabus_node_id);
+      const weight = subtreeIds.reduce((sum, id) => sum + (weightage.get(id)?.total ?? 0), 0);
+      return { row: r, weight };
+    }),
+  );
+
   const byPaper = new Map<string, { nodeId: string; weight: number }[]>();
-  for (const r of (data ?? []) as Row[]) {
+  for (const { row: r, weight } of subtreeWeights) {
     const sn = Array.isArray(r.syllabus_nodes) ? r.syllabus_nodes[0] : r.syllabus_nodes;
     const paper = sn?.paper_code ?? "__none__";
-    const weight = weightage.get(r.syllabus_node_id)?.total ?? 0;
     (byPaper.get(paper) ?? byPaper.set(paper, []).get(paper)!).push({ nodeId: r.syllabus_node_id, weight });
   }
 

@@ -4,6 +4,7 @@ import { CalendarDays, PenLine } from "lucide-react";
 import type { Question } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/hooks/use-locale";
@@ -11,9 +12,13 @@ import { useLocale } from "@/hooks/use-locale";
 export function TodaysQuestionCard({
   question,
   isLoading,
+  isError,
+  onRetry,
 }: {
   question: Question | null | undefined;
   isLoading: boolean;
+  isError?: boolean;
+  onRetry?: () => void;
 }) {
   const { t } = useTranslation();
   const locale = useLocale();
@@ -35,6 +40,8 @@ export function TodaysQuestionCard({
           <Skeleton className="h-5 w-2/3" />
           <Skeleton className="h-9 w-40" />
         </div>
+      ) : isError ? (
+        <QueryErrorState onRetry={() => onRetry?.()} />
       ) : !question ? (
         <EmptyState
           icon={PenLine}

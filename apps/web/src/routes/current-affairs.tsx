@@ -6,6 +6,7 @@ import type { CurrentAffairsCategory, CurrentAffairsItem } from "@prayasup/share
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { CurrentAffairsItemCard } from "@/components/current-affairs/item-card";
@@ -72,7 +73,7 @@ export function Component() {
     );
   }
 
-  const { data, isLoading } = useCurrentAffairs({
+  const { data, isLoading, isError, refetch } = useCurrentAffairs({
     category: category || undefined,
     up_only: upOnly || undefined,
     page,
@@ -148,6 +149,8 @@ export function Component() {
             <ListRowSkeleton />
             <ListRowSkeleton />
           </div>
+        ) : isError ? (
+          <QueryErrorState onRetry={() => refetch()} />
         ) : !data || data.items.length === 0 ? (
           <EmptyState
             icon={Newspaper}

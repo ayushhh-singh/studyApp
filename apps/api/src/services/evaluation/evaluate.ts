@@ -27,7 +27,7 @@ import type {
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { badRequest, conflict, HttpError, notFound } from "../../lib/http-error.js";
-import { MODELS, streamText, structuredJson, type LlmUsage } from "../../lib/anthropic.js";
+import { MODELS, streamText, structuredJson, translateBatch, type LlmUsage } from "../../lib/anthropic.js";
 import { retrieveGrounding } from "./grounding.js";
 import {
   computeOverallScore,
@@ -657,24 +657,176 @@ export async function executeEvaluation(
   }
 }
 
-/** Replay a stored evaluation over the same event protocol (idempotent GET). */
-export function replayEvaluation(evaluation: EvaluationRow, emit: EvalEmit): void {
+interface TranslationRow {
+  strengths: string;
+  improvements: string;
+  model_answer: string;
+  dimension_justifications: Record<string, string>;
+  overall_comment: string;
+  missed_key_points: string[];
+  factual_error_issues: string[];
+}
+
+/**
+ * The AI-written substance of an evaluation, resolved for `locale`. When
+ * `locale` matches the locale the evaluation was actually generated in
+ * (answer_submissions.language), this is a free pass-through of the stored
+ * content. Otherwise it's a lazy, cached-per-(evaluation,locale) translation
+ * — see 0061_evaluation_translations.sql. Every OTHER piece of this feature
+ * (dimension scores/weights, the score gauge, UI chrome) is already
+ * locale-independent; only the model's own prose needed this.
+ */
+async function resolveEvaluationContent(
+  evaluation: EvaluationRow,
+  locale: Locale,
+  userId: string | undefined,
+): Promise<{
+  dims: DimensionScore[];
+  analysis: EvaluationAnalysis | null;
+  strengths: string;
+  improvements: string;
+  modelAnswer: string;
+}> {
   const dims = evaluation.dimension_scores ?? [];
+  const analysis = evaluation.raw_response?.analysis ?? null;
+  const genLocale =
+    pickFilledLocale(evaluation.strengths_i18n) ??
+    pickFilledLocale(evaluation.improvements_i18n) ??
+    pickFilledLocale(evaluation.model_answer_i18n);
+
+  const original = {
+    dims,
+    analysis,
+    strengths: pickFilledText(evaluation.strengths_i18n),
+    improvements: pickFilledText(evaluation.improvements_i18n),
+    modelAnswer: pickFilledText(evaluation.model_answer_i18n),
+  };
+  if (!genLocale || genLocale === locale) return original;
+
+  const db = supabase();
+  const { data: cached } = await db
+    .from("evaluation_translations")
+    .select("strengths, improvements, model_answer, dimension_justifications, overall_comment, missed_key_points, factual_error_issues")
+    .eq("evaluation_id", evaluation.id)
+    .eq("locale", locale)
+    .maybeSingle();
+
+  const row: TranslationRow =
+    (cached as TranslationRow | null) ?? (await translateAndCacheEvaluation(evaluation, locale, original, userId));
+
+  return {
+    dims: dims.map((d) => ({ ...d, justification: row.dimension_justifications[d.key] ?? d.justification })),
+    analysis: analysis
+      ? {
+          ...analysis,
+          overall_comment: row.overall_comment || analysis.overall_comment,
+          missed_key_points: row.missed_key_points.length ? row.missed_key_points : analysis.missed_key_points,
+          // .quote is the candidate's own answer text verbatim — never translated.
+          factual_errors: analysis.factual_errors.map((e, i) => ({
+            ...e,
+            issue: row.factual_error_issues[i] ?? e.issue,
+          })),
+        }
+      : null,
+    strengths: row.strengths || original.strengths,
+    improvements: row.improvements || original.improvements,
+    modelAnswer: row.model_answer || original.modelAnswer,
+  };
+}
+
+/**
+ * One translateBatch call for everything this evaluation could show in the
+ * other locale, so a first non-generation-locale view pays for one Haiku
+ * round-trip (not five), and every view after that is a free DB read.
+ */
+async function translateAndCacheEvaluation(
+  evaluation: EvaluationRow,
+  locale: Locale,
+  original: { dims: DimensionScore[]; analysis: EvaluationAnalysis | null; strengths: string; improvements: string; modelAnswer: string },
+  userId: string | undefined,
+): Promise<TranslationRow> {
+  const dimKeys = original.dims.map((d) => d.key);
+  const dimTexts = original.dims.map((d) => d.justification);
+  const missedKeyPoints = original.analysis?.missed_key_points ?? [];
+  const factualIssues = original.analysis?.factual_errors.map((e) => e.issue) ?? [];
+  const overallComment = original.analysis?.overall_comment ?? "";
+
+  const usage: LlmUsage[] = [];
+  const translated = await translateBatch(
+    [original.strengths, original.improvements, original.modelAnswer, overallComment, ...dimTexts, ...missedKeyPoints, ...factualIssues],
+    locale,
+    "UPPSC answer-evaluation feedback (an examiner's critique of a candidate's answer)",
+    { purpose: "eval_translate", userId, onUsage: (u) => usage.push(u) },
+  );
+
+  let i = 0;
+  const strengths = translated[i++] ?? "";
+  const improvements = translated[i++] ?? "";
+  const modelAnswer = translated[i++] ?? "";
+  const overall_comment = translated[i++] ?? "";
+  const dimension_justifications: Record<string, string> = {};
+  for (const key of dimKeys) dimension_justifications[key] = translated[i++] ?? "";
+  const missed_key_points = missedKeyPoints.map(() => translated[i++] ?? "");
+  const factual_error_issues = factualIssues.map(() => translated[i++] ?? "");
+
+  const row: TranslationRow = {
+    strengths,
+    improvements,
+    model_answer: modelAnswer,
+    dimension_justifications,
+    overall_comment,
+    missed_key_points,
+    factual_error_issues,
+  };
+
+  const totalCost = usage.reduce((s, u) => s + u.costUsd, 0);
+  const totalTokens = usage.reduce((s, u) => s + u.inputTokens + u.outputTokens, 0);
+  const db = supabase();
+  // ignoreDuplicates: a race between two simultaneous first-views of the same
+  // (evaluation, locale) both translating is harmless — whichever inserts
+  // first wins, the loser's freshly-translated text is simply discarded
+  // rather than erroring, matching question_model_answers' upsert convention.
+  const { error } = await db.from("evaluation_translations").upsert(
+    {
+      evaluation_id: evaluation.id,
+      locale,
+      ...row,
+      tokens_used: totalTokens,
+      cost_usd: totalCost,
+    },
+    { onConflict: "evaluation_id,locale", ignoreDuplicates: true },
+  );
+  if (error) logger.warn({ error, evaluationId: evaluation.id, locale }, "failed to cache evaluation translation");
+
+  return row;
+}
+
+/** Replay a stored evaluation over the same event protocol (idempotent GET). */
+export async function replayEvaluation(
+  evaluation: EvaluationRow,
+  emit: EvalEmit,
+  locale?: Locale,
+  userId?: string,
+): Promise<void> {
+  const { dims, analysis, strengths, improvements, modelAnswer } = locale
+    ? await resolveEvaluationContent(evaluation, locale, userId)
+    : {
+        dims: evaluation.dimension_scores ?? [],
+        analysis: evaluation.raw_response?.analysis ?? null,
+        strengths: pickFilledText(evaluation.strengths_i18n),
+        improvements: pickFilledText(evaluation.improvements_i18n),
+        modelAnswer: pickFilledText(evaluation.model_answer_i18n),
+      };
+
   emit("status", { phase: "scoring" });
   for (const ds of dims) emit("dimension_score", { ...ds, max: 10 });
-  if (evaluation.raw_response?.analysis) {
+  if (analysis) {
     emit("analysis", {
-      ...evaluation.raw_response.analysis,
+      ...analysis,
       overall_score: Number(evaluation.overall_score ?? 0),
       max_score: Number(evaluation.max_score ?? 0),
     });
   }
-  // Resolve each field's locale independently: feedback is single-language, but
-  // deriving one locale from strengths alone would silently drop improvements /
-  // the model answer if strengths happened to be empty.
-  const strengths = pickFilledText(evaluation.strengths_i18n);
-  const improvements = pickFilledText(evaluation.improvements_i18n);
-  const modelAnswer = pickFilledText(evaluation.model_answer_i18n);
   if (strengths) emit("feedback_delta", { section: "strengths", text: strengths });
   if (improvements) emit("feedback_delta", { section: "improvements", text: improvements });
   if (modelAnswer) emit("model_answer_delta", { text: modelAnswer });
@@ -694,7 +846,7 @@ export async function runEvaluation(
 ): Promise<void> {
   const plan = await planEvaluation(userId, submissionId);
   if (plan.kind === "replay") {
-    replayEvaluation(plan.evaluation, emit);
+    await replayEvaluation(plan.evaluation, emit);
     return;
   }
   await executeEvaluation(plan, emit, signal);

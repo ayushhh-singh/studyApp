@@ -5,6 +5,7 @@ import { TopBar } from "@/components/app-shell/top-bar";
 import { BottomTabBar } from "@/components/app-shell/bottom-tab-bar";
 import { CommandPalette } from "@/components/ui-x/command-palette";
 import { MilestoneToaster } from "@/components/app-shell/milestone-toaster";
+import { PwaInstallBanner } from "@/components/app-shell/pwa-install-banner";
 import { FloatingMentorButton } from "@/components/mentor/floating-mentor-button";
 import { PaywallModal } from "@/components/billing/paywall-modal";
 import { useLocale } from "@/hooks/use-locale";
@@ -36,6 +37,7 @@ export function Component() {
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar title={title} />
         <main className="flex-1 px-4 pb-24 pt-4 sm:px-6 sm:pb-8 md:pb-8">
+          <PwaInstallBanner />
           <Outlet />
         </main>
       </div>

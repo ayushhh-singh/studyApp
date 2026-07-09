@@ -4,6 +4,7 @@ import { CheckCircle2, PenLine, ScrollText } from "lucide-react";
 import type { DailyAnswerItem } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { scoreBandColor } from "@/lib/score-band";
 import { useDailyAnswerSet } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
@@ -73,7 +74,7 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
 
 export function DailyAnswerSet() {
   const { t } = useTranslation();
-  const { data, isLoading } = useDailyAnswerSet();
+  const { data, isLoading, isError, refetch } = useDailyAnswerSet();
 
   return (
     <SectionCard
@@ -89,6 +90,8 @@ export function DailyAnswerSet() {
           <ListRowSkeleton />
           <ListRowSkeleton />
         </div>
+      ) : isError ? (
+        <QueryErrorState onRetry={() => refetch()} />
       ) : !data || data.items.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("Answers.dailySetEmpty")}</p>
       ) : (

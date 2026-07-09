@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { Camera, ChevronLeft, ChevronRight, History } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { SubmissionStatusChip } from "@/components/answers/submission-status-chip";
@@ -15,7 +16,7 @@ export function SubmissionHistoryList() {
   const { t } = useTranslation();
   const locale = useLocale();
   const [page, setPage] = useState(1);
-  const { data, isLoading } = useSubmissions(page);
+  const { data, isLoading, isError, refetch } = useSubmissions(page);
 
   return (
     <SectionCard title={t("Answers.historyTitle")}>
@@ -24,6 +25,8 @@ export function SubmissionHistoryList() {
           <ListRowSkeleton />
           <ListRowSkeleton />
         </div>
+      ) : isError ? (
+        <QueryErrorState onRetry={() => refetch()} />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           icon={History}

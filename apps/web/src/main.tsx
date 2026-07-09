@@ -13,6 +13,13 @@ import "@fontsource/noto-sans-devanagari/devanagari-500.css";
 import "@fontsource/noto-sans-devanagari/devanagari-700.css";
 import "@/lib/i18n";
 import "@/index.css";
+// Side-effect import: applies the persisted dark-mode preference to <html>
+// immediately on load. Previously this only happened when top-bar.tsx or
+// settings-card.tsx (both inside the authenticated app-shell) pulled the
+// module in transitively — any route that renders without either (landing,
+// /pricing, /auth) never applied a saved theme. Importing it here, at the
+// true entry point, guarantees it always runs before the router mounts.
+import "@/stores/theme-store";
 import { router } from "@/router";
 import { AuthProvider } from "@/providers/auth-provider";
 import { PwaUpdateToast } from "@/components/app-shell/pwa-update-toast";

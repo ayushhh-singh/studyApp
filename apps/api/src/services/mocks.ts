@@ -69,6 +69,15 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
       .select("id, marks, syllabus_node_id")
       .eq("type", "mcq")
       .eq("paper_code", paperCode)
+      // Some PYQs got tagged with this paper_code at ingest despite being
+      // out-of-syllabus filler (e.g. UPSSSC-PET aptitude/reasoning items with
+      // no real syllabus_node_id) — a full-length UPPSC-pattern mock must not
+      // include them, or ~1 in 8 questions on the paper won't map to anything
+      // a candidate actually studies. Every other catalog surface (tests.ts,
+      // questions.ts) deliberately still SHOWS these rows (flagged, not
+      // hidden), so this exclusion is scoped to mocks only, not folded into
+      // the shared question-visibility filter.
+      .eq("out_of_syllabus", false)
       .or(questionVisibilityOrFilter("catalog")),
     topLevelByNode(paperCode),
   ]);

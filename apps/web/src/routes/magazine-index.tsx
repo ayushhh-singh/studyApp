@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Newspaper, ChevronRight } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { useMagazineMonths } from "@/hooks/use-magazine";
 import { useLocale } from "@/hooks/use-locale";
@@ -12,7 +13,7 @@ export const handle = { titleKey: "Magazine.navTitle" };
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data, isLoading } = useMagazineMonths();
+  const { data, isLoading, isError, refetch } = useMagazineMonths();
 
   return (
     <div className="flex flex-col gap-6">
@@ -23,6 +24,8 @@ export function Component() {
           <ListRowSkeleton />
           <ListRowSkeleton />
         </div>
+      ) : isError ? (
+        <QueryErrorState onRetry={() => refetch()} />
       ) : !data || data.length === 0 ? (
         <EmptyState icon={Newspaper} title={t("Magazine.emptyTitle")} description={t("Magazine.emptyDescription")} />
       ) : (

@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react";
 import type { Locale } from "@prayasup/shared";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { Skeleton } from "@/components/ui-x/skeleton";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Button } from "@/components/ui/button";
 import { useCurrentAffairsItem } from "@/hooks/use-current-affairs";
 import { useAddCurrentAffairsFactToRevision } from "@/hooks/use-add-to-revision";
@@ -49,7 +50,7 @@ export function CurrentAffairsDetailSheet({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const { data: item, isLoading, isError } = useCurrentAffairsItem(itemId ?? undefined);
+  const { data: item, isLoading, isError, refetch } = useCurrentAffairsItem(itemId ?? undefined);
 
   return (
     <Sheet open={itemId !== null} onOpenChange={onOpenChange}>
@@ -60,7 +61,13 @@ export function CurrentAffairsDetailSheet({
             <Skeleton className="h-4 w-5/6" />
             <Skeleton className="h-24 w-full" />
           </div>
-        ) : isError || !item ? (
+        ) : isError ? (
+          // Distinct from "genuinely not found" below — a rate-limited/
+          // transient fetch failure previously collapsed into the same
+          // not-found copy with no way to retry, indistinguishable from an
+          // item that's actually gone.
+          <QueryErrorState onRetry={() => refetch()} />
+        ) : !item ? (
           // Reachable now that this sheet can be opened directly by a URL/
           // citation id, not just a click from an already-loaded list row — an
           // item that's since been unpublished/removed previously left this

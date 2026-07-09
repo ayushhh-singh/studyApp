@@ -5,6 +5,7 @@ import { FileQuestion, Loader2, PenLine, Share2, Sparkles } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { EvaluationDimensions } from "@/components/answers/evaluation-dimensions";
@@ -35,16 +36,24 @@ export function Component() {
   const locale = useLocale();
   const navigate = useNavigate();
   const { submissionId = "" } = useParams<{ submissionId: string }>();
-  const { data: detail, isLoading: isDetailLoading } = useSubmissionDetail(submissionId);
-  const stream = useEvaluationStream(submissionId);
+  const {
+    data: detail,
+    isLoading: isDetailLoading,
+    isError: isDetailError,
+    refetch: refetchDetail,
+  } = useSubmissionDetail(submissionId);
+  const stream = useEvaluationStream(submissionId, locale);
   const addToRevision = useAddEvaluationToRevision();
   const shareAnswer = useShareAnswer();
   const { data: catalogedQuestion } = useQuestion(detail?.submission.question_id ?? undefined);
 
   useEffect(() => {
+    // Also re-runs on a locale switch: a replay's feedback text is
+    // per-locale (lazily translated server-side), so the URL's own /hi/ vs
+    // /en/ prefix genuinely changes what this needs to fetch.
     if (submissionId) stream.start();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [submissionId]);
+  }, [submissionId, locale]);
 
   const questionText = detail?.submission.question_id
     ? catalogedQuestion?.stem_i18n[locale]
@@ -57,6 +66,14 @@ export function Component() {
         <Skeleton className="h-48 w-full rounded-xl" />
       </div>
     );
+  }
+
+  if (isDetailError) {
+    // Distinct from "genuinely not found" below — a rate-limited/transient
+    // fetch failure previously fell through to the exact same "not found"
+    // copy with no retry, indistinguishable from a submission that's
+    // actually gone.
+    return <QueryErrorState onRetry={() => refetchDetail()} />;
   }
 
   if (!detail) {
@@ -94,7 +111,7 @@ export function Component() {
           title={t("Answers.evaluationErrorTitle")}
           description={stream.error}
           action={
-            <Button variant="outline" onClick={() => stream.start()}>
+            <Button variant="outline" onClick={() => stream.start({ force: true })}>
               {t("Answers.retryStream")}
             </Button>
           }

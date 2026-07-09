@@ -30,10 +30,17 @@ export function Component() {
               <Link
                 key={thread.id}
                 to={`/${locale}/community/thread/${thread.id}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex flex-col gap-1 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="min-w-0 flex-1 truncate font-medium">{thread.title}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{thread.post_count}</span>
+                {thread.anchor_node_title_i18n && (
+                  <span className="w-fit max-w-full truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {thread.anchor_node_title_i18n[locale]}
+                  </span>
+                )}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 flex-1 truncate font-medium">{thread.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{thread.post_count}</span>
+                </div>
               </Link>
             ))}
           </div>
@@ -88,10 +95,17 @@ export function Component() {
               <Link
                 key={thread.id}
                 to={`/${locale}/community/thread/${thread.id}`}
-                className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex flex-col gap-1 rounded-lg border border-border px-3 py-2.5 text-sm hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
-                <span className="min-w-0 flex-1 truncate font-medium">{thread.title}</span>
-                <span className="shrink-0 text-xs text-muted-foreground">{thread.post_count}</span>
+                {thread.anchor_node_title_i18n && (
+                  <span className="w-fit max-w-full truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                    {thread.anchor_node_title_i18n[locale]}
+                  </span>
+                )}
+                <div className="flex items-center justify-between gap-3">
+                  <span className="min-w-0 flex-1 truncate font-medium">{thread.title}</span>
+                  <span className="shrink-0 text-xs text-muted-foreground">{thread.post_count}</span>
+                </div>
               </Link>
             ))}
           </div>

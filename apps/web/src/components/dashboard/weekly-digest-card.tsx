@@ -1,9 +1,11 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Share2 } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { useWeeklyDigest } from "@/hooks/use-engagement";
 import { useLocale } from "@/hooks/use-locale";
+import { getAccessToken } from "@/lib/auth";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
@@ -23,20 +25,50 @@ export function WeeklyDigestCard() {
   const locale = useLocale();
   const { data, isLoading } = useWeeklyDigest();
   const shareUrl = `${API_URL}/api/v1/share/weekly.png?locale=${locale}`;
+  const [sharing, setSharing] = useState(false);
+  const [shareError, setShareError] = useState(false);
+
+  // Plain `<a href target="_blank">` can't work here — /share/weekly.png sits
+  // behind requireAuth like every other /api/v1/* route, and a bare browser
+  // navigation never carries the app's Authorization: Bearer header (no
+  // cookie session exists in this app's auth model) — it opened a new tab
+  // showing the raw 401 JSON body instead of the image. Same fix/pattern as
+  // the Conquest Map's share button (components/learn/conquest-map.tsx) and
+  // the profile export download (components/profile/settings-card.tsx).
+  async function handleShare() {
+    setSharing(true);
+    setShareError(false);
+    try {
+      const token = await getAccessToken();
+      const res = await fetch(shareUrl, { headers: token ? { Authorization: `Bearer ${token}` } : undefined });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const blob = await res.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      window.open(objectUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+    } catch {
+      setShareError(true);
+    } finally {
+      setSharing(false);
+    }
+  }
 
   return (
     <SectionCard
       title={t("Digest.title")}
       action={
-        <a
-          href={shareUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <Share2 className="size-3.5" aria-hidden />
-          {t("Digest.share")}
-        </a>
+        <div className="flex items-center gap-2">
+          {shareError && <span className="text-xs text-destructive">{t("Digest.shareError")}</span>}
+          <button
+            type="button"
+            onClick={handleShare}
+            disabled={sharing}
+            className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <Share2 className="size-3.5" aria-hidden />
+            {t("Digest.share")}
+          </button>
+        </div>
       }
     >
       {isLoading || !data ? (

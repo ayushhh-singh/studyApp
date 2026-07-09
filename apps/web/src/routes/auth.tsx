@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { Navigate, useSearchParams, useNavigate, Link } from "react-router";
+import { Navigate, useSearchParams, useNavigate, useLocation, Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Loader2, Mail, ArrowLeft, LogIn } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FullScreenLoader } from "@/routes/require-auth";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
+import { cn } from "@/lib/utils";
 
 /** Google "G" — inlined so no external asset is fetched (CSP-safe). */
 function GoogleIcon() {
@@ -40,6 +42,7 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const navigate = useNavigate();
+  const location = useLocation();
   const [params] = useSearchParams();
   const {
     session,
@@ -163,12 +166,38 @@ export function Component() {
     }
   }
 
+  // Same unauthenticated toggle idiom as landing.tsx/pricing.tsx — no session
+  // to persist the preference to yet, just the URL + localStorage.
+  function setLocale(next: Locale) {
+    if (next === locale) return;
+    localStorage.setItem(LOCALE_STORAGE_KEY, next);
+    navigate(switchLocale(location.pathname, location.search, next, location.hash));
+  }
+
   return (
     <div className="flex min-h-svh flex-col bg-background px-4 py-10">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">
-        <Link to={`/${locale}`} className="mx-auto mb-8 inline-flex" aria-label={t("Landing.brand")}>
-          <BrandMark />
-        </Link>
+        <div className="mb-8 flex items-center justify-between gap-3">
+          <Link to={`/${locale}`} className="inline-flex" aria-label={t("Landing.brand")}>
+            <BrandMark />
+          </Link>
+          <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
+            {SUPPORTED_LOCALES.map((l) => (
+              <button
+                key={l}
+                type="button"
+                onClick={() => setLocale(l)}
+                aria-pressed={l === locale}
+                className={cn(
+                  "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {l}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
           <h1 className="text-center text-xl font-bold tracking-tight sm:text-2xl">{t("Auth.title")}</h1>

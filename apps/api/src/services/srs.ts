@@ -501,7 +501,19 @@ export async function deleteCard(userId: string, cardId: string): Promise<void> 
 // Empty-state one-tap seeds — real data, not samples
 // ---------------------------------------------------------------------------
 
-/** Seed: the user's most recently missed MCQs (reuses addQuestionToRevision, best-effort per question). */
+/**
+ * Seed: the user's most recently missed MCQs (reuses addQuestionToRevision,
+ * best-effort per question).
+ *
+ * A question is only a genuine "wrong answer" gap if the user's MOST RECENT
+ * graded attempt at it is ALSO wrong — querying `is_correct=false` across
+ * every attempt ever (the previous approach) kept a question flagged forever
+ * even after the user went back and answered it correctly on a later
+ * attempt, since that later correct row was never checked. Fix: pull every
+ * graded (non-null is_correct) answer, rank/dedupe to the single latest row
+ * per question_id, and only keep questions whose latest outcome is still
+ * wrong before seeding from that set.
+ */
 export async function seedWrongAnswers(userId: string, limit = 15): Promise<{ added: number; already: number }> {
   const { data: attemptIdRows, error: attemptIdsError } = await supabase()
     .from("attempts")
@@ -512,18 +524,28 @@ export async function seedWrongAnswers(userId: string, limit = 15): Promise<{ ad
   const attemptIds = (attemptIdRows ?? []).map((r) => r.id as string);
   if (attemptIds.length === 0) return { added: 0, already: 0 };
 
-  const { data: wrongRows, error: wrongError } = await supabase()
+  // Every graded answer, newest first, so the FIRST row seen per question_id
+  // below is that question's most recent outcome — not just its most recent
+  // WRONG outcome, which is exactly the distinction the old query missed.
+  const { data: answerRows, error: answersError } = await supabase()
     .from("attempt_answers")
-    .select("question_id, created_at")
+    .select("question_id, is_correct, created_at")
     .in("attempt_id", attemptIds)
-    .eq("is_correct", false)
-    .order("created_at", { ascending: false })
-    .limit(limit * 3);
-  if (wrongError) throw new HttpError(500, `wrong-answer lookup failed: ${wrongError.message}`);
+    .not("is_correct", "is", null)
+    .order("created_at", { ascending: false });
+  if (answersError) throw new HttpError(500, `wrong-answer lookup failed: ${answersError.message}`);
+
+  const latestOutcomeByQuestion = new Map<string, boolean>();
+  for (const row of (answerRows ?? []) as { question_id: string; is_correct: boolean }[]) {
+    // Map insertion order tracks first-seen order = descending recency, so
+    // only recording the FIRST outcome per question_id captures its latest one.
+    if (!latestOutcomeByQuestion.has(row.question_id)) latestOutcomeByQuestion.set(row.question_id, row.is_correct);
+  }
 
   const questionIds: string[] = [];
-  for (const row of (wrongRows ?? []) as { question_id: string }[]) {
-    if (!questionIds.includes(row.question_id)) questionIds.push(row.question_id);
+  for (const [questionId, latestIsCorrect] of latestOutcomeByQuestion) {
+    if (latestIsCorrect) continue; // since answered correctly on the latest attempt — no longer an open gap
+    questionIds.push(questionId);
     if (questionIds.length >= limit) break;
   }
 

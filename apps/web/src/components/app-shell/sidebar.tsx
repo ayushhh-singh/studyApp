@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { visibleNav } from "@/lib/nav";
 import { useLocale } from "@/hooks/use-locale";
 import { useAdminStatus } from "@/hooks/use-review";
+import { BrandMark } from "@/components/marketing/brand-mark";
 import { cn } from "@/lib/utils";
 
 export function Sidebar() {
@@ -17,7 +18,10 @@ export function Sidebar() {
       className="hidden w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-3 md:flex"
     >
       <div className="flex items-center gap-2 px-2 py-3">
-        <span className="font-display text-lg text-sidebar-foreground">प्रयासUP</span>
+        {/* BrandMark always renders "PrayasUP" in Latin — matches landing/auth/
+            onboarding/pricing, unlike the old hardcoded Devanagari literal that
+            ignored the active locale. */}
+        <BrandMark />
       </div>
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (

@@ -582,11 +582,18 @@ export async function translate(
  * few calls (deduped + chunked). Returns translations aligned to the input
  * order; blank inputs map to "". Used to regenerate a language that did not
  * parse cleanly (e.g. mojibake Devanagari from a legacy-font PDF).
+ *
+ * `purpose`/`userId`/`onUsage` are additive passthroughs to structuredJson
+ * (previously omitted here, so every translateBatch call was invisible to
+ * llm_calls/cost:report) — pass them when a caller cares about attributing
+ * this spend, e.g. per-evaluation lazy translation. Omit for the original
+ * ingestion-time use (untracked, as before).
  */
 export async function translateBatch(
   texts: string[],
   target: "hi" | "en",
   domainHint = "UPPSC exam questions",
+  opts?: { purpose?: string; userId?: string; onUsage?: (usage: LlmUsage) => void },
 ): Promise<string[]> {
   const targetName = target === "hi" ? "Hindi (Devanagari)" : "English";
   const uniq = [...new Set(texts.map((t) => t.trim()).filter(Boolean))];
@@ -620,6 +627,9 @@ export async function translateBatch(
         required: ["items"],
       },
       maxTokens: 16000,
+      purpose: opts?.purpose,
+      userId: opts?.userId,
+      onUsage: opts?.onUsage,
     });
     for (const it of out.items) {
       const src = batch[it.id - 1];

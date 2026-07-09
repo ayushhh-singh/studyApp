@@ -16,7 +16,12 @@ export const handle = { titleKey: "Nav.answers" };
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: todaysQuestion, isLoading: isTodaysQuestionLoading } = useTodaysQuestion();
+  const {
+    data: todaysQuestion,
+    isLoading: isTodaysQuestionLoading,
+    isError: isTodaysQuestionError,
+    refetch: refetchTodaysQuestion,
+  } = useTodaysQuestion();
 
   return (
     <div className="flex flex-col gap-6">
@@ -34,7 +39,12 @@ export function Component() {
         }
       />
 
-      <TodaysQuestionCard question={todaysQuestion} isLoading={isTodaysQuestionLoading} />
+      <TodaysQuestionCard
+        question={todaysQuestion}
+        isLoading={isTodaysQuestionLoading}
+        isError={isTodaysQuestionError}
+        onRetry={() => refetchTodaysQuestion()}
+      />
 
       <DailyAnswerSet />
 

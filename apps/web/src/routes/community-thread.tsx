@@ -43,6 +43,11 @@ export function Component() {
 
       <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
         <div className="flex flex-col gap-1">
+          {thread.anchor_node_title_i18n && (
+            <span className="w-fit max-w-full truncate rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
+              {thread.anchor_node_title_i18n[locale]}
+            </span>
+          )}
           <h1 className="text-xl font-bold text-balance">{thread.title}</h1>
           <div className="flex items-center gap-2 text-xs text-muted-foreground">
             <CommunityAuthorLine author={thread.author} />

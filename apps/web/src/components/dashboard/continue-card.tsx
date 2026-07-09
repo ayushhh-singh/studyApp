@@ -4,6 +4,7 @@ import { ArrowRight, BookOpen, PenSquare } from "lucide-react";
 import type { DashboardContinue } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { Button } from "@/components/ui/button";
 import { useLocale } from "@/hooks/use-locale";
 
 export function ContinueCard({ data }: { data: DashboardContinue }) {
@@ -17,6 +18,16 @@ export function ContinueCard({ data }: { data: DashboardContinue }) {
           icon={BookOpen}
           title={t("Dashboard.continueEmptyTitle")}
           description={t("Dashboard.continueEmptyDescription")}
+          action={
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button asChild variant="outline">
+                <Link to={`/${locale}/practice`}>{t("Dashboard.continueEmptyPracticeCta")}</Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link to={`/${locale}/learn`}>{t("Dashboard.continueEmptyLearnCta")}</Link>
+              </Button>
+            </div>
+          }
         />
       )}
 

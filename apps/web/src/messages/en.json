@@ -1,4 +1,9 @@
 {
+  "Common": {
+    "loadErrorTitle": "Couldn't load this",
+    "loadErrorDescription": "Something went wrong. Please check your connection and try again.",
+    "retry": "Retry"
+  },
   "Nav": {
     "dashboard": "Dashboard",
     "learn": "Learn",
@@ -17,6 +22,7 @@
     "search": "Search",
     "searchShortcut": "Ctrl K",
     "toggleTheme": "Toggle theme",
+    "toggleLanguage": "Toggle language",
     "account": "Account",
     "signOut": "Sign out"
   },
@@ -46,6 +52,8 @@
     "continueSyllabusCta": "Continue reading",
     "continueEmptyTitle": "Nothing in progress",
     "continueEmptyDescription": "Start a practice set or browse the syllabus to pick up here next time.",
+    "continueEmptyPracticeCta": "Start a practice set",
+    "continueEmptyLearnCta": "Browse the syllabus",
     "todayTitle": "Today",
     "todaySrsDue_one": "{{count}} card due for revision",
     "todaySrsDue_other": "{{count}} cards due for revision",
@@ -57,6 +65,10 @@
     "todayGoToCurrentAffairs": "View current affairs",
     "todayDailyQuizCta": "Take today's quiz",
     "todayDailyQuizNone": "No daily quiz today",
+    "todayDailyQuizGenerateCta": "Generate today's quiz",
+    "todayDailyQuizGenerating": "Generating today's quiz…",
+    "todayDailyQuizError": "Couldn't generate — tap to retry",
+    "todayDailyQuizEmpty": "No questions available to build today's quiz yet",
     "performanceTitle": "Performance snapshot",
     "performanceSparklineLabel": "Last 5 scores",
     "performanceNoScores": "Complete a test to see your score trend.",
@@ -147,7 +159,12 @@
     "mapIntro": "Your Conquest Map. Each territory is a syllabus section, sized by how often UPPSC asks it and coloured by your mastery. Pulsing tiles are high-weight sections you haven't secured yet — start there. Tap any territory to open it.",
     "mapEmptyTitle": "No map yet",
     "mapEmptyDescription": "This paper has no PYQ-weighted sections to map yet.",
+    "mapDrillHint": "tap to see sub-topics",
+    "mapNoSubtopicsTitle": "No further breakdown yet",
+    "mapNoSubtopicsDescription": "This topic's PYQs aren't split into sub-topics yet — open it directly instead.",
+    "mapViewTopic": "View topic",
     "shareMap": "Share map",
+    "shareMapError": "Couldn't create the share image. Please try again.",
     "mastery_unseen": "Unseen",
     "mastery_bronze": "Bronze",
     "mastery_silver": "Silver",
@@ -260,6 +277,12 @@
     "dailyPrev": "Newer",
     "dailyNext": "Older",
     "dailyPageOf": "{{page}} / {{total}}",
+    "dailyGenerateTitle": "Today's quiz isn't ready yet",
+    "dailyGenerateDescription": "The 5 AM generator hasn't run yet — build it now instead of waiting.",
+    "dailyGenerateButton": "Generate today's quiz",
+    "dailyGenerating": "Generating…",
+    "dailyGenerateError": "Couldn't generate today's quiz. Try again.",
+    "dailyGenerateEmpty": "No questions available to build today's quiz yet.",
     "tabMock": "Mock Tests",
     "mockTitle": "Full-length mock tests",
     "mockDescription": "UPPSC-pattern papers with real one-third negative marking.",
@@ -724,6 +747,7 @@
   "Digest": {
     "title": "This week",
     "share": "Share",
+    "shareError": "Couldn't create the share image. Please try again.",
     "questions": "Questions",
     "accuracy": "Accuracy",
     "answers": "Answers",
@@ -1076,6 +1100,10 @@
     "prePromptBody": "PrayasUP can send a quiet nudge when your daily quiz is ready, revision cards are due, or your streak is about to break. No spam — just study reminders, and you can turn any of these off anytime.",
     "prefQuizReady": "Daily quiz ready",
     "prefSrsDue": "Revision due",
-    "prefStreakAtRisk": "Streak at risk"
+    "prefStreakAtRisk": "Streak at risk",
+    "installTitle": "Install PrayasUP",
+    "installDescription": "Add it to your home screen for one-tap access and offline studying.",
+    "installCta": "Install app",
+    "installDismiss": "Dismiss"
   }
 }

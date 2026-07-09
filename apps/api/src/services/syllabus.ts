@@ -93,9 +93,21 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
       .order("exam_stage", { ascending: true })
       .order("paper_code", { ascending: true }),
     supabase().from("syllabus_nodes").select("paper_code").eq("depth", 1),
-    // Count only user-visible questions (published AND approved), matching the
-    // catalog list + weightage — a needs_review row must not inflate the badge.
-    supabase().from("questions").select("paper_code").eq("is_published", true).eq("review_state", "approved"),
+    // Count only user-visible questions (published AND approved) that are
+    // actually mapped to a syllabus_node_id, matching getPaperTree's
+    // own_pyq_count rollup below (which skips null-node rows entirely) — a
+    // needs_review row must not inflate the badge, and neither should
+    // unmapped catalog content the outline view can never show under any
+    // topic. Without the node-id filter this "N topics · M PYQs" hub count
+    // disagreed with the outline's own total (529 vs 501 for PRE_GS1); "M
+    // PYQs" is meant to describe PYQs actually distributed across those N
+    // topics, not the raw unmapped catalog total.
+    supabase()
+      .from("questions")
+      .select("paper_code")
+      .eq("is_published", true)
+      .eq("review_state", "approved")
+      .not("syllabus_node_id", "is", null),
     // Published study notes per paper (via the node's paper_code) → coverage %.
     supabase().from("notes").select("syllabus_nodes(paper_code)").eq("status", "published"),
     getGradedAnswers(userId),

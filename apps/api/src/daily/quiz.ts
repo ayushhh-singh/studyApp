@@ -185,13 +185,42 @@ async function upsertDailyQuizTest(input: {
   return data.id as string;
 }
 
-async function setMembership(testId: string, items: PoolItem[]): Promise<void> {
+/**
+ * `upsertDailyQuizTest`'s slug upsert makes the `tests` row itself race-safe,
+ * but this delete-then-insert pair is NOT atomic against another concurrent
+ * build for the SAME date (two self-heal callers — e.g. two dashboard loads
+ * or a double-click on "Generate today's quiz" firing before the button
+ * disables — both finding no existing row and racing `buildDailyQuiz`).
+ * Postgres surfaces that race as either a `test_questions (test_id,
+ * question_id)` unique-violation (23505 — the other caller's insert landed
+ * between our delete and our insert) or occasionally a detected deadlock
+ * (40P01) from the two delete+insert pairs taking row locks in different
+ * orders. Either way, the other caller's build has either just finished or is
+ * about to, leaving a perfectly good, self-consistent membership set for the
+ * same testId — so adopt whatever is now actually persisted instead of
+ * surfacing a 500 to whichever request lost the race (same "loser's result
+ * is simply discarded, not an error" convention as the evaluation-translation
+ * cache's `ignoreDuplicates` upsert).
+ */
+async function setMembership(testId: string, items: PoolItem[]): Promise<PoolItem[]> {
   const del = await supabase().from("test_questions").delete().eq("test_id", testId);
   if (del.error) throw new Error(`clear members failed: ${del.error.message}`);
-  if (items.length === 0) return;
+  if (items.length === 0) return [];
   const rows = items.map((it, i) => ({ test_id: testId, question_id: it.id, order_index: i, marks: it.marks }));
   const ins = await supabase().from("test_questions").insert(rows);
-  if (ins.error) throw new Error(`insert members failed: ${ins.error.message}`);
+  if (ins.error) {
+    if (ins.error.code === "23505" || ins.error.code === "40P01") {
+      const { data: existing, error: reErr } = await supabase()
+        .from("test_questions")
+        .select("question_id, marks")
+        .eq("test_id", testId);
+      if (!reErr && existing && existing.length > 0) {
+        return existing.map((r) => ({ id: r.question_id as string, marks: (r.marks as number | null) ?? 0 }));
+      }
+    }
+    throw new Error(`insert members failed: ${ins.error.message}`);
+  }
+  return items;
 }
 
 export interface BuildDailyQuizOptions {
@@ -285,13 +314,47 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
       backfilled,
     },
   });
-  await setMembership(testId, finalItems);
+  // `persisted` is normally just `finalItems` echoed back — it only differs
+  // from our own selection when a concurrent build for the same date won the
+  // race in setMembership, in which case it's the OTHER caller's actually-
+  // persisted set. Reporting size/total_marks from `persisted` (not
+  // `finalItems`) keeps this call's return value truthful to what's really
+  // in the DB either way; slice_breakdown/shortfalls/backfilled stay this
+  // attempt's own diagnostics (informational only — a losing racer's numbers
+  // describing its own discarded selection is a minor, accepted inaccuracy).
+  const persisted = await setMembership(testId, finalItems);
+  const persistedMarks = persisted.reduce((s, it) => s + (it.marks ?? 0), 0);
+
+  // upsertDailyQuizTest already wrote this build's OWN totalMarks/duration
+  // onto the tests row above — fine when this call won the setMembership
+  // race (persisted === finalItems), but stale if a concurrent build won
+  // instead (persisted is the other caller's set, of a possibly different
+  // size). Reconcile so the row's own total_marks/duration_minutes always
+  // match what's actually in test_questions, regardless of which caller's
+  // upsert happened to run last. Cheap and convergent either way: a losing
+  // caller writes the same true numbers a winning caller would already have
+  // written, so two racing corrections agree rather than fight.
+  if (persistedMarks !== totalMarks || persisted.length !== finalItems.length) {
+    const { error: reconcileErr } = await supabase()
+      .from("tests")
+      .update({ total_marks: persistedMarks, duration_minutes: persisted.length })
+      .eq("id", testId);
+    if (reconcileErr) log(`warning: failed to reconcile total_marks/duration after a build race: ${reconcileErr.message}`);
+  }
 
   log(
-    `built ${slug}: ${finalItems.length} questions (` +
+    `built ${slug}: ${persisted.length} questions (` +
       SLICE_FILL_ORDER.map((s) => `${s}=${breakdown[s]}`).join(" ") +
-      `${backfilled ? ` backfill=${backfilled}` : ""}) total_marks=${totalMarks}`,
+      `${backfilled ? ` backfill=${backfilled}` : ""}) total_marks=${persistedMarks}`,
   );
 
-  return { test_id: testId, date, size: finalItems.length, total_marks: totalMarks, slice_breakdown: breakdown, shortfalls, backfilled };
+  return {
+    test_id: testId,
+    date,
+    size: persisted.length,
+    total_marks: persistedMarks,
+    slice_breakdown: breakdown,
+    shortfalls,
+    backfilled,
+  };
 }

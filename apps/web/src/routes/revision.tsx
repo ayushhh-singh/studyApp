@@ -30,9 +30,10 @@ export function Component() {
           <StatCardSkeleton />
           <StatCardSkeleton />
         </div>
-      ) : stats.total_cards === 0 ? (
-        <RevisionEmptyState />
       ) : (
+        // Tabs always render, even at 0 cards — Manage (search/list + "New card")
+        // is the only way a fresh account (no wrong answers, no read notes yet)
+        // can ever add a first card, so it can't be gated behind having one.
         <Tabs defaultValue="review">
           <TabsList>
             <TabsTrigger value="review">{t("Revision.reviewTab")}</TabsTrigger>
@@ -40,14 +41,20 @@ export function Component() {
           </TabsList>
 
           <TabsContent value="review" className="flex flex-col gap-6">
-            <RevisionStatsHeader stats={stats} />
-            {stats.due_today > 0 ? (
-              <Button size="lg" onClick={() => navigate(`/${locale}/revision/session`)}>
-                <PlayCircle className="size-4" aria-hidden />
-                {t("Revision.startReview", { count: stats.due_today })}
-              </Button>
+            {stats.total_cards === 0 ? (
+              <RevisionEmptyState />
             ) : (
-              <EmptyState icon={Brain} title={t("Revision.allCaughtUp")} description={t("Revision.allCaughtUpDescription")} />
+              <>
+                <RevisionStatsHeader stats={stats} />
+                {stats.due_today > 0 ? (
+                  <Button size="lg" onClick={() => navigate(`/${locale}/revision/session`)}>
+                    <PlayCircle className="size-4" aria-hidden />
+                    {t("Revision.startReview", { count: stats.due_today })}
+                  </Button>
+                ) : (
+                  <EmptyState icon={Brain} title={t("Revision.allCaughtUp")} description={t("Revision.allCaughtUpDescription")} />
+                )}
+              </>
             )}
           </TabsContent>
 

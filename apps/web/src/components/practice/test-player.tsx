@@ -237,9 +237,19 @@ export function TestPlayer({
     onComboBest?.(best);
   }, [best, onComboBest]);
 
-  const statuses: QuestionStatus[] = test.questions.map((q) =>
-    marked.has(q.id) ? "marked" : answers[q.id]?.chosen_option_key ? "answered" : "unanswered",
-  );
+  // Answered and marked are independent, not mutually exclusive — a real
+  // usage pattern is answering a question and ALSO marking it to double
+  // check later. The old if/else chain let "marked" win outright, silently
+  // dropping the "answered" signal (palette color, Check icon, and
+  // aria-label) the moment a question was also marked.
+  const statuses: QuestionStatus[] = test.questions.map((q) => {
+    const isAnswered = !!answers[q.id]?.chosen_option_key;
+    const isMarked = marked.has(q.id);
+    if (isAnswered && isMarked) return "answered_marked";
+    if (isMarked) return "marked";
+    if (isAnswered) return "answered";
+    return "unanswered";
+  });
   const unansweredCount = test.questions.filter((q) => !answers[q.id]?.chosen_option_key).length;
 
   const deadline = test.duration_minutes ? new Date(startedAt).getTime() + test.duration_minutes * 60_000 : null;

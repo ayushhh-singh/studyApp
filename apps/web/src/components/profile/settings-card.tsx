@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/hooks/use-locale";
 import { useUpdateProfile } from "@/hooks/use-profile";
+import { getAccessToken } from "@/lib/auth";
 import { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, switchLocale, type Locale } from "@/lib/locale";
 import { useThemeStore } from "@/stores/theme-store";
 import { cn } from "@/lib/utils";
@@ -35,7 +36,13 @@ export function SettingsCard() {
     setExporting(true);
     setExportError(null);
     try {
-      const res = await fetch(`${API_URL}/api/v1/profile/export`);
+      // Raw fetch (not lib/api.ts) because the response is a file blob, not the
+      // {data,error} JSON envelope api.ts expects — but it still needs the same
+      // bearer token every other authenticated call attaches.
+      const token = await getAccessToken();
+      const res = await fetch(`${API_URL}/api/v1/profile/export`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);

@@ -19,6 +19,24 @@ async function getDb(dbName: string, storeName: string): Promise<IDBPDatabase> {
   });
 }
 
+// Keyed by `dbName::storeName` — see the singleton guard at the bottom of
+// createIdbOfflineQueue for why this exists: the factory has an un-cleaned-up
+// `window.addEventListener('online', ...)` side effect (see below), and
+// callers construct a queue inside `useMemo` (use-srs-review-queue.ts).
+// React StrictMode's dev-only double-invocation of useMemo factories on the
+// initial render calls this factory TWICE for the exact same
+// dbName/storeName — without de-duping, that leaks a second, fully
+// independent queue instance (its own queueTail/flushTimer/IndexedDB reads)
+// whose 'online' listener nobody ever unsubscribes. Live-verified this leak
+// in effect: coming back online after a batch of offline SRS reviews sent
+// the exact same batch to POST /srs/reviews TWICE (both 201), because two
+// orphaned queue instances both independently flushed the same
+// not-yet-removed IndexedDB rows before either had removed them. Reusing
+// the same singleton per storage key makes repeat construction (StrictMode,
+// or simply remounting the same durable queue on a later page visit) a
+// no-op instead of a second live listener.
+const instances = new Map<string, OfflineQueue<unknown>>();
+
 export function createIdbOfflineQueue<T>(opts: {
   dbName: string;
   storeName: string;
@@ -26,11 +44,24 @@ export function createIdbOfflineQueue<T>(opts: {
   send: (items: T[]) => Promise<void>;
   retryDelayMs?: number;
 }): OfflineQueue<T> {
+  const cacheKey = `${opts.dbName}::${opts.storeName}`;
+  const existing = instances.get(cacheKey);
+  if (existing) return existing as OfflineQueue<T>;
+
   const retryDelayMs = opts.retryDelayMs ?? 3000;
   const listeners = new Set<() => void>();
   let status: QueueStatus = "idle";
   let flushTimer: ReturnType<typeof setTimeout> | null = null;
-  let activeFlush: Promise<void> | null = null;
+  // Every caller chains onto this instead of racing independent runOnce()
+  // calls guarded by a nullable "is something active" flag — that flag has a
+  // real gap: a piggybacking caller only checks it ONCE before awaiting, then
+  // re-checks the queue afterward with no re-check of whether a NEW flush
+  // (e.g. the original's own retry-on-failure recursion) has since started,
+  // so it can barge in with a second concurrent send. A single serialized
+  // tail makes that reordering impossible — see the retry-storm bug this
+  // fixed (rapid enqueue + a failing send could fan out into 100+ concurrent
+  // POSTs of the same batch).
+  let queueTail: Promise<void> = Promise.resolve();
 
   // A single cached `openDB()` promise would, once rejected (a transient
   // failure — e.g. Safari private-mode's historically strict IndexedDB
@@ -96,30 +127,23 @@ export function createIdbOfflineQueue<T>(opts: {
     }
   }
 
-  // See offline-queue.ts's flush() for why concurrent callers piggyback on
-  // the in-flight round rather than each racing their own read/send/clear.
-  async function flush(): Promise<void> {
-    if (activeFlush) {
-      await activeFlush.catch(() => {});
-      if ((await readAll()).length === 0) return;
-    }
-    const run = runOnce();
-    activeFlush = run;
-    try {
-      await run;
-    } finally {
-      if (activeFlush === run) activeFlush = null;
-    }
-    if ((await readAll()).length > 0) {
-      await flush();
-    }
+  // Every caller — the enqueue-triggered timer, the online-event listener,
+  // and a component's mount/unmount flushNow() — chains onto the SAME tail
+  // instead of each deciding independently whether a round is "active".
+  // Any item present when a flush is requested is covered by whichever
+  // runOnce() ends up next in the chain, so there's no separate "drain
+  // remaining" recursion to get racy either.
+  function flush(): Promise<void> {
+    const attempt = queueTail.catch(() => {}).then(runOnce);
+    queueTail = attempt.catch(() => {});
+    return attempt;
   }
 
   if (typeof window !== "undefined") {
     window.addEventListener("online", () => scheduleFlush(0));
   }
 
-  return {
+  const queue: OfflineQueue<T> = {
     enqueue(item) {
       // put() rejecting (a storage failure, not a send failure) must not
       // become an unhandled promise rejection — surface it the same way a
@@ -136,4 +160,6 @@ export function createIdbOfflineQueue<T>(opts: {
       return () => listeners.delete(listener);
     },
   };
+  instances.set(cacheKey, queue as OfflineQueue<unknown>);
+  return queue;
 }

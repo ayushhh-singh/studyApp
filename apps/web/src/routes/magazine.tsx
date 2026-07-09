@@ -7,6 +7,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { switchLocale } from "@/lib/locale";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 
 const CATEGORY_LABEL: Record<string, string> = {
   polity_governance: "Polity & Governance",
@@ -58,7 +59,7 @@ export function Component() {
   const navigate = useNavigate();
   const location = useLocation();
   const { month = "" } = useParams<{ month: string }>();
-  const { data: mag, isLoading, isError } = useMagazine(month);
+  const { data: mag, isLoading, isError, refetch } = useMagazine(month);
 
   function toggleLang() {
     navigate(switchLocale(location.pathname, location.search, locale === "hi" ? "en" : "hi", location.hash), {
@@ -110,7 +111,9 @@ export function Component() {
             <Skeleton className="h-10 w-64" />
             <Skeleton className="h-40 w-full" />
           </div>
-        ) : isError || !mag ? (
+        ) : isError ? (
+          <QueryErrorState onRetry={() => refetch()} />
+        ) : !mag ? (
           <EmptyState icon={Newspaper} title={t("Magazine.emptyTitle")} description={t("Magazine.emptyDescription")} />
         ) : (
           <>

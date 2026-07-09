@@ -4,6 +4,7 @@ import { Link } from "react-router";
 import { NotebookPen } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { useQuestions } from "@/hooks/use-questions";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
@@ -17,7 +18,11 @@ export function PyqPicker() {
   const locale = useLocale();
   const [paper, setPaper] = useState("");
   const { data: papers } = usePaperSummaries();
-  const { data, isLoading } = useQuestions({ type: "descriptive", paper: paper || undefined, page: 1 });
+  const { data, isLoading, isError, refetch } = useQuestions({
+    type: "descriptive",
+    paper: paper || undefined,
+    page: 1,
+  });
 
   return (
     <SectionCard title={t("Answers.pyqPickerTitle")}>
@@ -40,6 +45,8 @@ export function PyqPicker() {
           <ListRowSkeleton />
           <ListRowSkeleton />
         </div>
+      ) : isError ? (
+        <QueryErrorState onRetry={() => refetch()} />
       ) : !data || data.items.length === 0 ? (
         <EmptyState
           icon={NotebookPen}

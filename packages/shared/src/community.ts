@@ -44,6 +44,15 @@ export const discussionThreadSchema = z.object({
   is_locked: z.boolean(),
   moderation_status: moderationStatusSchema,
   post_count: z.number().int(),
+  /**
+   * Resolved display label for `anchor_type === 'node'` threads only — the
+   * anchored syllabus node's own bilingual title + paper code, batch-looked-up
+   * server-side so the hub/thread views can show what topic a thread is
+   * about without a click-through. Null for every other anchor type, and
+   * null (not an error) if the anchor node was since deleted.
+   */
+  anchor_node_title_i18n: bilingualTextSchema.nullable(),
+  anchor_node_paper_code: z.string().nullable(),
   created_at: z.string(),
   updated_at: z.string(),
 });

@@ -44,6 +44,31 @@ async function fetchBlockedIds(viewerId: string): Promise<Set<string>> {
   return new Set((data ?? []).map((r) => r.blocked_id as string));
 }
 
+/**
+ * Resolved display label for a `anchor_type==='node'` thread — the anchored
+ * syllabus node's own bilingual title + paper code. Batch-looked-up (one
+ * query per page of results, never per-thread) so the hub/thread views can
+ * show what topic a thread is about without an extra click-through. Other
+ * anchor types (question/ca_item/shared_answer) are left unresolved for now.
+ */
+interface NodeLabel {
+  title_i18n: BilingualText;
+  paper_code: string;
+}
+
+async function fetchNodeLabels(threadRows: { anchor_type: DiscussionAnchorType; anchor_id: string }[]): Promise<Map<string, NodeLabel>> {
+  const nodeIds = [...new Set(threadRows.filter((r) => r.anchor_type === "node").map((r) => r.anchor_id))];
+  if (nodeIds.length === 0) return new Map();
+  const { data, error } = await supabase().from("syllabus_nodes").select("id, title_i18n, paper_code").in("id", nodeIds);
+  if (error) throw new HttpError(500, `syllabus node label lookup failed: ${error.message}`);
+  return new Map(
+    (data ?? []).map((row) => [
+      row.id as string,
+      { title_i18n: row.title_i18n as BilingualText, paper_code: row.paper_code as string },
+    ]),
+  );
+}
+
 async function assertAnchorExists(anchorType: DiscussionAnchorType, anchorId: string): Promise<void> {
   if (anchorType === "question") {
     const { data, error } = await supabase()
@@ -87,7 +112,8 @@ interface ThreadRow {
   updated_at: string;
 }
 
-function toThread(row: ThreadRow, authors: Map<string, CommunityAuthor>): DiscussionThread {
+function toThread(row: ThreadRow, authors: Map<string, CommunityAuthor>, nodeLabels: Map<string, NodeLabel>): DiscussionThread {
+  const nodeLabel = row.anchor_type === "node" ? nodeLabels.get(row.anchor_id) : undefined;
   return {
     id: row.id,
     anchor_type: row.anchor_type,
@@ -97,6 +123,8 @@ function toThread(row: ThreadRow, authors: Map<string, CommunityAuthor>): Discus
     is_locked: row.is_locked,
     moderation_status: row.moderation_status,
     post_count: row.post_count,
+    anchor_node_title_i18n: nodeLabel?.title_i18n ?? null,
+    anchor_node_paper_code: nodeLabel?.paper_code ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -129,10 +157,10 @@ export async function listThreadsForAnchor(
 
   const blocked = await fetchBlockedIds(viewerId);
   const rows = (data ?? []).filter((r) => !blocked.has(r.user_id as string)) as unknown as ThreadRow[];
-  const authors = await fetchAuthors(rows.map((r) => r.user_id));
+  const [authors, nodeLabels] = await Promise.all([fetchAuthors(rows.map((r) => r.user_id)), fetchNodeLabels(rows)]);
   const total = count ?? 0;
   return {
-    items: rows.map((r) => toThread(r, authors)),
+    items: rows.map((r) => toThread(r, authors, nodeLabels)),
     pagination: { page, page_size: THREAD_PAGE_SIZE, total, total_pages: Math.max(1, Math.ceil(total / THREAD_PAGE_SIZE)) },
   };
 }
@@ -174,10 +202,10 @@ export async function createThread(
   void screenThread(row.id, title, body).catch((err) => logger.warn({ err }, "screenThread failed"));
   void screenPost((post as { id: string }).id, body).catch((err) => logger.warn({ err }, "screenPost failed"));
 
-  const authors = await fetchAuthors([userId]);
+  const [authors, nodeLabels] = await Promise.all([fetchAuthors([userId]), fetchNodeLabels([row])]);
   // post_count is bumped by the discussion_posts_after_write trigger, but the
   // row we already fetched predates the insert above — reflect it directly.
-  return toThread({ ...row, post_count: 1 }, authors);
+  return toThread({ ...row, post_count: 1 }, authors, nodeLabels);
 }
 
 export async function getThreadDetail(
@@ -222,9 +250,10 @@ export async function getThreadDetail(
   }
   const rows = (postRows ?? []).filter((r) => !blocked.has(r.user_id as string)) as unknown as PostRow[];
 
-  const [authors, myVotes] = await Promise.all([
+  const [authors, myVotes, nodeLabels] = await Promise.all([
     fetchAuthors([row.user_id, ...rows.map((r) => r.user_id)]),
     fetchMyVotes(viewerId, rows.map((r) => r.id)),
+    fetchNodeLabels([row]),
   ]);
 
   const posts: DiscussionPost[] = rows.map((r) => ({
@@ -242,7 +271,7 @@ export async function getThreadDetail(
 
   const total = count ?? 0;
   return {
-    thread: toThread(row, authors),
+    thread: toThread(row, authors, nodeLabels),
     posts,
     pagination: { page, page_size: POST_PAGE_SIZE, total, total_pages: Math.max(1, Math.ceil(total / POST_PAGE_SIZE)) },
   };
@@ -661,12 +690,15 @@ export async function getCommunityHub(userId: string): Promise<CommunityHub> {
     .slice(0, HUB_LIST_SIZE);
   const mineRows = (mineResult.data ?? []) as unknown as ThreadRow[];
 
-  const authors = await fetchAuthors([...recentRows.map((r) => r.user_id), ...mineRows.map((r) => r.user_id)]);
+  const [authors, nodeLabels] = await Promise.all([
+    fetchAuthors([...recentRows.map((r) => r.user_id), ...mineRows.map((r) => r.user_id)]),
+    fetchNodeLabels([...recentRows, ...mineRows]),
+  ]);
 
   return {
-    recent_threads: recentRows.map((r) => toThread(r, authors)),
+    recent_threads: recentRows.map((r) => toThread(r, authors, nodeLabels)),
     open_peer_review: sharedResult.items.slice(0, HUB_LIST_SIZE),
-    my_threads: mineRows.map((r) => toThread(r, authors)),
+    my_threads: mineRows.map((r) => toThread(r, authors, nodeLabels)),
   };
 }
 

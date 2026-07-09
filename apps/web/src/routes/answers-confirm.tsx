@@ -120,7 +120,7 @@ export function Component() {
                 <li>{t("Answers.ocrTipFlat")}</li>
                 <li>{t("Answers.ocrTipFocus")}</li>
               </ul>
-              <Button variant="outline" onClick={() => stream.start()}>
+              <Button variant="outline" onClick={() => stream.start({ force: true })}>
                 {t("Answers.retryStream")}
               </Button>
             </div>

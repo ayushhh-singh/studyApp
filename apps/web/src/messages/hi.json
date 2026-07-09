@@ -1,4 +1,9 @@
 {
+  "Common": {
+    "loadErrorTitle": "यह लोड नहीं हो सका",
+    "loadErrorDescription": "कुछ गड़बड़ हो गई। कृपया अपना कनेक्शन जाँचें और फिर से प्रयास करें।",
+    "retry": "पुनः प्रयास करें"
+  },
   "Nav": {
     "dashboard": "डैशबोर्ड",
     "learn": "अध्ययन",
@@ -17,6 +22,7 @@
     "search": "खोजें",
     "searchShortcut": "Ctrl K",
     "toggleTheme": "थीम बदलें",
+    "toggleLanguage": "भाषा बदलें",
     "account": "खाता",
     "signOut": "साइन आउट"
   },
@@ -46,6 +52,8 @@
     "continueSyllabusCta": "आगे पढ़ें",
     "continueEmptyTitle": "अभी कुछ भी प्रगति में नहीं",
     "continueEmptyDescription": "अभ्यास सेट शुरू करें या पाठ्यक्रम ब्राउज़ करें ताकि अगली बार यहीं से जारी रख सकें।",
+    "continueEmptyPracticeCta": "अभ्यास सेट शुरू करें",
+    "continueEmptyLearnCta": "पाठ्यक्रम ब्राउज़ करें",
     "todayTitle": "आज",
     "todaySrsDue_one": "{{count}} कार्ड पुनरावृत्ति हेतु देय",
     "todaySrsDue_other": "{{count}} कार्ड पुनरावृत्ति हेतु देय",
@@ -57,6 +65,10 @@
     "todayGoToCurrentAffairs": "करेंट अफेयर्स देखें",
     "todayDailyQuizCta": "आज का क्विज़ लें",
     "todayDailyQuizNone": "आज कोई डेली क्विज़ नहीं",
+    "todayDailyQuizGenerateCta": "आज की क्विज़ बनाएँ",
+    "todayDailyQuizGenerating": "आज की क्विज़ बन रही है…",
+    "todayDailyQuizError": "बन नहीं पाई — फिर से कोशिश करने के लिए टैप करें",
+    "todayDailyQuizEmpty": "अभी आज की क्विज़ बनाने के लिए कोई प्रश्न उपलब्ध नहीं",
     "performanceTitle": "प्रदर्शन स्नैपशॉट",
     "performanceSparklineLabel": "पिछले 5 स्कोर",
     "performanceNoScores": "अपना स्कोर ट्रेंड देखने के लिए एक टेस्ट पूरा करें।",
@@ -147,7 +159,12 @@
     "mapIntro": "आपका कॉन्क्वेस्ट मानचित्र। हर क्षेत्र एक पाठ्यक्रम खंड है — आकार इस पर कि यूपीपीएससी उसे कितनी बार पूछता है, और रंग आपकी दक्षता पर। स्पंदित टाइलें उच्च-भारांक वाले खंड हैं जिन्हें आपने अभी तक सुरक्षित नहीं किया — वहीं से शुरू करें। खोलने के लिए किसी भी क्षेत्र पर टैप करें।",
     "mapEmptyTitle": "अभी कोई मानचित्र नहीं",
     "mapEmptyDescription": "इस प्रश्नपत्र के लिए मानचित्र बनाने हेतु अभी कोई PYQ-भारित खंड नहीं है।",
+    "mapDrillHint": "उप-विषय देखने के लिए टैप करें",
+    "mapNoSubtopicsTitle": "अभी और विवरण नहीं",
+    "mapNoSubtopicsDescription": "इस विषय के PYQ अभी उप-विषयों में विभाजित नहीं हैं — इसके बजाय इसे सीधे खोलें।",
+    "mapViewTopic": "विषय देखें",
     "shareMap": "मानचित्र साझा करें",
+    "shareMapError": "शेयर इमेज नहीं बन सकी। कृपया फिर से प्रयास करें।",
     "mastery_unseen": "अदेखा",
     "mastery_bronze": "कांस्य",
     "mastery_silver": "रजत",
@@ -260,6 +277,12 @@
     "dailyPrev": "नई",
     "dailyNext": "पुरानी",
     "dailyPageOf": "{{page}} / {{total}}",
+    "dailyGenerateTitle": "आज की क्विज़ अभी तैयार नहीं है",
+    "dailyGenerateDescription": "सुबह 5 बजे वाला जनरेटर अभी नहीं चला — इंतज़ार करने के बजाय अभी बना लें।",
+    "dailyGenerateButton": "आज की क्विज़ बनाएँ",
+    "dailyGenerating": "बन रही है…",
+    "dailyGenerateError": "आज की क्विज़ नहीं बन पाई। फिर से कोशिश करें।",
+    "dailyGenerateEmpty": "अभी आज की क्विज़ बनाने के लिए कोई प्रश्न उपलब्ध नहीं।",
     "tabMock": "मॉक टेस्ट",
     "mockTitle": "पूर्ण-लंबाई मॉक टेस्ट",
     "mockDescription": "असली एक-तिहाई नेगेटिव मार्किंग के साथ यूपीपीएससी-पैटर्न पेपर।",
@@ -724,6 +747,7 @@
   "Digest": {
     "title": "इस सप्ताह",
     "share": "साझा करें",
+    "shareError": "शेयर इमेज नहीं बन सकी। कृपया फिर से प्रयास करें।",
     "questions": "प्रश्न",
     "accuracy": "सटीकता",
     "answers": "उत्तर",
@@ -1076,6 +1100,10 @@
     "prePromptBody": "प्रयासUP आपको तभी सूचना भेज सकता है जब आज की क्विज़ तैयार हो, रिवीजन कार्ड बकाया हों, या आपकी स्ट्रीक टूटने वाली हो। कोई स्पैम नहीं — सिर्फ़ पढ़ाई की याद, और आप इन्हें कभी भी बंद कर सकते हैं।",
     "prefQuizReady": "डेली क्विज़ तैयार",
     "prefSrsDue": "रिवीजन बकाया",
-    "prefStreakAtRisk": "स्ट्रीक ख़तरे में"
+    "prefStreakAtRisk": "स्ट्रीक ख़तरे में",
+    "installTitle": "प्रयासUP इंस्टॉल करें",
+    "installDescription": "एक टैप में खोलने और ऑफ़लाइन पढ़ाई के लिए इसे अपनी होम स्क्रीन पर जोड़ें।",
+    "installCta": "ऐप इंस्टॉल करें",
+    "installDismiss": "खारिज करें"
   }
 }
