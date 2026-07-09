@@ -3,6 +3,7 @@ import type {
   AttemptAnswerInput,
   AttemptAnswerRecord,
   AttemptDetail,
+  AttemptListItem,
   AttemptResultDetail,
   AttemptResultItem,
   AttemptReviewItem,
@@ -63,6 +64,46 @@ async function getOwnedAttemptRow(userId: string, attemptId: string): Promise<At
   const row = data as unknown as AttemptRow | null;
   if (!row || row.user_id !== userId) throw notFound("Attempt not found");
   return row;
+}
+
+export const ATTEMPTS_PAGE_SIZE = 10;
+
+interface AttemptListRow {
+  id: string;
+  submitted_at: string;
+  score: number | null;
+  total: number | null;
+  test_id: string | null;
+  tests: { title_i18n: BilingualText; kind: TestKind; paper_code: string | null } | null;
+}
+
+/** GET /attempts — mirrors listSubmissions (evaluate.ts) for the MCQ side: newest-first, paginated, submitted attempts only. */
+export async function listAttempts(
+  userId: string,
+  page: number,
+): Promise<{ items: AttemptListItem[]; total: number }> {
+  const from = (page - 1) * ATTEMPTS_PAGE_SIZE;
+  const to = from + ATTEMPTS_PAGE_SIZE - 1;
+  const { data, error, count } = await supabase()
+    .from("attempts")
+    .select("id, submitted_at, score, total, test_id, tests(title_i18n, kind, paper_code)", { count: "exact" })
+    .eq("user_id", userId)
+    .not("submitted_at", "is", null)
+    .order("submitted_at", { ascending: false })
+    .range(from, to);
+  if (error) throw new HttpError(500, `attempts query failed: ${error.message}`);
+
+  const items = ((data ?? []) as unknown as AttemptListRow[]).map((row) => ({
+    id: row.id,
+    test_id: row.test_id,
+    test_title_i18n: row.tests?.title_i18n ?? null,
+    test_kind: row.tests?.kind ?? null,
+    paper_code: row.tests?.paper_code ?? null,
+    submitted_at: row.submitted_at,
+    score: row.score,
+    total: row.total,
+  }));
+  return { items, total: count ?? 0 };
 }
 
 /**

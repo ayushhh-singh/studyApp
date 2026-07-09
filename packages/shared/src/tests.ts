@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, bilingualTextSchema, examCodeSchema } from "./types";
+import { apiEnvelopeSchema, bilingualTextSchema, examCodeSchema, paginatedSchema } from "./types";
 import { difficultySchema, questionSchema } from "./questions";
 
 export const testKindSchema = z.enum(["pyq_full", "sectional", "daily_quiz", "custom", "mock", "time_attack"]);
@@ -65,3 +65,20 @@ export type TestsListResponse = z.infer<typeof testsListResponseSchema>;
 
 export const testDetailResponseSchema = apiEnvelopeSchema(testDetailSchema);
 export type TestDetailResponse = z.infer<typeof testDetailResponseSchema>;
+
+// --- Attempt history (mirrors submissionListItemSchema in evaluation.ts) ---
+
+export const attemptListItemSchema = z.object({
+  id: z.string().uuid(),
+  test_id: z.string().uuid().nullable(),
+  test_title_i18n: bilingualTextSchema.nullable(),
+  test_kind: testKindSchema.nullable(),
+  paper_code: z.string().nullable(),
+  submitted_at: z.string(),
+  score: z.number().nullable(),
+  total: z.number().nullable(),
+});
+export type AttemptListItem = z.infer<typeof attemptListItemSchema>;
+
+export const attemptListResponseSchema = apiEnvelopeSchema(paginatedSchema(attemptListItemSchema));
+export type AttemptListResponse = z.infer<typeof attemptListResponseSchema>;

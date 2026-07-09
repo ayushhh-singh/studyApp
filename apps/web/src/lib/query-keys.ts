@@ -13,6 +13,7 @@ export const queryKeys = {
   test: (id: string) => ["tests", "detail", id] as const,
   attempt: (id: string) => ["attempts", "detail", id] as const,
   attemptResult: (id: string) => ["attempts", "result", id] as const,
+  attempts: (page: number) => ["attempts", "list", page] as const,
   dashboardSummary: () => ["dashboard", "summary"] as const,
   profile: () => ["profile"] as const,
   profileAnalytics: () => ["profile", "analytics"] as const,

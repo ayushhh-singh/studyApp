@@ -4,6 +4,7 @@ import {
   attemptAnswersBodySchema,
   attemptAnswersResponseSchema,
   attemptDetailResponseSchema,
+  attemptListResponseSchema,
   attemptResponseSchema,
   attemptResultResponseSchema,
   attemptStartBodySchema,
@@ -17,8 +18,10 @@ import { currentUserId } from "../lib/user-context.js";
 import { logger } from "../lib/logger.js";
 import { recomputeMastery } from "../mastery/compute.js";
 import {
+  ATTEMPTS_PAGE_SIZE,
   getAttemptDetail,
   getAttemptResult,
+  listAttempts,
   startAttempt,
   submitAttempt,
   upsertAttemptAnswers,
@@ -29,6 +32,29 @@ export const attemptsRouter = Router();
 attemptsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
 
 const attemptIdParams = z.object({ id: z.string().uuid() });
+const attemptListQuerySchema = z.object({ page: z.coerce.number().int().min(1).default(1) });
+
+attemptsRouter.get(
+  "/attempts",
+  asyncHandler(async (req, res) => {
+    const { page } = parse(attemptListQuerySchema, req.query);
+    const { items, total } = await listAttempts(currentUserId(), page);
+    res.json(
+      attemptListResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: ATTEMPTS_PAGE_SIZE,
+            total,
+            total_pages: Math.ceil(total / ATTEMPTS_PAGE_SIZE),
+          },
+        },
+        error: null,
+      }),
+    );
+  }),
+);
 
 attemptsRouter.post(
   "/attempts",

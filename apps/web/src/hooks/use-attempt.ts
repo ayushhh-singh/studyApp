@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   attemptDetailResponseSchema,
+  attemptListResponseSchema,
   attemptResponseSchema,
   attemptResultResponseSchema,
   attemptSubmitResponseSchema,
@@ -8,6 +9,13 @@ import {
 } from "@prayasup/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+
+export function useAttempts(page: number) {
+  return useQuery({
+    queryKey: queryKeys.attempts(page),
+    queryFn: () => api.get(`/api/v1/attempts?page=${page}`, attemptListResponseSchema),
+  });
+}
 
 export function useStartAttempt() {
   return useMutation({

@@ -14,13 +14,14 @@ import { PyqList } from "@/components/learn/pyq-list";
 import { TestCard } from "@/components/practice/test-card";
 import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
+import { AttemptHistoryList } from "@/components/practice/attempt-history-list";
 import { useTests } from "@/hooks/use-tests";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "Nav.practice" };
 
-const TABS = ["daily", "pyq", "sectional", "mock", "timeattack", "custom"] as const;
+const TABS = ["daily", "pyq", "sectional", "mock", "timeattack", "custom", "history"] as const;
 type Tab = (typeof TABS)[number];
 
 function isTab(value: string | null): value is Tab {
@@ -252,6 +253,7 @@ export function Component() {
           <TabsTrigger value="mock">{t("Practice.tabMock")}</TabsTrigger>
           <TabsTrigger value="timeattack">{t("Practice.tabTimeAttack")}</TabsTrigger>
           <TabsTrigger value="custom">{t("Practice.tabCustom")}</TabsTrigger>
+          <TabsTrigger value="history">{t("Practice.tabHistory")}</TabsTrigger>
         </TabsList>
         <TabsContent value="daily">
           <SectionCard title={t("Practice.dailyArchiveTitle")} description={t("Practice.dailyArchiveDescription")}>
@@ -278,6 +280,11 @@ export function Component() {
         </TabsContent>
         <TabsContent value="custom">
           <CustomTestsPanel />
+        </TabsContent>
+        <TabsContent value="history">
+          <SectionCard title={t("Practice.historyTitle")}>
+            <AttemptHistoryList />
+          </SectionCard>
         </TabsContent>
       </Tabs>
     </div>
