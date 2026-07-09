@@ -83,26 +83,31 @@ interface SessionSubmissionRow {
   id: string;
   question_id: string | null;
   status: SubmissionStatus;
+  mode: "typed" | "handwritten";
   evaluations: { overall_score: number | null; max_score: number | null } | null;
 }
 
-async function submissionsBySession(
-  sessionId: string,
-): Promise<Map<string, { submission_id: string; status: SubmissionStatus; overall_score: number | null; max_score: number | null }>> {
+interface SessionSubmissionSummary {
+  submission_id: string;
+  status: SubmissionStatus;
+  mode: "typed" | "handwritten";
+  overall_score: number | null;
+  max_score: number | null;
+}
+
+async function submissionsBySession(sessionId: string): Promise<Map<string, SessionSubmissionSummary>> {
   const { data, error } = await supabase()
     .from("answer_submissions")
-    .select("id, question_id, status, evaluations(overall_score, max_score)")
+    .select("id, question_id, status, mode, evaluations(overall_score, max_score)")
     .eq("answer_session_id", sessionId);
   if (error) throw new HttpError(500, `session submissions lookup failed: ${error.message}`);
-  const map = new Map<
-    string,
-    { submission_id: string; status: SubmissionStatus; overall_score: number | null; max_score: number | null }
-  >();
+  const map = new Map<string, SessionSubmissionSummary>();
   for (const row of (data ?? []) as unknown as SessionSubmissionRow[]) {
     if (!row.question_id) continue;
     map.set(row.question_id, {
       submission_id: row.id,
       status: row.status,
+      mode: row.mode,
       overall_score: row.evaluations?.overall_score ?? null,
       max_score: row.evaluations?.max_score ?? null,
     });

@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { TodaysQuestionCard } from "@/components/answers/todays-question-card";
 import { DailyAnswerSet } from "@/components/answers/daily-answer-set";
 import { PyqPicker } from "@/components/answers/pyq-picker";
+import { AnswerTestTabs } from "@/components/answers/answer-test-tabs";
 import { SubmissionHistoryList } from "@/components/answers/submission-history-list";
 import { useTodaysQuestion } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
@@ -62,6 +63,8 @@ export function Component() {
           </Link>
         </SectionCard>
       </div>
+
+      <AnswerTestTabs />
 
       <SubmissionHistoryList />
     </div>

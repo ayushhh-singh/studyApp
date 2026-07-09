@@ -64,6 +64,10 @@ export const router = createBrowserRouter([
                 path: "answers/evaluation/:submissionId",
                 lazy: () => import("@/routes/answers-evaluation"),
               },
+              {
+                path: "answers/session/:sessionId/result",
+                lazy: () => import("@/routes/answers-session-result"),
+              },
               { path: "current-affairs", lazy: () => import("@/routes/current-affairs") },
               { path: "doubts", lazy: () => import("@/routes/doubts") },
           // A specific conversation gets its own URL — bookmarkable, survives a
@@ -90,6 +94,9 @@ export const router = createBrowserRouter([
           // full-screen experience with its own minimal header, not the normal
           // sidebar/bottom-tab/topbar chrome.
           { path: "practice/test/:testId", lazy: () => import("@/routes/practice-test") },
+          // Same rationale as the MCQ test player — a distraction-free
+          // full-screen timed session, not the normal app-shell chrome.
+          { path: "answers/session/:testId", lazy: () => import("@/routes/answers-session") },
           // Full-screen CSAT Time Attack (own chrome, instant feedback + big timer).
           { path: "practice/time-attack", lazy: () => import("@/routes/practice-time-attack") },
           // Full-screen Ghost Battle — replay a completed attempt racing past-you.

@@ -8,9 +8,11 @@ export const queryKeys = {
   paperTrends: (paperCode: string, exam?: ExamCode) =>
     ["syllabus", "papers", paperCode, "trends", exam ?? "all"] as const,
   syllabusNode: (nodeId: string, exam?: ExamCode) => ["syllabus", "nodes", nodeId, exam ?? "all"] as const,
-  tests: (filters?: { kind?: string; paper?: string }) =>
-    ["tests", "list", filters?.kind ?? "all", filters?.paper ?? "all"] as const,
+  tests: (filters?: { kind?: string; paper?: string; stage?: string }) =>
+    ["tests", "list", filters?.kind ?? "all", filters?.paper ?? "all", filters?.stage ?? "all"] as const,
   test: (id: string) => ["tests", "detail", id] as const,
+  answerSession: (id: string) => ["answer-sessions", "detail", id] as const,
+  answerSessionResult: (id: string) => ["answer-sessions", "result", id] as const,
   attempt: (id: string) => ["attempts", "detail", id] as const,
   attemptResult: (id: string) => ["attempts", "result", id] as const,
   attempts: (page: number) => ["attempts", "list", page] as const,

@@ -4,14 +4,23 @@ import { Clock, ListChecks, Award } from "lucide-react";
 import type { TestSummary, Locale } from "@prayasup/shared";
 import { scoreBandColor } from "@/lib/score-band";
 
-export function TestCard({ test, locale }: { test: TestSummary; locale: Locale }) {
+export function TestCard({
+  test,
+  locale,
+  href,
+}: {
+  test: TestSummary;
+  locale: Locale;
+  /** Overrides the default MCQ test-player link — used by the Answers (descriptive) test tabs, which start a timed session instead. */
+  href?: string;
+}) {
   const { t } = useTranslation();
   const bestPct =
     test.best_score !== null && test.total_marks ? Math.max(0, (test.best_score / test.total_marks) * 100) : null;
 
   return (
     <Link
-      to={`/${locale}/practice/test/${test.id}`}
+      to={href ?? `/${locale}/practice/test/${test.id}`}
       className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex min-w-0 flex-col gap-0.5">

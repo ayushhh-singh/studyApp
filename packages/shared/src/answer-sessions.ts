@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema } from "./types";
 import { testDetailSchema } from "./tests";
-import { submissionStatusSchema } from "./evaluation";
+import { submissionModeSchema, submissionStatusSchema } from "./evaluation";
 
 export const answerSessionStatusSchema = z.enum(["in_progress", "submitted"]);
 export type AnswerSessionStatus = z.infer<typeof answerSessionStatusSchema>;
@@ -20,6 +20,7 @@ export type AnswerSession = z.infer<typeof answerSessionSchema>;
 export const answerSessionSubmissionSchema = z.object({
   submission_id: z.string().uuid(),
   status: submissionStatusSchema,
+  mode: submissionModeSchema,
   overall_score: z.number().nullable(),
   max_score: z.number().nullable(),
 });
