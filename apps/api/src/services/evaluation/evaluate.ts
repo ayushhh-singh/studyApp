@@ -166,6 +166,11 @@ export async function createSubmission(userId: string, body: CreateSubmissionBod
   if (body.word_limit) meta.word_limit = body.word_limit;
   if (body.marks) meta.marks = body.marks;
 
+  let sessionOrderIndex: number | null = null;
+  if (body.answer_session_id) {
+    sessionOrderIndex = await validateAnswerSessionSubmission(userId, body.answer_session_id, question_id!);
+  }
+
   const { data, error } = await supabase()
     .from("answer_submissions")
     .insert({
@@ -178,11 +183,49 @@ export async function createSubmission(userId: string, body: CreateSubmissionBod
       status: "pending",
       language: body.language,
       meta,
+      answer_session_id: body.answer_session_id ?? null,
+      session_order_index: sessionOrderIndex,
     })
     .select(SUBMISSION_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `submission insert failed: ${error.message}`);
   return mapSubmission(data as SubmissionRow);
+}
+
+/**
+ * Guards a session-linked submission: the session must belong to this user,
+ * still be in_progress, and within its deadline (mirrors the MCQ player's own
+ * flush-then-submit tightness — a slow network right at expiry can lose the
+ * race, matching real exam conditions). Returns the question's order_index
+ * within the session's test, for session_order_index (display sorting only).
+ */
+async function validateAnswerSessionSubmission(
+  userId: string,
+  sessionId: string,
+  questionId: string,
+): Promise<number> {
+  const { data: session, error: sessionError } = await supabase()
+    .from("answer_test_sessions")
+    .select("id, user_id, test_id, started_at, duration_minutes, submitted_at")
+    .eq("id", sessionId)
+    .maybeSingle();
+  if (sessionError) throw new HttpError(500, `answer session lookup failed: ${sessionError.message}`);
+  if (!session || session.user_id !== userId) throw notFound("Answer session not found");
+  if (session.submitted_at) throw badRequest("This answer session has already been finished");
+  if (session.duration_minutes) {
+    const deadline = new Date(session.started_at).getTime() + session.duration_minutes * 60_000;
+    if (Date.now() > deadline) throw badRequest("This answer session's time is up");
+  }
+
+  const { data: tq, error: tqError } = await supabase()
+    .from("test_questions")
+    .select("order_index")
+    .eq("test_id", session.test_id)
+    .eq("question_id", questionId)
+    .maybeSingle();
+  if (tqError) throw new HttpError(500, `session question lookup failed: ${tqError.message}`);
+  if (!tq) throw badRequest("This question is not part of the session's test");
+  return tq.order_index as number;
 }
 
 // ---------------------------------------------------------------------------

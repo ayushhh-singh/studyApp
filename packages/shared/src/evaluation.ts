@@ -98,6 +98,8 @@ export const createSubmissionBodySchema = z
     language: localeSchema,
     word_limit: z.number().int().positive().max(2_000).optional(),
     marks: z.number().int().positive().max(100).optional(),
+    /** Ties this submission to an in-progress answer test session (see answer-sessions.ts) — only valid with question_id, never a custom prompt. */
+    answer_session_id: z.string().uuid().optional(),
   })
   .refine((b) => (b.question_id ? 1 : 0) + (b.custom_question_text ? 1 : 0) === 1, {
     message: "Provide exactly one of question_id or custom_question_text",
@@ -113,6 +115,9 @@ export const createSubmissionBodySchema = z
   })
   .refine((b) => (b.mode === "handwritten" ? !b.typed_text : true), {
     message: "typed_text must not be supplied for a handwritten submission (confirm the OCR transcription instead)",
+  })
+  .refine((b) => (b.answer_session_id ? !!b.question_id : true), {
+    message: "answer_session_id requires question_id (a session question is always catalogued, never a custom prompt)",
   });
 export type CreateSubmissionBody = z.infer<typeof createSubmissionBodySchema>;
 
