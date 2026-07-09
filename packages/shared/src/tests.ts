@@ -48,17 +48,25 @@ export type TestDetail = z.infer<typeof testDetailSchema>;
 export const testsQuerySchema = z.object({
   kind: testKindSchema.optional(),
   paper: z.string().optional(),
+  /** Restricts pyq_full/sectional/mock/custom to the given stage's paper codes (prelims: PRE_%, mains: everything else except the current-affairs quiz paper). Omit to keep each kind's historical default. */
+  stage: z.enum(["prelims", "mains"]).optional(),
 });
 export type TestsQuery = z.infer<typeof testsQuerySchema>;
 
 export const createCustomTestBodySchema = z.object({
-  node_id: z.string().uuid(),
+  node_ids: z.array(z.string().uuid()).min(1).max(10),
   count: z.number().int().min(1).max(100).default(20),
   difficulty: difficultySchema.optional(),
   /** Omit to mix all exams mapped to the topic; pass one to scope to a single exam. */
   exam: examCodeSchema.optional(),
 });
 export type CreateCustomTestBody = z.infer<typeof createCustomTestBodySchema>;
+
+export const createCustomAnswerTestBodySchema = z.object({
+  node_ids: z.array(z.string().uuid()).min(1).max(10),
+  count: z.number().int().min(1).max(50).default(5),
+});
+export type CreateCustomAnswerTestBody = z.infer<typeof createCustomAnswerTestBodySchema>;
 
 export const testsListResponseSchema = apiEnvelopeSchema(z.array(testSummarySchema));
 export type TestsListResponse = z.infer<typeof testsListResponseSchema>;

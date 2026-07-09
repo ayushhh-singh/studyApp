@@ -136,7 +136,7 @@ export function Component() {
           node.exam_stage === "prelims" ? (
             <Button
               type="button"
-              onClick={() => createTest.mutate({ node_id: nodeId, count: Math.min(node.pyq_count, 20), exam })}
+              onClick={() => createTest.mutate({ node_ids: [nodeId], count: Math.min(node.pyq_count, 20), exam })}
               disabled={node.pyq_count === 0 || createTest.isPending}
             >
               <PenSquare aria-hidden />

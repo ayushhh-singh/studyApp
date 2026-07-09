@@ -29,7 +29,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   // building an MCQ custom set from one always errors with "no MCQ PYQs".
   const papers = useMemo(() => (allPapers ?? []).filter((p) => p.exam_stage === "prelims"), [allPapers]);
   const [paperCode, setPaperCode] = useState<string>("");
-  const [nodeId, setNodeId] = useState<string>("");
+  const [nodeIds, setNodeIds] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [exam, setExam] = useState<ExamCode | undefined>(undefined);
   // Scope the tree fetch by the same exam filter used at creation time —
@@ -43,28 +43,32 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   // own_pyq_count (exact node match), NOT pyq_count (subtree-aggregated) —
   // createCustomTestFromNode only pulls questions mapped to this exact node,
   // so the picker must reflect that count or it over-promises what a parent
-  // topic's dropdown row can actually deliver.
+  // topic's row can actually deliver.
   const flatNodes = useMemo(
     () => (tree ? flatten(tree.children).filter((f) => f.node.own_pyq_count > 0) : []),
     [tree],
   );
-  const selectedNode = flatNodes.find((f) => f.node.id === nodeId)?.node;
+  const selectedNodes = useMemo(
+    () => flatNodes.filter((f) => nodeIds.includes(f.node.id)),
+    [flatNodes, nodeIds],
+  );
+  const maxCount = Math.max(1, Math.min(100, selectedNodes.reduce((sum, f) => sum + f.node.own_pyq_count, 0) || 100));
 
-  // Reclamp the count whenever the selected topic changes — its own_pyq_count
-  // (the input's max) can shrink on a new topic, but the input's value doesn't
-  // reclamp itself, so a count typed for a larger topic (e.g. 100) would
-  // otherwise silently survive a switch to a topic with far fewer PYQs (e.g.
-  // 5) and get sent to the API as-is.
+  function toggleNode(id: string) {
+    setNodeIds((prev) => (prev.includes(id) ? prev.filter((n) => n !== id) : [...prev, id]));
+  }
+
+  // Reclamp the count whenever the selection changes — the combined
+  // own_pyq_count across selected topics (the input's max) can shrink, but
+  // the input's value doesn't reclamp itself.
   useEffect(() => {
-    if (!selectedNode) return;
-    const max = Math.max(1, Math.min(100, selectedNode.own_pyq_count));
-    setCount((c) => Math.min(c, max));
-  }, [selectedNode]);
+    setCount((c) => Math.min(c, maxCount));
+  }, [maxCount]);
 
   function handleSubmit() {
-    if (!nodeId) return;
+    if (nodeIds.length === 0) return;
     createTest.mutate(
-      { node_id: nodeId, count, difficulty: difficulty || undefined, exam },
+      { node_ids: nodeIds, count, difficulty: difficulty || undefined, exam },
       { onSuccess: (test) => navigate(`/${locale}/practice/test/${test.id}`) },
     );
   }
@@ -77,9 +81,9 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
           value={exam}
           onChange={(next) => {
             setExam(next);
-            // The previously selected topic's own_pyq_count was computed
+            // The previously selected topics' own_pyq_count was computed
             // under the old exam scope — it may no longer be valid/visible.
-            setNodeId("");
+            setNodeIds([]);
           }}
         />
       </div>
@@ -91,7 +95,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
           value={paperCode}
           onChange={(e) => {
             setPaperCode(e.target.value);
-            setNodeId("");
+            setNodeIds([]);
           }}
         >
           <option value="">{t("Practice.customPaperPlaceholder")}</option>
@@ -103,23 +107,39 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
         </select>
       </label>
 
-      <label className="flex flex-col gap-1.5 text-sm font-medium">
-        {t("Practice.customTopic")}
-        <select
-          className={INPUT_CLASS}
-          value={nodeId}
-          onChange={(e) => setNodeId(e.target.value)}
-          disabled={!paperCode}
-        >
-          <option value="">{t("Practice.customTopicPlaceholder")}</option>
-          {flatNodes.map(({ node, depth }) => (
-            <option key={node.id} value={node.id}>
-              {"— ".repeat(depth)}
-              {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.own_pyq_count })})
-            </option>
-          ))}
-        </select>
-      </label>
+      <fieldset className="flex flex-col gap-1.5 text-sm font-medium" disabled={!paperCode}>
+        <legend className="mb-0.5">
+          {t("Practice.customTopics")}
+          {selectedNodes.length > 0 && (
+            <span className="ms-1.5 font-normal text-muted-foreground">
+              {t("Practice.customTopicsSelected", { count: selectedNodes.length })}
+            </span>
+          )}
+        </legend>
+        <div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto rounded-lg border border-input bg-background p-1.5">
+          {flatNodes.length === 0 ? (
+            <p className="px-1.5 py-1 text-xs text-muted-foreground">{t("Practice.customTopicPlaceholder")}</p>
+          ) : (
+            flatNodes.map(({ node, depth }) => (
+              <label
+                key={node.id}
+                className="flex min-h-9 cursor-pointer items-center gap-2 rounded-md px-1.5 text-sm hover:bg-accent"
+                style={{ paddingInlineStart: `${depth * 16 + 6}px` }}
+              >
+                <input
+                  type="checkbox"
+                  className="size-4 shrink-0 accent-primary"
+                  checked={nodeIds.includes(node.id)}
+                  onChange={() => toggleNode(node.id)}
+                />
+                <span className="min-w-0 flex-1 truncate">
+                  {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.own_pyq_count })})
+                </span>
+              </label>
+            ))
+          )}
+        </div>
+      </fieldset>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -142,14 +162,14 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
             type="number"
             className={INPUT_CLASS}
             min={1}
-            max={Math.max(1, Math.min(100, selectedNode?.own_pyq_count ?? 100))}
+            max={maxCount}
             value={count}
-            onChange={(e) => setCount(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+            onChange={(e) => setCount(Math.min(maxCount, Math.max(1, Number(e.target.value) || 1)))}
           />
         </label>
       </div>
 
-      <Button type="button" onClick={handleSubmit} disabled={!nodeId || createTest.isPending} className="self-start">
+      <Button type="button" onClick={handleSubmit} disabled={nodeIds.length === 0 || createTest.isPending} className="self-start">
         {createTest.isPending ? t("Practice.customCreating") : t("Practice.customCreate")}
       </Button>
 

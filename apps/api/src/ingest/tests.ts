@@ -184,13 +184,20 @@ async function main(): Promise<void> {
   // --- 2. Sectional tests (published MCQs per top-level syllabus node) ---
   report.section("Sectional tests (per top-level syllabus node)");
   const topByNode = await topLevelByNode();
-  const bySection = new Map<string, { paperCode: string; top: string; titleEn: string; ids: string[] }>();
+  const bySection = new Map<
+    string,
+    { paperCode: string; top: string; titleEn: string; type: "mcq" | "descriptive"; ids: string[] }
+  >();
   for (const q of published) {
-    if (q.type !== "mcq" || !q.syllabus_node_id) continue;
+    if (!q.syllabus_node_id) continue;
     const info = topByNode.get(q.syllabus_node_id);
     if (!info) continue;
-    const key = `${info.paperCode}::${info.top}`;
-    if (!bySection.has(key)) bySection.set(key, { ...info, ids: [] });
+    // Keyed by type too (defensive, not currently load-bearing — every
+    // paper_code today is either all-MCQ (Prelims) or all-descriptive
+    // (Mains)): the player can only run one kind, so a section must never
+    // mix them if that ever changes.
+    const key = `${info.paperCode}::${info.top}::${q.type}`;
+    if (!bySection.has(key)) bySection.set(key, { ...info, type: q.type, ids: [] });
     bySection.get(key)!.ids.push(q.id);
   }
   let sectionalCount = 0;
@@ -213,14 +220,14 @@ async function main(): Promise<void> {
       meta: {
         source: "auto_sectional",
         section_path: s.top,
-        marking_scheme: {
-          type: "uppsc_prelims",
-          negative_marking: PRELIMS_MARKING[s.paperCode]?.negativeMarking ?? -0.33,
-        },
+        marking_scheme:
+          s.type === "mcq"
+            ? { type: "uppsc_prelims", negative_marking: PRELIMS_MARKING[s.paperCode]?.negativeMarking ?? -0.33 }
+            : { type: "descriptive", negative_marking: 0 },
       },
     });
     await setMembership(testId, s.ids.sort());
-    report.ok(`${slug}: ${s.ids.length} MCQs`);
+    report.ok(`${slug}: ${s.ids.length} ${s.type === "mcq" ? "MCQs" : "questions"}`);
     sectionalCount++;
   }
 

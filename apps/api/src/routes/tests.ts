@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  createCustomAnswerTestBodySchema,
   createCustomTestBodySchema,
   testDetailResponseSchema,
   testsListResponseSchema,
@@ -9,7 +10,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { createCustomTestFromNode, getTestDetail, listTests } from "../services/tests.js";
+import { createCustomAnswerTest, createCustomTestFromNode, getTestDetail, listTests } from "../services/tests.js";
 
 export const testsRouter = Router();
 testsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -19,6 +20,15 @@ testsRouter.post(
   asyncHandler(async (req, res) => {
     const body = parse(createCustomTestBodySchema, req.body);
     const test = await createCustomTestFromNode(body);
+    res.status(201).json(testDetailResponseSchema.parse({ data: test, error: null }));
+  }),
+);
+
+testsRouter.post(
+  "/tests/custom-answer",
+  asyncHandler(async (req, res) => {
+    const body = parse(createCustomAnswerTestBodySchema, req.body);
+    const test = await createCustomAnswerTest(body.node_ids, body.count);
     res.status(201).json(testDetailResponseSchema.parse({ data: test, error: null }));
   }),
 );

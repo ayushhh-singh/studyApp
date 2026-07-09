@@ -18,6 +18,7 @@ export { CURRENT_AFFAIRS_PAPER_CODE };
 interface TestListFilters {
   kind?: TestKind;
   paper?: string;
+  stage?: "prelims" | "mains";
 }
 
 interface TestListRow {
@@ -41,21 +42,27 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
 
   if (filters.kind) query = query.eq("kind", filters.kind);
   if (filters.paper) query = query.eq("paper_code", filters.paper);
-  // pyq_full/sectional are MCQ test-taking surfaces (the Practice tab's
-  // test-player only knows how to run MCQ attempts) — but ingest:tests builds
-  // them for EVERY paper with published PYQs, including the 8 Mains papers,
-  // which are 100% descriptive and belong to the separate Answers feature.
-  // Prelims paper codes are always prefixed "PRE_" (see ingest/_shared.ts's
-  // PAPERS); excluding anything else keeps a Mains "full paper"/"sectional"
-  // test out of a UI that can't render it.
-  if (filters.kind === "pyq_full" || filters.kind === "sectional") {
+  // pyq_full/sectional/mock/custom are shared between the MCQ Practice tab
+  // and the descriptive Answers "Practice Tests" tab — an explicit `stage`
+  // scopes any kind to one side or the other. Prelims paper codes are always
+  // prefixed "PRE_" (see ingest/_shared.ts's PAPERS); Mains is everything
+  // else except the current-affairs quiz's own synthetic paper code.
+  if (filters.stage === "prelims") {
+    query = query.like("paper_code", "PRE_%");
+  } else if (filters.stage === "mains") {
+    query = query.not("paper_code", "like", "PRE_%").neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+  } else if (filters.kind === "pyq_full" || filters.kind === "sectional") {
+    // No explicit stage (existing MCQ-side callers): pyq_full/sectional
+    // historically default to Prelims-only, since ingest:tests builds them
+    // for every paper with published PYQs, including the 8 Mains papers,
+    // which the MCQ test-player can't run.
     query = query.like("paper_code", "PRE_%");
   }
   // "Quiz me on this week" (createCustomTestFromCurrentAffairs) also stamps
   // kind="custom" — exclude it from the Custom tab's "your custom sets" list
   // so a user's own topic-built sets aren't buried under repeat CA-quiz
   // clicks; the Current Affairs page is that quiz's own dedicated entry point.
-  if (filters.kind === "custom") {
+  if (filters.kind === "custom" && filters.stage !== "mains") {
     query = query.neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
   }
 
@@ -199,8 +206,16 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   };
 }
 
-function customTestTitle(nodeTitle: BilingualText): BilingualText {
-  return { en: `Practice: ${nodeTitle.en}`, hi: `अभ्यास: ${nodeTitle.hi}` };
+/** "Practice: A" for one topic, "Practice: A + B" for two, "Practice: A + 2 more" beyond that. */
+function customTestTitle(nodeTitles: BilingualText[]): BilingualText {
+  function join(titles: string[]): string {
+    if (titles.length <= 2) return titles.join(" + ");
+    return `${titles[0]} + ${titles.length - 1} more`;
+  }
+  return {
+    en: `Practice: ${join(nodeTitles.map((t) => t.en))}`,
+    hi: `अभ्यास: ${join(nodeTitles.map((t) => t.hi))}`,
+  };
 }
 
 /** Fisher-Yates shuffle so repeated "Practice this topic" clicks don't always surface the same subset. */
@@ -214,13 +229,15 @@ function shuffled<T>(items: T[]): T[] {
 }
 
 export async function createCustomTestFromNode(body: CreateCustomTestBody): Promise<TestDetail> {
-  const { data: node, error: nodeError } = await supabase()
+  const { data: nodes, error: nodesError } = await supabase()
     .from("syllabus_nodes")
     .select("id, paper_code, title_i18n")
-    .eq("id", body.node_id)
-    .maybeSingle();
-  if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
-  if (!node) throw notFound("Syllabus node not found");
+    .in("id", body.node_ids);
+  if (nodesError) throw new HttpError(500, `syllabus node lookup failed: ${nodesError.message}`);
+  if (!nodes || nodes.length === 0) throw notFound("Syllabus node not found");
+  // Preserve the caller's selection order for the title (first-picked topic leads).
+  const nodeById = new Map(nodes.map((n) => [n.id as string, n]));
+  const orderedNodes = body.node_ids.map((id) => nodeById.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
 
   // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
   // descriptive PYQs too (Mains topics), which the player can't run. "catalog"
@@ -229,7 +246,10 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   // ca:run does map them to a syllabus_node_id.
   // Subtree-aware so "Practice this topic" works on a chapter (non-leaf) node,
   // whose MCQ PYQs live on its leaf sub-topics; a leaf resolves to just [node].
-  const subtreeIds = await resolveSubtreeNodeIds(body.node_id);
+  // Multiple topics union their subtrees and dedupe by question id (two
+  // selected topics could share a sub-topic's questions otherwise).
+  const subtreeIdSets = await Promise.all(body.node_ids.map((id) => resolveSubtreeNodeIds(id)));
+  const subtreeIds = [...new Set(subtreeIdSets.flat())];
   let questionsQuery = supabase()
     .from("questions")
     .select("id, marks")
@@ -243,7 +263,8 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   const { data: questionRows, error: questionsError } = await questionsQuery;
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];
-  if (available.length === 0) throw badRequest("No published MCQ PYQs are mapped to this topic (and difficulty) yet");
+  if (available.length === 0)
+    throw badRequest("No published MCQ PYQs are mapped to these topics (and difficulty) yet");
 
   const selected = shuffled(available).slice(0, body.count);
   const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
@@ -251,12 +272,12 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   const { data: test, error: testError } = await supabase()
     .from("tests")
     .insert({
-      title_i18n: customTestTitle(node.title_i18n as BilingualText),
+      title_i18n: customTestTitle(orderedNodes.map((n) => n.title_i18n as BilingualText)),
       kind: "custom",
-      paper_code: node.paper_code,
+      paper_code: orderedNodes[0].paper_code,
       total_marks: totalMarks || null,
       is_published: true,
-      meta: { source_syllabus_node_id: body.node_id },
+      meta: { source_syllabus_node_ids: body.node_ids },
     })
     .select("id")
     .single();
@@ -278,6 +299,70 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     // test permanently visible in the shared /practice list.
     await supabase().from("tests").delete().eq("id", test.id as string);
     throw new HttpError(500, `custom test questions insert failed: ${tqError.message}`);
+  }
+
+  return getTestDetail(test.id as string);
+}
+
+/**
+ * Descriptive sibling of createCustomTestFromNode — same multi-topic
+ * union-of-subtrees approach, but type="descriptive" and no difficulty
+ * filter (descriptive questions don't carry one). Feeds an answer test
+ * session exactly like a pyq_full/sectional/mock test does — this just
+ * builds the tests/test_questions row; nothing here is MCQ-specific.
+ */
+export async function createCustomAnswerTest(nodeIds: string[], count: number): Promise<TestDetail> {
+  const { data: nodes, error: nodesError } = await supabase()
+    .from("syllabus_nodes")
+    .select("id, paper_code, title_i18n")
+    .in("id", nodeIds);
+  if (nodesError) throw new HttpError(500, `syllabus node lookup failed: ${nodesError.message}`);
+  if (!nodes || nodes.length === 0) throw notFound("Syllabus node not found");
+  const nodeById = new Map(nodes.map((n) => [n.id as string, n]));
+  const orderedNodes = nodeIds.map((id) => nodeById.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
+
+  const subtreeIdSets = await Promise.all(nodeIds.map((id) => resolveSubtreeNodeIds(id)));
+  const subtreeIds = [...new Set(subtreeIdSets.flat())];
+  const { data: questionRows, error: questionsError } = await supabase()
+    .from("questions")
+    .select("id, marks")
+    .in("syllabus_node_id", subtreeIds)
+    .eq("type", "descriptive")
+    .or(questionVisibilityOrFilter("catalog"));
+  if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
+  const available = (questionRows ?? []) as { id: string; marks: number | null }[];
+  if (available.length === 0) throw badRequest("No published descriptive PYQs are mapped to these topics yet");
+
+  const selected = shuffled(available).slice(0, count);
+  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+
+  const { data: test, error: testError } = await supabase()
+    .from("tests")
+    .insert({
+      title_i18n: customTestTitle(orderedNodes.map((n) => n.title_i18n as BilingualText)),
+      kind: "custom",
+      paper_code: orderedNodes[0].paper_code,
+      total_marks: totalMarks || null,
+      is_published: true,
+      meta: { source_syllabus_node_ids: nodeIds },
+    })
+    .select("id")
+    .single();
+  if (testError) throw new HttpError(500, `custom answer test insert failed: ${testError.message}`);
+
+  const { error: tqError } = await supabase()
+    .from("test_questions")
+    .insert(
+      selected.map((q, index) => ({
+        test_id: test.id as string,
+        question_id: q.id,
+        order_index: index,
+        marks: q.marks,
+      })),
+    );
+  if (tqError) {
+    await supabase().from("tests").delete().eq("id", test.id as string);
+    throw new HttpError(500, `custom answer test questions insert failed: ${tqError.message}`);
   }
 
   return getTestDetail(test.id as string);
