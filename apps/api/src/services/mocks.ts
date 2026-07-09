@@ -78,6 +78,13 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
       // hidden), so this exclusion is scoped to mocks only, not folded into
       // the shared question-visibility filter.
       .eq("out_of_syllabus", false)
+      // Mocks are titled/marked "UPPSC Prelims" and use UPPSC's own marking
+      // scheme — same rationale as ingest/tests.ts's pyq_full/sectional
+      // builders (see that file's doc comment). Non-UPPSC exams (UPSC CSE,
+      // UPSSSC PET) intentionally share this paper_code for weightage
+      // analytics elsewhere, but must never end up inside a paper claiming
+      // to be the genuine UPPSC pattern.
+      .eq("exam_code", "uppsc")
       .or(questionVisibilityOrFilter("catalog")),
     topLevelByNode(paperCode),
   ]);
@@ -198,6 +205,100 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
       log(`built mock:${cfg.paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks`);
     }
     results.push({ paper_code: cfg.paperCode, built: numSets, skipped: false });
+  }
+  return results;
+}
+
+// ---------------------------------------------------------------------------
+// Mains mocks — same balanced-sampling approach, descriptive questions.
+// Verified pattern (web search): each GS paper is 20 questions / 200 marks /
+// 3 hours, no negative marking. Scoped to the six GS papers (III-VIII, the
+// "backbone" of Mains per every source found) — Essay/General Hindi have a
+// structurally different pattern (topic CHOICES, not a fixed question set)
+// that a round-robin balanced mock doesn't model well, so they're left to the
+// existing yearly/sectional/custom modes instead.
+// ---------------------------------------------------------------------------
+
+const MAINS_GS_PAPER_CODES = ["MAINS_GS1", "MAINS_GS2", "MAINS_GS3", "MAINS_GS4", "MAINS_GS5", "MAINS_GS6"];
+const MAINS_MOCK_COUNT = 20;
+const MAINS_MOCK_DURATION_MINUTES = 180;
+const MAINS_MOCK_MAX_SETS = 2;
+
+async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[]> {
+  const [rows, topByNode] = await Promise.all([
+    supabase()
+      .from("questions")
+      .select("id, marks, syllabus_node_id")
+      .eq("type", "descriptive")
+      .eq("paper_code", paperCode)
+      .eq("exam_code", "uppsc")
+      .or(questionVisibilityOrFilter("catalog")),
+    topLevelByNode(paperCode),
+  ]);
+  if (rows.error) throw new HttpError(500, `mains mock question lookup failed: ${rows.error.message}`);
+  return ((rows.data ?? []) as { id: string; marks: number | null; syllabus_node_id: string | null }[]).map((r) => ({
+    id: r.id,
+    marks: r.marks ?? 0,
+    top: (r.syllabus_node_id && topByNode.get(r.syllabus_node_id)) || "__unmapped__",
+  }));
+}
+
+async function upsertMainsMockTest(input: {
+  slug: string;
+  paperCode: string;
+  index: number;
+  totalMarks: number;
+  sample: AvailQ[];
+}): Promise<string> {
+  const paperNum = input.paperCode.replace("MAINS_GS", "");
+  const { data, error } = await supabase()
+    .from("tests")
+    .upsert(
+      {
+        slug: input.slug,
+        title_i18n: {
+          en: `UPPSC Mains GS-${paperNum} — Mock Test ${input.index}`,
+          hi: `यूपीपीएससी मुख्य जीएस-${paperNum} — मॉक टेस्ट ${input.index}`,
+        },
+        kind: "mock",
+        paper_code: input.paperCode,
+        duration_minutes: MAINS_MOCK_DURATION_MINUTES,
+        total_marks: input.totalMarks,
+        is_published: true,
+        meta: {
+          source: "mock",
+          mock_index: input.index,
+          official_max_marks: input.totalMarks,
+          marking_scheme: { type: "descriptive", negative_marking: 0 },
+        },
+      },
+      { onConflict: "slug" },
+    )
+    .select("id")
+    .single();
+  if (error) throw new HttpError(500, `mains mock upsert failed: ${error.message}`);
+  const testId = data.id as string;
+  await setMembership(testId, input.sample);
+  return testId;
+}
+
+export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildResult[]> {
+  const results: MockBuildResult[] = [];
+  for (const paperCode of MAINS_GS_PAPER_CODES) {
+    const available = await availableDescriptiveQuestions(paperCode);
+    if (available.length < MAINS_MOCK_COUNT) {
+      log(`${paperCode}: only ${available.length}/${MAINS_MOCK_COUNT} published descriptive PYQs — skipping`);
+      results.push({ paper_code: paperCode, built: 0, skipped: true });
+      continue;
+    }
+    const numSets = Math.min(MAINS_MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / MAINS_MOCK_COUNT)));
+    for (let s = 1; s <= numSets; s++) {
+      const sample = balancedSample(available, MAINS_MOCK_COUNT);
+      const totalMarks = sample.reduce((sum, q) => sum + q.marks, 0);
+      await upsertMainsMockTest({ slug: `mock:${paperCode}:${s}`, paperCode, index: s, totalMarks, sample });
+      log(`built mock:${paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks`);
+    }
+    results.push({ paper_code: paperCode, built: numSets, skipped: false });
   }
   return results;
 }
