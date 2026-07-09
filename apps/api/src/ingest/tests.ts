@@ -6,10 +6,19 @@
  * Builds two kinds:
  *   1. pyq_full  — one test per (paper_code, year) full PYQ paper, e.g.
  *      "UPPSC Prelims GS-I 2024", with the real marking scheme stored on the
- *      test row (UPPSC Prelims negative marking -0.33; descriptive papers carry
- *      no negative marking).
+ *      test row (verified per-paper negative marking; descriptive papers
+ *      carry no negative marking).
  *   2. sectional — one test per top-level syllabus node, from published MCQs
  *      classified under that section's subtree.
+ *
+ * Both kinds are titled/labeled "UPPSC" and use UPPSC's own marking scheme,
+ * so BOTH are restricted to exam_code='uppsc' questions only — this app also
+ * ingests UPSC Civil Services and UPSSSC PET questions onto the same
+ * paper_code (PRE_GS1) for weightage-overlap analytics (see _shared.ts's
+ * classifyPyqId), and those exams have their own, different, unverified
+ * marking schemes. A year with zero genuine UPPSC-sourced questions simply
+ * gets no pyq_full test rather than a paper mislabeled "UPPSC" that's
+ * actually 100% a different exam.
  *
  * Idempotent: tests keyed on slug; a test's membership is rebuilt each run.
  */
@@ -24,20 +33,34 @@ interface QRow {
   year: number | null;
   marks: number | null;
   syllabus_node_id: string | null;
+  exam_code: string | null;
 }
 
-const PRELIMS_NEGATIVE = -0.33; // UPPSC Prelims: one-third negative marking.
+// Real UPPSC Prelims marking, verified via web search against multiple
+// independent sources (cross-checked, not from memory): GS-I is 150
+// questions summing to 200 marks (1.33/correct, -0.33/wrong — one-third);
+// CSAT is 100 questions summing to 200 marks (2/correct, -0.66/wrong — also
+// one-third, just of a whole-number question mark). Both papers run 2 hours.
+const PRELIMS_MARKING: Record<string, { marksPerQuestion: number; negativeMarking: number }> = {
+  PRE_GS1: { marksPerQuestion: 1.33, negativeMarking: -0.33 },
+  PRE_CSAT: { marksPerQuestion: 2, negativeMarking: -0.66 },
+};
 
-function durationFor(paperCode: string, stage: string): number {
-  if (stage === "mains") return 180; // 3 hours
-  return paperCode === "PRE_CSAT" ? 150 : 120; // CSAT 2.5h, GS-I 2h
+function durationFor(stage: string): number {
+  return stage === "mains" ? 180 : 120; // Mains: 3h. Both Prelims papers: 2h.
 }
 
 async function fetchPublished(): Promise<QRow[]> {
   const { data, error } = await supabase()
     .from("questions")
-    .select("id, type, stage, paper_code, year, marks, syllabus_node_id")
-    .eq("is_published", true);
+    .select("id, type, stage, paper_code, year, marks, syllabus_node_id, exam_code")
+    .eq("is_published", true)
+    // See the module doc comment — pyq_full/sectional are UPPSC-labeled and
+    // UPPSC-marked, so only genuinely UPPSC-sourced questions may enter them.
+    // "other"/legacy rows with no exam_code default to uppsc via
+    // examCodeFromId at ingest time, so this is never over-restrictive for
+    // real UPPSC content.
+    .eq("exam_code", "uppsc");
   if (error) throw new Error(`fetch questions: ${error.message}`);
   return (data ?? []) as QRow[];
 }
@@ -125,7 +148,8 @@ async function main(): Promise<void> {
     if (!paper) continue;
     const stage = qs[0].stage;
     const isPrelims = stage === "prelims";
-    const totalMarks = qs.reduce((s, q) => s + (q.marks ?? 0), 0) || null;
+    const prelimsMarking = PRELIMS_MARKING[paperCode];
+    const totalMarks = qs.reduce((s, q) => s + (q.marks ?? prelimsMarking?.marksPerQuestion ?? 0), 0) || null;
     const slug = `pyq:${paperCode}:${year}`;
     const title = {
       en: `UPPSC ${paper.title.en} — ${year}`,
@@ -134,16 +158,17 @@ async function main(): Promise<void> {
     const meta = {
       source: "pyq",
       year,
-      marking_scheme: isPrelims
-        ? { type: "uppsc_prelims", negative_marking: PRELIMS_NEGATIVE, note: "one-third (1/3) negative marking" }
-        : { type: "descriptive", negative_marking: 0 },
+      marking_scheme:
+        isPrelims && prelimsMarking
+          ? { type: "uppsc_prelims", negative_marking: prelimsMarking.negativeMarking, note: "one-third (1/3) negative marking" }
+          : { type: "descriptive", negative_marking: 0 },
     };
     const testId = await upsertTest({
       slug,
       title_i18n: title,
       kind: "pyq_full",
       paper_code: paperCode,
-      duration_minutes: durationFor(paperCode, stage),
+      duration_minutes: durationFor(stage),
       total_marks: totalMarks,
       is_published: true,
       meta,
@@ -185,7 +210,14 @@ async function main(): Promise<void> {
       duration_minutes: null,
       total_marks: null,
       is_published: true,
-      meta: { source: "auto_sectional", section_path: s.top, marking_scheme: { type: "uppsc_prelims", negative_marking: PRELIMS_NEGATIVE } },
+      meta: {
+        source: "auto_sectional",
+        section_path: s.top,
+        marking_scheme: {
+          type: "uppsc_prelims",
+          negative_marking: PRELIMS_MARKING[s.paperCode]?.negativeMarking ?? -0.33,
+        },
+      },
     });
     await setMembership(testId, s.ids.sort());
     report.ok(`${slug}: ${s.ids.length} MCQs`);

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { NotebookPen } from "lucide-react";
@@ -17,7 +17,12 @@ export function PyqPicker() {
   const { t } = useTranslation();
   const locale = useLocale();
   const [paper, setPaper] = useState("");
-  const { data: papers } = usePaperSummaries();
+  const { data: allPapers } = usePaperSummaries();
+  // Answer Writing is Mains-only (descriptive PYQs) — Prelims papers are
+  // entirely MCQ, so listing them here just leads to a real, confusingly
+  // empty "no PYQs" state once picked. Mirrors the inverse filter already
+  // used by the MCQ custom-test-builder (Prelims-only there).
+  const papers = useMemo(() => (allPapers ?? []).filter((p) => p.exam_stage !== "prelims"), [allPapers]);
   const { data, isLoading, isError, refetch } = useQuestions({
     type: "descriptive",
     paper: paper || undefined,
