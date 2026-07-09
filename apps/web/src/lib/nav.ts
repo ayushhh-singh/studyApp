@@ -25,7 +25,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", to: "dashboard", labelKey: "Nav.dashboard", icon: LayoutDashboard, mobilePrimary: true },
-  { id: "learn", to: "learn", labelKey: "Nav.learn", icon: BookOpen, mobilePrimary: true },
+  { id: "learn", to: "learn", labelKey: "Nav.learn", icon: BookOpen },
   {
     id: "answers",
     to: "answers",
@@ -37,7 +37,14 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "practice", to: "practice", labelKey: "Nav.practice", icon: PenSquare, mobilePrimary: true },
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },
-  { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain },
+  // mobilePrimary (not "learn"): Revision is one of the dashboard's own
+  // 4 daily-habit checklist items (Daily Quiz / Write Answers / Clear
+  // Revision / Continue Reading) — burying it in the mobile "More" sheet
+  // while Learn (a browse/reference activity) held a primary tab was a
+  // mismatch between what the app treats as core daily habit and what's
+  // one thumb-tap away. Desktop sidebar is unaffected (visibleNav() below
+  // ignores this flag and always shows every item).
+  { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain, mobilePrimary: true },
   { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
   { id: "review", to: "review", labelKey: "Nav.review", icon: ShieldCheck, adminOnly: true },
   { id: "profile", to: "profile", labelKey: "Nav.profile", icon: User },
