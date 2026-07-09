@@ -39,7 +39,7 @@ export function useSrsCards(filters: { query?: string; sourceType?: SrsSourceTyp
   });
 }
 
-function useInvalidateSrs() {
+export function useInvalidateSrs() {
   const queryClient = useQueryClient();
   return () => {
     queryClient.invalidateQueries({ queryKey: ["srs"] });

@@ -7,6 +7,7 @@ import {
 } from "@prayasup/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import { useInvalidateSrs } from "@/hooks/use-srs";
 
 /** The published study note for a syllabus node (null if none). */
 export function useNoteForNode(nodeId: string) {
@@ -22,15 +23,19 @@ export function useNoteForNode(nodeId: string) {
 
 /** One-tap "add this note's deck" — materialise all SRS candidates. */
 export function useAddNoteDeck() {
+  const invalidate = useInvalidateSrs();
   return useMutation({
     mutationFn: (noteId: string) => api.post(`/api/v1/notes/${noteId}/deck`, noteDeckResponseSchema),
+    onSuccess: invalidate,
   });
 }
 
 /** Per-block "add to revision". */
 export function useAddNoteBlock() {
+  const invalidate = useInvalidateSrs();
   return useMutation({
     mutationFn: ({ noteId, body }: { noteId: string; body: NoteRevisionBody }) =>
       api.post(`/api/v1/notes/${noteId}/revision`, noteRevisionResponseSchema, body),
+    onSuccess: invalidate,
   });
 }
