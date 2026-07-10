@@ -152,11 +152,34 @@ async function main(): Promise<void> {
     ),
   );
 
+  // --- Completeness gate: the subagents' one weak spot vs the schema-enforced
+  // app pipeline is dropped/incomplete questions. Surface gaps LOUDLY so they're
+  // re-extracted before load, never silently missing.
+  const qNos = questions.map((q) => q.q_no).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+  const maxQ = qNos.length ? qNos[qNos.length - 1] : 0;
+  const present = new Set(qNos);
+  const gaps: number[] = [];
+  for (let i = 1; i <= maxQ; i++) if (!present.has(i)) gaps.push(i);
+  const incomplete = questions.filter(
+    (q) => !q.stem_i18n.en || !q.stem_i18n.hi || (q.options_i18n?.length ?? 0) < 2 || !q.correct_option_key,
+  );
+  const dupes = qNos.filter((n, i) => qNos[i - 1] === n);
+
   report.ok(`wrote ${outPath.replace(/^.*content-raw/, "content-raw")}`);
-  console.log(`  questions              ${questions.length}`);
+  console.log(`  questions              ${questions.length}  (q_no 1..${maxQ})`);
   console.log(`  blind ok (agree key)   ${ok}`);
   console.log(`  flagged (→ review)     ${flagged}`);
   console.log(`  no-key (→ review)      ${noKey}`);
+  report.section("Completeness gate");
+  if (gaps.length === 0 && incomplete.length === 0 && dupes.length === 0) {
+    report.ok(`COMPLETE — no q_no gaps, no incomplete questions, no duplicate q_no`);
+  } else {
+    if (gaps.length) report.warn(`MISSING q_no (re-extract these): ${gaps.join(", ")}`);
+    if (dupes.length) report.warn(`DUPLICATE q_no: ${[...new Set(dupes)].join(", ")}`);
+    if (incomplete.length)
+      report.warn(`INCOMPLETE (missing option/stem/key) q_no: ${incomplete.map((q) => q.q_no).join(", ")}`);
+    report.warn(`→ fix the extraction JSON (re-run the gaps) and re-assemble before loading.`);
+  }
   report.step("next: pnpm ingest:pyq:load --id " + id);
 }
 

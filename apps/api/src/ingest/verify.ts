@@ -88,7 +88,9 @@ async function main(): Promise<void> {
   let mcq = 0;
   let akVerified = 0;
   let published = 0;
+  let approvedVisible = 0; // review_state='approved' AND is_published — the true learner-visible ("auto-published") set
   let needsReview = 0;
+  let held = 0; // needs_review AND NOT published — fully withheld pending review
   let outOfSyllabus = 0;
   // exam_code AND source_kind breakdown — the provenance audit trail.
   const examSource = new Map<string, { total: number; published: number }>();
@@ -97,7 +99,9 @@ async function main(): Promise<void> {
     totalQ++;
     if (q.publish_gate_ok) bilingual++;
     if (q.is_published) published++;
+    if (q.review_state === "approved" && q.is_published) approvedVisible++;
     if (q.review_state === "needs_review") needsReview++;
+    if (q.review_state === "needs_review" && !q.is_published) held++;
     if (q.out_of_syllabus) outOfSyllabus++;
     if (q.type === "mcq") {
       mcq++;
@@ -129,8 +133,9 @@ async function main(): Promise<void> {
 
   report.section("Question coverage");
   console.log(`  total questions        ${String(totalQ).padStart(6)}`);
-  console.log(`  published              ${String(published).padStart(6)}`);
-  console.log(`  needs_review (queue)   ${String(needsReview).padStart(6)}`);
+  console.log(`  auto-published (visible) ${String(approvedVisible).padStart(4)}  (approved + is_published)  ${pct(approvedVisible, totalQ)}`);
+  console.log(`  is_published flag set   ${String(published).padStart(5)}  (incl. needs_review pending approval)`);
+  console.log(`  needs_review (queued)  ${String(needsReview).padStart(6)}  of which held (unpublished): ${held}`);
   console.log(`  out-of-syllabus        ${String(outOfSyllabus).padStart(6)}`);
   console.log(`  bilingual-complete     ${pct(bilingual, totalQ).padStart(6)}  (${bilingual}/${totalQ})`);
   console.log(`  MCQ answer-key-verified ${pct(akVerified, mcq).padStart(5)}  (${akVerified}/${mcq} MCQ)`);
