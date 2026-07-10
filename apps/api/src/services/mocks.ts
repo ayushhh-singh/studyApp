@@ -14,7 +14,6 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 
-const PRELIMS_NEGATIVE = -0.33;
 const MCQ_MARKS = 2;
 
 interface MockPaperConfig {
@@ -24,11 +23,26 @@ interface MockPaperConfig {
   durationMinutes: number;
   qualifyingPct?: number; // CSAT is qualifying-only
   maxSets: number;
+  // Real UPPSC Prelims negative marking (verified via web search, matches
+  // ingest/tests.ts's PRELIMS_MARKING): GS-I -0.33 (one-third of 1.33/correct),
+  // CSAT -0.66 (one-third of 2/correct) — NOT the same value, since a mock's
+  // raw per-question marks (MCQ_MARKS=2 for both, as a flat scoring scale)
+  // differ from each paper's real per-question marks that the negative
+  // marking fraction is actually taken from.
+  negativeMarking: number;
 }
 
 const MOCK_PAPERS: MockPaperConfig[] = [
-  { paperCode: "PRE_GS1", count: 150, officialMaxMarks: 200, durationMinutes: 120, maxSets: 3 },
-  { paperCode: "PRE_CSAT", count: 100, officialMaxMarks: 200, durationMinutes: 120, qualifyingPct: 33, maxSets: 1 },
+  { paperCode: "PRE_GS1", count: 150, officialMaxMarks: 200, durationMinutes: 120, maxSets: 3, negativeMarking: -0.33 },
+  {
+    paperCode: "PRE_CSAT",
+    count: 100,
+    officialMaxMarks: 200,
+    durationMinutes: 120,
+    qualifyingPct: 33,
+    maxSets: 1,
+    negativeMarking: -0.66,
+  },
 ];
 
 type Log = (msg: string) => void;
@@ -127,6 +141,7 @@ async function upsertMockTest(input: {
   durationMinutes: number;
   officialMaxMarks: number;
   qualifyingPct?: number;
+  negativeMarking: number;
 }): Promise<string> {
   const paperName = input.paperCode === "PRE_CSAT" ? { en: "CSAT", hi: "सीसैट" } : { en: "GS-I", hi: "जीएस-I" };
   const { data, error } = await supabase()
@@ -150,7 +165,7 @@ async function upsertMockTest(input: {
           qualifying_pct: input.qualifyingPct ?? null,
           marking_scheme: {
             type: "uppsc_prelims",
-            negative_marking: PRELIMS_NEGATIVE,
+            negative_marking: input.negativeMarking,
             note: "one-third (1/3) negative marking",
           },
         },
@@ -200,6 +215,7 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
         durationMinutes: cfg.durationMinutes,
         officialMaxMarks: cfg.officialMaxMarks,
         qualifyingPct: cfg.qualifyingPct,
+        negativeMarking: cfg.negativeMarking,
       });
       await setMembership(testId, sample);
       log(`built mock:${cfg.paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks`);
@@ -223,6 +239,13 @@ const MAINS_GS_PAPER_CODES = ["MAINS_GS1", "MAINS_GS2", "MAINS_GS3", "MAINS_GS4"
 const MAINS_MOCK_COUNT = 20;
 const MAINS_MOCK_DURATION_MINUTES = 180;
 const MAINS_MOCK_MAX_SETS = 2;
+// The real paper's max (verified: 20Q/200 marks per GS paper) — distinct
+// from a sample's own totalMarks (real per-question marks vary, so a
+// balanced sample rarely sums to exactly 200; official_max_marks must stay
+// the fixed reference figure the result page compares against, same
+// separation the Prelims mock config already makes between
+// officialMaxMarks and a sample's raw totalMarks).
+const MAINS_MOCK_OFFICIAL_MAX_MARKS = 200;
 
 async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[]> {
   const [rows, topByNode] = await Promise.all([
@@ -268,7 +291,7 @@ async function upsertMainsMockTest(input: {
         meta: {
           source: "mock",
           mock_index: input.index,
-          official_max_marks: input.totalMarks,
+          official_max_marks: MAINS_MOCK_OFFICIAL_MAX_MARKS,
           marking_scheme: { type: "descriptive", negative_marking: 0 },
         },
       },

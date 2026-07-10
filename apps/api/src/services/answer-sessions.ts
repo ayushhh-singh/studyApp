@@ -10,7 +10,7 @@
  */
 import type { AnswerSession, AnswerSessionDetail, AnswerSessionResult, SubmissionStatus } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError, notFound } from "../lib/http-error.js";
+import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { getTestDetail } from "./tests.js";
 
 interface SessionRow {
@@ -48,9 +48,8 @@ async function getOwnedSessionRow(userId: string, sessionId: string): Promise<Se
   return row;
 }
 
-/** Resuming a test session re-clicking "Start" for a test already in progress returns that same session — mirrors startAttempt's findActiveAttempt. */
-export async function startAnswerSession(userId: string, testId: string): Promise<AnswerSession> {
-  const { data: active, error: activeError } = await supabase()
+async function findActiveSession(userId: string, testId: string): Promise<SessionRow | null> {
+  const { data, error } = await supabase()
     .from("answer_test_sessions")
     .select(SESSION_COLUMNS)
     .eq("user_id", userId)
@@ -59,23 +58,48 @@ export async function startAnswerSession(userId: string, testId: string): Promis
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (activeError) throw new HttpError(500, `active session lookup failed: ${activeError.message}`);
-  if (active) return toSession(active as unknown as SessionRow);
+  if (error) throw new HttpError(500, `active session lookup failed: ${error.message}`);
+  return data as unknown as SessionRow | null;
+}
+
+/** Resuming a test session re-clicking "Start" for a test already in progress returns that same session — mirrors startAttempt's findActiveAttempt. */
+export async function startAnswerSession(userId: string, testId: string): Promise<AnswerSession> {
+  const active = await findActiveSession(userId, testId);
+  if (active) return toSession(active);
 
   const { data: test, error: testError } = await supabase()
     .from("tests")
-    .select("id, is_published, duration_minutes")
+    .select("id, is_published, duration_minutes, paper_code")
     .eq("id", testId)
     .maybeSingle();
   if (testError) throw new HttpError(500, `test lookup failed: ${testError.message}`);
   if (!test || !test.is_published) throw notFound("Test not found");
+  // Every current caller only ever supplies a Mains (descriptive) test id —
+  // guard it server-side too, since an MCQ test's questions carry
+  // options_i18n/correct_option_key semantics the answer-session player and
+  // validateAnswerSessionSubmission (typed/handwritten answer intake) don't
+  // understand at all.
+  if ((test.paper_code ?? "").startsWith("PRE_")) {
+    throw badRequest("This test is an MCQ test, not an answer-writing test");
+  }
 
   const { data, error } = await supabase()
     .from("answer_test_sessions")
     .insert({ user_id: userId, test_id: testId, duration_minutes: test.duration_minutes })
     .select(SESSION_COLUMNS)
     .single();
-  if (error) throw new HttpError(500, `answer session insert failed: ${error.message}`);
+  if (error) {
+    // Mirrors startAttempt's identical race handling (see
+    // 0025_attempts_active_unique.sql / 0064_answer_sessions_active_unique.sql):
+    // two concurrent "Start" requests can both pass the findActiveSession
+    // check above before either insert lands; the partial unique index
+    // catches the loser here, and we converge both callers onto the winner.
+    if (error.code === "23505") {
+      const winner = await findActiveSession(userId, testId);
+      if (winner) return toSession(winner);
+    }
+    throw new HttpError(500, `answer session insert failed: ${error.message}`);
+  }
   return toSession(data as unknown as SessionRow);
 }
 

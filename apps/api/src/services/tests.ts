@@ -42,27 +42,31 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
 
   if (filters.kind) query = query.eq("kind", filters.kind);
   if (filters.paper) query = query.eq("paper_code", filters.paper);
-  // pyq_full/sectional/mock/custom are shared between the MCQ Practice tab
-  // and the descriptive Answers "Practice Tests" tab — an explicit `stage`
-  // scopes any kind to one side or the other. Prelims paper codes are always
-  // prefixed "PRE_" (see ingest/_shared.ts's PAPERS); Mains is everything
-  // else except the current-affairs quiz's own synthetic paper code.
-  if (filters.stage === "prelims") {
-    query = query.like("paper_code", "PRE_%");
-  } else if (filters.stage === "mains") {
+  // pyq_full/sectional/mock/custom are all shared between the MCQ Practice
+  // tab and the descriptive Answers "Practice Tests" tab — every kind
+  // defaults to Prelims-only unless the caller explicitly asks for Mains.
+  // This used to only guard pyq_full/sectional (mock/custom had no fallback
+  // at all, since Mains mocks/custom sets didn't exist yet when that default
+  // was written) — Mains mock tests then leaked straight into the MCQ
+  // Practice page's Mock Tests tab the moment they were built, because nothing
+  // stopped a caller that forgot to pass `stage`. Defaulting every kind the
+  // same way closes that off for good instead of relying on every call site
+  // remembering to opt in. Prelims paper codes are always prefixed "PRE_"
+  // (see ingest/_shared.ts's PAPERS); Mains is everything else except the
+  // current-affairs quiz's own synthetic paper code.
+  if (filters.stage === "mains") {
     query = query.not("paper_code", "like", "PRE_%").neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
-  } else if (filters.kind === "pyq_full" || filters.kind === "sectional") {
-    // No explicit stage (existing MCQ-side callers): pyq_full/sectional
-    // historically default to Prelims-only, since ingest:tests builds them
-    // for every paper with published PYQs, including the 8 Mains papers,
-    // which the MCQ test-player can't run.
+  } else {
     query = query.like("paper_code", "PRE_%");
   }
   // "Quiz me on this week" (createCustomTestFromCurrentAffairs) also stamps
   // kind="custom" — exclude it from the Custom tab's "your custom sets" list
-  // so a user's own topic-built sets aren't buried under repeat CA-quiz
-  // clicks; the Current Affairs page is that quiz's own dedicated entry point.
-  if (filters.kind === "custom" && filters.stage !== "mains") {
+  // (both Prelims and Mains) so a user's own topic-built sets aren't buried
+  // under repeat CA-quiz clicks; the Current Affairs page is that quiz's own
+  // dedicated entry point. Always applied (not just when stage isn't
+  // "mains") — the mains-stage paper_code filter already excludes it too,
+  // but this is a defense-in-depth no-op, not a load-bearing branch.
+  if (filters.kind === "custom") {
     query = query.neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
   }
 
@@ -206,15 +210,21 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   };
 }
 
-/** "Practice: A" for one topic, "Practice: A + B" for two, "Practice: A + 2 more" beyond that. */
+/** "Practice: A" for one topic, "Practice: A + B" for two, "Practice: A + 2 more"/"+ 2 और" beyond that. */
 function customTestTitle(nodeTitles: BilingualText[]): BilingualText {
-  function join(titles: string[]): string {
+  function join(titles: string[], moreWord: string): string {
     if (titles.length <= 2) return titles.join(" + ");
-    return `${titles[0]} + ${titles.length - 1} more`;
+    return `${titles[0]} + ${titles.length - 1} ${moreWord}`;
   }
   return {
-    en: `Practice: ${join(nodeTitles.map((t) => t.en))}`,
-    hi: `अभ्यास: ${join(nodeTitles.map((t) => t.hi))}`,
+    en: `Practice: ${join(
+      nodeTitles.map((t) => t.en),
+      "more",
+    )}`,
+    hi: `अभ्यास: ${join(
+      nodeTitles.map((t) => t.hi),
+      "और",
+    )}`,
   };
 }
 
@@ -228,16 +238,40 @@ function shuffled<T>(items: T[]): T[] {
   return out;
 }
 
-export async function createCustomTestFromNode(body: CreateCustomTestBody): Promise<TestDetail> {
+interface CustomTestNode {
+  id: string;
+  paper_code: string;
+  title_i18n: unknown;
+}
+
+/**
+ * Looks up every requested topic, in the caller's selection order, and
+ * enforces two invariants the single-node_id version got for free: every id
+ * must resolve to a real node (a stale/typo'd id used to just be silently
+ * dropped, building a test scoped to fewer topics than the user actually
+ * asked for with no error), and every selected topic must belong to the same
+ * paper (the resulting test is stamped with one paper_code from the first
+ * node — mixing papers would silently mislabel a test's questions).
+ */
+async function resolveOrderedNodes(nodeIds: string[]): Promise<CustomTestNode[]> {
   const { data: nodes, error: nodesError } = await supabase()
     .from("syllabus_nodes")
     .select("id, paper_code, title_i18n")
-    .in("id", body.node_ids);
+    .in("id", nodeIds);
   if (nodesError) throw new HttpError(500, `syllabus node lookup failed: ${nodesError.message}`);
-  if (!nodes || nodes.length === 0) throw notFound("Syllabus node not found");
-  // Preserve the caller's selection order for the title (first-picked topic leads).
-  const nodeById = new Map(nodes.map((n) => [n.id as string, n]));
-  const orderedNodes = body.node_ids.map((id) => nodeById.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
+  const nodeById = new Map((nodes ?? []).map((n) => [n.id as string, n as CustomTestNode]));
+  const missing = nodeIds.filter((id) => !nodeById.has(id));
+  if (missing.length > 0) throw notFound(`Syllabus node not found: ${missing.join(", ")}`);
+  const orderedNodes = nodeIds.map((id) => nodeById.get(id)!);
+  const paperCodes = new Set(orderedNodes.map((n) => n.paper_code));
+  if (paperCodes.size > 1) {
+    throw badRequest("All selected topics must belong to the same paper");
+  }
+  return orderedNodes;
+}
+
+export async function createCustomTestFromNode(body: CreateCustomTestBody): Promise<TestDetail> {
+  const orderedNodes = await resolveOrderedNodes(body.node_ids);
 
   // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
   // descriptive PYQs too (Mains topics), which the player can't run. "catalog"
@@ -312,14 +346,7 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
  * builds the tests/test_questions row; nothing here is MCQ-specific.
  */
 export async function createCustomAnswerTest(nodeIds: string[], count: number): Promise<TestDetail> {
-  const { data: nodes, error: nodesError } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, paper_code, title_i18n")
-    .in("id", nodeIds);
-  if (nodesError) throw new HttpError(500, `syllabus node lookup failed: ${nodesError.message}`);
-  if (!nodes || nodes.length === 0) throw notFound("Syllabus node not found");
-  const nodeById = new Map(nodes.map((n) => [n.id as string, n]));
-  const orderedNodes = nodeIds.map((id) => nodeById.get(id)).filter((n): n is NonNullable<typeof n> => !!n);
+  const orderedNodes = await resolveOrderedNodes(nodeIds);
 
   const subtreeIdSets = await Promise.all(nodeIds.map((id) => resolveSubtreeNodeIds(id)));
   const subtreeIds = [...new Set(subtreeIdSets.flat())];
@@ -328,6 +355,14 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
     .select("id, marks")
     .in("syllabus_node_id", subtreeIds)
     .eq("type", "descriptive")
+    // Same rationale as ingest/tests.ts's pyq_full/sectional builders and
+    // services/mocks.ts's mock builders: this app also ingests non-UPPSC
+    // Mains-shaped content (e.g. UPSC Civil Services) onto the same MAINS_*
+    // paper codes for weightage analytics (classifyPyqId in
+    // ingest/_shared.ts). A user-built custom set must stay UPPSC-only, or
+    // it silently reintroduces the exact mixed-exam contamination this
+    // session's earlier fix addressed for every other test-assembly path.
+    .eq("exam_code", "uppsc")
     .or(questionVisibilityOrFilter("catalog"));
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];

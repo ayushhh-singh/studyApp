@@ -20,9 +20,13 @@ import { queryKeys } from "@/lib/query-keys";
  * query's cache-by-key + retry-on-remount semantics don't have this failure
  * mode.
  */
+function startSessionKey(testId: string | undefined) {
+  return ["answer-sessions", "start", testId ?? ""] as const;
+}
+
 export function useStartAnswerSession(testId: string | undefined) {
   return useQuery({
-    queryKey: ["answer-sessions", "start", testId ?? ""],
+    queryKey: startSessionKey(testId),
     queryFn: () => api.post("/api/v1/answer-sessions", answerSessionResponseSchema, { test_id: testId }),
     enabled: !!testId,
     retry: false,
@@ -45,6 +49,12 @@ export function useFinishAnswerSession() {
       api.post(`/api/v1/answer-sessions/${sessionId}/finish`, answerSessionResponseSchema),
     onSuccess: (session) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.answerSession(session.id) });
+      // The start-or-resume query (staleTime: Infinity) would otherwise keep
+      // serving this now-finished session forever — clicking the same test
+      // card again to retake it must actually hit the server (which
+      // correctly starts a fresh session once no active one exists) rather
+      // than replay the cached, already-submitted one.
+      queryClient.invalidateQueries({ queryKey: startSessionKey(session.test_id) });
     },
   });
 }
