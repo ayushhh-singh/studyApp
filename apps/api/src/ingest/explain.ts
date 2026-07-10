@@ -199,18 +199,22 @@ async function main(): Promise<void> {
     if (parsed.supports_key) {
       supported.push(q);
     } else {
+      // The stored key was already decided by the ingest resolve gate (blind
+      // re-solve + sonnet/web escalation) — the AUTHORITATIVE trust check. This
+      // cheap grounded pre-check is far weaker (no escalation) and false-disputes
+      // ~45% of keys, so it must NOT unpublish a gate-approved question. Record
+      // the dispute in meta for a human spot-check and skip writing an
+      // explanation; leave review_state/is_published untouched.
       disputed++;
       const { data } = await supabase().from("questions").select("meta").eq("id", q.id).maybeSingle();
       const meta = ((data?.meta as Record<string, unknown> | null) ?? {}) as Record<string, unknown>;
       await supabase()
         .from("questions")
         .update({
-          review_state: "needs_review",
-          is_published: false,
           meta: {
             ...meta,
-            audit_flag: {
-              kind: "explanation_key_dispute",
+            explain_key_precheck: {
+              disputed: true,
               reason: parsed.reason,
               believed_key: parsed.believed_key,
               decisive_fact: parsed.decisive_fact,
@@ -221,7 +225,7 @@ async function main(): Promise<void> {
         .eq("id", q.id);
     }
   }
-  report.ok(`supported: ${supported.length} · disputed (flagged, no explanation): ${disputed}`);
+  report.ok(`supported: ${supported.length} · disputed (spot-check flag only, NOT unpublished): ${disputed}`);
 
   // ---- Round 2: author explanation (batched) ----
   report.section("Round 2 — author grounded bilingual explanation");
