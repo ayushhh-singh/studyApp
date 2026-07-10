@@ -45,14 +45,25 @@ interface ParsedQuestion {
 type ReviewState = "draft" | "needs_review" | "approved" | "rejected";
 
 /**
- * Decide a loaded question's review lifecycle + visibility.
- *  - Incomplete (fails the bilingual/MCQ gate) → draft, unpublished.
- *  - Complete but needs a human eye — machine-translated, Tier-B compilation,
- *    out-of-syllabus, or an answer-key mismatch — → needs_review (Review Queue).
- *    A mismatch is additionally NOT published (flagged, per the source policy).
- *  - Clean official + verified + human-language → approved + published (visible).
- * A prior HUMAN decision (approved OR rejected) is never auto-overwritten on a
- * re-load — approvals stay visible, rejections stay out.
+ * Decide a loaded question's review lifecycle + visibility (Session 27.5 policy).
+ * A question is learner-VISIBLE only when is_published AND review_state='approved'
+ * (see lib/question-visibility.ts), so "auto-publish" means approved+published.
+ *
+ * Prelims MCQ:
+ *  - not publishable (fails bilingual/MCQ gate)         → draft, unpublished
+ *  - blind re-solve FLAGGED / errored (key disputed)    → needs_review, HELD (unpublished)
+ *  - no official series-aligned key, or blind didn't    → needs_review, HELD
+ *    agree (no_key / series mismatch)
+ *  - official key verified + blind agrees + bilingual   → approved, PUBLISHED
+ *      · Tier-B compilation still gets a human eye        → needs_review, published
+ * Mains descriptive (no key / no blind-solve):
+ *  - clean parse + bilingual + node-mapped              → approved, PUBLISHED
+ *  - unmapped (low-confidence node) / Tier-B            → needs_review, published (queued, not yet visible)
+ *
+ * machine_translated Hindi is NOT a blocker (nearly every UPPSC PDF is legacy-
+ * font mojibake → translated Hindi); it's recorded in meta for optional later
+ * spot-check but does not hold auto-publish. A prior HUMAN decision (approved OR
+ * rejected) is never auto-overwritten on a re-load.
  */
 function decideReview(
   q: ParsedQuestion,
@@ -61,11 +72,34 @@ function decideReview(
 ): { reviewState: ReviewState; isPublished: boolean } {
   if (priorHumanState === "rejected") return { reviewState: "rejected", isPublished: false };
   if (priorHumanState === "approved") return { reviewState: "approved", isPublished: publishable };
-  const meta = q.meta as { machine_translated?: boolean; answer_key_mismatch?: unknown };
-  const mismatch = !!meta.answer_key_mismatch;
   if (!publishable) return { reviewState: "draft", isPublished: false };
-  const flagged = !!meta.machine_translated || q.source_kind === "compilation" || !!q.out_of_syllabus || mismatch;
-  if (flagged) return { reviewState: "needs_review", isPublished: !mismatch };
+
+  const meta = q.meta as {
+    answer_key_verified?: boolean;
+    blind_resolve?: { status?: string };
+  };
+  const compilation = q.source_kind === "compilation";
+
+  if (q.type === "mcq") {
+    const blindStatus = meta.blind_resolve?.status;
+    // Independent (web-verified) solve disputes the key, or the solve errored → hold.
+    if (blindStatus === "flagged" || blindStatus === "error") {
+      return { reviewState: "needs_review", isPublished: false };
+    }
+    // Auto-publish requires an official series-aligned key AND a blind agreement.
+    const keyVerified = meta.answer_key_verified === true;
+    const blindAgrees = blindStatus === "ok";
+    if (!keyVerified || !blindAgrees) {
+      // no key / series-mismatch / no_key / not-yet-resolved → queue, held.
+      return { reviewState: "needs_review", isPublished: false };
+    }
+    if (compilation) return { reviewState: "needs_review", isPublished: true };
+    return { reviewState: "approved", isPublished: true };
+  }
+
+  // Mains descriptive.
+  const mapped = !!q.syllabus_path;
+  if (!mapped || compilation) return { reviewState: "needs_review", isPublished: true };
   return { reviewState: "approved", isPublished: true };
 }
 
@@ -94,11 +128,12 @@ async function resolveSyllabusId(paperCode: string, path: string | null): Promis
 
 async function loadFile(
   file: string,
-): Promise<{ loaded: number; published: number; needsReview: number; failed: number }> {
+): Promise<{ loaded: number; approved: number; needsReview: number; held: number; failed: number }> {
   const data = JSON.parse(await readFile(file, "utf8")) as ParsedFile;
   let loaded = 0;
-  let published = 0;
+  let approved = 0;
   let needsReview = 0;
+  let held = 0;
   let failed = 0;
 
   // Preload which of these external_ids already carry a HUMAN decision
@@ -158,10 +193,11 @@ async function loadFile(
       continue;
     }
     loaded++;
-    if (isPublished) published++;
+    if (reviewState === "approved" && isPublished) approved++;
     if (reviewState === "needs_review") needsReview++;
+    if (reviewState === "needs_review" && !isPublished) held++;
   }
-  return { loaded, published, needsReview, failed };
+  return { loaded, approved, needsReview, held, failed };
 }
 
 async function main(): Promise<void> {
@@ -179,26 +215,29 @@ async function main(): Promise<void> {
   if (files.length === 0) throw new Error("No parsed/pyq_*.json files found. Run ingest:pyq first.");
 
   let totalLoaded = 0;
-  let totalPublished = 0;
+  let totalApproved = 0;
   let totalNeedsReview = 0;
+  let totalHeld = 0;
   let totalFailed = 0;
   for (const f of files) {
-    const { loaded, published, needsReview, failed } = await loadFile(f);
+    const { loaded, approved, needsReview, held, failed } = await loadFile(f);
     report.ok(
-      `${basename(f)}: loaded ${loaded} (${published} published, ${needsReview} needs-review` +
-        `${failed ? `, ${failed} failed` : ""})`,
+      `${basename(f)}: loaded ${loaded} (${approved} auto-published, ${needsReview} needs-review` +
+        `${held ? `, ${held} held` : ""}${failed ? `, ${failed} failed` : ""})`,
     );
     totalLoaded += loaded;
-    totalPublished += published;
+    totalApproved += approved;
     totalNeedsReview += needsReview;
+    totalHeld += held;
     totalFailed += failed;
   }
 
   report.section("Summary");
   report.ok(`files: ${files.length}`);
   report.ok(`questions upserted: ${totalLoaded}`);
-  report.ok(`published (approved + bilingual complete): ${totalPublished}`);
+  report.ok(`auto-published (approved + visible): ${totalApproved}`);
   report.ok(`sent to Review Queue (needs_review): ${totalNeedsReview}`);
+  report.ok(`  of which HELD (unpublished pending review): ${totalHeld}`);
   if (totalFailed) report.warn(`rows failed (see above): ${totalFailed}`);
 
   // Refresh the cached weightage aggregates so /learn reflects the new load.

@@ -617,3 +617,32 @@ needs_my_approval:
     paper: gs1
     substitutes_official: BPSC 68th CCE Prelims GS (bpsc.bihar.gov.in)
     notes: Proposal — needs a verified mirror URL before you approve. exam_code=other.
+
+# ---------------------------------------------------------------------------
+# HAND-PLACED bulk (Session 27.5, 2026-07-10). The fetcher IGNORES this section
+# (like needs_my_approval) — these files were placed into content-raw/ directly,
+# not downloaded, so they carry no fetch URL. Per-file attribution
+# (exam / year / paper / tier / sha256 / pages) is authoritative in
+# content-raw/manifest.json; this block is the human-readable index.
+#
+# Provenance: official UPPSC/UPPCS question papers (tier: A, exam: uppsc).
+# NON-UPPSC files that arrived in the same drop (national UPSC, UPSSSC-PET) were
+# quarantined to content-raw/_excluded_non_uppsc/ and NOT ingested; alternate
+# scans / mirror duplicates were quarantined to content-raw/_redundant_scans/.
+# Hindi in these PDFs is legacy-font mojibake → regenerated via translation
+# (flagged machine_translated), same as every prior UPPSC PYQ load.
+# ---------------------------------------------------------------------------
+hand_placed:
+  # Prelims (16): GS-I + CSAT, one canonical scan per (year, paper).
+  #   uppsc_prelims_<year>_gs1   2018 2019 2020 2021 2022 2023 2024 2025
+  #   uppsc_prelims_<year>_csat  2018 2019 2020 2021 2022 2023 2024 2025
+  # Official answer keys present locally: 2024 GS-I + CSAT only (per-booklet-
+  # series A/B/C/D). Other years' keys: sourced official-then-Tier-B; where none
+  # is obtained, MCQs route through blind re-solve (answer_key_verified=false).
+  #
+  # Mains (54): pre-reform 2018-2022 = Essay + General Hindi + GS I-IV (6/yr);
+  # post-reform 2023-2025 = Essay + General Hindi + GS 1-6 (8/yr). Pre-reform
+  # papers keep their historical label in meta; questions map to reformed nodes.
+  prelims_years: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025]
+  mains_pre_reform_years: [2018, 2019, 2020, 2021, 2022]
+  mains_post_reform_years: [2023, 2024, 2025]

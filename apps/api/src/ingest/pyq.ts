@@ -23,6 +23,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { structuredJson, translateBatch, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
+import { detectBookletSeries, seriesAlignment, type BookletSeries, type SeriesAlignment } from "./series.js";
 import {
   ROOT,
   readManifest,
@@ -369,7 +370,7 @@ async function loadAnswerKey(
   examCode: ExamCode,
   year: number,
   paperCode: string,
-): Promise<Map<number, string> | null> {
+): Promise<{ map: Map<number, string>; series: BookletSeries | null } | null> {
   // Answer-key ids look like <exam>_answerkey_<year>_prelims_gs1 / _csat. The
   // candidates are SCOPED TO THIS EXAM ONLY — never fall back to another exam's
   // key (a same-year UPPSC key must not be applied to UPSC questions).
@@ -402,7 +403,10 @@ async function loadAnswerKey(
   });
   const map = new Map<number, string>();
   for (const a of out.answers) map.set(a.q_no, a.correct_option_key.trim().toUpperCase());
-  return map;
+  // Detect which booklet series this key is for (so it's only trusted against a
+  // paper of the same series — see series.ts).
+  const series = await detectBookletSeries(absPath(entry), entry.pages ?? 1, "ingest_series_detect_key");
+  return { map, series };
 }
 
 // ---------------------------------------------------------------------------
@@ -532,6 +536,9 @@ function assemble(
     sourceKind: SourceKind;
     isCompilation: boolean;
     answerKey: Map<number, string> | null;
+    paperSeries: BookletSeries | null;
+    keySeries: BookletSeries | null;
+    seriesAlignment: SeriesAlignment;
     syllabusPath: string | null;
   },
 ): ParsedQuestion {
@@ -560,9 +567,21 @@ function assemble(
     explanation = e.v;
   }
 
-  // Correct answer + answer-key cross-check.
+  // Correct answer + answer-key cross-check (series-aware).
   let correct = raw.correct_option_key.trim().toUpperCase() || null;
-  if (raw.type === "mcq" && ctx.answerKey) {
+  if (raw.type === "mcq") {
+    if (ctx.paperSeries) meta.booklet_series = ctx.paperSeries;
+    if (ctx.keySeries) meta.key_series = ctx.keySeries;
+  }
+  // A key whose series can't be aligned to this paper's series is NOT trusted —
+  // its q_no map is for a different (shuffled) booklet. Record it and let the
+  // blind-resolve gate decide the answer instead.
+  const keyTrusted = ctx.seriesAlignment !== "mismatch";
+  if (raw.type === "mcq" && ctx.answerKey && !keyTrusted) {
+    meta.series_mismatch = { paper: ctx.paperSeries, key: ctx.keySeries };
+  }
+  if (raw.type === "mcq" && ctx.answerKey && keyTrusted) {
+    meta.series_alignment = ctx.seriesAlignment;
     const official = ctx.answerKey.get(raw.q_no) ?? null;
     if (official) {
       meta.official_answer = official;
@@ -671,13 +690,32 @@ async function main(): Promise<void> {
   }
   if (raw.length === 0) throw new Error("No questions extracted.");
 
-  // 2. Answer key (prelims)
+  // 2. Answer key (prelims) — series-aware.
   let answerKey: Map<number, string> | null = null;
+  let paperSeries: BookletSeries | null = null;
+  let keySeries: BookletSeries | null = null;
+  let alignment: SeriesAlignment = "assumed";
   if (isMcq) {
-    report.section("Answer-key cross-check");
-    answerKey = await loadAnswerKey(manifest, cls.examCode, cls.year, cls.paperCode);
-    if (answerKey) report.ok(`answer key loaded (${answerKey.size} answers)`);
-    else report.warn("no answer key available for this paper");
+    report.section("Booklet series + answer-key cross-check");
+    paperSeries = await detectBookletSeries(absPath(entry), info.pageCount);
+    report.step(`paper booklet series: ${paperSeries ?? "unknown"}`);
+    const keyResult = await loadAnswerKey(manifest, cls.examCode, cls.year, cls.paperCode);
+    if (keyResult) {
+      answerKey = keyResult.map;
+      keySeries = keyResult.series;
+      alignment = seriesAlignment(paperSeries, keySeries);
+      report.ok(`answer key loaded (${answerKey.size} answers, key series ${keySeries ?? "unknown"})`);
+      if (alignment === "mismatch") {
+        report.warn(
+          `series MISMATCH (paper ${paperSeries} vs key ${keySeries}) — key NOT trusted; ` +
+            `these MCQs route to blind re-solve (answer_key_verified stays false)`,
+        );
+      } else {
+        report.ok(`series alignment: ${alignment}`);
+      }
+    } else {
+      report.warn("no answer key available for this paper — MCQs route to blind re-solve");
+    }
   }
 
   // 3. Classify
@@ -709,6 +747,9 @@ async function main(): Promise<void> {
       sourceKind,
       isCompilation,
       answerKey,
+      paperSeries,
+      keySeries,
+      seriesAlignment: alignment,
       syllabusPath: pathByQ.get(q.q_no) ?? null,
     }),
   );
@@ -732,6 +773,9 @@ async function main(): Promise<void> {
         summary: {
           questions: parsed.length,
           skipped_unattributed: rawSkipped.length,
+          booklet_series: paperSeries,
+          key_series: keySeries,
+          series_alignment: isMcq && answerKey ? alignment : null,
           bilingual_complete: bilingual,
           machine_translated: mt,
           answer_key_verified: verified,
