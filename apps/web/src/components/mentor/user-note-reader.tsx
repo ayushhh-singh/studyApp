@@ -25,7 +25,7 @@ import {
   useTranslateUserNote,
   useUserNote,
 } from "@/hooks/use-user-notes";
-import { NoteArticle, useNoteVisibleSections } from "@/components/learn/note-article";
+import { NoteArticle, noteVisibleSections } from "@/components/learn/note-article";
 import { cn } from "@/lib/utils";
 
 function AddButton({ added, pending, onClick, label }: { added: boolean; pending: boolean; onClick: () => void; label: string }) {
@@ -79,7 +79,7 @@ export function UserNoteReader({ id }: { id: string }) {
   const hasCurrent = note.filled_locales.includes(locale);
   const viewLocale = hasCurrent ? locale : (note.filled_locales[0] ?? locale);
   const body: NoteBody = note.content_i18n[viewLocale];
-  const visible = useNoteVisibleSections(body, quick);
+  const visible = noteVisibleSections(t, body, quick);
 
   const markAdded = (key: string) => setAdded((prev) => new Set(prev).add(key));
 

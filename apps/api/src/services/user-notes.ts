@@ -224,6 +224,11 @@ export async function saveMessageAsNote(
   const owner = Array.isArray(msg?.doubt_threads) ? msg?.doubt_threads[0] : msg?.doubt_threads;
   if (!msg || owner?.user_id !== userId) throw notFound("Message not found");
   if (msg.role !== "assistant") throw badRequest("Only a mentor answer can be saved as study material");
+  // A quiz message's `content` is just a one-line intro (the real payload is
+  // interactive cards in meta) — there's nothing meaningful to turn into notes.
+  if ((msg.meta as { kind?: string } | null)?.kind === "quiz") {
+    throw badRequest("A quiz can't be saved as study material — save a mentor answer instead");
+  }
   if (!msg.content.trim()) throw badRequest("This answer has no text to save");
 
   const sources: NoteSource[] = msg.meta?.web_sources ?? [];

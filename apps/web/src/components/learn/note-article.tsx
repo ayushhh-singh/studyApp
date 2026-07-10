@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { BookOpen, ExternalLink, Layers, MapPin, Sparkles, TrendingUp, Zap } from "lucide-react";
@@ -232,9 +233,12 @@ export function NoteArticle({
   );
 }
 
-/** Section-list TOC used by both readers' sticky aside. Computed from the body. */
-export function useNoteVisibleSections(body: NoteBody, quick: boolean): Section[] {
-  const { t } = useTranslation();
+/**
+ * Section-list TOC used by both readers' sticky aside. A PURE function (takes
+ * `t`), not a hook — the callers compute it after their loading/error early
+ * returns, where calling a hook would violate the rules of hooks.
+ */
+export function noteVisibleSections(t: TFunction, body: NoteBody, quick: boolean): Section[] {
   const sections = (
     [
       { key: "overview", label: t("Notes.overview"), icon: BookOpen },

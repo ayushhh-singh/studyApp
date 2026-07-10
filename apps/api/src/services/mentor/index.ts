@@ -211,8 +211,11 @@ export async function planDoubtMessage(
   if (question.length > MAX_DOUBT_CHARS) throw badRequest("Message too long");
 
   // Teacher mode is forced by the "Teach me this" entry points, or auto-detected
-  // from a conceptual/teach-shaped message. In-depth lessons cost 2 messages.
-  const teach = body.teach || detectTeachIntent(question);
+  // from a conceptual/teach-shaped message — but NEVER when the user explicitly
+  // asked for revision mode (a compressed 5-bullet recap), or auto-detect would
+  // silently override their choice and return a full lesson instead. In-depth
+  // lessons cost 2 messages.
+  const teach = body.teach || (body.mode === "normal" && detectTeachIntent(question));
   const cost = mentorQuotaCost({ teach, depth: body.depth });
   await enforceDailyLimit(userId, cost);
 

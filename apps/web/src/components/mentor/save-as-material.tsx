@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { BookMarked, Check, ChevronDown, Loader2, Sparkles, X } from "lucide-react";
@@ -32,13 +32,16 @@ export function SaveAsMaterial({ messageId, defaultNodeId }: { messageId: string
   const [open, setOpen] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [choice, setChoice] = useState<NodeChoice>(() => {
-    if (defaultNodeId) {
-      const found = nodes.find((n) => n.id === defaultNodeId);
-      if (found) return { kind: "node", id: found.id, title: found.title_i18n[locale] };
-    }
-    return { kind: "auto" };
-  });
+  const [choice, setChoice] = useState<NodeChoice>({ kind: "auto" });
+  // Once the tree loads, pre-select the page-context node (defaultNodeId) if the
+  // user hasn't touched the picker yet — the useState initializer can't, since
+  // the syllabus tree usually hasn't loaded on first render.
+  const touchedRef = useRef(false);
+  useEffect(() => {
+    if (touchedRef.current || !defaultNodeId || nodes.length === 0) return;
+    const found = nodes.find((n) => n.id === defaultNodeId);
+    if (found) setChoice({ kind: "node", id: found.id, title: found.title_i18n[locale] });
+  }, [nodes, defaultNodeId, locale]);
 
   const matches = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -120,6 +123,7 @@ export function SaveAsMaterial({ messageId, defaultNodeId }: { messageId: string
             <button
               type="button"
               onClick={() => {
+                touchedRef.current = true;
                 setChoice({ kind: "auto" });
                 setPickerOpen(false);
               }}
@@ -135,6 +139,7 @@ export function SaveAsMaterial({ messageId, defaultNodeId }: { messageId: string
                 key={n.id}
                 type="button"
                 onClick={() => {
+                  touchedRef.current = true;
                   setChoice({ kind: "node", id: n.id, title: n.title_i18n[locale] });
                   setPickerOpen(false);
                 }}

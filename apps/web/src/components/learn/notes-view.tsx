@@ -10,7 +10,7 @@ import { useRecordEvent } from "@/hooks/use-record-event";
 import { usePaywallStore } from "@/stores/paywall-store";
 import { billingCopy as bc, pick } from "@/lib/billing-copy";
 import { cn } from "@/lib/utils";
-import { NoteArticle, useNoteVisibleSections } from "./note-article";
+import { NoteArticle, noteVisibleSections } from "./note-article";
 
 /** A prose block that respects Devanagari reading rhythm (taller leading, comfortable measure). */
 function Prose({ children, locale }: { children: string; locale: Locale }) {
@@ -155,7 +155,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
   }
 
   // TOC entries (aside) — the article itself recomputes the same visible set.
-  const visible = useNoteVisibleSections(body, quick);
+  const visible = noteVisibleSections(t, body, quick);
 
   return (
     <div className="flex flex-col gap-5 lg:flex-row lg:gap-8">
