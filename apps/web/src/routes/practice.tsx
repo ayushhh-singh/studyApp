@@ -99,7 +99,11 @@ function groupByYearDescending(tests: TestSummary[]): [string, TestSummary[]][] 
 function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" | "mock" }) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: tests, isLoading } = useTests({ kind });
+  // Explicit stage, not just relying on listTests' historical default —
+  // that default only ever covered pyq_full/sectional; "mock" had no such
+  // guard (Mains mocks didn't exist until they did), and Mains mock tests
+  // started leaking into this MCQ-only tab the moment they were built.
+  const { data: tests, isLoading } = useTests({ kind, stage: "prelims" });
 
   if (isLoading) {
     return (
@@ -156,7 +160,7 @@ function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" | "mock" }) {
 function CustomTestsPanel() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: tests, isLoading } = useTests({ kind: "custom" });
+  const { data: tests, isLoading } = useTests({ kind: "custom", stage: "prelims" });
 
   return (
     <div className="flex flex-col gap-4">
