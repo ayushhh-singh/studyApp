@@ -17,6 +17,7 @@ import { useCreateSubmission } from "@/hooks/use-answers";
 import { useDraftAutosave, readDraft, clearDraft } from "@/hooks/use-draft-autosave";
 import { useLocale } from "@/hooks/use-locale";
 import { ApiError } from "@/lib/api";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 import { prepareAnswerImage, uploadAnswerImage } from "@/lib/answer-images";
 import { usePaywallStore, toPaywallFeature } from "@/stores/paywall-store";
 
@@ -172,8 +173,8 @@ export function Component() {
             </div>
           ) : question ? (
             <div className="flex flex-col gap-2">
-              <p className="text-base leading-[1.75]" lang={locale}>
-                {question.stem_i18n[locale]}
+              <p className="text-base leading-[1.75] whitespace-pre-line" lang={locale}>
+                {formatQuestionStem(question.stem_i18n[locale])}
               </p>
               <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                 <span>{question.paper_code}</span>

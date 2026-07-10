@@ -7,6 +7,7 @@ import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { Button } from "@/components/ui/button";
 import { useQuestion, useQuestions } from "@/hooks/use-questions";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
 
 function QuestionCard({
@@ -46,7 +47,7 @@ function QuestionCard({
           outOfSyllabus={question.out_of_syllabus}
         />
       </div>
-      <p className="text-sm">{question.stem_i18n[locale]}</p>
+      <p className="text-sm whitespace-pre-line">{formatQuestionStem(question.stem_i18n[locale])}</p>
       {question.options_i18n && (
         <ul className="flex flex-col gap-1 text-xs">
           {question.options_i18n.map((option) => (

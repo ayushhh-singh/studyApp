@@ -8,6 +8,7 @@ import { switchLocale } from "@/lib/locale";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 const CATEGORY_LABEL: Record<string, string> = {
   polity_governance: "Polity & Governance",
@@ -167,8 +168,8 @@ export function Component() {
                 <ol className="flex flex-col gap-4">
                   {mag.mcq_appendix.map((q, i) => (
                     <li key={q.id} className="mag-item flex flex-col gap-1.5 break-inside-avoid">
-                      <p className="text-sm font-medium">
-                        {i + 1}. {q.stem_i18n[locale]}
+                      <p className="text-sm font-medium whitespace-pre-line">
+                        {i + 1}. {formatQuestionStem(q.stem_i18n[locale])}
                       </p>
                       <ul className="flex flex-col gap-0.5 ps-3 text-[13px]">
                         {q.options_i18n.map((o) => (

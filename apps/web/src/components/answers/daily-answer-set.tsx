@@ -8,6 +8,7 @@ import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { scoreBandColor } from "@/lib/score-band";
 import { useDailyAnswerSet } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 /** Short bilingual-ish paper label; falls back to the raw code. */
 function paperLabel(code: string, t: (k: string, o?: Record<string, unknown>) => string): string {
@@ -49,7 +50,7 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
           <span className="text-[11px] text-muted-foreground">{t("Answers.dailySetMarks", { marks: item.marks })}</span>
         )}
       </div>
-      <p className="line-clamp-2 text-sm">{item.stem_i18n[locale]}</p>
+      <p className="line-clamp-2 text-sm whitespace-pre-line">{formatQuestionStem(item.stem_i18n[locale])}</p>
       <div className="flex items-center justify-between">
         {evaluated ? (
           <span

@@ -6,6 +6,7 @@ import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 function ProofRow({ item }: { item: ImprovementProofItem }) {
   const { t } = useTranslation();
@@ -13,8 +14,8 @@ function ProofRow({ item }: { item: ImprovementProofItem }) {
 
   return (
     <div className="flex flex-col gap-2 rounded-lg border border-border bg-card p-3">
-      <p className="line-clamp-2 text-sm font-medium" lang={locale}>
-        {item.question_stem_i18n[locale]}
+      <p className="line-clamp-2 text-sm font-medium whitespace-pre-line" lang={locale}>
+        {formatQuestionStem(item.question_stem_i18n[locale])}
       </p>
       <div className="flex flex-wrap items-center gap-3 text-sm">
         <span className="font-display" style={{ color: scoreBandColor(item.before_pct) }}>

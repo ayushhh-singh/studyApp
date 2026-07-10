@@ -10,6 +10,7 @@ import { useSubmitDrillResponses } from "@/hooks/use-micro-drill";
 import { useDrillStream } from "@/hooks/use-drill-stream";
 import { useDrillSessionStore } from "@/stores/drill-session-store";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "MicroDrill.title" };
@@ -105,8 +106,8 @@ export function Component() {
             return (
               <div key={item.question_id} className="flex flex-col gap-2">
                 <span className="text-sm font-semibold">{t("MicroDrill.itemLabel", { index: i + 1 })}</span>
-                <p className="text-sm" lang={locale}>
-                  {item.question_stem_i18n[locale]}
+                <p className="text-sm whitespace-pre-line" lang={locale}>
+                  {formatQuestionStem(item.question_stem_i18n[locale])}
                 </p>
                 <textarea
                   className="min-h-28 w-full rounded-lg border border-input bg-background p-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"

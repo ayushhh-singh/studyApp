@@ -8,6 +8,7 @@ import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/hooks/use-locale";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export function TodaysQuestionCard({
   question,
@@ -50,8 +51,8 @@ export function TodaysQuestionCard({
         />
       ) : (
         <div className="flex flex-col gap-3">
-          <p className="text-base leading-[1.75]" lang={locale}>
-            {question.stem_i18n[locale]}
+          <p className="text-base leading-[1.75] whitespace-pre-line" lang={locale}>
+            {formatQuestionStem(question.stem_i18n[locale])}
           </p>
           <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
             <span>{question.paper_code}</span>

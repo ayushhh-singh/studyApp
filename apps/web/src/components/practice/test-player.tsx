@@ -16,6 +16,7 @@ import { useAttemptAnswers } from "@/hooks/use-attempt-answers";
 import { useSubmitAttempt } from "@/hooks/use-attempt";
 import { useCombo } from "@/hooks/use-combo";
 import { cn } from "@/lib/utils";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 interface AnswerState {
   chosen_option_key: string | null;
@@ -330,8 +331,11 @@ export function TestPlayer({
             </div>
           </div>
 
-          <p className={cn("text-base", displayLocale === "hi" && "leading-[1.75]")} lang={displayLocale}>
-            {question.stem_i18n[displayLocale]}
+          <p
+            className={cn("text-base whitespace-pre-line", displayLocale === "hi" && "leading-[1.75]")}
+            lang={displayLocale}
+          >
+            {formatQuestionStem(question.stem_i18n[displayLocale])}
           </p>
 
           <div className="flex flex-col gap-2">

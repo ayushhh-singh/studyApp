@@ -6,6 +6,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { useCreateSrsCard } from "@/hooks/use-srs";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 /**
  * In-thread "quiz me" cards — 3 ephemeral MCQs (never persisted to the bank).
@@ -36,8 +37,8 @@ function QuizCard({ q, index }: { q: MentorQuizQuestion; index: number }) {
 
   return (
     <div className="rounded-lg border border-border bg-background p-3">
-      <p className="mb-2 text-sm font-medium">
-        {index + 1}. {q.stem_i18n[locale]}
+      <p className="mb-2 text-sm font-medium whitespace-pre-line">
+        {index + 1}. {formatQuestionStem(q.stem_i18n[locale])}
       </p>
       <div className="flex flex-col gap-1.5">
         {q.options.map((o) => {

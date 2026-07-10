@@ -15,6 +15,7 @@ import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 import { scoreBandColor } from "@/lib/score-band";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export const handle = { titleKey: "Nav.answers" };
 
@@ -57,6 +58,7 @@ export function Component() {
   const questionText = detail?.submission.question_id
     ? catalogedQuestion?.stem_i18n[locale]
     : detail?.submission.custom_question_text_i18n?.[locale];
+  const formattedQuestionText = questionText ? formatQuestionStem(questionText) : questionText;
 
   if (isDetailLoading) {
     return (
@@ -91,7 +93,7 @@ export function Component() {
       <Breadcrumbs
         items={[{ label: t("Nav.answers"), to: `/${locale}/answers` }, { label: t("Answers.confirmBreadcrumb") }]}
       />
-      <PageHeader title={t("Answers.confirmTitle")} description={questionText ?? t("Answers.confirmDescription")} />
+      <PageHeader title={t("Answers.confirmTitle")} description={formattedQuestionText ?? t("Answers.confirmDescription")} />
 
       {imageUrls && imageUrls.length > 0 && (
         <SectionCard title={t("Answers.confirmPagesTitle", { count: imageUrls.length })}>

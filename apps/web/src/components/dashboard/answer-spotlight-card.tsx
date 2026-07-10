@@ -5,6 +5,7 @@ import type { DashboardAnswerSpotlight } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { useLocale } from "@/hooks/use-locale";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export function AnswerSpotlightCard({ data }: { data: DashboardAnswerSpotlight }) {
   const { t } = useTranslation();
@@ -31,7 +32,9 @@ export function AnswerSpotlightCard({ data }: { data: DashboardAnswerSpotlight }
           <div className="flex flex-col items-center gap-1 sm:items-start">
             <span className="text-xs font-medium text-muted-foreground">{t("Dashboard.spotlightLatestLabel")}</span>
             {latest.question_stem_i18n && (
-              <p className="max-w-md text-center text-sm sm:text-start">{latest.question_stem_i18n[locale]}</p>
+              <p className="max-w-md text-center text-sm whitespace-pre-line sm:text-start">
+                {formatQuestionStem(latest.question_stem_i18n[locale])}
+              </p>
             )}
           </div>
           <ScoreGauge value={pct} size={140} />

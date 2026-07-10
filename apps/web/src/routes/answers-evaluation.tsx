@@ -19,6 +19,7 @@ import { useAddEvaluationToRevision } from "@/hooks/use-add-to-revision";
 import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { useShareAnswer } from "@/hooks/use-community";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export const handle = { titleKey: "Nav.answers" };
 
@@ -58,6 +59,7 @@ export function Component() {
   const questionText = detail?.submission.question_id
     ? catalogedQuestion?.stem_i18n[locale]
     : detail?.submission.custom_question_text_i18n?.[locale];
+  const formattedQuestionText = questionText ? formatQuestionStem(questionText) : questionText;
 
   if (isDetailLoading) {
     return (
@@ -102,7 +104,7 @@ export function Component() {
       />
       <PageHeader
         title={t("Answers.evaluationTitle")}
-        description={questionText ?? t("Answers.evaluationDescription")}
+        description={formattedQuestionText ?? t("Answers.evaluationDescription")}
       />
 
       {stream.error && (

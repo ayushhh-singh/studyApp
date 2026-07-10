@@ -11,6 +11,7 @@ import { SubmissionStatusChip } from "@/components/answers/submission-status-chi
 import { useSubmissions } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export function SubmissionHistoryList() {
   const { t } = useTranslation();
@@ -42,9 +43,9 @@ export function SubmissionHistoryList() {
                 item.overall_score !== null && item.max_score ? (item.overall_score / item.max_score) * 100 : null;
               const row = (
                 <div className="flex flex-col gap-1.5 rounded-lg border border-border bg-background px-3 py-2.5">
-                  <p className="line-clamp-2 text-sm" lang={locale}>
+                  <p className="line-clamp-2 text-sm whitespace-pre-line" lang={locale}>
                     {item.mode === "handwritten" && <Camera className="mr-1.5 inline size-3.5 text-muted-foreground" aria-hidden />}
-                    {stem || t("Answers.historyUntitled")}
+                    {stem ? formatQuestionStem(stem) : t("Answers.historyUntitled")}
                   </p>
                   <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
                     <span>{new Date(item.created_at).toLocaleDateString(locale)}</span>

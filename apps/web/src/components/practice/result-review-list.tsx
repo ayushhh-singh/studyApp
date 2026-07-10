@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useAddQuestionToRevision } from "@/hooks/use-add-to-revision";
 import { useExplainQuestion } from "@/hooks/use-explain-question";
 import { formatSeconds } from "@/lib/format-duration";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
 
 function ExplanationBlock({
@@ -118,8 +119,8 @@ function ReviewItem({
 
   return (
     <div role="listitem" className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
-      <p className="text-sm" lang={locale}>
-        {item.stem_i18n[locale]}
+      <p className="text-sm whitespace-pre-line" lang={locale}>
+        {formatQuestionStem(item.stem_i18n[locale])}
       </p>
       {item.options_i18n && (
         <ul className="flex flex-col gap-1 text-xs">

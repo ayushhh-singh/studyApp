@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Check, X, AlertTriangle, ShieldQuestion } from "lucide-react";
 import type { Difficulty, ReviewQuestion } from "@prayasup/shared";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
 
 function Chip({ children, className }: { children: React.ReactNode; className?: string }) {
@@ -20,8 +21,8 @@ const DIFFICULTY_STYLE: Record<Difficulty, string> = {
 function Bilingual({ en, hi }: { en?: string; hi?: string }) {
   return (
     <div className="flex flex-col gap-1">
-      {en && <p className="text-sm leading-relaxed">{en}</p>}
-      {hi && <p className="text-sm leading-relaxed text-foreground/80" lang="hi">{hi}</p>}
+      {en && <p className="text-sm leading-relaxed whitespace-pre-line">{en}</p>}
+      {hi && <p className="text-sm leading-relaxed whitespace-pre-line text-foreground/80" lang="hi">{hi}</p>}
     </div>
   );
 }
@@ -58,7 +59,7 @@ export function ReviewCard({ question: q }: { question: ReviewQuestion }) {
       {/* stem */}
       <div>
         <p className="mb-1 text-xs font-semibold tracking-wide text-muted-foreground uppercase">{t("Review.question")}</p>
-        <Bilingual en={q.stem_i18n.en} hi={q.stem_i18n.hi} />
+        <Bilingual en={formatQuestionStem(q.stem_i18n.en)} hi={formatQuestionStem(q.stem_i18n.hi)} />
       </div>
 
       {/* MCQ options */}
@@ -176,7 +177,7 @@ export function ReviewCard({ question: q }: { question: ReviewQuestion }) {
             {q.similar.map((s) => (
               <li key={s.id} className="flex items-start gap-2 text-xs">
                 <Chip className="bg-marigold/20 text-marigold-foreground">{Math.round(s.similarity * 100)}%</Chip>
-                <span className="text-muted-foreground">{s.stem_i18n.en}</span>
+                <span className="text-muted-foreground whitespace-pre-line">{formatQuestionStem(s.stem_i18n.en)}</span>
               </li>
             ))}
           </ul>

@@ -10,6 +10,7 @@ import { useSharedAnswer, useCommunityThread } from "@/hooks/use-community";
 import { PostList } from "@/components/community/post-list";
 import { PostComposer } from "@/components/community/post-composer";
 import { CommunityAuthorLine } from "@/components/community/community-author-line";
+import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export const handle = { titleKey: "Community.peerReviewTitle" };
 
@@ -58,7 +59,9 @@ export function Component() {
               <CommunityAuthorLine author={answer.author} className="font-medium text-foreground" />
               <span>{new Date(answer.created_at).toLocaleDateString(locale)}</span>
             </div>
-            <p className="text-sm font-semibold text-foreground">{answer.question_text_i18n[locale]}</p>
+            <p className="text-sm font-semibold whitespace-pre-line text-foreground">
+              {formatQuestionStem(answer.question_text_i18n[locale])}
+            </p>
             {answer.answer_text && (
               <p className="whitespace-pre-wrap rounded-lg bg-muted/50 p-3 text-sm text-foreground">{answer.answer_text}</p>
             )}
