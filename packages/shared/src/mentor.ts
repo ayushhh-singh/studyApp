@@ -118,6 +118,12 @@ export const mentorMessageMetaSchema = z
     revision: z.boolean().optional(),
     /** Served from the FAQ semantic cache (no model call). */
     from_cache: z.boolean().optional(),
+    /** A "from a similar doubt" (0.86–0.95) cache reply — shows the notice. */
+    similar: z.boolean().optional(),
+    /** Revision recap compressed from a cached full answer (one haiku call). */
+    compressed: z.boolean().optional(),
+    /** Regenerated via "Answer fresh" (cache bypassed; updates the cached entry). */
+    regenerated: z.boolean().optional(),
     /** On a user turn: how many messages this consumed against the quota. */
     quota_cost: z.number().int().optional(),
     /** On a user turn: whether the student explicitly asked to be taught. */
@@ -185,6 +191,12 @@ export const doubtMessageBodySchema = z.object({
   depth: mentorDepthSchema.default("standard"),
   /** Optional syllabus node to scope retrieval (page context / seed). */
   node_id: z.string().uuid().optional(),
+  /**
+   * Skip the FAQ semantic cache and force a fresh model answer (the "Answer
+   * fresh" action on a "from a similar doubt" reply). The regenerated answer
+   * still UPDATES the cached entry, so newest wins.
+   */
+  bypass_cache: z.boolean().default(false),
 });
 export type DoubtMessageBody = z.infer<typeof doubtMessageBodySchema>;
 
@@ -215,7 +227,11 @@ export const doubtCitationsEventSchema = z.object({
 });
 export type DoubtCitationsEvent = z.infer<typeof doubtCitationsEventSchema>;
 
-export const doubtSourceEventSchema = z.object({ from_cache: z.boolean() });
+export const doubtSourceEventSchema = z.object({
+  from_cache: z.boolean(),
+  /** true only for a 0.86–0.95 "similar doubt" reply — drives the notice + "Answer fresh". */
+  similar: z.boolean().optional(),
+});
 export type DoubtSourceEvent = z.infer<typeof doubtSourceEventSchema>;
 
 export const doubtDeltaEventSchema = z.object({ text: z.string() });

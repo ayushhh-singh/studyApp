@@ -58,6 +58,9 @@ export function MentorChat({
   const [teachMode, setTeachMode] = useState(seedTeach);
   const [depth, setDepth] = useState<MentorDepth>(seedDepth);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
+  // The last dispatched send, so "Answer fresh" can replay it with the cache
+  // bypassed (same question, same mode/teach/depth).
+  const lastSendRef = useRef<{ content: string; mode: "normal" | "revision"; teach: boolean; depth: MentorDepth } | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const isPinnedRef = useRef(true);
   const autoSentRef = useRef(false);
@@ -85,19 +88,25 @@ export function MentorChat({
   const costOfSend = mentorQuotaCost({ teach: teachMode, depth });
   const overQuota = messagesRemaining !== undefined && messagesRemaining < costOfSend;
 
-  const sendMessage = (content: string, override?: { teach?: boolean; depth?: MentorDepth }) => {
+  const sendMessage = (
+    content: string,
+    override?: { teach?: boolean; depth?: MentorDepth; bypassCache?: boolean; mode?: "normal" | "revision" },
+  ) => {
     const trimmed = content.trim();
     if (!trimmed || busy) return;
     const teach = override?.teach ?? teachMode;
     const d = override?.depth ?? depth;
+    const mode = override?.mode ?? (revision && !teach ? ("revision" as const) : ("normal" as const));
+    lastSendRef.current = { content: trimmed, mode, teach, depth: d };
     setInput("");
     setPendingUser(trimmed);
     isPinnedRef.current = true; // sending always jumps to the newest turn
     stream.send(trimmed, {
-      mode: revision && !teach ? "revision" : "normal",
+      mode,
       teach,
       depth: d,
       nodeId,
+      bypassCache: override?.bypassCache ?? false,
       onDone: async () => {
         await Promise.all([
           qc.invalidateQueries({ queryKey: queryKeys.doubtThread(threadId) }),
@@ -115,6 +124,13 @@ export function MentorChat({
   };
 
   const submit = () => sendMessage(input);
+
+  // "Answer fresh" on a similar-doubt reply — replay the same question with the
+  // FAQ cache bypassed (which also updates the cached entry, newest wins).
+  const answerFresh = () => {
+    const last = lastSendRef.current;
+    if (last) sendMessage(last.content, { mode: last.mode, teach: last.teach, depth: last.depth, bypassCache: true });
+  };
 
   useEffect(() => {
     if (!autoSend || !seed || autoSentRef.current) return;
@@ -190,6 +206,8 @@ export function MentorChat({
               citations: stream.citations,
               weak: stream.weak,
               fromCache: stream.fromCache,
+              similar: stream.similar,
+              onAnswerFresh: answerFresh,
               teacher: stream.teacher,
               relatedPyqs: stream.relatedPyqs,
               quickCheck: stream.quickCheck,

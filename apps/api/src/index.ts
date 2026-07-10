@@ -6,6 +6,7 @@ import { logger } from "./lib/logger.js";
 import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { requireAuth } from "./middleware/require-auth.js";
 import { healthRouter } from "./routes/health.js";
+import { checkMentorCacheHealthAtBoot } from "./services/mentor/cache-health.js";
 import { streamRouter } from "./routes/stream.js";
 import { syllabusRouter } from "./routes/syllabus.js";
 import { questionsRouter } from "./routes/questions.js";
@@ -140,6 +141,9 @@ app.use(errorHandler);
 
 app.listen(port, () => {
   logger.info(`api listening on http://localhost:${port}`);
+  // Surface a missing manual migration (0049/0070) loudly at boot — an ERROR
+  // log, not a swallowed warn — so the mentor FAQ cache never silently no-ops.
+  void checkMentorCacheHealthAtBoot();
   if (process.env.NODE_ENV !== "production") {
     startDevCaScheduler();
     startDailyScheduler();

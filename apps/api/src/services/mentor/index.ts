@@ -28,20 +28,25 @@ import { getMentorQuota, LIMITS } from "../entitlements.js";
 import { supabase } from "../../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";
 import { logger } from "../../lib/logger.js";
-import { MODELS, streamChat, structuredJson, webResearch } from "../../lib/anthropic.js";
+import { MODELS, streamChat, streamText, structuredJson, webResearch } from "../../lib/anthropic.js";
 import { getLearnerProfile, formatProfileForPrompt } from "../learner-profile.js";
+import { isAnalyticalQuery, isPersonalQuery } from "./heuristics.js";
 import {
   buildMentorPersona,
   buildProfileSegment,
+  buildRevisionCompressionSystem,
   buildTeacherPersona,
   buildTeacherTurn,
   buildUserTurn,
 } from "./prompts.js";
 import {
   embedQuery,
-  lookupFaqCache,
+  lookupFaqCandidates,
   retrieveContext,
-  writeFaqCache,
+  upsertFaqCache,
+  FAQ_SILENT_THRESHOLD,
+  FAQ_SIMILAR_THRESHOLD,
+  type FaqCandidate,
 } from "./retrieval.js";
 import {
   detectTeachIntent,
@@ -170,16 +175,8 @@ async function enforceDailyLimit(userId: string, cost: number): Promise<void> {
   }
 }
 
-/**
- * Personal / profile-dependent doubts (about the student's own performance)
- * always go to the model and are never cached. Heuristic over both locales.
- */
-export function isPersonalQuery(content: string): boolean {
-  const en =
-    /\b(my (weak|strong|score|accuracy|marks|performance|streak|progress|mistakes?|prep|revision|answers?|topics?)|why do i\b|i keep\b|i always\b|i (often|usually) (get|make|miss)|i (struggle|fail)|help me improve|am i (ready|weak|behind|on track)|how am i doing|my exam|for me\b)/i;
-  const hi = /(मेरा|मेरी|मुझे|मैं)[\s\S]{0,24}(कमज़ोर|कमजोर|गलत|सुधार|स्कोर|प्रदर्शन|तैयारी|प्रगति|गलतिय|कैसे कर रह|अंक)/;
-  return en.test(content) || hi.test(content);
-}
+// Pure text heuristics live in ./heuristics.ts (no DB/model deps → unit-testable).
+export { isPersonalQuery, isAnalyticalQuery };
 
 export interface DoubtPlan {
   thread: DoubtThread;
@@ -191,6 +188,14 @@ export interface DoubtPlan {
   nodeId?: string;
   locale: Locale;
   history: { role: "user" | "assistant"; content: string }[];
+  /** "Answer fresh" — skip the FAQ cache and force a fresh model answer. */
+  bypassCache: boolean;
+  /**
+   * The question embedded once at plan time (overlapped with the history
+   * snapshot), passed through so executeDoubtStream fires retrieval + the cache
+   * lookup immediately, with no second embed. Null if embedding failed.
+   */
+  vectorLiteral: string | null;
 }
 
 /**
@@ -202,7 +207,7 @@ export interface DoubtPlan {
 export async function planDoubtMessage(
   userId: string,
   threadId: string,
-  body: { content: string; mode: "normal" | "revision"; teach: boolean; depth: MentorDepth; node_id?: string },
+  body: { content: string; mode: "normal" | "revision"; teach: boolean; depth: MentorDepth; node_id?: string; bypass_cache?: boolean },
   locale: Locale,
 ): Promise<DoubtPlan> {
   const thread = await requireThread(userId, threadId);
@@ -219,15 +224,23 @@ export async function planDoubtMessage(
   const cost = mentorQuotaCost({ teach, depth: body.depth });
   await enforceDailyLimit(userId, cost);
 
-  // Snapshot prior history before inserting the new turn.
-  const { data: prior, error: priorError } = await supabase()
-    .from("doubt_messages")
-    .select("role, content, created_at")
-    .eq("thread_id", threadId)
-    .order("created_at", { ascending: false })
-    .limit(HISTORY_LIMIT);
-  if (priorError) throw new HttpError(500, `history lookup failed: ${priorError.message}`);
-  const history = (prior ?? [])
+  // Snapshot prior history AND embed the question CONCURRENTLY — both are
+  // independent round trips (a DB read + an embedding call), so the pre-stream
+  // phase is one wait, not two. The vector rides along in the plan so
+  // executeDoubtStream can fire retrieval + the cache lookup the moment it
+  // starts, with no second embed. (Both run after the daily-limit gate so an
+  // over-quota request never spends an embedding call.)
+  const [priorRes, vectorLiteral] = await Promise.all([
+    supabase()
+      .from("doubt_messages")
+      .select("role, content, created_at")
+      .eq("thread_id", threadId)
+      .order("created_at", { ascending: false })
+      .limit(HISTORY_LIMIT),
+    embedQuery(question),
+  ]);
+  if (priorRes.error) throw new HttpError(500, `history lookup failed: ${priorRes.error.message}`);
+  const history = (priorRes.data ?? [])
     .reverse()
     .map((m) => ({ role: m.role as "user" | "assistant", content: m.content as string }));
 
@@ -246,7 +259,18 @@ export async function planDoubtMessage(
     await supabase().from("doubt_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
   }
 
-  return { thread, question, mode: body.mode, teach, depth: body.depth, nodeId: body.node_id, locale, history };
+  return {
+    thread,
+    question,
+    mode: body.mode,
+    teach,
+    depth: body.depth,
+    nodeId: body.node_id,
+    locale,
+    history,
+    bypassCache: body.bypass_cache ?? false,
+    vectorLiteral,
+  };
 }
 
 async function persistAssistant(opts: {
@@ -273,53 +297,181 @@ async function persistAssistant(opts: {
   return data.id as string;
 }
 
+// --- Two-tier FAQ-cache serving decision (Session 26.5) --------------------
+type CacheDecision =
+  | { kind: "miss" }
+  | { kind: "serve"; tier: "silent" | "similar"; entry: FaqCandidate }
+  | { kind: "compress"; tier: "silent" | "similar"; entry: FaqCandidate };
+
+/**
+ * Decide how to serve a doubt from the cache candidates (best-first). A same-mode
+ * hit ≥ SILENT serves silently; ≥ SIMILAR serves with a "from a similar doubt"
+ * notice. A revision request with only a NORMAL entry compresses it (one haiku
+ * call) instead of regenerating. A normal request never serves a lossy revision
+ * answer — that's a miss.
+ */
+function decideCacheServe(candidates: FaqCandidate[], mode: "normal" | "revision"): CacheDecision {
+  const usable = candidates.filter((c) => c.similarity >= FAQ_SIMILAR_THRESHOLD);
+  if (usable.length === 0) return { kind: "miss" };
+  const tierOf = (sim: number): "silent" | "similar" => (sim >= FAQ_SILENT_THRESHOLD ? "silent" : "similar");
+
+  const sameMode = usable.find((c) => c.mode === mode);
+  if (sameMode) return { kind: "serve", tier: tierOf(sameMode.similarity), entry: sameMode };
+
+  if (mode === "revision") {
+    const normal = usable.find((c) => c.mode === "normal");
+    if (normal) return { kind: "compress", tier: tierOf(normal.similarity), entry: normal };
+  }
+  return { kind: "miss" };
+}
+
+/** One cheap haiku call: squeeze a cached full answer into a 5-bullet revision recap. */
+async function compressToRevision(opts: {
+  text: string;
+  locale: Locale;
+  userId: string;
+  signal?: AbortSignal;
+  onDelta: (t: string) => void;
+}): Promise<string> {
+  return streamText({
+    model: MODELS.haiku, // haiku rejects the `effort` param — never pass it here
+    system: buildRevisionCompressionSystem(opts.locale),
+    content: `Full answer to compress into a 5-bullet revision recap:\n<<<\n${opts.text}\n>>>`,
+    maxTokens: 700,
+    purpose: "mentor_revision_compress",
+    userId: opts.userId,
+    signal: opts.signal,
+    onDelta: opts.onDelta,
+  });
+}
+
+/** Log a doubt lookup's outcome + nearest similarity + latency to `events` (best-effort). */
+async function logDoubtLookup(
+  userId: string,
+  props: {
+    outcome: "hit_silent" | "hit_similar" | "hit_compressed" | "miss" | "bypass" | "personal";
+    mode: "normal" | "revision";
+    nearest_similarity: number | null;
+    model_call: boolean;
+    ttft_ms: number | null;
+    total_ms: number;
+  },
+): Promise<void> {
+  const { error } = await supabase().from("events").insert({ user_id: userId, name: "mentor_doubt_lookup", props });
+  if (error) logger.warn({ err: error }, "mentor: doubt lookup log failed");
+}
+
 /** Stream the mentor's answer over SSE. Runs after the connection is open. */
 export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: MentorEmit, signal?: AbortSignal): Promise<void> {
   if (plan.teach) return executeTeacherStream(userId, plan, emit, signal);
 
-  const { locale, question, mode, nodeId, threadId } = { ...plan, threadId: plan.thread.id };
+  const { locale, question, mode, nodeId, bypassCache, vectorLiteral } = plan;
+  const threadId = plan.thread.id;
+
+  // Latency instrumentation (Session 26.5): time-to-first-token + total.
+  const startedAt = Date.now();
+  let firstDeltaAt: number | null = null;
+  const markFirstDelta = () => {
+    if (firstDeltaAt === null) firstDeltaAt = Date.now();
+  };
+  const ttft = () => (firstDeltaAt === null ? null : firstDeltaAt - startedAt);
 
   emit("status", { phase: "retrieving" });
-  const vectorLiteral = await embedQuery(question);
   const personal = isPersonalQuery(question);
 
-  // --- FAQ semantic-cache fast path (non-personal only) --------------------
-  if (!personal) {
-    const hit = await lookupFaqCache(vectorLiteral, locale);
-    if (hit) {
-      emit("citations", { citations: hit.citations, weak: hit.citations.length === 0 });
-      emit("source", { from_cache: true });
-      emit("delta", { text: hit.answer });
+  // Fire the independent pre-stream work concurrently — retrieval and the cache
+  // lookup both key off the vector we already have; the learner profile only for
+  // personal doubts. Retrieval starts immediately (not gated behind the cache
+  // lookup), so on a miss its result is already in flight.
+  const retrievalPromise = retrieveContext({ vectorLiteral, locale, nodeId });
+  const profilePromise: Promise<string> = personal
+    ? getLearnerProfile(userId)
+        .then((p) => formatProfileForPrompt(p))
+        .catch((err) => {
+          logger.warn({ err }, "mentor: learner profile load failed; answering without it");
+          return "";
+        })
+    : Promise.resolve("");
+  const candidatesPromise: Promise<FaqCandidate[]> =
+    !personal && !bypassCache ? lookupFaqCandidates(vectorLiteral, locale) : Promise.resolve([]);
+
+  // --- FAQ two-tier cache fast path (non-personal, non-bypass) --------------
+  let nearestSimilarity: number | null = null;
+  if (!personal && !bypassCache) {
+    const candidates = await candidatesPromise;
+    nearestSimilarity = candidates[0]?.similarity ?? null;
+    const decision = decideCacheServe(candidates, mode);
+    if (decision.kind !== "miss") {
+      const showSimilar = decision.tier === "similar";
+      emit("citations", { citations: decision.entry.citations, weak: decision.entry.citations.length === 0 });
+      emit("source", { from_cache: true, similar: showSimilar });
+
+      let served: string;
+      if (decision.kind === "compress") {
+        emit("status", { phase: "answering" });
+        served = await compressToRevision({
+          text: decision.entry.answer,
+          locale,
+          userId,
+          signal,
+          onDelta: (d) => {
+            markFirstDelta();
+            emit("delta", { text: d });
+          },
+        });
+        // Cache the compressed revision so the next revision hit is direct.
+        if (served.trim()) {
+          await upsertFaqCache({
+            questionText: question,
+            vectorLiteral,
+            locale,
+            answer: served,
+            citations: decision.entry.citations,
+            mode: "revision",
+          });
+        }
+      } else {
+        served = decision.entry.answer;
+        markFirstDelta();
+        emit("delta", { text: served });
+      }
+
       const messageId = await persistAssistant({
         threadId,
-        content: hit.answer,
-        citations: hit.citations,
+        content: served,
+        citations: decision.entry.citations,
         usedProfile: false,
-        meta: { from_cache: true, revision: mode === "revision" },
+        meta: {
+          from_cache: true,
+          similar: showSimilar,
+          revision: mode === "revision",
+          ...(decision.kind === "compress" ? { compressed: true } : {}),
+        },
+      });
+      await logDoubtLookup(userId, {
+        outcome: decision.kind === "compress" ? "hit_compressed" : showSimilar ? "hit_similar" : "hit_silent",
+        mode,
+        nearest_similarity: nearestSimilarity,
+        model_call: decision.kind === "compress",
+        ttft_ms: ttft(),
+        total_ms: Date.now() - startedAt,
       });
       emit("done", { message_id: messageId, thread_id: threadId });
       return;
     }
   }
 
-  // --- Retrieval + profile injection + model stream ------------------------
-  const context = await retrieveContext({ vectorLiteral, locale, nodeId });
+  // --- Retrieval + profile injection + model stream (miss/personal/bypass) --
+  const context = await retrievalPromise;
   if (signal?.aborted) return;
   emit("citations", { citations: context.citations, weak: context.weak });
-  emit("source", { from_cache: false });
+  emit("source", { from_cache: false, similar: false });
   emit("status", { phase: "thinking" });
 
-  // Inject the learner profile ONLY for personal / profile-dependent questions.
+  // Learner profile is injected ONLY for personal / profile-dependent questions.
   // A generic topic question stays generic so its answer is safe to reuse from
-  // the shared FAQ cache (point 3 — cache only answers that used no profile facts).
-  let profileText = "";
-  if (personal) {
-    const profile = await getLearnerProfile(userId).catch((err) => {
-      logger.warn({ err }, "mentor: learner profile load failed; answering without it");
-      return null;
-    });
-    profileText = profile ? formatProfileForPrompt(profile) : "";
-  }
+  // the shared FAQ cache (cache only answers that used no profile facts).
+  const profileText = await profilePromise;
 
   const system = [
     { text: buildMentorPersona(locale), cache: true as const },
@@ -337,16 +489,15 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
     model: MODELS.sonnet,
     system,
     messages: messages as Parameters<typeof streamChat>[0]["messages"],
-    // A small, deliberate depth bump over the original low/3000 setting — enough
-    // for one genuine extra layer (an example, a distinguishing note, an exam-
-    // angle tip) without turning answers into padded essays. Revision mode is
-    // untouched — it's meant to stay a compressed 5-bullet recap.
     maxTokens: mode === "revision" ? 1200 : 3600,
-    effort: mode === "revision" ? "low" : "medium",
+    // Default to `low` for a faster first token; only a comparison/analysis-shaped
+    // doubt earns `medium` (Session 26.5). Revision stays `low` (5-bullet recap).
+    effort: mode === "revision" || !isAnalyticalQuery(question) ? "low" : "medium",
     purpose: "mentor_doubt",
     userId,
     signal,
     onDelta: (delta) => {
+      markFirstDelta();
       answer += delta;
       emit("delta", { text: delta });
     },
@@ -357,14 +508,22 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
     content: answer,
     citations: context.citations,
     usedProfile: personal,
-    meta: { revision: mode === "revision" },
+    meta: { revision: mode === "revision", ...(bypassCache ? { regenerated: true } : {}) },
   });
 
-  // Cache non-personal answers for future no-model reuse (Feature 3).
+  // Cache non-personal answers for future no-model reuse (newest wins on regen).
   if (!personal && answer.trim()) {
-    await writeFaqCache({ questionText: question, vectorLiteral, locale, answer, citations: context.citations });
+    await upsertFaqCache({ questionText: question, vectorLiteral, locale, answer, citations: context.citations, mode });
   }
 
+  await logDoubtLookup(userId, {
+    outcome: personal ? "personal" : bypassCache ? "bypass" : "miss",
+    mode,
+    nearest_similarity: nearestSimilarity,
+    model_call: true,
+    ttft_ms: ttft(),
+    total_ms: Date.now() - startedAt,
+  });
   emit("done", { message_id: messageId, thread_id: threadId });
 }
 
@@ -387,11 +546,11 @@ function resolveLessonNode(explicitNodeId: string | undefined, citations: Mentor
 }
 
 async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: MentorEmit, signal?: AbortSignal): Promise<void> {
-  const { locale, question, depth, nodeId, threadId } = { ...plan, threadId: plan.thread.id };
+  const { locale, question, depth, nodeId, vectorLiteral } = plan;
+  const threadId = plan.thread.id;
 
   emit("teacher", { depth, node_id: nodeId ?? null });
   emit("status", { phase: "retrieving" });
-  const vectorLiteral = await embedQuery(question);
   const context = await retrieveContext({ vectorLiteral, locale, nodeId });
   if (signal?.aborted) return;
   emit("citations", { citations: context.citations, weak: context.weak });

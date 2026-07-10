@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Sparkles, Zap, Info, GraduationCap } from "lucide-react";
+import { Sparkles, Zap, Info, GraduationCap, RefreshCw } from "lucide-react";
 import type {
   MentorCitation,
   MentorContinueNode,
@@ -22,6 +22,10 @@ export interface MentorMessageView {
   meta?: MentorMessageMeta;
   weak?: boolean;
   fromCache?: boolean;
+  /** A "from a similar doubt" (0.86–0.95) reply — shows the notice + "Answer fresh". */
+  similar?: boolean;
+  /** When provided (live bubble only), renders a one-tap "Answer fresh" on a similar-doubt reply. */
+  onAnswerFresh?: () => void;
   /** Persisted message id — enables "Save as study material" (omitted for the live bubble). */
   id?: string;
   /** Page-context node (Learn/CA) → default topic for save-as-material. */
@@ -49,7 +53,9 @@ export function MentorMessage({ message }: { message: MentorMessageView }) {
 
   const kind = message.meta?.kind;
   const quiz = kind === "quiz" ? message.meta?.questions ?? [] : null;
-  const fromCache = message.fromCache ?? message.meta?.from_cache ?? false;
+  // A silent (>=0.95) cache hit shows nothing; only a "similar doubt" (0.86–0.95)
+  // reply carries the notice + "Answer fresh".
+  const similar = message.similar ?? message.meta?.similar ?? false;
   const isTeacher = message.teacher || kind === "teacher";
 
   // Teacher extras come from meta (persisted) or the live props (streaming bubble).
@@ -72,9 +78,20 @@ export function MentorMessage({ message }: { message: MentorMessageView }) {
             <GraduationCap className="size-3" aria-hidden /> {t("Mentor.teacherBadge")}
           </p>
         )}
-        {fromCache && (
-          <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-            <Zap className="size-3" aria-hidden /> {t("Mentor.fromSimilarDoubt")}
+        {similar && (
+          <p className="inline-flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1">
+              <Zap className="size-3" aria-hidden /> {t("Mentor.fromSimilarDoubt")}
+            </span>
+            {message.onAnswerFresh && (
+              <button
+                type="button"
+                onClick={message.onAnswerFresh}
+                className="inline-flex items-center gap-1 font-medium text-primary underline-offset-2 hover:underline"
+              >
+                <RefreshCw className="size-3" aria-hidden /> {t("Mentor.answerFresh")}
+              </button>
+            )}
           </p>
         )}
         {quiz ? (

@@ -12,7 +12,15 @@ export const apiEnvelopeSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
     error: z.string().nullable(),
   });
 
-export const healthResponseSchema = apiEnvelopeSchema(z.object({ ok: z.boolean() }));
+export const healthResponseSchema = apiEnvelopeSchema(
+  z.object({
+    ok: z.boolean(),
+    /** Mentor FAQ-cache liveness (doubt_faq_cache table + match_doubt_faq RPC). */
+    mentor_cache: z
+      .object({ table_ok: z.boolean(), rpc_ok: z.boolean(), detail: z.string() })
+      .optional(),
+  }),
+);
 export type HealthResponse = z.infer<typeof healthResponseSchema>;
 
 export const examStageSchema = z.enum(["prelims", "mains"]);

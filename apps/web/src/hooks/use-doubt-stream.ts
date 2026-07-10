@@ -17,6 +17,8 @@ export interface DoubtStreamState {
   citations: MentorCitation[];
   weak: boolean;
   fromCache: boolean;
+  /** A "from a similar doubt" (0.86–0.95) reply — shows the notice + "Answer fresh". */
+  similar: boolean;
   answer: string;
   doneMessageId: string | null;
   error: string | null;
@@ -35,6 +37,7 @@ const INITIAL: DoubtStreamState = {
   citations: [],
   weak: false,
   fromCache: false,
+  similar: false,
   answer: "",
   doneMessageId: null,
   error: null,
@@ -52,6 +55,8 @@ export interface SendOptions {
   teach?: boolean;
   depth?: MentorDepth;
   nodeId?: string;
+  /** "Answer fresh" — skip the FAQ cache and regenerate (updates the cached entry). */
+  bypassCache?: boolean;
   onDone?: () => void;
 }
 
@@ -78,6 +83,7 @@ export function useDoubtStream(threadId: string, locale: Locale) {
           mode: opts.mode ?? "normal",
           teach: opts.teach ?? false,
           depth: opts.depth ?? "standard",
+          bypass_cache: opts.bypassCache ?? false,
           ...(opts.nodeId ? { node_id: opts.nodeId } : {}),
         },
         onEvent: (event, data) => {
@@ -95,8 +101,10 @@ export function useDoubtStream(threadId: string, locale: Locale) {
               }
               case "web_sources":
                 return { ...prev, webSources: (data as { web_sources: MentorWebSource[] }).web_sources };
-              case "source":
-                return { ...prev, fromCache: (data as { from_cache: boolean }).from_cache };
+              case "source": {
+                const d = data as { from_cache: boolean; similar?: boolean };
+                return { ...prev, fromCache: d.from_cache, similar: d.similar ?? false };
+              }
               case "delta":
                 return { ...prev, answer: prev.answer + (data as { text: string }).text };
               case "related_pyqs":

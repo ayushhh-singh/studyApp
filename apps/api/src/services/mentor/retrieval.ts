@@ -13,11 +13,24 @@ import type { BilingualText, Locale, MentorCitation } from "@prayasup/shared";
 import { supabase } from "../../lib/supabase.js";
 import { embeddings } from "../../lib/embeddings.js";
 import { logger } from "../../lib/logger.js";
+import { normalizeQuestion } from "./normalize.js";
 
 /** Cosine similarity below which we treat platform grounding as "not covered". */
 export const WEAK_RETRIEVAL_THRESHOLD = 0.3;
-/** A new doubt this similar to a cached, non-personal answer is served from cache. */
-export const FAQ_HIT_THRESHOLD = 0.92;
+/**
+ * Two-tier FAQ-cache serving (Session 26.5):
+ *  - >= SILENT: a near-identical doubt — serve the cached answer with no notice.
+ *  - >= SIMILAR (but < SILENT): a related doubt — serve it WITH a "from a
+ *    similar doubt" notice and a one-tap "Answer fresh".
+ *  - < SIMILAR: a miss — generate.
+ * SILENT also doubles as the dedup threshold on write: a fresh answer this close
+ * to an existing same-mode entry UPDATES it ("newest wins") rather than adding a
+ * near-duplicate row.
+ */
+export const FAQ_SILENT_THRESHOLD = 0.95;
+export const FAQ_SIMILAR_THRESHOLD = 0.86;
+/** How many candidates the lookup pulls so it can pick the best per-mode match. */
+const FAQ_CANDIDATE_COUNT = 5;
 
 const RETRIEVE_K = 6;
 
@@ -42,7 +55,11 @@ function toVectorLiteral(vec: number[]): string {
 }
 
 export async function embedQuery(text: string): Promise<string | null> {
-  const query = text.replace(/\s+/g, " ").trim();
+  // Normalize (strip courtesy filler, lowercase Latin, collapse whitespace) so
+  // phrasing noise stops splitting one doubt into several cache clusters. The
+  // same normalized vector drives BOTH the cache lookup and the cache write, so
+  // they can never disagree.
+  const query = normalizeQuestion(text);
   if (!query) return null;
   try {
     const [vec] = await embeddings().embed([query]);
@@ -216,49 +233,89 @@ export async function retrieveContext(opts: {
 }
 
 // ---------------------------------------------------------------------------
-// Doubt-FAQ semantic cache (Feature 3)
+// Doubt-FAQ semantic cache (Feature 3, reworked in Session 26.5)
 // ---------------------------------------------------------------------------
-export interface FaqHit {
+export type FaqMode = "normal" | "revision";
+
+export interface FaqCandidate {
+  id: string;
   answer: string;
   citations: MentorCitation[];
+  mode: FaqMode;
+  similarity: number;
 }
 
-/** Look up the nearest cached, same-locale doubt above the hit threshold. */
-export async function lookupFaqCache(vectorLiteral: string | null, locale: Locale): Promise<FaqHit | null> {
-  if (!vectorLiteral) return null;
+/**
+ * Pull the nearest cached, same-locale doubts (best-first). Returns them raw so
+ * the caller can apply the two-tier thresholds and the mode-aware pick; the
+ * nearest candidate's similarity is also the value logged on a miss.
+ */
+export async function lookupFaqCandidates(
+  vectorLiteral: string | null,
+  locale: Locale,
+): Promise<FaqCandidate[]> {
+  if (!vectorLiteral) return [];
   try {
     const { data, error } = await supabase().rpc("match_doubt_faq", {
       query_embedding: vectorLiteral,
       filter_locale: locale,
-      match_count: 1,
+      match_count: FAQ_CANDIDATE_COUNT,
     });
     if (error) throw error;
-    const top = (data ?? [])[0] as
-      | { id: string; answer: string; citations: MentorCitation[]; similarity: number }
-      | undefined;
-    if (!top || top.similarity < FAQ_HIT_THRESHOLD) return null;
-    return { answer: top.answer, citations: top.citations ?? [] };
+    return ((data ?? []) as {
+      id: string;
+      answer: string;
+      citations: MentorCitation[] | null;
+      mode: string | null;
+      similarity: number;
+    }[]).map((r) => ({
+      id: r.id,
+      answer: r.answer,
+      citations: r.citations ?? [],
+      mode: r.mode === "revision" ? "revision" : "normal",
+      similarity: r.similarity,
+    }));
   } catch (err) {
     logger.warn({ err }, "mentor: FAQ cache lookup failed");
-    return null;
+    return [];
   }
 }
 
-/** Persist a non-personal answer to the FAQ cache for future no-model reuse. */
-export async function writeFaqCache(opts: {
+/**
+ * Persist an answer to the FAQ cache for future no-model reuse — "newest wins".
+ * A fresh answer within FAQ_SILENT_THRESHOLD of an existing SAME-MODE entry
+ * UPDATES that row (so a regeneration / "Answer fresh" replaces the stale
+ * answer) instead of adding a near-duplicate; otherwise it inserts. Mode is
+ * stored so the two entries a doubt can have (full vs revision) never merge.
+ */
+export async function upsertFaqCache(opts: {
   questionText: string;
   vectorLiteral: string | null;
   locale: Locale;
   answer: string;
   citations: MentorCitation[];
+  mode: FaqMode;
 }): Promise<void> {
   if (!opts.vectorLiteral || !opts.answer.trim()) return;
-  const { error } = await supabase().from("doubt_faq_cache").insert({
+  const row = {
     question_text: opts.questionText.slice(0, 2000),
     embedding: opts.vectorLiteral,
     locale: opts.locale,
     answer: opts.answer,
     citations: opts.citations,
-  });
-  if (error) logger.warn({ err: error }, "mentor: FAQ cache write failed");
+    mode: opts.mode,
+  };
+  try {
+    const candidates = await lookupFaqCandidates(opts.vectorLiteral, opts.locale);
+    const dup = candidates.find((c) => c.mode === opts.mode && c.similarity >= FAQ_SILENT_THRESHOLD);
+    if (dup) {
+      const { error } = await supabase().from("doubt_faq_cache").update(row).eq("id", dup.id);
+      if (error) throw error;
+      return;
+    }
+    const { error } = await supabase().from("doubt_faq_cache").insert(row);
+    if (error) throw error;
+  } catch (err) {
+    logger.warn({ err }, "mentor: FAQ cache write failed");
+  }
 }

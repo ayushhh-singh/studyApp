@@ -9,6 +9,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "tsx src/index.ts",
     "verify:schema": "tsx --env-file-if-exists=.env scripts/verify-schema.ts",
+    "test:mentor": "tsx scripts/test-mentor-heuristics.ts",
     "ingest:syllabus": "tsx --env-file-if-exists=.env src/ingest/syllabus.ts",
     "ingest:pyq": "tsx --env-file-if-exists=.env src/ingest/pyq.ts",
     "ingest:pyq:load": "tsx --env-file-if-exists=.env src/ingest/pyq-load.ts",

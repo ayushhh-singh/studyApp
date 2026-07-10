@@ -52,6 +52,14 @@ function fmtPct(n: number): string {
   return `${(n * 100).toFixed(0)}%`;
 }
 
+/** Nearest-rank percentile of a numeric list (returns null for an empty list). */
+function percentile(values: number[], p: number): number | null {
+  if (values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1));
+  return sorted[idx];
+}
+
 function isModelId(m: string): m is ModelId {
   return m in MODEL_PRICING;
 }
@@ -250,6 +258,73 @@ async function main(): Promise<void> {
     if (sync.length) line("sync", agg(sync));
     if (batch.length) line("batch", agg(batch));
     console.log("  Targets: ~₹1.5 per accepted (sync), ~₹0.9 (batch).");
+  }
+
+  // -------------------------------------------------------------------------
+  // Mentor FAQ cache + latency (Session 26.5) — from the `mentor_doubt_lookup`
+  // events the doubt pipeline logs on every lookup. Makes threshold tuning
+  // data-driven (hit rate + how close the near-misses were) and surfaces the
+  // "long in-depth answers feel slow" latency as real p50/p95 numbers.
+  // -------------------------------------------------------------------------
+  interface LookupProps {
+    outcome: string;
+    mode?: string;
+    nearest_similarity: number | null;
+    model_call?: boolean;
+    ttft_ms: number | null;
+    total_ms: number | null;
+  }
+  const { data: lookupRows, error: lookupErr } = await supabase()
+    .from("events")
+    .select("props, created_at")
+    .eq("name", "mentor_doubt_lookup")
+    .gte("created_at", since.toISOString());
+
+  console.log("\n" + "=".repeat(100));
+  console.log("Mentor FAQ cache + latency");
+  console.log("=".repeat(100));
+  if (lookupErr) {
+    console.log(`(mentor_doubt_lookup events unavailable: ${lookupErr.message})`);
+  } else {
+    const lookups = ((lookupRows ?? []) as { props: LookupProps }[]).map((r) => r.props);
+    if (lookups.length === 0) {
+      console.log("No mentor doubt lookups in this window.");
+    } else {
+      const isHit = (o: string) => o === "hit_silent" || o === "hit_similar" || o === "hit_compressed";
+      // Cache-eligible = everything except personal/profile doubts (never cached).
+      const eligible = lookups.filter((l) => l.outcome !== "personal");
+      const hits = eligible.filter((l) => isHit(l.outcome));
+      const count = (o: string) => lookups.filter((l) => l.outcome === o).length;
+      const hitRate = eligible.length ? hits.length / eligible.length : 0;
+
+      const missSims = lookups
+        .filter((l) => l.outcome === "miss" && typeof l.nearest_similarity === "number")
+        .map((l) => l.nearest_similarity as number);
+      const avgMissSim = missSims.length ? missSims.reduce((a, b) => a + b, 0) / missSims.length : null;
+
+      console.log(
+        `  Lookups: ${lookups.length}  (silent=${count("hit_silent")} similar=${count("hit_similar")} ` +
+          `compressed=${count("hit_compressed")} miss=${count("miss")} bypass=${count("bypass")} personal=${count("personal")})`,
+      );
+      console.log(`  Cache hit-rate (eligible): ${fmtPct(hitRate)}  (${hits.length}/${eligible.length})`);
+      console.log(
+        avgMissSim !== null
+          ? `  Avg nearest similarity on MISS: ${avgMissSim.toFixed(3)} (${missSims.length} misses) — ` +
+              `close to ${(0.86).toFixed(2)} means the SIMILAR threshold is worth loosening`
+          : "  Avg nearest similarity on MISS: n/a (no misses with a candidate)",
+      );
+
+      // Latency p50/p95 over model-generated answers (the slow path that matters).
+      const modelRows = lookups.filter((l) => l.model_call);
+      const ttfts = modelRows.map((l) => l.ttft_ms).filter((n): n is number => typeof n === "number");
+      const totals = modelRows.map((l) => l.total_ms).filter((n): n is number => typeof n === "number");
+      const fmtMs = (n: number | null) => (n === null ? "n/a" : `${(n / 1000).toFixed(1)}s`);
+      console.log(
+        `  Model-answer latency (${modelRows.length} model calls) — ` +
+          `TTFT p50/p95: ${fmtMs(percentile(ttfts, 50))}/${fmtMs(percentile(ttfts, 95))}, ` +
+          `total p50/p95: ${fmtMs(percentile(totals, 50))}/${fmtMs(percentile(totals, 95))}`,
+      );
+    }
   }
 }
 
