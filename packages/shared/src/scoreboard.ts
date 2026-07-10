@@ -32,9 +32,18 @@ export const dailyQuizTodayBoardSchema = scoreboardBoardSchema.extend({
 });
 export type DailyQuizTodayBoard = z.infer<typeof dailyQuizTodayBoardSchema>;
 
-export const dailyQuizWeeklyBoardSchema = scoreboardBoardSchema.extend({
+export const dailyQuizWeeklyRowSchema = scoreboardRowSchema.extend({
+  /** Days this week the user actually took the quiz — the spec's "participation count". */
+  days_participated: z.number().int(),
+});
+export type DailyQuizWeeklyRow = z.infer<typeof dailyQuizWeeklyRowSchema>;
+
+export const dailyQuizWeeklyBoardSchema = z.object({
   week_start: z.string(),
   week_end: z.string(),
+  rows: z.array(dailyQuizWeeklyRowSchema),
+  participants: z.number().int(),
+  your_rank: z.number().int().nullable(),
 });
 export type DailyQuizWeeklyBoard = z.infer<typeof dailyQuizWeeklyBoardSchema>;
 

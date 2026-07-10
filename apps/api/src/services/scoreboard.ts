@@ -30,6 +30,7 @@ import type {
   TestBoard,
   DailyQuizTodayBoard,
   DailyQuizWeeklyBoard,
+  DailyQuizWeeklyRow,
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
@@ -207,10 +208,11 @@ export async function getDailyQuizWeeklyBoard(userId: string): Promise<DailyQuiz
     .lte("quiz_date", today);
   if (error) throw new HttpError(500, `daily quiz weekly board lookup failed: ${error.message}`);
 
-  const byUser = new Map<string, { score: number; accSum: number; accCount: number }>();
+  const byUser = new Map<string, { score: number; accSum: number; accCount: number; days: number }>();
   for (const r of (data ?? []) as { user_id: string; score: number; accuracy_pct: number | null }[]) {
-    const cur = byUser.get(r.user_id) ?? { score: 0, accSum: 0, accCount: 0 };
+    const cur = byUser.get(r.user_id) ?? { score: 0, accSum: 0, accCount: 0, days: 0 };
     cur.score += r.score;
+    cur.days += 1;
     if (r.accuracy_pct != null) {
       cur.accSum += r.accuracy_pct;
       cur.accCount += 1;
@@ -222,12 +224,34 @@ export async function getDailyQuizWeeklyBoard(userId: string): Promise<DailyQuiz
       user_id,
       score: Math.round(v.score * 100) / 100,
       accuracy_pct: v.accCount > 0 ? Math.round((v.accSum / v.accCount) * 100) / 100 : null,
-      time_taken_seconds: null,
+      days_participated: v.days,
     }))
     .sort((a, b) => b.score - a.score);
 
   const handles = await getHandles(entries.map((e) => e.user_id));
-  return { week_start: weekStart, week_end: today, ...buildRows(entries, userId, handles) };
+  const ranks = computeRanks(entries.map((e) => e.score));
+  let yourRank: number | null = null;
+  const allRows: DailyQuizWeeklyRow[] = entries.map((e, idx) => {
+    const isYou = e.user_id === userId;
+    if (isYou) yourRank = ranks[idx];
+    return {
+      rank: ranks[idx],
+      handle: handles.get(e.user_id) ?? null,
+      is_you: isYou,
+      score: e.score,
+      accuracy_pct: e.accuracy_pct,
+      time_taken_seconds: null,
+      days_participated: e.days_participated,
+    };
+  });
+
+  return {
+    week_start: weekStart,
+    week_end: today,
+    rows: pickDisplay(allRows, BOARD_TOP_N),
+    participants: allRows.length,
+    your_rank: yourRank,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -253,11 +277,16 @@ export async function listScoreboardTests(
 export async function getTestBoard(userId: string, testId: string): Promise<TestBoard> {
   const { data: test, error: testError } = await supabase()
     .from("tests")
-    .select("id, title_i18n, kind")
+    .select("id, title_i18n, kind, is_published")
     .eq("id", testId)
     .maybeSingle();
   if (testError) throw new HttpError(500, `test lookup failed: ${testError.message}`);
-  if (!test || (test.kind !== "mock" && test.kind !== "sectional")) throw notFound("Test not found");
+  // is_published matters here: without it, an unpublished draft test's real
+  // attempt data (from internal testing before publish) could be read by
+  // guessing its id, even though it never appears in listScoreboardTests.
+  if (!test || !test.is_published || (test.kind !== "mock" && test.kind !== "sectional")) {
+    throw notFound("Test not found");
+  }
 
   const { data, error } = await supabase()
     .from("mv_test_leaderboard")
@@ -325,17 +354,30 @@ interface WeeklyEvalRow {
   pct: number;
 }
 
-async function fetchWeeklyEvaluations(weekStart: string): Promise<WeeklyEvalRow[]> {
+/**
+ * rubricScope distinguishes Essay (its own separate board) from every other
+ * rubric version (the "Answer Writing" / GS board) — the two must never mix,
+ * or one skill's scores dilute/double-count into the other's ranking (see
+ * migration 0069). "all" is only for internal reuse where a caller filters
+ * further itself; every board/percentile call site below passes a scope.
+ */
+async function fetchWeeklyEvaluations(
+  weekStart: string,
+  rubricScope: "gs" | "essay" | "all" = "all",
+): Promise<WeeklyEvalRow[]> {
   const sunday = shiftDate(weekStart, 6);
   const startUtc = istDayRangeUtc(weekStart).startUtc;
   const endUtc = istDayRangeUtc(sunday).endUtc;
-  const { data, error } = await supabase()
+  let query = supabase()
     .from("evaluations")
     .select("overall_score, max_score, answer_submissions!inner(user_id)")
     .gte("created_at", startUtc)
     .lt("created_at", endUtc)
     .not("overall_score", "is", null)
     .not("max_score", "is", null);
+  if (rubricScope === "gs") query = query.neq("rubric_version", "essay-v1");
+  if (rubricScope === "essay") query = query.eq("rubric_version", "essay-v1");
+  const { data, error } = await query;
   if (error) throw new HttpError(500, `weekly evaluations lookup failed: ${error.message}`);
   const rows = (data ?? []) as unknown as {
     overall_score: number;
@@ -366,7 +408,7 @@ export async function getMainsWeeklyBoard(userId: string): Promise<MainsWeeklyBo
   const [{ data: mvRows, error: mvError }, profileRes, weekly] = await Promise.all([
     supabase().from("mv_mains_weekly_board").select("user_id, avg_pct").eq("week_start", weekStart),
     supabase().from("users_profile").select("show_on_mains_board").eq("id", userId).maybeSingle(),
-    fetchWeeklyEvaluations(weekStart),
+    fetchWeeklyEvaluations(weekStart, "gs"),
   ]);
   if (mvError) throw new HttpError(500, `mains weekly board lookup failed: ${mvError.message}`);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
@@ -413,33 +455,15 @@ export async function getMainsWeeklyBoard(userId: string): Promise<MainsWeeklyBo
  */
 export async function getMainsEssayWeeklyBoard(userId: string): Promise<MainsWeeklyBoard> {
   const weekStart = istWeekStart(istToday());
-  const sunday = shiftDate(weekStart, 6);
-  const startUtc = istDayRangeUtc(weekStart).startUtc;
-  const endUtc = istDayRangeUtc(sunday).endUtc;
 
-  const [{ data, error }, profileRes] = await Promise.all([
-    supabase()
-      .from("evaluations")
-      .select("overall_score, max_score, answer_submissions!inner(user_id)")
-      .eq("rubric_version", "essay-v1")
-      .gte("created_at", startUtc)
-      .lt("created_at", endUtc)
-      .not("overall_score", "is", null)
-      .not("max_score", "is", null),
+  const [weekly, profileRes] = await Promise.all([
+    fetchWeeklyEvaluations(weekStart, "essay"),
     supabase().from("users_profile").select("show_on_mains_board").eq("id", userId).maybeSingle(),
   ]);
-  if (error) throw new HttpError(500, `essay weekly board lookup failed: ${error.message}`);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
   const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? false;
 
-  const rows = ((data ?? []) as unknown as {
-    overall_score: number;
-    max_score: number;
-    answer_submissions: { user_id: string };
-  }[])
-    .filter((r) => r.max_score > 0)
-    .map((r) => ({ user_id: r.answer_submissions.user_id, pct: (r.overall_score / r.max_score) * 100 }));
-  const byUser = aggregateByUser(rows);
+  const byUser = aggregateByUser(weekly);
 
   const optedInIds = await getOptedInUserIds([...byUser.keys()]);
   const entries = [...byUser.entries()]
@@ -559,15 +583,17 @@ export async function getRankCardForAttempt(userId: string, attemptId: string): 
   if (test.kind === "mock" || test.kind === "sectional") {
     const { data: rows, error: rowsError } = await supabase()
       .from("v_test_leaderboard")
-      .select("user_id, score")
+      .select("user_id, attempt_id, score")
       .eq("test_id", attempt.test_id)
       .order("score", { ascending: false });
     if (rowsError) throw new HttpError(500, `test board lookup failed: ${rowsError.message}`);
-    const entries = (rows ?? []) as { user_id: string; score: number }[];
+    const entries = (rows ?? []) as { user_id: string; attempt_id: string; score: number }[];
     const ranks = computeRanks(entries.map((e) => e.score));
-    const idx = entries.findIndex((e) => e.user_id === userId);
-    // Not present means this attempt wasn't the user's qualifying (first,
-    // non-ghost) one on this test — no card for a later re-attempt either.
+    // Match by attempt_id, not just user_id — a later re-attempt on the same
+    // test must get no card even though the user DOES appear on the board
+    // (via their earlier qualifying attempt). Matching by user_id alone would
+    // show a misleading "you ranked N" card on the wrong attempt's result page.
+    const idx = entries.findIndex((e) => e.attempt_id === attemptId);
     if (idx === -1) return null;
     return { board_type: "test", rank: ranks[idx], participants: entries.length };
   }
@@ -586,24 +612,29 @@ export async function getEvaluationPercentile(userId: string, submissionId: stri
 
   const { data: evaluation, error: evalError } = await supabase()
     .from("evaluations")
-    .select("created_at")
+    .select("created_at, rubric_version")
     .eq("submission_id", submissionId)
     .maybeSingle();
   if (evalError) throw new HttpError(500, `evaluation lookup failed: ${evalError.message}`);
   if (!evaluation) return { eligible: false, participants: 0, percentile: null };
 
+  // Scope the comparison pool to the SAME rubric category as the evaluation
+  // being viewed — an Essay answer must be compared against other essays,
+  // never pooled with GS answers (see migration 0069's rationale).
+  const isEssay = evaluation.rubric_version === "essay-v1";
+  const minEvaluations = isEssay ? 1 : MAINS_MIN_EVALUATIONS;
   const weekStart = istWeekStart(istDateString(Date.parse(evaluation.created_at as string)));
-  const pool = await fetchWeeklyEvaluations(weekStart);
+  const pool = await fetchWeeklyEvaluations(weekStart, isEssay ? "essay" : "gs");
   const byUser = aggregateByUser(pool);
 
   const mine = byUser.get(userId);
-  if (!mine || mine.count < MAINS_MIN_EVALUATIONS) return { eligible: false, participants: 0, percentile: null };
+  if (!mine || mine.count < minEvaluations) return { eligible: false, participants: 0, percentile: null };
 
-  // Population = everyone who cleared the >=3-evaluations floor that week,
+  // Population = everyone who cleared the qualifying floor that week,
   // regardless of Mains-board opt-in — a bare percentile number reveals no
   // identity, so it can safely draw on the full active population rather
   // than just the tiny opted-in subset that appears on the named board.
-  const qualifying = [...byUser.values()].filter((v) => v.count >= MAINS_MIN_EVALUATIONS);
+  const qualifying = [...byUser.values()].filter((v) => v.count >= minEvaluations);
   const participants = qualifying.length;
   if (participants < PERCENTILE_MIN_PARTICIPANTS) return { eligible: false, participants, percentile: null };
 

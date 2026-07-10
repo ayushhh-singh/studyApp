@@ -90,6 +90,7 @@ function DailyQuizPanel() {
           rows={board.data.rows}
           participants={board.data.participants}
           showTime={range === "today"}
+          showDaysParticipated={range === "week"}
           emptyTitle={t("Scoreboard.emptyBoardTitle")}
           emptyDescription={t("Scoreboard.emptyBoardDescription")}
         />

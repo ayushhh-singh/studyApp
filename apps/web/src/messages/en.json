@@ -898,6 +898,8 @@
     "seriesTitle": "Series average",
     "mocksAttempted_one": "{{count}} mock attempted",
     "mocksAttempted_other": "{{count}} mocks attempted",
+    "daysParticipated_one": "{{count}} day this week",
+    "daysParticipated_other": "{{count}} days this week",
     "optInTitle": "Join the Mains board",
     "optInDescription": "Mains scores are personal by default. Opt in to appear on the weekly Answer Writing board with your handle — you can turn this off anytime.",
     "optInButton": "Show me on the Mains board",

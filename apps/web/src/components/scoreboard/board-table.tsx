@@ -16,15 +16,17 @@ export function BoardTable({
   showAccuracy = true,
   showTime = false,
   showMocksAttempted = false,
+  showDaysParticipated = false,
   scoreSuffix = "",
   emptyTitle,
   emptyDescription,
 }: {
-  rows: (ScoreboardRow & { mocks_attempted?: number })[];
+  rows: (ScoreboardRow & { mocks_attempted?: number; days_participated?: number })[];
   participants: number;
   showAccuracy?: boolean;
   showTime?: boolean;
   showMocksAttempted?: boolean;
+  showDaysParticipated?: boolean;
   scoreSuffix?: string;
   emptyTitle: string;
   emptyDescription: string;
@@ -76,6 +78,11 @@ export function BoardTable({
                     {showMocksAttempted && row.mocks_attempted != null && (
                       <span className="ml-2 text-xs text-muted-foreground">
                         {t("Scoreboard.mocksAttempted", { count: row.mocks_attempted })}
+                      </span>
+                    )}
+                    {showDaysParticipated && row.days_participated != null && (
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {t("Scoreboard.daysParticipated", { count: row.days_participated })}
                       </span>
                     )}
                   </td>
