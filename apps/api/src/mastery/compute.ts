@@ -8,6 +8,7 @@
  */
 import type { BilingualText, ExamCode, MasteryMap, MasteryNode } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { daysSince, masteryLevel, masteryScore, MASTERY_CONFIG } from "./config.js";
@@ -164,9 +165,11 @@ export async function getMasteryMap(userId: string, paperCode?: string, exam?: E
   const papers = [...new Set(nodes.map((n) => n.paper_code))];
 
   // Mastery rows + PYQ counts (subtree) in parallel.
-  const [masteryRes, questionRes] = await Promise.all([
+  const [masteryRes, questionRows] = await Promise.all([
     supabase().from("node_mastery").select("syllabus_node_id, level, score, meta").eq("user_id", userId).in("syllabus_node_id", nodeIds),
-    (() => {
+    // Paginate: weight counts EVERY published question in scope; across all
+    // papers this exceeds 1000, so a single select truncated tile weights.
+    selectAll<{ paper_code: string; syllabus_node_id: string }>(() => {
       // Weight (PYQ count/tile sizing) is a content-classification stat, not
       // an accuracy one — it must count descriptive PYQs too, or every Mains
       // paper's Conquest Map (all-descriptive) renders as permanently empty
@@ -186,11 +189,10 @@ export async function getMasteryMap(userId: string, paperCode?: string, exam?: E
       // the filter: tile sizing/weight always reflected ALL exams regardless
       // of what "UPPSC only" showed a moment ago in Outline for the same paper.
       if (exam) q = q.eq("exam_code", exam);
-      return q;
-    })(),
+      return q.order("id", { ascending: true });
+    }),
   ]);
   if (masteryRes.error) throw new HttpError(500, `mastery lookup failed: ${masteryRes.error.message}`);
-  if (questionRes.error) throw new HttpError(500, `question lookup failed: ${questionRes.error.message}`);
 
   const masteryByNode = new Map(
     (masteryRes.data ?? []).map((r) => [
@@ -202,7 +204,7 @@ export async function getMasteryMap(userId: string, paperCode?: string, exam?: E
   // Subtree PYQ counts by node (roll each question up its ancestor paths).
   const pyqByNode = new Map<string, number>();
   const totalByPaper = new Map<string, number>();
-  for (const r of (questionRes.data ?? []) as { paper_code: string; syllabus_node_id: string }[]) {
+  for (const r of questionRows as { paper_code: string; syllabus_node_id: string }[]) {
     const leaf = nodeById.get(r.syllabus_node_id);
     if (!leaf) continue;
     totalByPaper.set(leaf.paper_code, (totalByPaper.get(leaf.paper_code) ?? 0) + 1);

@@ -9,6 +9,7 @@
  * Idempotent: upsert keyed on (source_type, source_id, locale, chunk_index).
  */
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { embeddings } from "../lib/embeddings.js";
 import { parseArgs, report } from "./_shared.js";
 
@@ -73,13 +74,18 @@ async function collectSyllabusChunks(limit?: number): Promise<Chunk[]> {
 }
 
 async function collectQuestionChunks(limit?: number): Promise<Chunk[]> {
-  const { data, error } = await supabase()
-    .from("questions")
-    .select("id, stem_i18n, options_i18n, explanation_i18n")
-    .eq("is_published", true);
-  if (error) throw new Error(`fetch questions: ${error.message}`);
+  // Paginate: the published bank exceeds 1000, so a single select would embed
+  // only the first 1000 questions and leave the rest ungrounded.
+  const data = await selectAll<{ id: string; stem_i18n: unknown; options_i18n: unknown; explanation_i18n: unknown }>(
+    () =>
+      supabase()
+        .from("questions")
+        .select("id, stem_i18n, options_i18n, explanation_i18n")
+        .eq("is_published", true)
+        .order("id", { ascending: true }),
+  );
   const out: Chunk[] = [];
-  for (const q of (data ?? []).slice(0, limit)) {
+  for (const q of data.slice(0, limit)) {
     const stem = q.stem_i18n as { hi?: string; en?: string };
     const expl = (q.explanation_i18n ?? {}) as { hi?: string; en?: string };
     const opts = (q.options_i18n ?? []) as { text_i18n?: { hi?: string; en?: string } }[];

@@ -11,6 +11,7 @@
  */
 import type { ExamCutoff } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
 import { questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 
@@ -78,11 +79,15 @@ async function topLevelByNode(paperCode: string): Promise<Map<string, string>> {
 
 async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
   const [rows, topByNode] = await Promise.all([
-    supabase()
-      .from("questions")
-      .select("id, marks, syllabus_node_id")
-      .eq("type", "mcq")
-      .eq("paper_code", paperCode)
+    // Paginate: a single paper's published MCQs across all years can exceed 1000
+    // (e.g. PRE_GS1), which a single select would truncate — dropping questions
+    // from the mock pool.
+    selectAll<{ id: string; marks: number | null; syllabus_node_id: string | null }>(() =>
+      supabase()
+        .from("questions")
+        .select("id, marks, syllabus_node_id")
+        .eq("type", "mcq")
+        .eq("paper_code", paperCode)
       // Some PYQs got tagged with this paper_code at ingest despite being
       // out-of-syllabus filler (e.g. UPSSSC-PET aptitude/reasoning items with
       // no real syllabus_node_id) — a full-length UPPSC-pattern mock must not
@@ -98,12 +103,13 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
       // UPSSSC PET) intentionally share this paper_code for weightage
       // analytics elsewhere, but must never end up inside a paper claiming
       // to be the genuine UPPSC pattern.
-      .eq("exam_code", UPPSC_EXAM_CODE)
-      .or(questionVisibilityOrFilter("catalog")),
+        .eq("exam_code", UPPSC_EXAM_CODE)
+        .or(questionVisibilityOrFilter("catalog"))
+        .order("id", { ascending: true }),
+    ),
     topLevelByNode(paperCode),
   ]);
-  if (rows.error) throw new HttpError(500, `mock question lookup failed: ${rows.error.message}`);
-  return ((rows.data ?? []) as { id: string; marks: number | null; syllabus_node_id: string | null }[]).map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     marks: r.marks ?? MCQ_MARKS,
     top: (r.syllabus_node_id && topByNode.get(r.syllabus_node_id)) || "__unmapped__",
@@ -249,17 +255,19 @@ const MAINS_MOCK_OFFICIAL_MAX_MARKS = 200;
 
 async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[]> {
   const [rows, topByNode] = await Promise.all([
-    supabase()
-      .from("questions")
-      .select("id, marks, syllabus_node_id")
-      .eq("type", "descriptive")
-      .eq("paper_code", paperCode)
-      .eq("exam_code", UPPSC_EXAM_CODE)
-      .or(questionVisibilityOrFilter("catalog")),
+    selectAll<{ id: string; marks: number | null; syllabus_node_id: string | null }>(() =>
+      supabase()
+        .from("questions")
+        .select("id, marks, syllabus_node_id")
+        .eq("type", "descriptive")
+        .eq("paper_code", paperCode)
+        .eq("exam_code", UPPSC_EXAM_CODE)
+        .or(questionVisibilityOrFilter("catalog"))
+        .order("id", { ascending: true }),
+    ),
     topLevelByNode(paperCode),
   ]);
-  if (rows.error) throw new HttpError(500, `mains mock question lookup failed: ${rows.error.message}`);
-  return ((rows.data ?? []) as { id: string; marks: number | null; syllabus_node_id: string | null }[]).map((r) => ({
+  return rows.map((r) => ({
     id: r.id,
     marks: r.marks ?? 0,
     top: (r.syllabus_node_id && topByNode.get(r.syllabus_node_id)) || "__unmapped__",

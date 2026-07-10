@@ -16,6 +16,7 @@
  * archive lists every past daily_quiz by scheduled_date.
  */
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
@@ -114,14 +115,18 @@ async function generatedPool(weakNodes: string[]): Promise<PoolItem[]> {
 }
 
 async function pyqPool(seen: Set<string>): Promise<PoolItem[]> {
-  const { data, error } = await supabase()
-    .from("questions")
-    .select(MCQ_COLUMNS)
-    .eq("type", "mcq")
-    .eq("source", "pyq")
-    .or(questionVisibilityOrFilter("catalog"));
-  if (error) throw new Error(`pyq pool lookup failed: ${error.message}`);
-  const rows = ((data ?? []) as { id: string; marks: number | null }[]).filter((r) => !seen.has(r.id));
+  // Paginate: published pyq MCQs exceed 1000, so a single select truncated the
+  // pool to the first 1000 (biasing every daily quiz toward earlier questions).
+  const data = await selectAll<{ id: string; marks: number | null }>(() =>
+    supabase()
+      .from("questions")
+      .select(MCQ_COLUMNS)
+      .eq("type", "mcq")
+      .eq("source", "pyq")
+      .or(questionVisibilityOrFilter("catalog"))
+      .order("id", { ascending: true }),
+  );
+  const rows = data.filter((r) => !seen.has(r.id));
   return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
 }
 
