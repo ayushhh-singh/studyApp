@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, GraduationCap } from "lucide-react";
 import type { CurrentAffairsFact, CurrentAffairsItem, Locale } from "@prayasup/shared";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { Skeleton } from "@/components/ui-x/skeleton";
@@ -175,6 +175,13 @@ export function CurrentAffairsDetailSheet({
             </div>
 
             {item.summary_i18n && <p className="text-sm">{item.summary_i18n[locale]}</p>}
+
+            <Link
+              to={`/${locale}/doubts?teach=1&topic=${encodeURIComponent(item.title_i18n[locale])}`}
+              className="inline-flex w-fit items-center gap-1.5 rounded-full bg-tulsi/15 px-3 py-1.5 text-sm font-medium text-tulsi-foreground transition-colors hover:bg-tulsi/25"
+            >
+              <GraduationCap className="size-4" aria-hidden /> {t("Mentor.teachMeThis")}
+            </Link>
 
             {whyInNews && (
               <DetailSection title={t("CurrentAffairs.whyInNews")}>

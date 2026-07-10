@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { Send, Sparkles, ListChecks, Loader2 } from "lucide-react";
-import type { DoubtThreadDetail } from "@prayasup/shared";
+import { Send, Sparkles, ListChecks, Loader2, GraduationCap } from "lucide-react";
+import type { DoubtThreadDetail, MentorDepth } from "@prayasup/shared";
+import { mentorQuotaCost } from "@prayasup/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useDoubtThread, useQuizMe } from "@/hooks/use-mentor";
 import { useDoubtStream } from "@/hooks/use-doubt-stream";
+import { useEntitlements } from "@/hooks/use-billing";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { MentorMessage } from "./mentor-message";
@@ -17,16 +19,20 @@ import { cn } from "@/lib/utils";
  * retrieval to the page's syllabus context when opened from Learn.
  * `seed` supplies page context (the question/note in view) — either pre-filled
  * into the composer for the user to review and send, or sent immediately if
- * `autoSend` is set (the "Ask a doubt" flow: the mentor should already be
- * answering by the time the page appears, not sitting with unsent text the
- * user has to notice and click). `onNotFound` fires once if the thread turns
- * out not to exist (e.g. a deleted or invalid id in the URL).
+ * `autoSend` is set. `seedTeach`/`seedDepth` come from the "Teach me this" entry
+ * points: they open the composer in teacher mode at a given depth and (with
+ * autoSend) fire a lesson request straight away. `onNotFound` fires once if the
+ * thread turns out not to exist.
  */
+const DEPTHS: MentorDepth[] = ["quick", "standard", "in_depth"];
+
 export function MentorChat({
   threadId,
   nodeId,
   seed,
   autoSend = false,
+  seedTeach = false,
+  seedDepth = "standard",
   onNotFound,
   className,
 }: {
@@ -34,6 +40,8 @@ export function MentorChat({
   nodeId?: string;
   seed?: string;
   autoSend?: boolean;
+  seedTeach?: boolean;
+  seedDepth?: MentorDepth;
   onNotFound?: () => void;
   className?: string;
 }) {
@@ -43,45 +51,59 @@ export function MentorChat({
   const detail = useDoubtThread(threadId);
   const stream = useDoubtStream(threadId, locale);
   const quiz = useQuizMe(threadId);
+  const entitlements = useEntitlements();
 
   const [input, setInput] = useState(autoSend ? "" : seed ?? "");
   const [revision, setRevision] = useState(false);
+  const [teachMode, setTeachMode] = useState(seedTeach);
+  const [depth, setDepth] = useState<MentorDepth>(seedDepth);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const isPinnedRef = useRef(true);
   const autoSentRef = useRef(false);
 
   const messages = detail.data?.messages ?? [];
 
+  // Only auto-scroll while the user is pinned to the bottom. Previously every
+  // streamed delta yanked the view back down, so scrolling up mid-answer was
+  // impossible — now scrolling up un-pins and the stream is left in peace until
+  // the user scrolls back to the bottom (or sends a new message).
+  const onScroll = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    isPinnedRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  };
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, stream.answer, pendingUser, quiz.isPending]);
+    if (isPinnedRef.current) {
+      scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+    }
+  }, [messages.length, stream.answer, pendingUser, quiz.isPending, stream.relatedPyqs.length]);
 
   const busy = stream.isStreaming || quiz.isPending;
 
-  const sendMessage = (content: string) => {
+  const messagesRemaining = entitlements.data?.mentor_messages.remaining;
+  const costOfSend = mentorQuotaCost({ teach: teachMode, depth });
+  const overQuota = messagesRemaining !== undefined && messagesRemaining < costOfSend;
+
+  const sendMessage = (content: string, override?: { teach?: boolean; depth?: MentorDepth }) => {
     const trimmed = content.trim();
     if (!trimmed || busy) return;
+    const teach = override?.teach ?? teachMode;
+    const d = override?.depth ?? depth;
     setInput("");
     setPendingUser(trimmed);
+    isPinnedRef.current = true; // sending always jumps to the newest turn
     stream.send(trimmed, {
-      mode: revision ? "revision" : "normal",
+      mode: revision && !teach ? "revision" : "normal",
+      teach,
+      depth: d,
       nodeId,
       onDone: async () => {
         await Promise.all([
           qc.invalidateQueries({ queryKey: queryKeys.doubtThread(threadId) }),
           qc.invalidateQueries({ queryKey: queryKeys.doubtThreads() }),
+          qc.invalidateQueries({ queryKey: ["billing", "entitlements"] }),
         ]);
-        // invalidateQueries() resolves once the triggered refetch settles —
-        // including when that refetch itself errored (TanStack Query doesn't
-        // reject here). Only clear the transient streamed bubble once the
-        // assistant's turn is confirmed to have actually landed in the
-        // refetched messages; otherwise a flaky refetch would make the
-        // just-completed exchange silently vanish (both the question and the
-        // streamed answer gone, with nothing having taken their place). The
-        // render below independently suppresses the transient bubble once the
-        // persisted message shows up, so leaving it visible here never risks
-        // a duplicate — worst case it just stays until a later successful
-        // refetch (e.g. next thread open) picks up what the server already persisted.
         const refreshed = qc.getQueryData<DoubtThreadDetail>(queryKeys.doubtThread(threadId));
         const landed = stream.doneMessageId != null && refreshed?.messages.some((m) => m.id === stream.doneMessageId);
         if (landed) {
@@ -94,15 +116,11 @@ export function MentorChat({
 
   const submit = () => sendMessage(input);
 
-  // Auto-send the seeded doubt once the thread is confirmed genuinely empty —
-  // gated on the thread detail having actually loaded (not just `seed` being
-  // present) so this can never fire twice for a thread that already has real
-  // history (e.g. revisiting a previously-seeded thread's bookmarked URL).
   useEffect(() => {
     if (!autoSend || !seed || autoSentRef.current) return;
     if (detail.isLoading || messages.length > 0) return;
     autoSentRef.current = true;
-    sendMessage(seed);
+    sendMessage(seed, { teach: seedTeach, depth: seedDepth });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoSend, seed, detail.isLoading, messages.length]);
 
@@ -126,10 +144,11 @@ export function MentorChat({
 
   return (
     <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", className)}>
-      <div ref={scrollRef} className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 py-2">
-        {/* Previously this briefly flashed the "ask me anything" empty state
-            for an EXISTING thread with real history, since `messages` reads
-            [] while the thread's first fetch is still in flight. */}
+      <div
+        ref={scrollRef}
+        onScroll={onScroll}
+        className="min-h-0 min-w-0 flex-1 space-y-4 overflow-y-auto overflow-x-hidden px-1 py-2"
+      >
         {detail.isLoading && (
           <div className="flex flex-col gap-3 px-1 py-2">
             <div className="h-10 w-2/3 animate-pulse self-end rounded-2xl bg-muted" />
@@ -147,16 +166,10 @@ export function MentorChat({
         {messages.map((m) => (
           <MentorMessage
             key={m.id}
-            message={{ role: m.role, content: m.content, citations: m.citations, meta: m.meta }}
+            message={{ id: m.id, role: m.role, content: m.content, citations: m.citations, meta: m.meta, pageNodeId: nodeId }}
           />
         ))}
 
-        {/* In-flight turn. The assistant block is gated on `answer` (not
-            isStreaming) so the streamed text stays visible between the `done`
-            event and the refetch landing — otherwise it would blink out.
-            Also suppressed once doneMessageLanded, so if onDone's own refetch
-            check above ever lags behind this render, the persisted message
-            list and the transient bubble can never show the same turn twice. */}
         {pendingUser && !doneMessageLanded && <MentorMessage message={{ role: "user", content: pendingUser }} />}
         {(stream.isStreaming || stream.answer) && !stream.error && !doneMessageLanded && (
           <MentorMessage
@@ -166,6 +179,11 @@ export function MentorChat({
               citations: stream.citations,
               weak: stream.weak,
               fromCache: stream.fromCache,
+              teacher: stream.teacher,
+              relatedPyqs: stream.relatedPyqs,
+              quickCheck: stream.quickCheck,
+              continueWith: stream.continueWith,
+              webSources: stream.webSources,
             }}
           />
         )}
@@ -184,20 +202,58 @@ export function MentorChat({
       </div>
 
       <div className="border-t border-border pt-2">
-        <div className="mb-2 flex items-center gap-2">
+        <div className="mb-2 flex flex-wrap items-center gap-2">
           <Button
             type="button"
-            variant={revision ? "default" : "outline"}
+            variant={teachMode ? "default" : "outline"}
             size="xs"
-            onClick={() => setRevision((v) => !v)}
-            aria-pressed={revision}
+            onClick={() => setTeachMode((v) => !v)}
+            aria-pressed={teachMode}
+            className={teachMode ? "bg-tulsi text-tulsi-foreground hover:bg-tulsi/90" : ""}
           >
-            <ListChecks className="size-3.5" aria-hidden /> {t("Mentor.revisionMode")}
+            <GraduationCap className="size-3.5" aria-hidden /> {t("Mentor.teachMe")}
           </Button>
+          {!teachMode && (
+            <Button
+              type="button"
+              variant={revision ? "default" : "outline"}
+              size="xs"
+              onClick={() => setRevision((v) => !v)}
+              aria-pressed={revision}
+            >
+              <ListChecks className="size-3.5" aria-hidden /> {t("Mentor.revisionMode")}
+            </Button>
+          )}
           <Button type="button" variant="outline" size="xs" onClick={askQuiz} disabled={busy || messages.length === 0}>
             <Sparkles className="size-3.5" aria-hidden /> {t("Mentor.quizMe")}
           </Button>
         </div>
+
+        {teachMode && (
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <span className="text-xs text-muted-foreground">{t("Mentor.depth")}</span>
+            <div className="inline-flex overflow-hidden rounded-md border border-border">
+              {DEPTHS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDepth(d)}
+                  aria-pressed={depth === d}
+                  className={cn(
+                    "px-2.5 py-1 text-xs font-medium transition-colors",
+                    depth === d ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:bg-accent",
+                  )}
+                >
+                  {t(`Mentor.depth_${d}`)}
+                </button>
+              ))}
+            </div>
+            {depth === "in_depth" && (
+              <span className="text-xs text-marigold-foreground">{t("Mentor.usesTwoMessages")}</span>
+            )}
+          </div>
+        )}
+
         <div className="flex items-end gap-2">
           <textarea
             value={input}
@@ -209,13 +265,14 @@ export function MentorChat({
               }
             }}
             rows={2}
-            placeholder={t("Mentor.placeholder")}
+            placeholder={teachMode ? t("Mentor.teachPlaceholder") : t("Mentor.placeholder")}
             className="max-h-32 min-h-[2.75rem] flex-1 resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
           />
-          <Button type="button" size="icon" onClick={submit} disabled={busy || !input.trim()} aria-label={t("Mentor.send")}>
+          <Button type="button" size="icon" onClick={submit} disabled={busy || !input.trim() || overQuota} aria-label={t("Mentor.send")}>
             <Send className="size-4" aria-hidden />
           </Button>
         </div>
+        {overQuota && <p className="mt-1 text-xs text-coral">{t("Mentor.overQuota")}</p>}
       </div>
     </div>
   );

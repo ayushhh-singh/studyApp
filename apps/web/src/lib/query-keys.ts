@@ -78,6 +78,8 @@ export const queryKeys = {
   doubtThreads: () => ["doubts", "threads"] as const,
   doubtThread: (id: string) => ["doubts", "threads", id] as const,
   mentorInsights: () => ["mentor", "insights"] as const,
+  userNotes: (nodeId?: string) => ["user-notes", nodeId ?? "all"] as const,
+  userNote: (id: string) => ["user-notes", "detail", id] as const,
   communityHub: () => ["community", "hub"] as const,
   communityThreads: (anchorType: string, anchorId: string, page?: number) =>
     ["community", "threads", anchorType, anchorId, page ?? 1] as const,

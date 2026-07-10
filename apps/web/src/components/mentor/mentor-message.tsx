@@ -1,9 +1,18 @@
 import { useTranslation } from "react-i18next";
-import { Sparkles, Zap, Info } from "lucide-react";
-import type { MentorCitation, MentorMessageMeta } from "@prayasup/shared";
+import { Sparkles, Zap, Info, GraduationCap } from "lucide-react";
+import type {
+  MentorCitation,
+  MentorContinueNode,
+  MentorMessageMeta,
+  MentorPyqRef,
+  MentorQuizQuestion,
+  MentorWebSource,
+} from "@prayasup/shared";
 import { Markdown } from "@/components/ui-x/markdown";
 import { CitationChip } from "./citation-chip";
 import { QuizCards } from "./quiz-cards";
+import { TeacherExtras } from "./teacher-extras";
+import { SaveAsMaterial } from "./save-as-material";
 import { cn } from "@/lib/utils";
 
 export interface MentorMessageView {
@@ -13,6 +22,16 @@ export interface MentorMessageView {
   meta?: MentorMessageMeta;
   weak?: boolean;
   fromCache?: boolean;
+  /** Persisted message id — enables "Save as study material" (omitted for the live bubble). */
+  id?: string;
+  /** Page-context node (Learn/CA) → default topic for save-as-material. */
+  pageNodeId?: string;
+  // Live teacher extras (used only for the streaming bubble; persisted messages read meta).
+  teacher?: boolean;
+  relatedPyqs?: MentorPyqRef[];
+  quickCheck?: MentorQuizQuestion[];
+  continueWith?: MentorContinueNode[];
+  webSources?: MentorWebSource[];
 }
 
 export function MentorMessage({ message }: { message: MentorMessageView }) {
@@ -28,15 +47,31 @@ export function MentorMessage({ message }: { message: MentorMessageView }) {
     );
   }
 
-  const quiz = message.meta?.kind === "quiz" ? message.meta.questions ?? [] : null;
+  const kind = message.meta?.kind;
+  const quiz = kind === "quiz" ? message.meta?.questions ?? [] : null;
   const fromCache = message.fromCache ?? message.meta?.from_cache ?? false;
+  const isTeacher = message.teacher || kind === "teacher";
+
+  // Teacher extras come from meta (persisted) or the live props (streaming bubble).
+  const relatedPyqs = message.relatedPyqs ?? message.meta?.related_pyqs;
+  const quickCheck = message.quickCheck ?? message.meta?.quick_check;
+  const continueWith = message.continueWith ?? message.meta?.continue_with;
+  const webSources = message.webSources ?? message.meta?.web_sources;
 
   return (
     <div className="flex gap-2">
-      <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-        <Sparkles className="size-4" aria-hidden />
+      <div className={cn(
+        "mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full",
+        isTeacher ? "bg-tulsi/15 text-tulsi" : "bg-primary/10 text-primary",
+      )}>
+        {isTeacher ? <GraduationCap className="size-4" aria-hidden /> : <Sparkles className="size-4" aria-hidden />}
       </div>
       <div className="min-w-0 flex-1 space-y-2">
+        {isTeacher && (
+          <p className="inline-flex items-center gap-1 text-xs font-medium text-tulsi">
+            <GraduationCap className="size-3" aria-hidden /> {t("Mentor.teacherBadge")}
+          </p>
+        )}
         {fromCache && (
           <p className="inline-flex items-center gap-1 text-xs text-muted-foreground">
             <Zap className="size-3" aria-hidden /> {t("Mentor.fromSimilarDoubt")}
@@ -61,6 +96,19 @@ export function MentorMessage({ message }: { message: MentorMessageView }) {
               <CitationChip key={c.ref} citation={c} />
             ))}
           </div>
+        )}
+        {isTeacher && (
+          <TeacherExtras
+            relatedPyqs={relatedPyqs}
+            quickCheck={quickCheck}
+            continueWith={continueWith}
+            webSources={webSources}
+          />
+        )}
+        {/* "Save as study material" — on any persisted mentor answer (not the
+            quiz cards, and not the still-streaming live bubble). */}
+        {message.id && kind !== "quiz" && message.content.trim() && (
+          <SaveAsMaterial messageId={message.id} defaultNodeId={message.meta?.node_id ?? message.pageNodeId ?? undefined} />
         )}
       </div>
     </div>

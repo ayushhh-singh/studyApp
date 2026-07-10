@@ -19,22 +19,36 @@ import type {
   DoubtThreadSummary,
   Locale,
   MentorCitation,
+  MentorDepth,
   MentorQuizQuestion,
+  MentorWebSource,
 } from "@prayasup/shared";
-import { MAX_DOUBT_CHARS } from "@prayasup/shared";
+import { MAX_DOUBT_CHARS, mentorQuotaCost } from "@prayasup/shared";
 import { getMentorQuota, LIMITS } from "../entitlements.js";
 import { supabase } from "../../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";
 import { logger } from "../../lib/logger.js";
-import { MODELS, streamChat, structuredJson } from "../../lib/anthropic.js";
+import { MODELS, streamChat, structuredJson, webResearch } from "../../lib/anthropic.js";
 import { getLearnerProfile, formatProfileForPrompt } from "../learner-profile.js";
-import { buildMentorPersona, buildProfileSegment, buildUserTurn } from "./prompts.js";
+import {
+  buildMentorPersona,
+  buildProfileSegment,
+  buildTeacherPersona,
+  buildTeacherTurn,
+  buildUserTurn,
+} from "./prompts.js";
 import {
   embedQuery,
   lookupFaqCache,
   retrieveContext,
   writeFaqCache,
 } from "./retrieval.js";
+import {
+  detectTeachIntent,
+  generateQuickCheck,
+  loadAdjacentNodes,
+  loadRelatedPyqs,
+} from "./teacher.js";
 
 export type MentorEmit = (event: string, data: unknown) => void;
 
@@ -142,14 +156,16 @@ export async function deleteThread(userId: string, threadId: string): Promise<vo
 // the limit both live in entitlements.ts so the mentor UI's remaining-chip and
 // this enforcement can never disagree.
 // ---------------------------------------------------------------------------
-async function enforceDailyLimit(userId: string): Promise<void> {
+async function enforceDailyLimit(userId: string, cost: number): Promise<void> {
   const quota = await getMentorQuota(userId);
-  if (quota.remaining <= 0) {
+  if (quota.remaining < cost) {
+    const twoNote =
+      cost > 1 ? " (an in-depth lesson uses 2 messages)" : "";
     throw new HttpError(
       429,
       quota.plan === "pro"
-        ? `Daily mentor limit reached (${quota.limit} messages). Try again tomorrow.`
-        : `Daily mentor limit reached (${quota.limit} messages). Upgrade to Pro for ${LIMITS.pro.mentorPerDay}/day, or try again tomorrow.`,
+        ? `Daily mentor limit reached (${quota.limit} messages)${twoNote}. Try again tomorrow.`
+        : `Daily mentor limit reached (${quota.limit} messages)${twoNote}. Upgrade to Pro for ${LIMITS.pro.mentorPerDay}/day, or try again tomorrow.`,
     );
   }
 }
@@ -169,6 +185,9 @@ export interface DoubtPlan {
   thread: DoubtThread;
   question: string;
   mode: "normal" | "revision";
+  /** True when this is a structured teacher lesson (explicit or auto-detected). */
+  teach: boolean;
+  depth: MentorDepth;
   nodeId?: string;
   locale: Locale;
   history: { role: "user" | "assistant"; content: string }[];
@@ -176,20 +195,26 @@ export interface DoubtPlan {
 
 /**
  * Pre-flight (runs BEFORE the SSE opens, so errors surface as JSON): validate
- * ownership, enforce the daily cap, snapshot the prior history, then insert the
- * user's turn. Returns a plan for executeDoubtStream.
+ * ownership, decide teacher-vs-doubt, enforce the daily cap (an in-depth lesson
+ * costs 2), snapshot the prior history, then insert the user's turn. Returns a
+ * plan for executeDoubtStream.
  */
 export async function planDoubtMessage(
   userId: string,
   threadId: string,
-  body: { content: string; mode: "normal" | "revision"; node_id?: string },
+  body: { content: string; mode: "normal" | "revision"; teach: boolean; depth: MentorDepth; node_id?: string },
   locale: Locale,
 ): Promise<DoubtPlan> {
   const thread = await requireThread(userId, threadId);
   const question = body.content.trim();
   if (!question) throw badRequest("Message content is required");
   if (question.length > MAX_DOUBT_CHARS) throw badRequest("Message too long");
-  await enforceDailyLimit(userId);
+
+  // Teacher mode is forced by the "Teach me this" entry points, or auto-detected
+  // from a conceptual/teach-shaped message. In-depth lessons cost 2 messages.
+  const teach = body.teach || detectTeachIntent(question);
+  const cost = mentorQuotaCost({ teach, depth: body.depth });
+  await enforceDailyLimit(userId, cost);
 
   // Snapshot prior history before inserting the new turn.
   const { data: prior, error: priorError } = await supabase()
@@ -205,7 +230,9 @@ export async function planDoubtMessage(
 
   const { error: insertError } = await supabase()
     .from("doubt_messages")
-    .insert({ thread_id: threadId, role: "user", content: question });
+    // quota_cost is stamped on the user turn so getMentorQuota sums real spend
+    // (an in-depth lesson = 2) instead of counting rows.
+    .insert({ thread_id: threadId, role: "user", content: question, meta: { quota_cost: cost, teach } });
   if (insertError) throw new HttpError(500, `message insert failed: ${insertError.message}`);
 
   // First user message names the thread if it was untitled.
@@ -216,7 +243,7 @@ export async function planDoubtMessage(
     await supabase().from("doubt_threads").update({ updated_at: new Date().toISOString() }).eq("id", threadId);
   }
 
-  return { thread, question, mode: body.mode, nodeId: body.node_id, locale, history };
+  return { thread, question, mode: body.mode, teach, depth: body.depth, nodeId: body.node_id, locale, history };
 }
 
 async function persistAssistant(opts: {
@@ -245,6 +272,8 @@ async function persistAssistant(opts: {
 
 /** Stream the mentor's answer over SSE. Runs after the connection is open. */
 export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: MentorEmit, signal?: AbortSignal): Promise<void> {
+  if (plan.teach) return executeTeacherStream(userId, plan, emit, signal);
+
   const { locale, question, mode, nodeId, threadId } = { ...plan, threadId: plan.thread.id };
 
   emit("status", { phase: "retrieving" });
@@ -332,6 +361,132 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
   if (!personal && answer.trim()) {
     await writeFaqCache({ questionText: question, vectorLiteral, locale, answer, citations: context.citations });
   }
+
+  emit("done", { message_id: messageId, thread_id: threadId });
+}
+
+// ---------------------------------------------------------------------------
+// Teacher mode — a structured lesson. The prose (Concept / Explanation / Exam
+// relevance) streams from claude-sonnet-5; Related PYQs (our bank), a 2-question
+// Quick check (qgen), and Continue-with (adjacent nodes) are attached after.
+// ---------------------------------------------------------------------------
+const TEACHER_MODEL_PARAMS: Record<MentorDepth, { maxTokens: number; effort: "low" | "medium" | "high" }> = {
+  quick: { maxTokens: 1600, effort: "low" },
+  standard: { maxTokens: 3600, effort: "medium" },
+  in_depth: { maxTokens: 6500, effort: "medium" },
+};
+
+/** Pull the syllabus node this lesson is about: explicit page context, else the top syllabus citation. */
+function resolveLessonNode(explicitNodeId: string | undefined, citations: MentorCitation[]): string | null {
+  if (explicitNodeId) return explicitNodeId;
+  const syllabusCite = citations.find((c) => c.source_type === "syllabus");
+  return syllabusCite?.source_id ?? null;
+}
+
+async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: MentorEmit, signal?: AbortSignal): Promise<void> {
+  const { locale, question, depth, nodeId, threadId } = { ...plan, threadId: plan.thread.id };
+
+  emit("teacher", { depth, node_id: nodeId ?? null });
+  emit("status", { phase: "retrieving" });
+  const vectorLiteral = await embedQuery(question);
+  const context = await retrieveContext({ vectorLiteral, locale, nodeId });
+  if (signal?.aborted) return;
+  emit("citations", { citations: context.citations, weak: context.weak });
+  emit("source", { from_cache: false });
+
+  // Web research only for the heaviest (in-depth) tier — where the extra wait is
+  // expected and the message already costs 2. Own-words synthesis with [Sn] refs.
+  let webText = "";
+  let webSources: MentorWebSource[] = [];
+  if (depth === "in_depth") {
+    emit("status", { phase: "researching" });
+    try {
+      const research = await webResearch({
+        system:
+          "You are researching a UPPSC (UP PCS) exam topic to help a mentor teach it. Find current, factual, " +
+          "exam-relevant details (schemes, data, articles, recent developments). Synthesise in your OWN words " +
+          "with inline [Sn] source refs — never copy source sentences verbatim. Be concise and factual.",
+        content: `Topic to research for teaching: ${question}`,
+        maxUses: 3,
+        purpose: "mentor_teacher_research",
+        userId,
+        signal,
+      });
+      webText = research.text;
+      webSources = research.sources;
+    } catch (err) {
+      logger.warn({ err }, "teacher: web research failed; teaching without it");
+    }
+    if (signal?.aborted) return;
+    if (webSources.length) emit("web_sources", { web_sources: webSources });
+  }
+
+  const system = [{ text: buildTeacherPersona(locale), cache: true as const }];
+  const messages = [
+    ...plan.history.map((m) => ({ role: m.role, content: m.content })),
+    {
+      role: "user" as const,
+      content: buildTeacherTurn({ context: context.contextText, web: webText, question, weak: context.weak, depth, locale }),
+    },
+  ];
+
+  emit("status", { phase: "answering" });
+  const params = TEACHER_MODEL_PARAMS[depth];
+  let answer = "";
+  await streamChat({
+    model: MODELS.sonnet,
+    system,
+    messages: messages as Parameters<typeof streamChat>[0]["messages"],
+    maxTokens: params.maxTokens,
+    effort: params.effort,
+    purpose: "mentor_teacher",
+    userId,
+    signal,
+    onDelta: (delta) => {
+      answer += delta;
+      emit("delta", { text: delta });
+    },
+  });
+  if (signal?.aborted) return;
+
+  // --- Structured extras (all best-effort; the lesson stands without them) ----
+  emit("status", { phase: "wrapping_up" });
+  const lessonNodeId = resolveLessonNode(nodeId, context.citations);
+
+  // Facts for the quick-check: retrieved context + a slice of what was just
+  // taught, so the questions test the lesson (not generic trivia).
+  const proseText = answer.replace(/[#*`>_~]/g, " ").replace(/\s+/g, " ").trim().slice(0, 2400);
+  const contextFacts = context.contextText
+    .split("\n\n")
+    .map((line) => line.replace(/^\[\d+\]\s*/, "").trim())
+    .filter(Boolean);
+
+  const [relatedPyqs, quickCheck, continueWith] = await Promise.all([
+    lessonNodeId ? loadRelatedPyqs(lessonNodeId) : Promise.resolve([]),
+    generateQuickCheck({ topic: question, facts: [...contextFacts, proseText] }),
+    lessonNodeId ? loadAdjacentNodes(lessonNodeId) : Promise.resolve([]),
+  ]);
+  if (signal?.aborted) return;
+
+  emit("related_pyqs", { pyqs: relatedPyqs });
+  emit("quick_check", { questions: quickCheck });
+  emit("continue_with", { nodes: continueWith });
+
+  const messageId = await persistAssistant({
+    threadId,
+    content: answer,
+    citations: context.citations,
+    usedProfile: false,
+    meta: {
+      kind: "teacher",
+      depth,
+      node_id: lessonNodeId,
+      quick_check: quickCheck,
+      related_pyqs: relatedPyqs,
+      continue_with: continueWith,
+      web_sources: webSources,
+    },
+  });
 
   emit("done", { message_id: messageId, thread_id: threadId });
 }

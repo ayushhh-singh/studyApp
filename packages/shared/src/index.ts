@@ -12,6 +12,7 @@ export * from "./srs";
 export * from "./evaluation";
 export * from "./review";
 export * from "./notes";
+export * from "./user-notes";
 export * from "./magazine";
 export * from "./daily";
 export * from "./notifications";

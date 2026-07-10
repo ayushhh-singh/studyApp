@@ -147,14 +147,20 @@ export async function getMentorQuota(userId: string): Promise<Quota & { plan: Us
   const { plan } = await getPlanFor(userId);
   const limit = plan === "pro" ? LIMITS.pro.mentorPerDay : LIMITS.free.mentorPerDay;
   const { startUtc } = istDayRangeUtc(istToday());
-  const { count, error } = await supabase()
+  // Sum meta.quota_cost (default 1) rather than count rows, so an in-depth
+  // teacher lesson correctly costs 2 messages. Bounded by the day's cap, so
+  // fetching the day's user turns and summing in memory is cheap.
+  const { data, error } = await supabase()
     .from("doubt_messages")
-    .select("id, doubt_threads!inner(user_id)", { count: "exact", head: true })
+    .select("meta, doubt_threads!inner(user_id)")
     .eq("doubt_threads.user_id", userId)
     .eq("role", "user")
     .gte("created_at", startUtc);
   if (error) throw new HttpError(500, `mentor count failed: ${error.message}`);
-  const used = count ?? 0;
+  const used = (data ?? []).reduce((sum, row) => {
+    const cost = (row.meta as { quota_cost?: number } | null)?.quota_cost;
+    return sum + (typeof cost === "number" && cost > 0 ? cost : 1);
+  }, 0);
   return { plan, used, limit, remaining: Math.max(0, limit - used), period: "day" };
 }
 

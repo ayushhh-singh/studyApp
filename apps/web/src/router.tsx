@@ -76,6 +76,8 @@ export const router = createBrowserRouter([
           // the previous local-component-state thread selection.
           { path: "doubts/:threadId", lazy: () => import("@/routes/doubts") },
               { path: "magazine", lazy: () => import("@/routes/magazine-index") },
+              // Personal study material saved from a mentor answer ("My notes").
+              { path: "my-notes/:id", lazy: () => import("@/routes/my-note") },
               { path: "revision", lazy: () => import("@/routes/revision") },
               { path: "community", lazy: () => import("@/routes/community") },
               { path: "community/shared-answers", lazy: () => import("@/routes/community-shared-answers") },

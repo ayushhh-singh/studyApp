@@ -2,6 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Plus, MessageSquare, Trash2, ChevronLeft, Sparkles, Loader2 } from "lucide-react";
+import type { MentorDepth } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Button } from "@/components/ui/button";
 import { MentorChat } from "@/components/mentor/mentor-chat";
@@ -9,6 +10,10 @@ import { useDoubtThreads, useCreateThread, useDeleteThread } from "@/hooks/use-m
 import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
+
+function parseDepth(raw: string | null): MentorDepth {
+  return raw === "quick" || raw === "in_depth" ? raw : "standard";
+}
 
 export const handle = { titleKey: "Mentor.title" };
 
@@ -43,6 +48,13 @@ export function Component() {
   const seedQuestionId = searchParams.get("question") ?? undefined;
   const { data: seedQuestion, isLoading: isSeedQuestionLoading } = useQuestion(seedQuestionId);
 
+  // "Teach me this" entry points (Learn node, CA item): ?teach=1&topic=<subject>
+  // [&node=<id>][&depth=quick|standard|in_depth]. Seeds a teacher lesson.
+  const wantsTeach = searchParams.get("teach") === "1";
+  const teachTopic = searchParams.get("topic") ?? undefined;
+  const teachNodeId = searchParams.get("node") ?? undefined;
+  const teachDepth = parseDepth(searchParams.get("depth"));
+
   const threads = useDoubtThreads();
   const createThread = useCreateThread();
   const deleteThread = useDeleteThread();
@@ -58,18 +70,34 @@ export function Component() {
   // doubt" click) legitimately creates a second fresh thread — consistent
   // with "New doubt" always starting a new conversation, not a bug to guard against.
   useEffect(() => {
-    if (threadId || !seedQuestionId || isSeedQuestionLoading) return;
+    if (threadId) return;
+    // A "Teach me this" seed creates a fresh thread and moves its params onto
+    // the new thread's URL, then MentorChat fires the lesson immediately.
+    if (wantsTeach && teachTopic) {
+      const key = `teach:${teachTopic}:${teachNodeId ?? ""}`;
+      if (seededForRef.current === key) return;
+      seededForRef.current = key;
+      const qs = new URLSearchParams({ teach: "1", topic: teachTopic, depth: teachDepth });
+      if (teachNodeId) qs.set("node", teachNodeId);
+      createThread.mutate(undefined, {
+        onSuccess: (thr) => navigate(`/${locale}/doubts/${thr.id}?${qs.toString()}`, { replace: true }),
+      });
+      return;
+    }
+    if (!seedQuestionId || isSeedQuestionLoading) return;
     if (seededForRef.current === seedQuestionId) return;
     seededForRef.current = seedQuestionId;
     createThread.mutate(undefined, {
       onSuccess: (thr) => navigate(`/${locale}/doubts/${thr.id}?question=${seedQuestionId}`, { replace: true }),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [threadId, seedQuestionId, isSeedQuestionLoading]);
+  }, [threadId, seedQuestionId, isSeedQuestionLoading, wantsTeach, teachTopic, teachNodeId]);
 
-  const seedText = seedQuestion
-    ? t("Mentor.seedFromQuestion", { stem: seedQuestion.stem_i18n[locale] })
-    : undefined;
+  const seedText = wantsTeach && teachTopic
+    ? t("Mentor.seedTeach", { topic: teachTopic })
+    : seedQuestion
+      ? t("Mentor.seedFromQuestion", { stem: seedQuestion.stem_i18n[locale] })
+      : undefined;
 
   const newThread = () =>
     createThread.mutate(undefined, { onSuccess: (thr) => navigate(`/${locale}/doubts/${thr.id}`) });
@@ -181,13 +209,15 @@ export function Component() {
               <MentorChat
                 key={threadId}
                 threadId={threadId}
-                nodeId={seedQuestion?.syllabus_node_id ?? undefined}
+                nodeId={teachNodeId ?? seedQuestion?.syllabus_node_id ?? undefined}
                 seed={seedText}
-                autoSend={!!seedQuestionId}
+                autoSend={!!seedQuestionId || (wantsTeach && !!teachTopic)}
+                seedTeach={wantsTeach}
+                seedDepth={teachDepth}
                 onNotFound={handleNotFound}
               />
             </>
-          ) : seedQuestionId ? (
+          ) : seedQuestionId || (wantsTeach && teachTopic) ? (
             // The seeded-thread creation above is in flight — show a spinner
             // instead of the "ask me anything" empty state, which would
             // otherwise flash misleadingly for the instant before it redirects.

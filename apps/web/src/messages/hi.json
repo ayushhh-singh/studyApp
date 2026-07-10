@@ -2,7 +2,8 @@
   "Common": {
     "loadErrorTitle": "यह लोड नहीं हो सका",
     "loadErrorDescription": "कुछ गड़बड़ हो गई। कृपया अपना कनेक्शन जाँचें और फिर से प्रयास करें।",
-    "retry": "पुनः प्रयास करें"
+    "retry": "पुनः प्रयास करें",
+    "close": "बंद करें"
   },
   "Nav": {
     "dashboard": "डैशबोर्ड",
@@ -967,7 +968,33 @@
     "threadCreateFailed": "बातचीत शुरू नहीं हो सकी। कृपया फिर से प्रयास करें।",
     "retry": "पुनः प्रयास करें",
     "seedFromQuestion": "मुझे इस प्रश्न को लेकर एक संदेह है: {{stem}}",
-    "openFullConversation": "पूरी बातचीत खोलें"
+    "openFullConversation": "पूरी बातचीत खोलें",
+    "teacherBadge": "शिक्षक मोड",
+    "teachMe": "मुझे सिखाओ",
+    "teachMeThis": "यह मुझे सिखाओ",
+    "teachPlaceholder": "मैं आपको क्या सिखाऊँ?",
+    "depth": "गहराई",
+    "depth_quick": "त्वरित",
+    "depth_standard": "मानक",
+    "depth_in_depth": "विस्तृत",
+    "usesTwoMessages": "· 2 संदेश लगेंगे",
+    "overQuota": "आज इसके लिए पर्याप्त मेंटर संदेश शेष नहीं हैं।",
+    "phase_researching": "वेब पर शोध हो रहा है…",
+    "phase_wrapping_up": "PYQ और एक त्वरित जाँच जोड़ी जा रही है…",
+    "sources": "स्रोत:",
+    "relatedPyqs": "संबंधित PYQ",
+    "quickCheck": "त्वरित जाँच",
+    "continueWith": "आगे पढ़ें",
+    "seedTeach": "मुझे इसके बारे में सिखाओ: {{topic}}",
+    "saveAsMaterial": "अध्ययन सामग्री के रूप में सहेजें",
+    "saveAsMaterialTitle": "अध्ययन सामग्री के रूप में सहेजें",
+    "saveAsMaterialHint": "यह उत्तर व्यक्तिगत नोट्स में बदल जाता है जिन्हें आप दोहरा सकते हैं और स्पेस्ड रिपिटिशन में जोड़ सकते हैं।",
+    "savedAsMaterial": "मेरे नोट्स में सहेजा गया",
+    "viewNote": "नोट देखें",
+    "saveFailed": "सहेजा नहीं जा सका। पुनः प्रयास करें।",
+    "linkedTopic": "संबंधित विषय",
+    "autoDetectTopic": "विषय स्वतः पहचानें",
+    "searchTopic": "विषय खोजें…"
   },
   "MicroDrill": {
     "title": "माइक्रो-ड्रिल",
@@ -1226,5 +1253,18 @@
     "installDescription": "एक टैप में खोलने और ऑफ़लाइन पढ़ाई के लिए इसे अपनी होम स्क्रीन पर जोड़ें।",
     "installCta": "ऐप इंस्टॉल करें",
     "installDismiss": "खारिज करें"
+  },
+  "MyNotes": {
+    "title": "मेरे नोट्स",
+    "badge": "मेरा नोट",
+    "groupTitle": "मेरे नोट्स",
+    "profileDescription": "मेंटर से आपके द्वारा सहेजे गए व्यक्तिगत नोट्स।",
+    "emptyProfile": "आपने अभी तक कोई नोट नहीं सहेजा है। मेंटर के उत्तर को अध्ययन सामग्री के रूप में सहेजें —",
+    "notFoundTitle": "नोट नहीं मिला",
+    "notFoundDescription": "यह नोट हटा दिया गया हो सकता है।",
+    "translate": "इस नोट का अनुवाद करें",
+    "delete": "नोट हटाएँ",
+    "deleteConfirm": "यह नोट हटाएँ? इसे पूर्ववत नहीं किया जा सकता।",
+    "otherLocaleNotice": "यह नोट दूसरी भाषा में लिखा गया था। इसे यहाँ पढ़ने के लिए अनुवाद करें।"
   }
 }

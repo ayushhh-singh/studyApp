@@ -17,6 +17,21 @@ export const MAX_DOUBT_CHARS = 4_000;
 export const DOUBT_DAILY_LIMIT = 20;
 
 // ---------------------------------------------------------------------------
+// Teacher mode — depth toggle (Quick / Standard / In-depth). Standard is the
+// default. In-depth is the heaviest tier (larger token budget + web research)
+// and so costs 2 messages against the daily mentor quota — surfaced in the UI
+// BEFORE sending. The cost lives here so the client's "uses N messages" hint
+// and the server's enforcement can never disagree.
+// ---------------------------------------------------------------------------
+export const mentorDepthSchema = z.enum(["quick", "standard", "in_depth"]);
+export type MentorDepth = z.infer<typeof mentorDepthSchema>;
+
+/** Quota cost of one message: only an in-depth TEACHER response costs 2. */
+export function mentorQuotaCost(opts: { teach: boolean; depth: MentorDepth }): number {
+  return opts.teach && opts.depth === "in_depth" ? 2 : 1;
+}
+
+// ---------------------------------------------------------------------------
 // Citations — inline numbered refs mapped to retrieved chunks.
 // ---------------------------------------------------------------------------
 export const mentorCitationSchema = z.object({
@@ -47,15 +62,66 @@ export const mentorQuizQuestionSchema = z.object({
 });
 export type MentorQuizQuestion = z.infer<typeof mentorQuizQuestionSchema>;
 
+// ---------------------------------------------------------------------------
+// Teacher-mode structured extras (rendered as UI, not prose). The prose (Concept
+// / Explanation / Exam relevance) streams as markdown into `content`; these come
+// from OUR bank + the qgen service and are attached to the message meta.
+// ---------------------------------------------------------------------------
+/** A real PYQ from our bank, surfaced under a teacher answer (tappable to practice). */
+export const mentorPyqRefSchema = z.object({
+  id: z.string().uuid(),
+  stem_i18n: bilingualTextSchema,
+  paper_code: z.string(),
+  syllabus_node_id: z.string().nullable(),
+  year: z.number().int().nullable(),
+  exam_label_i18n: bilingualTextSchema.nullable(),
+  type: z.string(),
+});
+export type MentorPyqRef = z.infer<typeof mentorPyqRefSchema>;
+
+/** An adjacent syllabus node suggested as "continue with". */
+export const mentorContinueNodeSchema = z.object({
+  node_id: z.string().uuid(),
+  paper_code: z.string(),
+  title_i18n: bilingualTextSchema,
+});
+export type MentorContinueNode = z.infer<typeof mentorContinueNodeSchema>;
+
+/** A web source cited by an in-depth teacher answer as [Sn]. */
+export const mentorWebSourceSchema = z.object({
+  id: z.string(),
+  title: z.string(),
+  url: z.string(),
+});
+export type MentorWebSource = z.infer<typeof mentorWebSourceSchema>;
+
 /** doubt_messages.meta payloads. Empty {} for a plain answer. */
 export const mentorMessageMetaSchema = z
   .object({
-    kind: z.literal("quiz").optional(),
+    /** 'quiz' → the in-thread quiz-me cards; 'teacher' → a structured lesson. */
+    kind: z.enum(["quiz", "teacher"]).optional(),
+    /** quiz-me: 3 ephemeral MCQs. */
     questions: z.array(mentorQuizQuestionSchema).optional(),
+    // --- teacher-mode extras ---
+    depth: mentorDepthSchema.optional(),
+    /** The syllabus node the lesson resolved to (for related PYQs + save-as-material inference). */
+    node_id: z.string().nullable().optional(),
+    /** 2 ephemeral quick-check MCQs, answerable inline (never persisted to the bank). */
+    quick_check: z.array(mentorQuizQuestionSchema).optional(),
+    /** Real PYQs from our bank for this node. */
+    related_pyqs: z.array(mentorPyqRefSchema).optional(),
+    /** 2-3 adjacent syllabus nodes. */
+    continue_with: z.array(mentorContinueNodeSchema).optional(),
+    /** External sources cited by an in-depth answer. */
+    web_sources: z.array(mentorWebSourceSchema).optional(),
     /** Compressed 5-bullet "explain like revision" mode. */
     revision: z.boolean().optional(),
     /** Served from the FAQ semantic cache (no model call). */
     from_cache: z.boolean().optional(),
+    /** On a user turn: how many messages this consumed against the quota. */
+    quota_cost: z.number().int().optional(),
+    /** On a user turn: whether the student explicitly asked to be taught. */
+    teach: z.boolean().optional(),
   })
   .default({});
 export type MentorMessageMeta = z.infer<typeof mentorMessageMetaSchema>;
@@ -108,8 +174,15 @@ export type CreateThreadBody = z.infer<typeof createThreadBodySchema>;
 /** SSE POST body — the user's new message. */
 export const doubtMessageBodySchema = z.object({
   content: z.string().trim().min(1).max(MAX_DOUBT_CHARS),
-  /** 'revision' → compressed 5-bullet answer. */
+  /** 'revision' → compressed 5-bullet answer (quick-doubt path only). */
   mode: z.enum(["normal", "revision"]).default("normal"),
+  /**
+   * Force teacher mode (the "Teach me this" entry points). When false, the
+   * server auto-detects a teach intent from the message.
+   */
+  teach: z.boolean().default(false),
+  /** Depth of a teacher response (ignored by the quick-doubt path). */
+  depth: mentorDepthSchema.default("standard"),
   /** Optional syllabus node to scope retrieval (page context / seed). */
   node_id: z.string().uuid().optional(),
 });
@@ -131,7 +204,7 @@ export const doubtMessageResponseSchema = apiEnvelopeSchema(doubtMessageSchema);
 // for both a live model stream and a cache replay.
 // ---------------------------------------------------------------------------
 export const doubtStatusEventSchema = z.object({
-  phase: z.enum(["retrieving", "thinking", "answering"]),
+  phase: z.enum(["retrieving", "researching", "thinking", "answering", "wrapping_up"]),
 });
 export type DoubtStatusEvent = z.infer<typeof doubtStatusEventSchema>;
 
@@ -153,6 +226,36 @@ export const doubtDoneEventSchema = z.object({
   thread_id: z.string().uuid(),
 });
 export type DoubtDoneEvent = z.infer<typeof doubtDoneEventSchema>;
+
+// Teacher-mode extra events — emitted AFTER the prose stream, before `done`.
+// Event order (teacher): status(retrieving) -> [status(researching)] ->
+// citations -> [web_sources] -> status(teaching) -> delta ×N ->
+// status(wrapping_up) -> related_pyqs -> quick_check -> continue_with -> done.
+export const doubtTeacherEventSchema = z.object({
+  depth: mentorDepthSchema,
+  node_id: z.string().nullable(),
+});
+export type DoubtTeacherEvent = z.infer<typeof doubtTeacherEventSchema>;
+
+export const doubtWebSourcesEventSchema = z.object({
+  web_sources: z.array(mentorWebSourceSchema),
+});
+export type DoubtWebSourcesEvent = z.infer<typeof doubtWebSourcesEventSchema>;
+
+export const doubtRelatedPyqsEventSchema = z.object({
+  pyqs: z.array(mentorPyqRefSchema),
+});
+export type DoubtRelatedPyqsEvent = z.infer<typeof doubtRelatedPyqsEventSchema>;
+
+export const doubtQuickCheckEventSchema = z.object({
+  questions: z.array(mentorQuizQuestionSchema),
+});
+export type DoubtQuickCheckEvent = z.infer<typeof doubtQuickCheckEventSchema>;
+
+export const doubtContinueWithEventSchema = z.object({
+  nodes: z.array(mentorContinueNodeSchema),
+});
+export type DoubtContinueWithEvent = z.infer<typeof doubtContinueWithEventSchema>;
 
 export const doubtErrorEventSchema = z.object({ message: z.string() });
 export type DoubtErrorEvent = z.infer<typeof doubtErrorEventSchema>;

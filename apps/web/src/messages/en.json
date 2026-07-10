@@ -2,7 +2,8 @@
   "Common": {
     "loadErrorTitle": "Couldn't load this",
     "loadErrorDescription": "Something went wrong. Please check your connection and try again.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "close": "Close"
   },
   "Nav": {
     "dashboard": "Dashboard",
@@ -967,7 +968,33 @@
     "threadCreateFailed": "Couldn't start a conversation. Please try again.",
     "retry": "Retry",
     "seedFromQuestion": "I have a doubt about this question: {{stem}}",
-    "openFullConversation": "Open full conversation"
+    "openFullConversation": "Open full conversation",
+    "teacherBadge": "Teacher mode",
+    "teachMe": "Teach me",
+    "teachMeThis": "Teach me this",
+    "teachPlaceholder": "What should I teach you?",
+    "depth": "Depth",
+    "depth_quick": "Quick",
+    "depth_standard": "Standard",
+    "depth_in_depth": "In-depth",
+    "usesTwoMessages": "· uses 2 messages",
+    "overQuota": "Not enough mentor messages left today for this.",
+    "phase_researching": "Researching the web…",
+    "phase_wrapping_up": "Pulling together PYQs and a quick check…",
+    "sources": "Sources:",
+    "relatedPyqs": "Related PYQs",
+    "quickCheck": "Quick check",
+    "continueWith": "Continue with",
+    "seedTeach": "Teach me about: {{topic}}",
+    "saveAsMaterial": "Save as study material",
+    "saveAsMaterialTitle": "Save as study material",
+    "saveAsMaterialHint": "Turns this answer into personal notes you can revise and add to spaced repetition.",
+    "savedAsMaterial": "Saved to My notes",
+    "viewNote": "View note",
+    "saveFailed": "Couldn't save. Try again.",
+    "linkedTopic": "Linked topic",
+    "autoDetectTopic": "Auto-detect topic",
+    "searchTopic": "Search topics…"
   },
   "MicroDrill": {
     "title": "Micro-drills",
@@ -1226,5 +1253,18 @@
     "installDescription": "Add it to your home screen for one-tap access and offline studying.",
     "installCta": "Install app",
     "installDismiss": "Dismiss"
+  },
+  "MyNotes": {
+    "title": "My notes",
+    "badge": "My note",
+    "groupTitle": "My notes",
+    "profileDescription": "Personal notes you saved from the mentor.",
+    "emptyProfile": "You haven't saved any notes yet. Save a mentor answer as study material from the",
+    "notFoundTitle": "Note not found",
+    "notFoundDescription": "This note may have been deleted.",
+    "translate": "Translate this note",
+    "delete": "Delete note",
+    "deleteConfirm": "Delete this note? This can't be undone.",
+    "otherLocaleNotice": "This note was written in the other language. Translate it to read it here."
   }
 }

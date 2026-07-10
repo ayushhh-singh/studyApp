@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
-import { BookOpen, ListChecks, MessagesSquare, Newspaper, PenSquare } from "lucide-react";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router";
+import { BookOpen, GraduationCap, ListChecks, MessagesSquare, Newspaper, PenSquare } from "lucide-react";
 import type { ExamCode } from "@prayasup/shared";
 import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -14,6 +14,7 @@ import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { Button } from "@/components/ui/button";
 import { PyqList } from "@/components/learn/pyq-list";
 import { NotesView } from "@/components/learn/notes-view";
+import { UserNotesGroup } from "@/components/mentor/user-notes-group";
 import { DiscussionPanel } from "@/components/community/discussion-panel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
@@ -28,6 +29,7 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { paperCode = "", nodeId = "" } = useParams<{ paperCode: string; nodeId: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
   const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
@@ -130,19 +132,33 @@ export function Component() {
         title={node.title_i18n[locale]}
         description={node.description_i18n?.[locale]}
         action={
-          // MCQ topic-practice only makes sense for Prelims; Mains topics are
-          // answer-writing (the Answers section), and building an MCQ set from
-          // one would just error ("no MCQ PYQs"). Hide it for Mains nodes.
-          node.exam_stage === "prelims" ? (
+          <div className="flex flex-wrap gap-2">
             <Button
               type="button"
-              onClick={() => createTest.mutate({ node_ids: [nodeId], count: Math.min(node.pyq_count, 20), exam })}
-              disabled={node.pyq_count === 0 || createTest.isPending}
+              variant="outline"
+              onClick={() =>
+                navigate(
+                  `/${locale}/doubts?teach=1&topic=${encodeURIComponent(node.title_i18n[locale])}&node=${nodeId}`,
+                )
+              }
             >
-              <PenSquare aria-hidden />
-              {t("Learn.practiceThisTopic")}
+              <GraduationCap aria-hidden />
+              {t("Mentor.teachMeThis")}
             </Button>
-          ) : undefined
+            {/* MCQ topic-practice only makes sense for Prelims; Mains topics are
+                answer-writing (the Answers section), and building an MCQ set from
+                one would just error ("no MCQ PYQs"). Hide it for Mains nodes. */}
+            {node.exam_stage === "prelims" && (
+              <Button
+                type="button"
+                onClick={() => createTest.mutate({ node_ids: [nodeId], count: Math.min(node.pyq_count, 20), exam })}
+                disabled={node.pyq_count === 0 || createTest.isPending}
+              >
+                <PenSquare aria-hidden />
+                {t("Learn.practiceThisTopic")}
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -196,6 +212,7 @@ export function Component() {
 
         <TabsContent value="notes">
           <SectionCard>
+            <UserNotesGroup nodeId={nodeId} />
             <NotesView nodeId={nodeId} paperCode={paperCode} locale={locale} />
           </SectionCard>
         </TabsContent>
