@@ -83,10 +83,12 @@ async function resolveFile(
   report.step(`retrieving grounding for ${targets.length} MCQs…`);
   const groundings = await pMap(targets, opts.concurrency, (q) => groundingForQuestion(toAudit(q)));
 
-  // 2. Blind solve — batched (0.5x). custom_id = external_id.
+  // 2. Blind solve — batched (0.5x). custom_id must match ^[a-zA-Z0-9_-]{1,64}$,
+  // but external_id contains colons (pyq:...:q1) — sanitize + map back by index.
   report.step("submitting blind-solve batch (claude-haiku/sonnet, 0.5x)…");
+  const cid = (ext: string) => ext.replace(/[^a-zA-Z0-9_-]/g, "_");
   const requests: BatchRequest[] = targets.map((q, i) => ({
-    customId: q.external_id,
+    customId: cid(q.external_id),
     params: buildSolveParams(toAudit(q), groundings[i]),
     purpose: "ingest_blind_solve",
   }));
@@ -101,7 +103,7 @@ async function resolveFile(
   let noKey = 0;
   const idx = new Map(data.questions.map((q, i) => [q.external_id, i]));
   await pMap(targets, 3, async (q) => {
-    const r = results.get(q.external_id);
+    const r = results.get(cid(q.external_id));
     const audit = toAudit(q);
     const at = idx.get(q.external_id)!;
     const target = data.questions[at];
