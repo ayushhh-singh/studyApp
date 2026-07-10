@@ -97,9 +97,11 @@ function decideReview(
     return { reviewState: "approved", isPublished: true };
   }
 
-  // Mains descriptive.
-  const mapped = !!q.syllabus_path;
-  if (!mapped || compilation) return { reviewState: "needs_review", isPublished: true };
+  // Mains descriptive: real exam PYQs with no answer-correctness risk — publish on
+  // a clean bilingual parse. Node mapping enriches topic-filtering but isn't a
+  // gate (pre-reform 2018-22 papers have no topic tree to map into, so requiring
+  // it would queue them forever). Tier-B compilation still gets a human eye.
+  if (compilation) return { reviewState: "needs_review", isPublished: true };
   return { reviewState: "approved", isPublished: true };
 }
 
