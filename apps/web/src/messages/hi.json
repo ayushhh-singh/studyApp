@@ -1039,6 +1039,8 @@
     "historyTitle": "हाल की ड्रिल",
     "historyEmptyTitle": "अभी तक कोई ड्रिल नहीं",
     "historyEmptyDescription": "आपकी पूरी की गई ड्रिल यहाँ उनके स्कोर के साथ दिखेंगी।",
+    "delete": "ड्रिल हटाएं",
+    "deleteConfirm": "यह ड्रिल सत्र हटाएं? इसे पूर्ववत नहीं किया जा सकता।",
     "typeIntro": "भूमिका ड्रिल",
     "typeConclusion": "निष्कर्ष ड्रिल",
     "noSessionTitle": "कोई सक्रिय ड्रिल सत्र नहीं",

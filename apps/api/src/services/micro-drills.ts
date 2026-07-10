@@ -224,6 +224,12 @@ export async function getDrillHistory(userId: string): Promise<DrillSession[]> {
   return ((data ?? []) as DrillSessionRow[]).map(mapDrillSession);
 }
 
+export async function deleteDrillSession(userId: string, sessionId: string): Promise<void> {
+  await fetchDrillSession(userId, sessionId); // ownership 404
+  const { error } = await supabase().from("drill_sessions").delete().eq("id", sessionId).eq("user_id", userId);
+  if (error) throw new HttpError(500, `drill session delete failed: ${error.message}`);
+}
+
 // ---------------------------------------------------------------------------
 // Evaluation — plan (pre-flight, before SSE opens) + execute
 // ---------------------------------------------------------------------------

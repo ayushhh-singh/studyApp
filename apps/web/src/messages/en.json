@@ -1039,6 +1039,8 @@
     "historyTitle": "Recent drills",
     "historyEmptyTitle": "No drills yet",
     "historyEmptyDescription": "Your completed drills will show up here with their scores.",
+    "delete": "Delete drill",
+    "deleteConfirm": "Delete this drill session? This can't be undone.",
     "typeIntro": "Introduction drill",
     "typeConclusion": "Conclusion drill",
     "noSessionTitle": "No active drill session",

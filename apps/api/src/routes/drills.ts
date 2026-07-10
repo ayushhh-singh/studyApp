@@ -11,7 +11,13 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
-import { createDrillSession, getDrillHistory, getRecommendation, saveDrillResponses } from "../services/micro-drills.js";
+import {
+  createDrillSession,
+  deleteDrillSession,
+  getDrillHistory,
+  getRecommendation,
+  saveDrillResponses,
+} from "../services/micro-drills.js";
 
 export const drillsRouter = Router();
 drillsRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
@@ -51,5 +57,14 @@ drillsRouter.get(
   asyncHandler(async (_req, res) => {
     const history = await getDrillHistory(currentUserId());
     res.json(drillHistoryResponseSchema.parse({ data: history, error: null }));
+  }),
+);
+
+drillsRouter.delete(
+  "/drills/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(drillParamsSchema, req.params);
+    await deleteDrillSession(currentUserId(), id);
+    res.status(204).end();
   }),
 );

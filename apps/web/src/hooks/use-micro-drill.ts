@@ -43,3 +43,14 @@ export function useSubmitDrillResponses() {
       api.patch(`/api/v1/drills/${id}/responses`, drillSessionResponseSchema, { responses }),
   });
 }
+
+/** Deletes a drill session from history. */
+export function useDeleteDrill() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.delete(`/api/v1/drills/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.drillHistory() });
+    },
+  });
+}

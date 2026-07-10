@@ -31,3 +31,6 @@ content-raw/parsed/
 # Session 27.5: quarantined non-UPPSC contamination + redundant scans (disk-only)
 content-raw/_excluded_non_uppsc/
 content-raw/_redundant_scans/
+.env.prod
+.env.*.prod
+!.env.example

@@ -1,12 +1,12 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import { Sparkles, Zap } from "lucide-react";
+import { Sparkles, Trash2, Zap } from "lucide-react";
 import type { DrillType } from "@prayasup/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Button } from "@/components/ui/button";
-import { useCreateDrill, useDrillHistory, useDrillRecommendation } from "@/hooks/use-micro-drill";
+import { useCreateDrill, useDeleteDrill, useDrillHistory, useDrillRecommendation } from "@/hooks/use-micro-drill";
 import { useLocale } from "@/hooks/use-locale";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 import { useDrillSessionStore } from "@/stores/drill-session-store";
@@ -22,6 +22,7 @@ export function MicroDrillsCard() {
   const { data: recommendation, isLoading: recLoading } = useDrillRecommendation();
   const { data: history, isLoading: historyLoading } = useDrillHistory();
   const createDrill = useCreateDrill();
+  const deleteDrill = useDeleteDrill();
   const setSession = useDrillSessionStore((s) => s.setSession);
 
   function start(type: DrillType) {
@@ -31,6 +32,10 @@ export function MicroDrillsCard() {
         navigate(`/${locale}/profile/drill`);
       },
     });
+  }
+
+  function remove(id: string) {
+    if (window.confirm(t("MicroDrill.deleteConfirm"))) deleteDrill.mutate(id);
   }
 
   return (
@@ -84,7 +89,7 @@ export function MicroDrillsCard() {
               {history.slice(0, 10).map((session) => (
                 <div
                   key={session.id}
-                  className="flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
+                  className="group flex items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm"
                 >
                   <span className="flex flex-col gap-0.5">
                     <span className="font-medium">
@@ -94,11 +99,23 @@ export function MicroDrillsCard() {
                       {new Date(session.created_at).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN")}
                     </span>
                   </span>
-                  <span
-                    className={cn("font-display text-lg")}
-                    style={{ color: session.overall_pct !== null ? scoreBandColor(session.overall_pct) : undefined }}
-                  >
-                    {session.overall_pct !== null ? `${Math.round(session.overall_pct)}%` : "—"}
+                  <span className="flex items-center gap-1">
+                    <span
+                      className={cn("font-display text-lg")}
+                      style={{ color: session.overall_pct !== null ? scoreBandColor(session.overall_pct) : undefined }}
+                    >
+                      {session.overall_pct !== null ? `${Math.round(session.overall_pct)}%` : "—"}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => remove(session.id)}
+                      disabled={deleteDrill.isPending}
+                      aria-label={t("MicroDrill.delete")}
+                      title={t("MicroDrill.delete")}
+                      className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-coral/10 hover:text-coral focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100"
+                    >
+                      <Trash2 className="size-4" aria-hidden />
+                    </button>
                   </span>
                 </div>
               ))}
