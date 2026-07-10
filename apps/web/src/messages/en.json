@@ -18,7 +18,8 @@
     "review": "Review",
     "doubts": "Mentor",
     "community": "Community",
-    "scoreboard": "Scoreboard"
+    "scoreboard": "Scoreboard",
+    "myNotes": "My Notes"
   },
   "TopBar": {
     "search": "Search",
@@ -1295,7 +1296,11 @@
     "translate": "Translate this note",
     "delete": "Delete note",
     "deleteConfirm": "Delete this note? This can't be undone.",
-    "otherLocaleNotice": "This note was written in the other language. Translate it to read it here."
+    "otherLocaleNotice": "This note was written in the other language. Translate it to read it here.",
+    "pageDescription": "Study material you've saved from the AI Mentor.",
+    "emptyTitle": "No saved notes yet",
+    "emptyPageDescription": "Ask the AI Mentor to teach you a topic, then tap “Save as study material” on its answer.",
+    "askMentor": "Ask the Mentor"
   },
   "ReviewMagazine": {
     "emptyTitle": "No deep dives awaiting review",

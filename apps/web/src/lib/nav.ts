@@ -10,6 +10,7 @@ import {
   Trophy,
   User,
   MessagesSquare,
+  StickyNote,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "scoreboard", to: "scoreboard", labelKey: "Nav.scoreboard", icon: Trophy },
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },
+  { id: "my-notes", to: "my-notes", labelKey: "Nav.myNotes", icon: StickyNote },
   // mobilePrimary (not "learn"): Revision is one of the dashboard's own
   // 4 daily-habit checklist items (Daily Quiz / Write Answers / Clear
   // Revision / Continue Reading) — burying it in the mobile "More" sheet

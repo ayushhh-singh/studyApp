@@ -135,6 +135,15 @@ export function MentorChat({
   const doneMessageLanded =
     stream.doneMessageId != null && messages.some((m) => m.id === stream.doneMessageId);
 
+  // The server inserts the user's turn at plan-time (before the stream opens),
+  // so a mid-stream refetch of the thread (e.g. window refocus) can pull that
+  // persisted turn into `messages` while the transient `pendingUser` bubble is
+  // still showing — a duplicate user message. Suppress the transient once the
+  // matching persisted turn is the last message.
+  const lastMessage = messages[messages.length - 1];
+  const pendingPersisted =
+    pendingUser != null && lastMessage?.role === "user" && lastMessage.content === pendingUser;
+
   const askQuiz = () => {
     if (busy) return;
     quiz.mutate();
@@ -170,7 +179,9 @@ export function MentorChat({
           />
         ))}
 
-        {pendingUser && !doneMessageLanded && <MentorMessage message={{ role: "user", content: pendingUser }} />}
+        {pendingUser && !doneMessageLanded && !pendingPersisted && (
+          <MentorMessage message={{ role: "user", content: pendingUser }} />
+        )}
         {(stream.isStreaming || stream.answer) && !stream.error && !doneMessageLanded && (
           <MentorMessage
             message={{
