@@ -15,23 +15,38 @@ function istDate(offsetDays = 0): string {
   return new Date(Date.now() + IST_OFFSET_MS + offsetDays * 24 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-/** Today / Yesterday (makeup) / date label for an archived quiz. */
-function dayLabel(scheduledDate: string, t: (k: string) => string): { text: string; makeup: boolean } | null {
-  if (scheduledDate === istDate(0)) return { text: t("Practice.dailyToday"), makeup: false };
-  if (scheduledDate === istDate(-1)) return { text: t("Practice.dailyYesterday"), makeup: true };
-  return null;
+/** Only two groups: today's quiz, and everything before it — no separate "yesterday" bucket. */
+function groupOf(scheduledDate: string): "today" | "older" {
+  return scheduledDate === istDate(0) ? "today" : "older";
 }
 
-function ArchiveRow({ item }: { item: DailyQuizArchiveItem }) {
+function ArchiveRow({
+  item,
+  showHeader,
+}: {
+  item: DailyQuizArchiveItem;
+  /** Only the first row of a new group (today/older) renders its header — every other row in that same run stays unlabeled. */
+  showHeader: boolean;
+}) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const label = dayLabel(item.scheduled_date, t);
+  const group = groupOf(item.scheduled_date);
+  // Yesterday's quiz is still the one real makeup opportunity (per the page's
+  // own description: "today's quiz, yesterday's makeup, and every past day")
+  // — the badge marks that specific quiz regardless of which group header
+  // it now falls under, so it renders on its own row whenever showHeader
+  // doesn't already cover it.
+  const isMakeup = item.scheduled_date === istDate(-1);
   return (
     <div className="flex flex-col gap-1.5">
-      {label && (
+      {(showHeader || isMakeup) && (
         <div className="flex items-center gap-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-primary">{label.text}</span>
-          {label.makeup && (
+          {showHeader && (
+            <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+              {group === "today" ? t("Practice.dailyToday") : t("Practice.dailyOlder")}
+            </span>
+          )}
+          {isMakeup && (
             <span className="rounded-full bg-marigold/15 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-marigold">
               {t("Practice.dailyMakeupBadge")}
             </span>
@@ -120,11 +135,18 @@ export function DailyQuizPanel() {
     <div className="flex flex-col gap-4">
       {page === 1 && !hasToday && <GenerateTodayCta />}
       <ul className="flex flex-col gap-3">
-        {data.items.map((item) => (
-          <li key={item.id}>
-            <ArchiveRow item={item} />
-          </li>
-        ))}
+        {data.items.map((item, index) => {
+          // The archive is newest-first, so a group's header belongs on the
+          // first row where its group differs from the row before it (the
+          // very first row always gets one) — everything after within the
+          // same run stays unlabeled instead of repeating "OLDER" every row.
+          const showHeader = index === 0 || groupOf(item.scheduled_date) !== groupOf(data.items[index - 1].scheduled_date);
+          return (
+            <li key={item.id}>
+              <ArchiveRow item={item} showHeader={showHeader} />
+            </li>
+          );
+        })}
       </ul>
       {totalPages > 1 && (
         <div className="flex items-center justify-between">
