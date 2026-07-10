@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
+import { CURRENT_AFFAIRS_COLUMNS } from "./current-affairs.js";
 import {
   byYearRecord,
   currentExamYear,
@@ -354,9 +355,9 @@ export async function getNodeDetail(
     loadNodeWeightage(exam),
     supabase()
       .from("current_affairs_items")
-      .select(
-        "id, date, category, is_up_specific, title_i18n, summary_i18n, detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids",
-      )
+      // Full column set — the client parses these as currentAffairsItemSchema,
+      // which now requires status/relevance/prelims_facts/mains_brief/etc.
+      .select(CURRENT_AFFAIRS_COLUMNS)
       .eq("is_published", true)
       .overlaps("syllabus_node_ids", subtreeIds)
       .order("date", { ascending: false })

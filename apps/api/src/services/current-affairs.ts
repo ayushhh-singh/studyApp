@@ -5,7 +5,15 @@ import { RELEVANCE_GATE } from "../ca/pipeline.js";
 
 export const CURRENT_AFFAIRS_PAGE_SIZE = 20;
 
-const CURRENT_AFFAIRS_COLUMNS =
+/**
+ * The full column list every surface that returns a `CurrentAffairsItem` to the
+ * frontend must select — the shared `currentAffairsItemSchema` requires all of
+ * these (status/prelims_relevance/mains_relevance/prelims_facts/mains_brief/
+ * possible_questions/node_significance are non-optional), so a partial select
+ * makes the client-side zod parse throw. Reused by services/magazine.ts and
+ * services/syllabus.ts (related CA) so they can never drift from the schema.
+ */
+export const CURRENT_AFFAIRS_COLUMNS =
   "id, date, status, category, is_up_specific, prelims_relevance, mains_relevance, gs_papers, " +
   "title_i18n, summary_i18n, prelims_facts, mains_brief, possible_questions, node_significance, " +
   "detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids";
