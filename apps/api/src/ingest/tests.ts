@@ -52,18 +52,29 @@ function durationFor(stage: string): number {
 }
 
 async function fetchPublished(): Promise<QRow[]> {
-  const { data, error } = await supabase()
-    .from("questions")
-    .select("id, type, stage, paper_code, year, marks, syllabus_node_id, exam_code")
-    .eq("is_published", true)
-    // See the module doc comment — pyq_full/sectional are UPPSC-labeled and
-    // UPPSC-marked, so only genuinely UPPSC-sourced questions may enter them.
-    // "other"/legacy rows with no exam_code default to uppsc via
-    // examCodeFromId at ingest time, so this is never over-restrictive for
-    // real UPPSC content.
-    .eq("exam_code", UPPSC_EXAM_CODE);
-  if (error) throw new Error(`fetch questions: ${error.message}`);
-  return (data ?? []) as QRow[];
+  // Paginate past PostgREST's 1000-row cap — the published bank now exceeds 1000,
+  // so a single .select() silently truncated later papers (e.g. 2025 mains showed
+  // 1-4 of 20 questions). Also require review_state='approved': a test must only
+  // contain LEARNER-VISIBLE questions (is_published alone includes needs_review).
+  const out: QRow[] = [];
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select("id, type, stage, paper_code, year, marks, syllabus_node_id, exam_code")
+      .eq("is_published", true)
+      .eq("review_state", "approved")
+      // See the module doc comment — pyq_full/sectional are UPPSC-labeled and
+      // UPPSC-marked, so only genuinely UPPSC-sourced questions may enter them.
+      .eq("exam_code", UPPSC_EXAM_CODE)
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fetch questions: ${error.message}`);
+    const rows = (data ?? []) as QRow[];
+    out.push(...rows);
+    if (rows.length < PAGE) break;
+  }
+  return out;
 }
 
 /** node_id -> top-level path slug (for sectional grouping). */
