@@ -10,6 +10,7 @@ import type {
   MagazineFactEntry,
   MagazineGsSection,
   MagazineIssueBrief,
+  MagazineItemBlock,
   MagazineMcq,
   MagazineModelQuestion,
   MagazineMains,
@@ -110,6 +111,8 @@ interface PrelimsItemRow {
   category: CurrentAffairsCategory | null;
   is_up_specific: boolean;
   title_i18n: { hi: string; en: string };
+  summary_i18n: { hi: string; en: string } | null;
+  possible_questions: CurrentAffairsPossibleQuestions | null;
   prelims_facts: CurrentAffairsFact[] | null;
 }
 
@@ -119,7 +122,20 @@ function toFactEntries(item: PrelimsItemRow): MagazineFactEntry[] {
     item_id: item.id,
     item_title_i18n: item.title_i18n,
     item_date: item.date,
+    item_summary_i18n: item.summary_i18n,
   }));
+}
+
+/** A full item write-up (headline + context + all its facts) for topic sections / UP Special. */
+function toItemBlock(item: PrelimsItemRow): MagazineItemBlock {
+  return {
+    item_id: item.id,
+    item_title_i18n: item.title_i18n,
+    item_date: item.date,
+    summary_i18n: item.summary_i18n,
+    possible_question_i18n: item.possible_questions?.prelims_i18n ?? null,
+    facts: item.prelims_facts ?? [],
+  };
 }
 
 async function loadWorkbook(month: string): Promise<MagazineMcq[]> {
@@ -148,7 +164,7 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
   const { start, end } = monthBounds(month);
   const { data, error } = await supabase()
     .from("current_affairs_items")
-    .select("id, date, category, is_up_specific, title_i18n, prelims_facts")
+    .select("id, date, category, is_up_specific, title_i18n, summary_i18n, possible_questions, prelims_facts")
     .eq("status", "published")
     .gte("prelims_relevance", RELEVANCE_GATE)
     .not("prelims_facts", "is", null)
@@ -162,17 +178,17 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
 
   const upItems = items.filter((i) => i.is_up_specific);
   const restItems = items.filter((i) => !i.is_up_specific);
-  const upSpecial = upItems.flatMap(toFactEntries);
+  const upSpecial = upItems.map(toItemBlock);
 
-  const byCategory = new Map<CurrentAffairsCategory, MagazineFactEntry[]>();
+  const byCategory = new Map<CurrentAffairsCategory, PrelimsItemRow[]>();
   for (const item of restItems) {
     const cat = item.category ?? "polity_governance";
     const arr = byCategory.get(cat) ?? [];
-    arr.push(...toFactEntries(item));
+    arr.push(item);
     byCategory.set(cat, arr);
   }
   const topicSections: MagazineTopicSection[] = CATEGORY_ORDER.filter((c) => c !== "up_special" && byCategory.has(c)).map(
-    (category) => ({ category, facts: byCategory.get(category) ?? [] }),
+    (category) => ({ category, items: (byCategory.get(category) ?? []).map(toItemBlock) }),
   );
 
   const byKind = new Map<CurrentAffairsFactKind, MagazineFactEntry[]>();

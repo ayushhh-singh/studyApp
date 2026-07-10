@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 import { MapPin, Newspaper } from "lucide-react";
-import type { CurrentAffairsFactKind, Locale, MagazineFactEntry } from "@prayasup/shared";
+import type { CurrentAffairsFactKind, Locale, MagazineFactEntry, MagazineItemBlock } from "@prayasup/shared";
 import { useMagazinePrelims } from "@/hooks/use-magazine";
 import { useLocale } from "@/hooks/use-locale";
 import { Skeleton } from "@/components/ui-x/skeleton";
@@ -21,20 +21,73 @@ const FACT_KIND_ICON: Record<CurrentAffairsFactKind, string> = {
   misc: "🔖",
 };
 
+/** A boxed feature's fact card — the fact line, its extras, and one line of "why this is here" context. */
 function FactRow({ fact, locale, showItemTitle }: { fact: MagazineFactEntry; locale: Locale; showItemTitle: boolean }) {
   const extras = fact.extras ?? {};
   const extraLine = [extras.ministry, extras.publisher, extras.rank, extras.location].filter(Boolean).join(" · ");
   return (
-    <li className="mag-item flex flex-col gap-0.5 break-inside-avoid rounded-lg border border-marigold/25 bg-marigold/[0.05] px-3 py-2">
+    <li className="mag-item flex flex-col gap-1 break-inside-avoid rounded-lg border border-marigold/25 bg-marigold/[0.05] px-3 py-2.5">
       <div className="flex items-baseline justify-between gap-2">
-        <span className={locale === "hi" ? "text-sm leading-[1.9]" : "text-sm leading-relaxed"}>
+        <span className={locale === "hi" ? "text-sm font-medium leading-[1.9]" : "text-sm font-medium leading-relaxed"}>
           {fact.fact_i18n[locale]}
         </span>
         <span className="shrink-0 text-[11px] text-muted-foreground">{fact.item_date}</span>
       </div>
       {extraLine && <span className="text-[11px] text-muted-foreground">{extraLine}</span>}
+      {fact.item_summary_i18n?.[locale] && (
+        <p className={locale === "hi" ? "text-[13px] leading-[1.8] text-foreground/80" : "text-[13px] leading-relaxed text-foreground/80"}>
+          {fact.item_summary_i18n[locale]}
+        </p>
+      )}
       {showItemTitle && <span className="text-[11px] italic text-muted-foreground">{fact.item_title_i18n[locale]}</span>}
     </li>
+  );
+}
+
+/**
+ * A full PT365-style write-up: headline + context paragraph + every one of
+ * the item's facts as bullets + the likely Prelims question angle, if any.
+ * Used for topic sections and UP Special — a coaching-magazine reader needs
+ * more than a bare one-line fact per entry.
+ */
+function ItemBlock({ item, locale }: { item: MagazineItemBlock; locale: Locale }) {
+  const { t } = useTranslation();
+  const proseLeading = locale === "hi" ? "leading-[1.9]" : "leading-relaxed";
+  return (
+    <article className="mag-item flex flex-col gap-2 break-inside-avoid rounded-xl border border-border bg-card p-4">
+      <div className="flex items-baseline justify-between gap-2">
+        <h3 className="text-[15px] font-bold leading-snug">{item.item_title_i18n[locale]}</h3>
+        <span className="shrink-0 text-[11px] text-muted-foreground">{item.item_date}</span>
+      </div>
+      {item.summary_i18n?.[locale] && (
+        <p className={`text-sm text-foreground/90 ${proseLeading}`}>{item.summary_i18n[locale]}</p>
+      )}
+      {item.facts.length > 0 && (
+        <ul className="flex flex-col gap-1.5 ps-1">
+          {item.facts.map((f, i) => {
+            const extras = f.extras ?? {};
+            const extraLine = [extras.ministry, extras.publisher, extras.rank, extras.location].filter(Boolean).join(" · ");
+            return (
+              <li key={i} className="flex gap-2 text-[13px]">
+                <span aria-hidden className="shrink-0">
+                  {FACT_KIND_ICON[f.kind]}
+                </span>
+                <span className={proseLeading}>
+                  {f.fact_i18n[locale]}
+                  {extraLine && <span className="text-muted-foreground"> — {extraLine}</span>}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {item.possible_question_i18n?.[locale]?.trim() && (
+        <div className="rounded-lg border border-primary/25 bg-primary/[0.05] px-3 py-2">
+          <span className="text-[10px] font-bold text-primary uppercase">{t("CurrentAffairs.prelimsQuestion")}</span>
+          <p className="text-[13px]">{item.possible_question_i18n[locale]}</p>
+        </div>
+      )}
+    </article>
   );
 }
 
@@ -117,17 +170,17 @@ export function Component() {
               </ul>
             </nav>
 
-            {/* UP SPECIAL — first-class lead section */}
+            {/* UP SPECIAL — first-class lead section, full write-ups */}
             {mag.up_special.length > 0 && (
               <section id="up-special" className="mag-section mb-8">
                 <h2 className="mb-3 flex items-center gap-2 border-b border-tulsi/40 pb-1.5 text-lg font-bold text-tulsi-foreground">
                   <MapPin className="size-5" /> {t("Magazine.upSection")}
                 </h2>
-                <ul className="flex flex-col gap-2">
-                  {mag.up_special.map((f, i) => (
-                    <FactRow key={i} fact={f} locale={locale} showItemTitle />
+                <div className="flex flex-col gap-3">
+                  {mag.up_special.map((item) => (
+                    <ItemBlock key={item.item_id} item={item} locale={locale} />
                   ))}
-                </ul>
+                </div>
               </section>
             )}
 
@@ -145,17 +198,17 @@ export function Component() {
               </section>
             ))}
 
-            {/* Topic-wise sections (fixed taxonomy) */}
+            {/* Topic-wise sections (fixed taxonomy) — full write-ups, not bare fact lines */}
             {mag.topic_sections.map((s) => (
               <section id={`topic-${s.category}`} key={s.category} className="mag-section mb-8">
                 <h2 className="mb-3 border-b border-border pb-1.5 text-lg font-bold">
                   {t(`CurrentAffairs.category.${s.category}`)}
                 </h2>
-                <ul className="flex flex-col gap-2">
-                  {s.facts.map((f, i) => (
-                    <FactRow key={i} fact={f} locale={locale} showItemTitle={false} />
+                <div className="flex flex-col gap-3">
+                  {s.items.map((item) => (
+                    <ItemBlock key={item.item_id} item={item} locale={locale} />
                   ))}
-                </ul>
+                </div>
               </section>
             ))}
 

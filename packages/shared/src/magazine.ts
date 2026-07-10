@@ -46,17 +46,43 @@ export type MagazineMcq = z.infer<typeof magazineMcqSchema>;
 // Prelims Compendium
 // ---------------------------------------------------------------------------
 
-/** One prelims_facts entry, carrying its parent item's id/title/date for attribution. */
+/**
+ * One prelims_facts entry, carrying its parent item's id/title/date for
+ * attribution PLUS the item's own summary — coaching-magazine "boxed" style
+ * (PT365 etc.) never leaves a fact as a bare, context-free line; a boxed
+ * feature card still needs the one line of "why this is here" alongside it.
+ */
 export const magazineFactEntrySchema = currentAffairsFactSchema.extend({
   item_id: z.string().uuid(),
   item_title_i18n: bilingualTextSchema,
   item_date: z.string(),
+  item_summary_i18n: bilingualTextSchema.nullable(),
 });
 export type MagazineFactEntry = z.infer<typeof magazineFactEntrySchema>;
 
+/**
+ * A full item write-up — headline + a short paragraph of context + every one
+ * of its facts as bullets + (if the model surfaced one) the likely Prelims
+ * question angle. Used for topic sections and the UP Special lead section,
+ * where every fact of an item already shares that item's category — grouping
+ * by item (rather than flattening to bare one-liners) is both more compact
+ * (no repeated attribution per fact) and closer to how PT365-style digests
+ * actually read: a topic write-up with facts underneath it, not a scattered
+ * list of isolated sentences.
+ */
+export const magazineItemBlockSchema = z.object({
+  item_id: z.string().uuid(),
+  item_title_i18n: bilingualTextSchema,
+  item_date: z.string(),
+  summary_i18n: bilingualTextSchema.nullable(),
+  possible_question_i18n: bilingualTextSchema.nullable(),
+  facts: z.array(currentAffairsFactSchema),
+});
+export type MagazineItemBlock = z.infer<typeof magazineItemBlockSchema>;
+
 export const magazineTopicSectionSchema = z.object({
   category: currentAffairsCategorySchema,
-  facts: z.array(magazineFactEntrySchema),
+  items: z.array(magazineItemBlockSchema),
 });
 export type MagazineTopicSection = z.infer<typeof magazineTopicSectionSchema>;
 
@@ -72,8 +98,8 @@ export const magazinePrelimsSchema = z.object({
   title_i18n: bilingualTextSchema,
   total_items: z.number().int(),
   total_facts: z.number().int(),
-  /** UP-specific items' facts, foregrounded as a first-class lead section. */
-  up_special: z.array(magazineFactEntrySchema),
+  /** UP-specific items, foregrounded as a first-class lead section of full write-ups. */
+  up_special: z.array(magazineItemBlockSchema),
   /** Fixed-taxonomy topic sections (UP-specific items excluded — they live in up_special). */
   topic_sections: z.array(magazineTopicSectionSchema),
   /** Cross-cutting boxed features, grouped by fact kind across every item (UP included). */

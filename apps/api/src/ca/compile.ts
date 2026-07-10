@@ -44,8 +44,8 @@ async function main(): Promise<void> {
   } else {
     console.log(`\n📰  Prelims Compendium — ${prelims.title_i18n.en} / ${prelims.title_i18n.hi}`);
     console.log(`    ${prelims.total_items} items · ${prelims.total_facts} facts · ${prelims.workbook.length} workbook MCQs`);
-    console.log(`    UP Special (lead section): ${prelims.up_special.length} fact(s)`);
-    for (const s of prelims.topic_sections) console.log(`    topic ${s.category}: ${s.facts.length} fact(s)`);
+    console.log(`    UP Special (lead section): ${prelims.up_special.length} write-up(s)`);
+    for (const s of prelims.topic_sections) console.log(`    topic ${s.category}: ${s.items.length} write-up(s)`);
     for (const b of prelims.boxed_features) console.log(`    boxed ${b.kind}: ${b.facts.length} fact(s)`);
     console.log(`    Rendered at: /<locale>/magazine/${month}/prelims  (print-to-PDF ready)`);
   }
