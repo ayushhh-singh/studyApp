@@ -268,25 +268,39 @@ async function resolveOpenReports(
   return (data ?? []).length;
 }
 
-async function readQuestionState(questionId: string): Promise<{ is_published: boolean; review_state: ReviewQuestion["review_state"]; meta: Record<string, unknown> | null }> {
+interface QuestionState {
+  is_published: boolean;
+  review_state: ReviewQuestion["review_state"];
+  meta: Record<string, unknown> | null;
+  publish_gate_ok: boolean;
+  correct_option_key: string | null;
+  options_i18n: { key: string }[] | null;
+}
+
+async function readQuestionState(questionId: string): Promise<QuestionState> {
   const { data, error } = await supabase()
     .from("questions")
-    .select("is_published, review_state, meta")
+    .select("is_published, review_state, meta, publish_gate_ok, correct_option_key, options_i18n")
     .eq("id", questionId)
     .maybeSingle();
   if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
   if (!data) throw notFound("Question not found");
-  return data as { is_published: boolean; review_state: ReviewQuestion["review_state"]; meta: Record<string, unknown> | null };
+  return data as unknown as QuestionState;
 }
 
-/** Republish an audited-and-fixed question: approved + published, clearing the audit_flag. */
+/**
+ * Republish an audited-and-fixed question: approved, clearing the audit_flag,
+ * and published ONLY if the bilingual publish gate passes (mirrors
+ * approveQuestion — setting is_published=true on a gate-failing row would trip
+ * the publish trigger and 500). A gate-failing row becomes approved-but-hidden.
+ */
 async function republish(questionId: string, patch: Record<string, unknown> = {}): Promise<void> {
   const cur = await readQuestionState(questionId);
   const meta = { ...((cur.meta ?? {}) as Record<string, unknown>) };
   delete meta.audit_flag;
   const { error } = await supabase()
     .from("questions")
-    .update({ review_state: "approved", is_published: true, meta, ...patch })
+    .update({ review_state: "approved", is_published: cur.publish_gate_ok, meta, ...patch })
     .eq("id", questionId);
   if (error) throw new HttpError(500, `republish failed: ${error.message}`);
 }
@@ -304,29 +318,32 @@ export async function resolveQuestionReport(
   switch (action) {
     case "fix_key": {
       if (!correctKey) throw new HttpError(400, "correct_option_key required for fix_key");
-      // Fix the key AND clear the (now-stale) explanation so the next view
-      // regenerates a grounded one consistent with the corrected key. Then
-      // republish. meta records the key correction for audit.
       const cur = await readQuestionState(questionId);
+      // The key must be one of the question's actual options, or the publish
+      // trigger would reject the republish (0017's MCQ gate requires the key to
+      // match an option).
+      const optionKeys = (cur.options_i18n ?? []).map((o) => o.key);
+      if (!optionKeys.includes(correctKey)) {
+        throw new HttpError(400, `correct_option_key ${correctKey} is not one of this question's options (${optionKeys.join(", ")})`);
+      }
+      // Fix the key AND clear the (now-stale) explanation so the next view
+      // regenerates a grounded one consistent with the corrected key. Record the
+      // old→new key for audit; publish only if the gate passes.
       const meta = { ...((cur.meta ?? {}) as Record<string, unknown>) };
       delete meta.audit_flag;
-      meta.key_corrected = { from: undefined, to: correctKey, by: adminId, at: new Date().toISOString() };
+      meta.key_corrected = { from: cur.correct_option_key, to: correctKey, by: adminId, at: new Date().toISOString() };
       const { error } = await supabase()
         .from("questions")
-        .update({ correct_option_key: correctKey, explanation_i18n: null, review_state: "approved", is_published: true, meta })
+        .update({ correct_option_key: correctKey, explanation_i18n: null, review_state: "approved", is_published: cur.publish_gate_ok, meta })
         .eq("id", questionId);
       if (error) throw new HttpError(500, `fix_key failed: ${error.message}`);
       break;
     }
     case "regenerate_explanation": {
-      const res = await generateGroundedExplanation(questionId, { force: true, userId: adminId });
-      if (res.disputed) {
-        // The key-support check disputed the stored key — the question was
-        // flagged (needs_review + unpublished) and no explanation written.
-        // Leave it hidden for a human decision; report resolution notes it.
-        break;
-      }
-      // Explanation regenerated and the key held up → republish.
+      // Regenerate a grounded explanation that argues for the current key, then
+      // republish. Use this for "wrong explanation" reports (the key is fine);
+      // for a wrong KEY, use fix_key instead.
+      await generateGroundedExplanation(questionId, { force: true, userId: adminId });
       await republish(questionId);
       break;
     }
