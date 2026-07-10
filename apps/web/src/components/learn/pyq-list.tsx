@@ -6,6 +6,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { Button } from "@/components/ui/button";
+import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { useQuestion, useQuestions } from "@/hooks/use-questions";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
@@ -46,6 +47,7 @@ function QuestionCard({
           examLabel={question.exam_label_i18n}
           outOfSyllabus={question.out_of_syllabus}
         />
+        <ReportQuestionSheet questionId={question.id} className="ml-auto flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring" />
       </div>
       <p className="text-sm whitespace-pre-line">{formatQuestionStem(question.stem_i18n[locale])}</p>
       {question.options_i18n && (

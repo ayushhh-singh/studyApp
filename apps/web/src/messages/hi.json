@@ -699,7 +699,8 @@
       "current_affairs": "करेंट अफेयर्स",
       "notes": "अध्ययन नोट्स",
       "reports": "रिपोर्ट",
-      "magazine": "मैगज़ीन"
+      "magazine": "मैगज़ीन",
+      "question_reports": "रिपोर्ट किए गए"
     },
     "difficulty": {
       "easy": "आसान",
@@ -1306,5 +1307,40 @@
   "ReviewMagazine": {
     "emptyTitle": "समीक्षा हेतु कोई डीप डाइव नहीं",
     "emptyDescription": "इस माह के पाँच डीप डाइव्स बनाने के लिए `pnpm ca:deepdive --month YYYY-MM --run` चलाएँ।"
+  },
+  "ReportQuestion": {
+    "trigger": "इस प्रश्न की रिपोर्ट करें",
+    "title": "इस प्रश्न की रिपोर्ट करें",
+    "subtitle": "बताएं क्या गलत है ताकि हम समीक्षा कर सकें।",
+    "reasonLabel": "क्या गलत है?",
+    "detailLabel": "विवरण (वैकल्पिक)",
+    "detailPlaceholder": "जैसे सही उत्तर C नहीं, B होना चाहिए",
+    "submit": "रिपोर्ट भेजें",
+    "thanks": "धन्यवाद — हम इस प्रश्न की समीक्षा करेंगे।",
+    "close": "बंद करें",
+    "reason": {
+      "wrong_answer": "गलत उत्तर",
+      "wrong_explanation": "गलत व्याख्या",
+      "translation": "अनुवाद संबंधी समस्या",
+      "ambiguous": "अस्पष्ट",
+      "other": "कुछ और"
+    }
+  },
+  "QuestionReports": {
+    "emptyTitle": "कोई रिपोर्ट किया गया प्रश्न नहीं",
+    "emptyDescription": "उपयोगकर्ताओं द्वारा रिपोर्ट किए गए प्रश्न यहाँ समीक्षा के लिए, पूर्ण स्रोत जानकारी के साथ दिखेंगे।",
+    "reportCount": "{{count}} रिपोर्ट",
+    "reportCount_other": "{{count}} रिपोर्ट",
+    "sourceKind": "स्रोत",
+    "exam": "परीक्षा",
+    "promptVersion": "प्रॉम्प्ट",
+    "keyVerified": "आधिकारिक कुंजी सत्यापित",
+    "state": "स्थिति",
+    "unpublished": "छिपा हुआ",
+    "correctKey": "सही कुंजी",
+    "fixKey": "कुंजी ठीक करें",
+    "regenerateExplanation": "व्याख्या पुनः बनाएं",
+    "unpublish": "अप्रकाशित करें",
+    "dismiss": "रिपोर्ट खारिज करें"
   }
 }

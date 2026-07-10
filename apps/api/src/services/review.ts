@@ -22,6 +22,7 @@ import { HttpError, notFound } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { reviewNotesCount } from "./notes.js";
 import { reportsCounts } from "./community-admin.js";
+import { questionReportsCounts } from "./question-reports.js";
 import { reviewMagazineCount } from "./magazine.js";
 
 export const REVIEW_PAGE_SIZE = 10;
@@ -144,8 +145,8 @@ function mapRow(row: ReviewRow, similar: SimilarQuestion[]): ReviewQuestion {
 }
 
 export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ items: ReviewQuestion[]; total: number }> {
-  // Notes/magazine have their own list endpoints — never a questions query.
-  if (tab === "notes" || tab === "magazine") return { items: [], total: 0 };
+  // Notes/magazine/reports have their own list endpoints — never a questions query.
+  if (tab === "notes" || tab === "magazine" || tab === "reports" || tab === "question_reports") return { items: [], total: 0 };
   const from = (page - 1) * REVIEW_PAGE_SIZE;
   const to = from + REVIEW_PAGE_SIZE - 1;
   const base = supabase().from("questions").select(REVIEW_COLUMNS, { count: "exact" });
@@ -161,7 +162,7 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
 
 export async function reviewCounts(): Promise<ReviewCounts> {
   const tabs: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs"];
-  const [questionEntries, notes, reports, magazine] = await Promise.all([
+  const [questionEntries, notes, reports, questionReports, magazine] = await Promise.all([
     Promise.all(
       tabs.map(async (tab) => {
         const { count, error } = await applyTab(
@@ -174,12 +175,14 @@ export async function reviewCounts(): Promise<ReviewCounts> {
     ),
     reviewNotesCount(),
     reportsCounts(),
+    questionReportsCounts(),
     reviewMagazineCount(),
   ]);
   return {
-    ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes" | "reports" | "magazine">),
+    ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes" | "reports" | "question_reports" | "magazine">),
     notes,
     reports: reports.open,
+    question_reports: questionReports.open,
     magazine,
   };
 }

@@ -387,7 +387,7 @@ export async function generateForNode(plan: GeneratePlan, log: Log = () => {}): 
     const rendered =
       c.kind === "mcq" ? renderQuestionForCritic.mcq(c.mcq!) : renderQuestionForCritic.descriptive(c.desc!);
     const json = await structuredJson({
-      ...buildCriticParams({ node: ctx.node, rendered }),
+      ...buildCriticParams({ node: ctx.node, rendered, grounding: ctx.grounding }),
       purpose: "qgen_critic",
       onUsage,
     });
@@ -399,7 +399,7 @@ export async function generateForNode(plan: GeneratePlan, log: Log = () => {}): 
   const toVerify = candidates.filter((c) => c.kind === "mcq" && !c.reject);
   await pool(toVerify, SYNC_CONCURRENCY, async (c) => {
     const json = await structuredJson({
-      ...buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options }),
+      ...buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options, grounding: ctx.grounding }),
       purpose: "qgen_verify",
       onUsage,
     });
@@ -478,7 +478,7 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
         c.kind === "mcq" ? renderQuestionForCritic.mcq(c.mcq!) : renderQuestionForCritic.descriptive(c.desc!);
       criticReqs.push({
         customId: `critic_${pi}_${ci}`,
-        params: structuredParams(buildCriticParams({ node: s.ctx.node, rendered })),
+        params: structuredParams(buildCriticParams({ node: s.ctx.node, rendered, grounding: s.ctx.grounding })),
         purpose: "qgen_critic",
       });
     });
@@ -500,7 +500,7 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
     }
     // A missing/failed critic → conservative reject.
     if (!states[pi].candidates[ci].critic) {
-      states[pi].candidates[ci].critic = { approve: false, single_correct_answer: false, options_plausible: false, uppsc_tone: false, out_of_syllabus: true, factual_red_flags: ["critic call failed"], notes: "critic unavailable" };
+      states[pi].candidates[ci].critic = { approve: false, single_correct_answer: false, options_plausible: false, uppsc_tone: false, out_of_syllabus: true, decisive_facts: [], factual_red_flags: ["critic call failed"], notes: "critic unavailable" };
     }
   }
   states.forEach((s) => markRejections(s.candidates));
@@ -512,7 +512,7 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
       if (c.kind === "mcq" && !c.reject) {
         verifyReqs.push({
           customId: `verify_${pi}_${ci}`,
-          params: structuredParams(buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options })),
+          params: structuredParams(buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options, grounding: s.ctx.grounding })),
           purpose: "qgen_verify",
         });
       }

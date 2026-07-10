@@ -64,6 +64,88 @@ function isModelId(m: string): m is ModelId {
   return m in MODEL_PRICING;
 }
 
+// Question-bank health alert thresholds (documented in docs/operations.md).
+const REPORT_RATE_ALERT = 0.02; // >2% of a cohort's published MCQs carrying an open user report
+const INCONSISTENCY_RATE_ALERT = 0.01; // >1% flagged by the consistency sweep
+const RESOLVE_DISAGREEMENT_ALERT = 0.05; // >5% flagged by the blind re-solve audit
+
+interface QualityRow {
+  source_kind: string;
+  prompt_version: string;
+  published_mcq: number;
+  reported_questions: number;
+  open_reports: number;
+  report_rate: number | null;
+  consistency_checked: number;
+  consistency_flagged: number;
+  inconsistency_rate: number | null;
+  resolve_checked: number;
+  resolve_flagged: number;
+  resolve_disagreement_rate: number | null;
+}
+
+/** Question-bank quality: report / inconsistency / re-solve-disagreement rates by source_kind + prompt_version. */
+async function reportQuestionQuality(): Promise<void> {
+  console.log("\n" + "=".repeat(100));
+  console.log("Question-bank quality (published MCQs, by source_kind + generation prompt_version)");
+  console.log("=".repeat(100));
+  const { data, error } = await supabase().from("question_quality").select("*");
+  if (error) {
+    console.log(`(question_quality unavailable: ${error.message})`);
+    return;
+  }
+  const rows = (data ?? []) as QualityRow[];
+  if (rows.length === 0) {
+    console.log("No published MCQs.");
+    return;
+  }
+  const header = [
+    "source_kind".padEnd(14),
+    "prompt".padEnd(10),
+    "pub".padStart(6),
+    "reports".padStart(9),
+    "rep%".padStart(6),
+    "incons".padStart(8),
+    "incons%".padStart(8),
+    "resolve".padStart(9),
+    "disag%".padStart(7),
+  ].join(" ");
+  console.log(header);
+  console.log("-".repeat(header.length));
+  const alerts: string[] = [];
+  const pct = (n: number | null) => (n === null ? "—" : `${(n * 100).toFixed(1)}%`);
+  for (const r of rows) {
+    console.log(
+      [
+        r.source_kind.padEnd(14),
+        r.prompt_version.padEnd(10),
+        String(r.published_mcq).padStart(6),
+        `${r.reported_questions}/${r.open_reports}`.padStart(9),
+        pct(r.report_rate).padStart(6),
+        `${r.consistency_flagged}/${r.consistency_checked}`.padStart(8),
+        pct(r.inconsistency_rate).padStart(8),
+        `${r.resolve_flagged}/${r.resolve_checked}`.padStart(9),
+        pct(r.resolve_disagreement_rate).padStart(7),
+      ].join(" "),
+    );
+    const cohort = `${r.source_kind}/${r.prompt_version}`;
+    if ((r.report_rate ?? 0) > REPORT_RATE_ALERT)
+      alerts.push(`report rate ${pct(r.report_rate)} > ${pct(REPORT_RATE_ALERT)} for ${cohort}`);
+    if ((r.inconsistency_rate ?? 0) > INCONSISTENCY_RATE_ALERT)
+      alerts.push(`inconsistency rate ${pct(r.inconsistency_rate)} > ${pct(INCONSISTENCY_RATE_ALERT)} for ${cohort}`);
+    if ((r.resolve_disagreement_rate ?? 0) > RESOLVE_DISAGREEMENT_ALERT)
+      alerts.push(`re-solve disagreement ${pct(r.resolve_disagreement_rate)} > ${pct(RESOLVE_DISAGREEMENT_ALERT)} for ${cohort}`);
+  }
+  console.log("-".repeat(header.length));
+  if (alerts.length > 0) {
+    console.log("\n⚠️  QUALITY ALERTS:");
+    for (const a of alerts) console.log(`   - ${a}`);
+    console.log("   → triage the Review Queue's Reported-questions tab and/or re-run the audits (docs/operations.md).");
+  } else {
+    console.log("All cohorts within quality thresholds.");
+  }
+}
+
 async function main(): Promise<void> {
   const { days } = parseArgs(process.argv.slice(2));
   const since = new Date(Date.now() - days * 24 * 3600 * 1000);
@@ -269,6 +351,7 @@ async function main(): Promise<void> {
   interface LookupProps {
     outcome: string;
     mode?: string;
+    depth?: string;
     nearest_similarity: number | null;
     model_call?: boolean;
     ttft_ms: number | null;
@@ -291,8 +374,9 @@ async function main(): Promise<void> {
       console.log("No mentor doubt lookups in this window.");
     } else {
       const isHit = (o: string) => o === "hit_silent" || o === "hit_similar" || o === "hit_compressed";
-      // Cache-eligible = everything except personal/profile doubts (never cached).
-      const eligible = lookups.filter((l) => l.outcome !== "personal");
+      // Cache-eligible = quick-doubt lookups only. Personal doubts and teacher
+      // lessons never touch the cache, so they're excluded from the hit-rate.
+      const eligible = lookups.filter((l) => l.outcome !== "personal" && l.outcome !== "teacher");
       const hits = eligible.filter((l) => isHit(l.outcome));
       const count = (o: string) => lookups.filter((l) => l.outcome === o).length;
       const hitRate = eligible.length ? hits.length / eligible.length : 0;
@@ -304,7 +388,8 @@ async function main(): Promise<void> {
 
       console.log(
         `  Lookups: ${lookups.length}  (silent=${count("hit_silent")} similar=${count("hit_similar")} ` +
-          `compressed=${count("hit_compressed")} miss=${count("miss")} bypass=${count("bypass")} personal=${count("personal")})`,
+          `compressed=${count("hit_compressed")} miss=${count("miss")} bypass=${count("bypass")} ` +
+          `personal=${count("personal")} teacher=${count("teacher")})`,
       );
       console.log(`  Cache hit-rate (eligible): ${fmtPct(hitRate)}  (${hits.length}/${eligible.length})`);
       console.log(
@@ -314,18 +399,25 @@ async function main(): Promise<void> {
           : "  Avg nearest similarity on MISS: n/a (no misses with a candidate)",
       );
 
-      // Latency p50/p95 over model-generated answers (the slow path that matters).
-      const modelRows = lookups.filter((l) => l.model_call);
-      const ttfts = modelRows.map((l) => l.ttft_ms).filter((n): n is number => typeof n === "number");
-      const totals = modelRows.map((l) => l.total_ms).filter((n): n is number => typeof n === "number");
+      // Latency p50/p95 — split quick-doubt model answers from teacher lessons,
+      // since in-depth lessons (web research + a big generation) are the "long
+      // answer feels slow" path and shouldn't dilute the quick-doubt numbers.
       const fmtMs = (n: number | null) => (n === null ? "n/a" : `${(n / 1000).toFixed(1)}s`);
-      console.log(
-        `  Model-answer latency (${modelRows.length} model calls) — ` +
-          `TTFT p50/p95: ${fmtMs(percentile(ttfts, 50))}/${fmtMs(percentile(ttfts, 95))}, ` +
-          `total p50/p95: ${fmtMs(percentile(totals, 50))}/${fmtMs(percentile(totals, 95))}`,
-      );
+      const latLine = (label: string, rows: LookupProps[]) => {
+        const ttfts = rows.map((l) => l.ttft_ms).filter((n): n is number => typeof n === "number");
+        const totals = rows.map((l) => l.total_ms).filter((n): n is number => typeof n === "number");
+        console.log(
+          `  ${label} (${rows.length}) — TTFT p50/p95: ${fmtMs(percentile(ttfts, 50))}/${fmtMs(percentile(ttfts, 95))}, ` +
+            `total p50/p95: ${fmtMs(percentile(totals, 50))}/${fmtMs(percentile(totals, 95))}`,
+        );
+      };
+      latLine("Quick-doubt model-answer latency", lookups.filter((l) => l.model_call && l.outcome !== "teacher"));
+      const teacherRows = lookups.filter((l) => l.outcome === "teacher");
+      if (teacherRows.length) latLine("Teacher-lesson latency", teacherRows);
     }
   }
+
+  await reportQuestionQuality();
 }
 
 main().catch((err) => {

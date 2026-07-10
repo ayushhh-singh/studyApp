@@ -204,6 +204,9 @@ async function insertMainsQuestionForItem(opts: {
       rendered:
         `Type: Descriptive (Mains)\nQuestion: ${q.stem_i18n.en}\nMarks: ${q.marks} | Word limit: ${q.word_limit}\n` +
         `Marking points:\n${q.marking_points_i18n.en.map((p) => `  - ${p}`).join("\n")}`,
+      // CA mains questions aren't node-RAG-grounded; the critic reads the brief
+      // it was written from. Pass empty grounding (buildCriticParams handles it).
+      grounding: { chunks: [], nodeChunkCount: 0 },
     }),
     purpose: "ca_mains_critic",
     onUsage: opts.onUsage,

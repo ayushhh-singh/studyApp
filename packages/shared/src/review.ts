@@ -14,6 +14,14 @@ export const verifyResultSchema = z.object({
 });
 export type VerifyResult = z.infer<typeof verifyResultSchema>;
 
+/** A decisive fact the critic identified and its verification status against the RAG context. */
+export const decisiveFactSchema = z.object({
+  fact: z.string(),
+  /** grounded = supported by the retrieved passages; well_established = basic verified knowledge; unverifiable = neither. */
+  status: z.enum(["grounded", "well_established", "unverifiable"]),
+});
+export type DecisiveFact = z.infer<typeof decisiveFactSchema>;
+
 /** The critic (Stage B) structured verdict recorded per generated question. */
 export const criticVerdictSchema = z.object({
   approve: z.boolean(),
@@ -22,6 +30,14 @@ export const criticVerdictSchema = z.object({
   uppsc_tone: z.boolean(),
   out_of_syllabus: z.boolean(),
   factual_red_flags: z.array(z.string()),
+  /**
+   * The proper nouns / dates / numbers the answer turns on, each checked against
+   * the RAG passages. Optional so pre-hardening generated rows still parse; any
+   * `unverifiable` here forces approve=false ("we do not publish unverifiable trivia").
+   */
+  decisive_facts: z.array(decisiveFactSchema).optional(),
+  /** Set when a fact-heavy candidate's decisive facts were re-checked against the web_search tool. */
+  web_verified: z.boolean().optional(),
   notes: z.string(),
 });
 export type CriticVerdict = z.infer<typeof criticVerdictSchema>;
@@ -100,6 +116,7 @@ export const reviewTabSchema = z.enum([
   "current_affairs",
   "notes",
   "reports",
+  "question_reports",
   "magazine",
 ]);
 export type ReviewTab = z.infer<typeof reviewTabSchema>;
@@ -121,6 +138,7 @@ export const reviewCountsSchema = z.object({
   current_affairs: z.number().int(),
   notes: z.number().int(),
   reports: z.number().int(),
+  question_reports: z.number().int(),
   magazine: z.number().int(),
 });
 export type ReviewCounts = z.infer<typeof reviewCountsSchema>;

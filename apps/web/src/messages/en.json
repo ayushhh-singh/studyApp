@@ -699,7 +699,8 @@
       "current_affairs": "Current Affairs",
       "notes": "Study Notes",
       "reports": "Reports",
-      "magazine": "Magazine"
+      "magazine": "Magazine",
+      "question_reports": "Reported"
     },
     "difficulty": {
       "easy": "Easy",
@@ -1306,5 +1307,40 @@
   "ReviewMagazine": {
     "emptyTitle": "No deep dives awaiting review",
     "emptyDescription": "Run `pnpm ca:deepdive --month YYYY-MM --run` to generate this month's five Deep Dives."
+  },
+  "ReportQuestion": {
+    "trigger": "Report this question",
+    "title": "Report this question",
+    "subtitle": "Tell us what's wrong so we can review it.",
+    "reasonLabel": "What's wrong?",
+    "detailLabel": "Details (optional)",
+    "detailPlaceholder": "e.g. the correct answer should be B, not C",
+    "submit": "Submit report",
+    "thanks": "Thanks — we'll review this question.",
+    "close": "Close",
+    "reason": {
+      "wrong_answer": "Wrong answer",
+      "wrong_explanation": "Wrong explanation",
+      "translation": "Translation issue",
+      "ambiguous": "Ambiguous / unclear",
+      "other": "Something else"
+    }
+  },
+  "QuestionReports": {
+    "emptyTitle": "No reported questions",
+    "emptyDescription": "User-reported questions appear here for triage, with full provenance.",
+    "reportCount": "{{count}} report",
+    "reportCount_other": "{{count}} reports",
+    "sourceKind": "Source",
+    "exam": "Exam",
+    "promptVersion": "Prompt",
+    "keyVerified": "Official key verified",
+    "state": "State",
+    "unpublished": "hidden",
+    "correctKey": "Correct key",
+    "fixKey": "Fix key",
+    "regenerateExplanation": "Regenerate explanation",
+    "unpublish": "Unpublish",
+    "dismiss": "Dismiss reports"
   }
 }

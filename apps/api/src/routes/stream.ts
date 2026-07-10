@@ -8,6 +8,7 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
 import { MODELS, streamText, translate } from "../lib/anthropic.js";
 import { getQuestionForExplain, persistQuestionExplanation } from "../services/questions.js";
+import { prepareGroundedExplain } from "../services/question-explanation.js";
 import { executeDoubtStream, planDoubtMessage, type MentorEmit } from "../services/mentor/index.js";
 import {
   executeEvaluation,
@@ -75,6 +76,22 @@ streamRouter.get(
         return;
       }
 
+      // HARDENED: before writing an explanation that argues FOR the stored key,
+      // run a grounded key-support pre-check. If the RAG evidence disputes the
+      // stored key, we do NOT fabricate a justification for it — the question is
+      // flagged (needs_review + unpublished) and the explanation withheld. This
+      // is the failure that produced the wrong Somnath explanation.
+      const prep = await prepareGroundedExplain(question);
+      if (prep.disputed) {
+        send("error", {
+          message:
+            locale === "hi"
+              ? "इस प्रश्न की उत्तर-कुंजी समीक्षाधीन है; व्याख्या रोक दी गई है।"
+              : "This question's answer key is under review; the explanation has been withheld.",
+        });
+        return;
+      }
+
       const optionsText = (question.options_i18n ?? [])
         .map((o) => `${o.key}. ${o.text_i18n[locale]}`)
         .join("\n");
@@ -85,14 +102,16 @@ streamRouter.get(
         model: MODELS.haiku,
         system:
           "You explain UPPSC (UP PCS) MCQ answers for exam aspirants. Be concise (3-5 sentences), " +
-          "state why the correct option is right and briefly why the others are wrong. Output plain " +
-          "prose only, rendered verbatim with no markdown renderer: no headers, no bold/italic " +
-          "asterisks, no bullet lists.",
+          "argue why the given correct option is right (grounded in the reference passages) and briefly why the " +
+          "others are wrong. Ground every factual claim in the passages or well-established knowledge; never invent a " +
+          "date, article, name, or number. Output plain prose only, rendered verbatim with no markdown renderer: no " +
+          "headers, no bold/italic asterisks, no bullet lists.",
         content:
           `Question:\n${question.stem_i18n[locale]}\n\nOptions:\n${optionsText}\n\n` +
           `Correct answer: ${question.correct_option_key ?? "unknown"}` +
           (correctOption ? ` (${correctOption.text_i18n[locale]})` : "") +
-          `\n\nExplain this answer in ${locale === "hi" ? "Hindi (Devanagari)" : "English"}.`,
+          `\n\nReference passages:\n${prep.groundingBlock}\n\n` +
+          `Explain this answer in ${locale === "hi" ? "Hindi (Devanagari)" : "English"}.`,
         purpose: "mcq_explanation",
         userId: currentUserId(),
         onDelta: (delta) => {

@@ -346,16 +346,52 @@ worth paying for headroom:
   approve/edit/reject `needs_review` questions, notes, and community reports.
   Don't let this queue back up; qgen/notes generation both write here, not
   straight to published.
+- **Reported questions** (Review Queue → "Reported" tab): triage user "Report
+  this question" complaints. Each card shows the question with full provenance
+  (source_kind, generation prompt_version, exam/year, whether the official key
+  is verified) and every open report. Actions: **fix key** (corrects the key and
+  clears the stale explanation so it regenerates grounded), **regenerate
+  explanation** (grounded, argues for the key; if the key-support check disputes
+  the key it flags for you instead of writing), **unpublish**, **dismiss**. A
+  question with **two independent reports is auto-unpublished** pending your
+  review, so the highest-signal defects hide themselves.
 - **Current-affairs source review**: spot-check the `ca-run` workflow's
   output weekly — RSS feeds go dead or change format without warning (this
   already happened once with PIB/UP-government feeds during initial
   sourcing — see CLAUDE.md Session 12). If a source stops producing items,
   find and swap in a replacement in `src/ca/sources.ts`.
-- **Cost check**: `pnpm --filter api cost:report [--days 7]` — watch for
-  per-evaluation / per-CA-run cost drift, and cache-hit-rate dropping
-  (prompt-cache misses are the single biggest lever on Anthropic spend here).
-  Update `lib/models.ts`'s `standard` pricing once Anthropic publishes real
-  post-intro prices (still a placeholder — see CLAUDE.md TODO list).
+- **Cost check + question-bank quality**: `pnpm --filter api cost:report
+  [--days 7]` — watch for per-evaluation / per-CA-run cost drift and cache-hit-
+  rate dropping (prompt-cache misses are the single biggest lever on Anthropic
+  spend here). The report now ends with a **Question-bank quality** table
+  (published MCQs by `source_kind` + generation `prompt_version`) fed by the
+  `question_quality` view, and prints **QUALITY ALERTS** when a cohort exceeds a
+  threshold:
+  - **report rate > 2%** — too many of a cohort's published MCQs are drawing
+    user reports; something systemic is wrong with that source/prompt version.
+  - **inconsistency rate > 1%** — the consistency sweep is flagging too many
+    explanation-vs-key or bilingual-option mismatches.
+  - **re-solve disagreement > 5%** — the blind re-solve audit disagrees with the
+    stored key too often (for `generated`/`manual` cohorts this points at wrong
+    keys; for official-key PYQ cohorts a disagreement is usually the model, not
+    the bank — investigate before acting).
+  On an alert, run the audits below and triage the Reported-questions tab. Update
+  `lib/models.ts`'s `standard` pricing once Anthropic publishes real post-intro
+  prices (still a placeholder — see CLAUDE.md TODO list).
+- **Question-bank trust audits** (run monthly, or when a quality alert fires):
+  - `pnpm --filter api audit:consistency [--hide]` — every published MCQ:
+    structural/bilingual integrity + an explanation-vs-key check (haiku, Batch
+    API) for the ones that have an explanation. Cheap (~$0.01/full bank). Records
+    one `question_audits` row per question; resumable via `--run-id`. Read-only
+    by default; `--hide` also unpublishes each flagged question pending review.
+  - `pnpm --filter api audit:resolve [--sample N | --all] [--hide]
+    [--max-usd N]` — independently re-solves questions (no key/explanation, WITH
+    RAG grounding; haiku easy/medium, sonnet hard, Batch API), and escalates any
+    disagreement to a sonnet + `web_search` fact-check with citations. A
+    persistent disagreement is flagged (and `--hide`-eligible), **except** for
+    official-answer-key PYQs, whose stored key is ground truth — those are
+    surfaced but never auto-hidden. Cost-capped (`--max-usd`, default 12) and
+    resumable. Both write the `question_quality` numbers the cost report reads.
 - **Evaluation prompt tuning**: `pnpm --filter api eval:answers --runs 3` —
   gates on ranking (good > mediocre > off-topic) and repeatability (≤5% of
   full marks). Re-run after any prompt change in `src/services/evaluation/`.

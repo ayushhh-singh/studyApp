@@ -11,6 +11,7 @@ export * from "./learn";
 export * from "./srs";
 export * from "./evaluation";
 export * from "./review";
+export * from "./question-reports";
 export * from "./notes";
 export * from "./user-notes";
 export * from "./magazine";

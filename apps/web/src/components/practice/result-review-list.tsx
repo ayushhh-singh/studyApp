@@ -5,6 +5,7 @@ import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { CheckCircle2, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
 import type { AttemptReviewItem, BilingualText, Locale } from "@prayasup/shared";
 import { Button } from "@/components/ui/button";
+import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { useAddQuestionToRevision } from "@/hooks/use-add-to-revision";
 import { useExplainQuestion } from "@/hooks/use-explain-question";
 import { formatSeconds } from "@/lib/format-duration";
@@ -199,6 +200,10 @@ function ReviewItem({
             {t("Practice.resultAskDoubt")}
           </Link>
         </Button>
+        <ReportQuestionSheet
+          questionId={item.question_id}
+          className="ml-auto flex h-8 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        />
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import type { AttemptAnswerRecord, AttemptSubmitResult, Locale, TestDetail } fro
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
+import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { CountdownTimer } from "./countdown-timer";
 import { QuestionPalette, type QuestionStatus } from "./question-palette";
 import { SubmitConfirmDialog } from "./submit-confirm-dialog";
@@ -328,6 +329,7 @@ export function TestPlayer({
                 outOfSyllabus={question.out_of_syllabus}
               />
               {question.marks != null && <span>{t("Learn.marks", { count: question.marks })}</span>}
+              <ReportQuestionSheet questionId={question.id} />
             </div>
           </div>
 

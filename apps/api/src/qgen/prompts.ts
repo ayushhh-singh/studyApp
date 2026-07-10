@@ -18,7 +18,11 @@ import { MODELS, type StructuredParams } from "../lib/anthropic.js";
 import type { CriticVerdict, Difficulty, VerifyResult } from "@prayasup/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
-export const QGEN_PROMPT_VERSION = "qgen-v1";
+// qgen-v2 (question-bank trust hardening): the Stage-B critic now receives the
+// node RAG passages and must enumerate the answer's decisive facts, each tagged
+// grounded / well_established / unverifiable — any unverifiable fact hard-rejects
+// the candidate (parseCritic). The Stage-C blind verify is now grounded too.
+export const QGEN_PROMPT_VERSION = "qgen-v2";
 
 interface BilingualPair {
   hi: string;
@@ -259,17 +263,23 @@ export function parseDescGen(json: unknown): GeneratedDescriptive[] {
 // ---------------------------------------------------------------------------
 const CRITIC_SYSTEM =
   "You are a strict UPPSC question-quality reviewer. You are given ONE candidate exam question (with its intended " +
-  "answer/marking scheme) and the syllabus topic it targets. Judge it rigorously and return JSON:\n" +
+  "answer/marking scheme), the syllabus topic it targets, and REFERENCE PASSAGES retrieved for that topic. Judge it " +
+  "rigorously against the passages — do NOT rely on the question's own explanation for the facts. Return JSON:\n" +
   "- single_correct_answer: for an MCQ, is there EXACTLY ONE defensibly-correct option and are the other three " +
   "genuinely wrong? (for a descriptive question, is the task well-posed and answerable within its word limit?)\n" +
   "- options_plausible: are the distractors plausible and non-trivial (not obviously absurd, not near-duplicates of " +
   "the answer)? (descriptive: is the marking outline complete and on-point?)\n" +
   "- uppsc_tone: does it read like a real UPPSC question in difficulty, phrasing, and format?\n" +
   "- out_of_syllabus: is any part outside the stated topic/paper syllabus?\n" +
-  "- factual_red_flags: list any statement that is factually wrong or unverifiable (empty array if none).\n" +
+  "- decisive_facts: list EVERY proper noun, date, article/section number, statistic, or named person/scheme the " +
+  "answer turns on. For each, set status = 'grounded' if a reference passage supports it, 'well_established' if it is " +
+  "basic knowledge you are certain of, or 'unverifiable' if neither. Be honest — do not upgrade a fact you are only " +
+  "guessing at.\n" +
+  "- factual_red_flags: list any statement that is factually wrong (empty array if none).\n" +
   "- notes: one or two sentences on the main issue, or praise if clean.\n" +
-  "- approve: true ONLY if it is single-correct (or well-posed), plausible, on-tone, in-syllabus, and factually " +
-  "clean. Be conservative — reject anything you would not put in front of a real aspirant.\n" +
+  "- approve: true ONLY if it is single-correct (or well-posed), plausible, on-tone, in-syllabus, has NO factual red " +
+  "flags, and NO decisive fact is 'unverifiable'. We do not publish unverifiable trivia. Be conservative — reject " +
+  "anything you would not put in front of a real aspirant.\n" +
   "Return strict JSON only.";
 
 export const CRITIC_SCHEMA: Record<string, unknown> = {
@@ -280,6 +290,18 @@ export const CRITIC_SCHEMA: Record<string, unknown> = {
     options_plausible: { type: "boolean" },
     uppsc_tone: { type: "boolean" },
     out_of_syllabus: { type: "boolean" },
+    decisive_facts: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          fact: { type: "string" },
+          status: { type: "string", enum: ["grounded", "well_established", "unverifiable"] },
+        },
+        required: ["fact", "status"],
+      },
+    },
     factual_red_flags: { type: "array", items: { type: "string" } },
     notes: { type: "string" },
     approve: { type: "boolean" },
@@ -289,6 +311,7 @@ export const CRITIC_SCHEMA: Record<string, unknown> = {
     "options_plausible",
     "uppsc_tone",
     "out_of_syllabus",
+    "decisive_facts",
     "factual_red_flags",
     "notes",
     "approve",
@@ -310,13 +333,15 @@ function renderDescForCritic(q: GeneratedDescriptive): string {
   );
 }
 
-export function buildCriticParams(opts: { node: NodeContext; rendered: string }): StructuredParams {
+export function buildCriticParams(opts: { node: NodeContext; rendered: string; grounding: GroundingResult }): StructuredParams {
   return {
     model: MODELS.sonnet,
     effort: "medium",
-    maxTokens: 1200,
+    maxTokens: 1600,
     system: [{ text: CRITIC_SYSTEM, cache: true }],
-    content: `SYLLABUS TOPIC:\n${nodeLine(opts.node)}\n\nCANDIDATE QUESTION:\n${opts.rendered}\n\nReturn your JSON verdict.`,
+    content:
+      `SYLLABUS TOPIC:\n${nodeLine(opts.node)}\n\n${groundingBlock(opts.grounding)}\n\n` +
+      `CANDIDATE QUESTION:\n${opts.rendered}\n\nReturn your JSON verdict.`,
     schema: CRITIC_SCHEMA,
   };
 }
@@ -325,12 +350,17 @@ export const renderQuestionForCritic = { mcq: renderMcqForCritic, descriptive: r
 
 export function parseCritic(json: unknown): CriticVerdict {
   const v = json as CriticVerdict;
+  const decisiveFacts = Array.isArray(v.decisive_facts) ? v.decisive_facts : [];
+  const hasUnverifiable = decisiveFacts.some((f) => f.status === "unverifiable");
   return {
-    approve: !!v.approve,
+    // Hard gate: any unverifiable decisive fact forces rejection even if the
+    // model set approve=true — we do not publish unverifiable trivia.
+    approve: !!v.approve && !hasUnverifiable,
     single_correct_answer: !!v.single_correct_answer,
     options_plausible: !!v.options_plausible,
     uppsc_tone: !!v.uppsc_tone,
     out_of_syllabus: !!v.out_of_syllabus,
+    decisive_facts: decisiveFacts,
     factual_red_flags: Array.isArray(v.factual_red_flags) ? v.factual_red_flags : [],
     notes: typeof v.notes === "string" ? v.notes : "",
   };
@@ -340,10 +370,10 @@ export function parseCritic(json: unknown): CriticVerdict {
 // Stage C — blind verify (claude-haiku-4-5). MCQ only; the key is HIDDEN.
 // ---------------------------------------------------------------------------
 const VERIFY_SYSTEM =
-  "You are a top UPPSC aspirant sitting the exam. You are shown one multiple-choice question and its four options, " +
-  "with NO answer key. Choose the single best option purely on your own knowledge. Return JSON: chosen_key (A/B/C/D) " +
-  "and confidence (0 to 1). If two options seem equally correct or none is correct, pick the closest and set a low " +
-  "confidence. Do not explain. Return strict JSON only.";
+  "You are a top UPPSC aspirant sitting the exam. You are shown one multiple-choice question, its four options, and " +
+  "some REFERENCE PASSAGES, with NO answer key. Choose the single best option using the passages and your own " +
+  "well-established knowledge. Return JSON: chosen_key (A/B/C/D) and confidence (0 to 1). If two options seem equally " +
+  "correct or none is correct, pick the closest and set a low confidence. Do not explain. Return strict JSON only.";
 
 export const VERIFY_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -355,13 +385,19 @@ export const VERIFY_SCHEMA: Record<string, unknown> = {
   required: ["chosen_key", "confidence"],
 };
 
-export function buildVerifyParams(opts: { stemEn: string; options: { key: string; text_i18n: BilingualPair }[] }): StructuredParams {
+export function buildVerifyParams(opts: {
+  stemEn: string;
+  options: { key: string; text_i18n: BilingualPair }[];
+  grounding: GroundingResult;
+}): StructuredParams {
   const opts_ = opts.options.map((o) => `${o.key}) ${o.text_i18n.en}`).join("\n");
   return {
     model: MODELS.haiku,
     maxTokens: 400,
     system: [{ text: VERIFY_SYSTEM, cache: true }],
-    content: `Question:\n${opts.stemEn}\n\nOptions:\n${opts_}\n\nWhich option is correct?`,
+    content:
+      `Question:\n${opts.stemEn}\n\nOptions:\n${opts_}\n\n` +
+      `Reference passages:\n${groundingBlock(opts.grounding)}\n\nWhich option is correct?`,
     schema: VERIFY_SCHEMA,
   };
 }

@@ -10,6 +10,7 @@ import { checkMentorCacheHealthAtBoot } from "./services/mentor/cache-health.js"
 import { streamRouter } from "./routes/stream.js";
 import { syllabusRouter } from "./routes/syllabus.js";
 import { questionsRouter } from "./routes/questions.js";
+import { questionReportsRouter } from "./routes/question-reports.js";
 import { testsRouter } from "./routes/tests.js";
 import { attemptsRouter } from "./routes/attempts.js";
 import { dashboardRouter } from "./routes/dashboard.js";
@@ -110,6 +111,7 @@ app.use("/api/v1", requireAuth);
 app.use("/api/v1", streamRouter);
 app.use("/api/v1", syllabusRouter);
 app.use("/api/v1", questionsRouter);
+app.use("/api/v1", questionReportsRouter);
 app.use("/api/v1", testsRouter);
 app.use("/api/v1", attemptsRouter);
 app.use("/api/v1", dashboardRouter);

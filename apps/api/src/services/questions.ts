@@ -87,6 +87,7 @@ export async function getQuestionById(id: string): Promise<Question> {
 
 export interface QuestionForExplain {
   id: string;
+  syllabus_node_id: string | null;
   stem_i18n: BilingualText;
   options_i18n: { key: string; text_i18n: BilingualText }[] | null;
   correct_option_key: string | null;
@@ -96,7 +97,7 @@ export interface QuestionForExplain {
 export async function getQuestionForExplain(questionId: string): Promise<QuestionForExplain> {
   const { data, error } = await supabase()
     .from("questions")
-    .select("id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
+    .select("id, syllabus_node_id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
     .or(questionVisibilityOrFilter("catalog"))
     .maybeSingle();

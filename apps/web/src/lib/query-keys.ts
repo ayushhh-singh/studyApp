@@ -91,6 +91,7 @@ export const queryKeys = {
   communityBlocks: () => ["community", "blocks"] as const,
   adminReports: (page: number) => ["admin", "community", "reports", page] as const,
   adminReportsCounts: () => ["admin", "community", "reports", "counts"] as const,
+  adminQuestionReports: (page: number) => ["admin", "question-reports", page] as const,
   scoreboardDailyToday: () => ["scoreboard", "daily-quiz", "today"] as const,
   scoreboardDailyWeekly: () => ["scoreboard", "daily-quiz", "weekly"] as const,
   scoreboardMockTests: (paperCode?: string) => ["scoreboard", "mocks", "tests", paperCode ?? "all"] as const,

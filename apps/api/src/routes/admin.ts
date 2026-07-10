@@ -24,6 +24,10 @@ import {
   reviewMagazineRejectBodySchema,
   reviewMagazineResponseSchema,
   reviewMagazineActionResponseSchema,
+  questionReportsQueueQuerySchema,
+  questionReportsQueueResponseSchema,
+  questionReportActionResponseSchema,
+  resolveQuestionReportBodySchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -48,6 +52,11 @@ import {
 } from "../services/notes.js";
 import { listReportsQueue, REPORTS_PAGE_SIZE, resolveReportsForTarget } from "../services/community-admin.js";
 import {
+  listQuestionReportsQueue,
+  QUESTION_REPORTS_PAGE_SIZE,
+  resolveQuestionReport,
+} from "../services/question-reports.js";
+import {
   approveMagazineDeepDive,
   editMagazineDeepDive,
   listReviewMagazine,
@@ -71,6 +80,7 @@ adminRouter.get(
 adminRouter.use("/admin/review", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/notes", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/community", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
+adminRouter.use("/admin/question-reports", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/magazine", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 
 adminRouter.get(
@@ -227,6 +237,43 @@ adminRouter.post(
     const { action } = parse(resolveReportBodySchema, req.body);
     const result = await resolveReportsForTarget(currentUserId(), targetType, targetId, action);
     res.json(reportActionResponseSchema.parse({ data: result, error: null }));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Question reports (the Review Queue's "Reported questions" tab). User "Report
+// this question" complaints, grouped by question, with full provenance. Admin
+// actions fix the key / regenerate the explanation / unpublish / dismiss.
+// ---------------------------------------------------------------------------
+adminRouter.get(
+  "/admin/question-reports",
+  asyncHandler(async (req, res) => {
+    const { page } = parse(questionReportsQueueQuerySchema, req.query);
+    const { items, total } = await listQuestionReportsQueue(page);
+    res.json(
+      questionReportsQueueResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: QUESTION_REPORTS_PAGE_SIZE,
+            total,
+            total_pages: Math.max(1, Math.ceil(total / QUESTION_REPORTS_PAGE_SIZE)),
+          },
+        },
+        error: null,
+      }),
+    );
+  }),
+);
+
+adminRouter.post(
+  "/admin/question-reports/:id/resolve",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    const { action, correct_option_key } = parse(resolveQuestionReportBodySchema, req.body);
+    const result = await resolveQuestionReport(currentUserId(), id, action, correct_option_key);
+    res.json(questionReportActionResponseSchema.parse({ data: result, error: null }));
   }),
 );
 
