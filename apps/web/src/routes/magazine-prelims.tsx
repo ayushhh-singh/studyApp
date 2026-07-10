@@ -21,34 +21,24 @@ const FACT_KIND_ICON: Record<CurrentAffairsFactKind, string> = {
   misc: "🔖",
 };
 
-/** A boxed feature's fact card — the fact line, its extras, and one line of "why this is here" context. */
-function FactRow({ fact, locale, showItemTitle }: { fact: MagazineFactEntry; locale: Locale; showItemTitle: boolean }) {
-  const extras = fact.extras ?? {};
-  const extraLine = [extras.ministry, extras.publisher, extras.rank, extras.location].filter(Boolean).join(" · ");
-  return (
-    <li className="mag-item flex flex-col gap-1 break-inside-avoid rounded-lg border border-marigold/25 bg-marigold/[0.05] px-3 py-2.5">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className={locale === "hi" ? "text-sm font-medium leading-[1.9]" : "text-sm font-medium leading-relaxed"}>
-          {fact.fact_i18n[locale]}
-        </span>
-        <span className="shrink-0 text-[11px] text-muted-foreground">{fact.item_date}</span>
-      </div>
-      {extraLine && <span className="text-[11px] text-muted-foreground">{extraLine}</span>}
-      {fact.item_summary_i18n?.[locale] && (
-        <p className={locale === "hi" ? "text-[13px] leading-[1.8] text-foreground/80" : "text-[13px] leading-relaxed text-foreground/80"}>
-          {fact.item_summary_i18n[locale]}
-        </p>
-      )}
-      {showItemTitle && <span className="text-[11px] italic text-muted-foreground">{fact.item_title_i18n[locale]}</span>}
-    </li>
-  );
+/** A boxed feature's single fact, reshaped into the same write-up shape ItemBlock renders — every card in the Prelims Compendium reads the same way, whether it's grouped by topic or by fact kind. */
+function factEntryAsItemBlock(f: MagazineFactEntry): MagazineItemBlock {
+  return {
+    item_id: f.item_id,
+    item_title_i18n: f.item_title_i18n,
+    item_date: f.item_date,
+    summary_i18n: f.item_summary_i18n,
+    possible_question_i18n: null,
+    facts: [{ fact_i18n: f.fact_i18n, kind: f.kind, extras: f.extras }],
+  };
 }
 
 /**
  * A full PT365-style write-up: headline + context paragraph + every one of
  * the item's facts as bullets + the likely Prelims question angle, if any.
- * Used for topic sections and UP Special — a coaching-magazine reader needs
- * more than a bare one-line fact per entry.
+ * Used everywhere in the Prelims Compendium — topic sections, UP Special,
+ * and the boxed features (one fact each) — so the whole edition reads
+ * consistently, not a mix of rich write-ups and bare one-liners.
  */
 function ItemBlock({ item, locale }: { item: MagazineItemBlock; locale: Locale }) {
   const { t } = useTranslation();
@@ -190,11 +180,11 @@ export function Component() {
                 <h2 className="mb-3 flex items-center gap-2 border-b border-marigold/50 pb-1.5 text-lg font-bold text-marigold-foreground">
                   <span aria-hidden>{FACT_KIND_ICON[b.kind]}</span> {t(`Magazine.boxedFeature.${b.kind}`)}
                 </h2>
-                <ul className="flex flex-col gap-2">
+                <div className="flex flex-col gap-3">
                   {b.facts.map((f, i) => (
-                    <FactRow key={i} fact={f} locale={locale} showItemTitle />
+                    <ItemBlock key={`${f.item_id}-${i}`} item={factEntryAsItemBlock(f)} locale={locale} />
                   ))}
-                </ul>
+                </div>
               </section>
             ))}
 
