@@ -33,7 +33,7 @@ export async function startGhostBattle(userId: string, previousAttemptId: string
     ]),
   );
 
-  const attempt = await startAttempt(userId, { test_id: prev.test_id });
+  const attempt = await startAttempt(userId, { test_id: prev.test_id }, { source: "ghost" });
   const test = await getTestDetail(prev.test_id);
 
   const ghost: GhostEntry[] = test.questions.map((q) => {

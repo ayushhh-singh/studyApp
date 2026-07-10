@@ -87,4 +87,17 @@ export const queryKeys = {
   communityBlocks: () => ["community", "blocks"] as const,
   adminReports: (page: number) => ["admin", "community", "reports", page] as const,
   adminReportsCounts: () => ["admin", "community", "reports", "counts"] as const,
+  scoreboardDailyToday: () => ["scoreboard", "daily-quiz", "today"] as const,
+  scoreboardDailyWeekly: () => ["scoreboard", "daily-quiz", "weekly"] as const,
+  scoreboardMockTests: (paperCode?: string) => ["scoreboard", "mocks", "tests", paperCode ?? "all"] as const,
+  scoreboardMockSeries: (paperCode: string) => ["scoreboard", "mocks", "series", paperCode] as const,
+  scoreboardSectionalTests: (paperCode?: string) => ["scoreboard", "sectionals", "tests", paperCode ?? "all"] as const,
+  scoreboardTest: (testId: string) => ["scoreboard", "tests", testId] as const,
+  scoreboardMainsWeekly: () => ["scoreboard", "mains", "weekly"] as const,
+  scoreboardMainsEssay: () => ["scoreboard", "mains", "essay"] as const,
+  scoreboardDimensionBests: () => ["scoreboard", "mains", "dimension-bests"] as const,
+  scoreboardRankCardAttempt: (attemptId: string) => ["scoreboard", "rank-card", "attempt", attemptId] as const,
+  scoreboardRankCardEvaluation: (submissionId: string) =>
+    ["scoreboard", "rank-card", "evaluation", submissionId] as const,
+  scoreboardMyRanks: () => ["scoreboard", "my-ranks"] as const,
 };

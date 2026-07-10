@@ -29,3 +29,4 @@ export * from "./billing";
 export * from "./push";
 export * from "./password-strength";
 export * from "./answer-sessions";
+export * from "./scoreboard";

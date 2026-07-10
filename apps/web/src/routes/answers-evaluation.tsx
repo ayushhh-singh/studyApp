@@ -13,9 +13,11 @@ import { EvaluationScoreHero } from "@/components/answers/evaluation-score-hero"
 import { EvaluationFeedback } from "@/components/answers/evaluation-feedback";
 import { EvaluationAnalysisNotes } from "@/components/answers/evaluation-analysis-notes";
 import { EvaluationModelAnswer } from "@/components/answers/evaluation-model-answer";
+import { PercentileBand } from "@/components/scoreboard/percentile-band";
 import { useSubmissionDetail } from "@/hooks/use-answers";
 import { useEvaluationStream } from "@/hooks/use-evaluation-stream";
 import { useAddEvaluationToRevision } from "@/hooks/use-add-to-revision";
+import { useEvaluationPercentile } from "@/hooks/use-scoreboard";
 import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { useShareAnswer } from "@/hooks/use-community";
@@ -46,6 +48,7 @@ export function Component() {
   const stream = useEvaluationStream(submissionId, locale);
   const addToRevision = useAddEvaluationToRevision();
   const shareAnswer = useShareAnswer();
+  const { data: percentile } = useEvaluationPercentile(stream.done ? submissionId : undefined);
   const { data: catalogedQuestion } = useQuestion(detail?.submission.question_id ?? undefined);
 
   useEffect(() => {
@@ -139,6 +142,8 @@ export function Component() {
       )}
 
       {stream.analysis && <EvaluationAnalysisNotes analysis={stream.analysis} />}
+
+      {stream.done && <PercentileBand data={percentile} />}
 
       <EvaluationFeedback
         strengths={stream.strengths}

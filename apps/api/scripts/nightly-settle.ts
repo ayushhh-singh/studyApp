@@ -17,8 +17,13 @@ import { recordPerfectDay } from "../src/services/daily-stats.js";
 import { recomputeMastery } from "../src/mastery/compute.js";
 import { computeLearnerProfile } from "../src/services/learner-profile.js";
 import { generateMentorInsights } from "../src/services/mentor-insights.js";
+import { refreshScoreboardViews } from "../src/services/scoreboard.js";
 
 async function main() {
+  // Scoreboard: one global refresh (not per-user), same as scheduler.ts's dev cron.
+  await refreshScoreboardViews();
+  console.log("scoreboard: nightly refresh done");
+
   await forEachUser(
     "nightly:settle",
     async (userId) => {

@@ -14,7 +14,9 @@ import { ResultScoreHero } from "@/components/practice/result-score-hero";
 import { CutoffComparison } from "@/components/practice/cutoff-comparison";
 import { ResultTopicBreakdown } from "@/components/practice/result-topic-breakdown";
 import { ResultReviewList } from "@/components/practice/result-review-list";
+import { RankCard } from "@/components/scoreboard/rank-card";
 import { useAttemptResult } from "@/hooks/use-attempt";
+import { useAttemptRankCard } from "@/hooks/use-scoreboard";
 import { useLocale } from "@/hooks/use-locale";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/lib/api";
@@ -27,6 +29,7 @@ export function Component() {
   const queryClient = useQueryClient();
   const { attemptId = "" } = useParams<{ attemptId: string }>();
   const { data: result, isLoading, error } = useAttemptResult(attemptId);
+  const { data: rankCard } = useAttemptRankCard(attemptId);
 
   const handleExplanationGenerated = useCallback(
     (questionId: string, explanation: BilingualText) => {
@@ -91,6 +94,8 @@ export function Component() {
       />
 
       <ResultScoreHero result={result} />
+
+      <RankCard card={rankCard} />
 
       {result.test && result.attempted_count > 0 && (
         <div className="flex flex-col items-center gap-1.5">

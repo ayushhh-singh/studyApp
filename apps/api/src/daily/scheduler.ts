@@ -20,6 +20,7 @@ import { recomputeMastery } from "../mastery/compute.js";
 import { recordPerfectDay } from "../services/daily-stats.js";
 import { computeLearnerProfile } from "../services/learner-profile.js";
 import { generateMentorInsights } from "../services/mentor-insights.js";
+import { refreshScoreboardViews } from "../services/scoreboard.js";
 import { forEachUser } from "../lib/users.js";
 
 const DAILY_BUILD_CRON = "0 5 * * *"; // 05:00 every day
@@ -42,6 +43,12 @@ export function startDailyScheduler(): void {
   cron.schedule(
     STREAK_NIGHTLY_CRON,
     () => {
+      // Scoreboard: one global refresh (not per-user) — mv_test_leaderboard /
+      // mv_mock_series_board / mv_mains_weekly_board + rank snapshots.
+      void refreshScoreboardViews()
+        .then(() => logger.info("scoreboard: nightly refresh finished"))
+        .catch((err) => logger.error({ err }, "scoreboard: nightly refresh failed"));
+
       void forEachUser("daily: nightly settle", async (userId) => {
         await runStreakNightly(userId);
         // Settle yesterday's Perfect Day before the IST date rolls fully over.

@@ -9,8 +9,9 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { countPerfectDays } from "./daily-stats.js";
+import { countDistinctBoardAppearances } from "./scoreboard.js";
 
-type Metric = "evaluations" | "attempts" | "mcqs" | "streak" | "perfect_days";
+type Metric = "evaluations" | "attempts" | "mcqs" | "streak" | "perfect_days" | "board_appearances";
 
 interface MilestoneDef {
   key: string;
@@ -80,17 +81,28 @@ const MILESTONE_DEFS: MilestoneDef[] = [
       hi: "सात दिन पूरी 'आज' चेकलिस्ट पूरी की। टॉपर्स ऐसे ही पढ़ते हैं।",
     },
   },
+  {
+    key: "scoreboard_regular",
+    metric: "board_appearances",
+    threshold: 3,
+    title_i18n: { en: "Scoreboard regular", hi: "स्कोरबोर्ड नियमित" },
+    body_i18n: {
+      en: "You've shown up on 3 different scoreboards — real competition, real progress.",
+      hi: "आप 3 अलग-अलग स्कोरबोर्ड पर दिखे — असली प्रतिस्पर्धा, असली प्रगति।",
+    },
+  },
 ];
 
 const defByKey = new Map(MILESTONE_DEFS.map((d) => [d.key, d]));
 
 async function computeMetrics(userId: string): Promise<Record<Metric, number>> {
-  const [evalRes, attemptRes, graded, profileRes, perfectDays] = await Promise.all([
+  const [evalRes, attemptRes, graded, profileRes, perfectDays, boardAppearances] = await Promise.all([
     supabase().from("answer_submissions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "complete"),
     supabase().from("attempts").select("id", { count: "exact", head: true }).eq("user_id", userId).not("submitted_at", "is", null),
     getGradedAnswers(userId),
     supabase().from("users_profile").select("streak_count").eq("id", userId).maybeSingle(),
     countPerfectDays(userId),
+    countDistinctBoardAppearances(userId),
   ]);
   if (evalRes.error) throw new HttpError(500, `evaluations count failed: ${evalRes.error.message}`);
   if (attemptRes.error) throw new HttpError(500, `attempts count failed: ${attemptRes.error.message}`);
@@ -101,6 +113,7 @@ async function computeMetrics(userId: string): Promise<Record<Metric, number>> {
     mcqs: graded.length,
     streak: (profileRes.data?.streak_count as number | undefined) ?? 0,
     perfect_days: perfectDays,
+    board_appearances: boardAppearances,
   };
 }
 

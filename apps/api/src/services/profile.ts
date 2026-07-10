@@ -5,7 +5,7 @@ import { istToday, daysBetween } from "../lib/ist.js";
 
 const PROFILE_COLUMNS =
   "id, display_name, handle, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date, " +
-  "streak_freezes, streak_freeze_used_on, onboarding_completed, study_hours_per_day";
+  "streak_freezes, streak_freeze_used_on, onboarding_completed, study_hours_per_day, show_on_mains_board";
 
 /**
  * Days until the next scheduled Prelims (from exam_calendar), same lookup

@@ -28,6 +28,8 @@ export const profileSchema = z.object({
   /** Days until the next known exam date (from exam_calendar), null if none scheduled. */
   days_to_exam: z.number().int().nullable(),
   next_exam_label_i18n: z.object({ hi: z.string(), en: z.string() }).nullable(),
+  /** Opt-in only — Mains (Answer Writing) scores are personal; never forced. See Scoreboard. */
+  show_on_mains_board: z.boolean(),
 });
 export type Profile = z.infer<typeof profileSchema>;
 
@@ -37,6 +39,7 @@ export const profileUpdateBodySchema = z
     preferred_locale: localeSchema.optional(),
     target_exam_year: z.number().int().min(2000).max(2100).optional(),
     medium: localeSchema.optional(),
+    show_on_mains_board: z.boolean().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "No fields to update" });
 export type ProfileUpdateBody = z.infer<typeof profileUpdateBodySchema>;

@@ -7,6 +7,7 @@ import {
   Brain,
   Sparkles,
   ShieldCheck,
+  Trophy,
   User,
   MessagesSquare,
   type LucideIcon,
@@ -35,6 +36,7 @@ export const NAV_ITEMS: NavItem[] = [
     mobilePrimary: true,
   },
   { id: "practice", to: "practice", labelKey: "Nav.practice", icon: PenSquare, mobilePrimary: true },
+  { id: "scoreboard", to: "scoreboard", labelKey: "Nav.scoreboard", icon: Trophy },
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },
   // mobilePrimary (not "learn"): Revision is one of the dashboard's own

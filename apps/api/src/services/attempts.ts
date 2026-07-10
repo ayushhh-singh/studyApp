@@ -16,13 +16,19 @@ import type {
 } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
+import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { assertMockTests } from "./entitlements.js";
+import { recordDailyQuizResult } from "./scoreboard.js";
 
 interface AttemptMeta {
   question_ids: string[];
   question_marks: Record<string, number>;
   marking_scheme: MarkingScheme;
+  /** Set only for Ghost Battle replays (see services/ghost.ts) — excludes the
+   * attempt from every Scoreboard board so ranks can't be farmed by racing
+   * yourself. Never set from the public POST /attempts body. */
+  source?: "ghost";
 }
 
 interface AttemptRow {
@@ -126,7 +132,11 @@ async function findActiveAttempt(userId: string, testId: string): Promise<Attemp
   return data as unknown as AttemptRow | null;
 }
 
-export async function startAttempt(userId: string, body: AttemptStartBody): Promise<Attempt> {
+export async function startAttempt(
+  userId: string,
+  body: AttemptStartBody,
+  opts?: { source?: "ghost" },
+): Promise<Attempt> {
   if (body.test_id) {
     const active = await findActiveAttempt(userId, body.test_id);
     if (active) return toAttempt(active);
@@ -199,7 +209,12 @@ export async function startAttempt(userId: string, body: AttemptStartBody): Prom
       user_id: userId,
       test_id: body.test_id ?? null,
       total,
-      meta: { question_ids: questionIds, question_marks: questionMarks, marking_scheme: markingScheme },
+      meta: {
+        question_ids: questionIds,
+        question_marks: questionMarks,
+        marking_scheme: markingScheme,
+        ...(opts?.source ? { source: opts.source } : {}),
+      },
     })
     .select(ATTEMPT_COLUMNS)
     .single();
@@ -344,8 +359,21 @@ export async function submitAttempt(userId: string, attemptId: string): Promise<
     .select(ATTEMPT_COLUMNS)
     .single();
   if (updateError) throw new HttpError(500, `attempt submit failed: ${updateError.message}`);
+  const finalAttempt = updated as unknown as AttemptRow;
 
-  return { attempt: toAttempt(updated as unknown as AttemptRow), results };
+  // Scoreboard: the ONE board that updates the instant a user submits (every
+  // other board is nightly-refreshed — see mv_test_leaderboard). Best-effort:
+  // a scoreboard write must never fail the submission itself. Ghost replays
+  // are already excluded by their own kind check inside recordDailyQuizResult.
+  if (finalAttempt.test_id && finalAttempt.meta.source !== "ghost") {
+    try {
+      await recordDailyQuizResult(userId, finalAttempt, gradedAnswers);
+    } catch (err) {
+      logger.error({ err }, "scoreboard: daily quiz record failed");
+    }
+  }
+
+  return { attempt: toAttempt(finalAttempt), results };
 }
 
 interface ResultQuestionRow {
