@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate, useParams } from "react-router";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { FileQuestion } from "lucide-react";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Button } from "@/components/ui/button";
@@ -12,11 +12,18 @@ export function Component() {
   const navigate = useNavigate();
   const locale = useLocale();
   const { testId } = useParams<{ testId: string }>();
+  const [searchParams] = useSearchParams();
   const startSession = useStartAnswerSession(testId);
   const { data: detail, isLoading } = useAnswerSession(startSession.data?.id);
 
+  // Return to where the session was opened from (e.g. the Current Affairs
+  // "Mains practice" button passes ?from=<path>), falling back to the Answers
+  // hub. Only in-app absolute paths are honoured (no open-redirect).
+  const fromParam = searchParams.get("from");
+  const backTo = fromParam && fromParam.startsWith("/") ? fromParam : `/${locale}/answers`;
+
   function handleExit() {
-    navigate(`/${locale}/answers`);
+    navigate(backTo);
   }
 
   if (startSession.isError) {

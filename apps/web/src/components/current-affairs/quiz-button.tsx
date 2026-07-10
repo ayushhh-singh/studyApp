@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import { ListChecks, PenLine } from "lucide-react";
 import { useWeeklyCaSets } from "@/hooks/use-current-affairs";
 import { useLocale } from "@/hooks/use-locale";
@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 export function CurrentAffairsWeeklyQuizButtons() {
   const { t } = useTranslation();
   const locale = useLocale();
+  const location = useLocation();
   const { data, isLoading } = useWeeklyCaSets();
 
   const base =
@@ -20,11 +21,14 @@ export function CurrentAffairsWeeklyQuizButtons() {
 
   const prelims = data?.prelims;
   const mains = data?.mains;
+  // Return exactly here (preserving the CA page's lens/category filters) when a
+  // quiz is cancelled, instead of the generic Practice/Answers list.
+  const from = encodeURIComponent(location.pathname + location.search);
 
   return (
     <div className="flex flex-wrap items-center gap-2">
       {prelims ? (
-        <Link to={`/${locale}/practice/test/${prelims.id}`} className={cn(base, "bg-primary text-primary-foreground hover:bg-primary/90")}>
+        <Link to={`/${locale}/practice/test/${prelims.id}?from=${from}`} className={cn(base, "bg-primary text-primary-foreground hover:bg-primary/90")}>
           <ListChecks className="size-4" aria-hidden />
           {t("CurrentAffairs.prelimsQuizButton")}
         </Link>
@@ -36,7 +40,7 @@ export function CurrentAffairsWeeklyQuizButtons() {
       )}
 
       {mains ? (
-        <Link to={`/${locale}/answers/session/${mains.id}`} className={cn(base, "bg-marigold text-marigold-foreground hover:bg-marigold/90")}>
+        <Link to={`/${locale}/answers/session/${mains.id}?from=${from}`} className={cn(base, "bg-marigold text-marigold-foreground hover:bg-marigold/90")}>
           <PenLine className="size-4" aria-hidden />
           {t("CurrentAffairs.mainsPracticeButton")}
         </Link>

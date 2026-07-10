@@ -11,12 +11,15 @@ export function TestInstructions({
   onStart,
   isStarting,
   error,
+  backTo,
 }: {
   test: TestDetail;
   locale: Locale;
   onStart: () => void;
   isStarting: boolean;
   error: Error | null;
+  /** Where the close (X) button returns to — defaults to the Practice list. */
+  backTo?: string;
 }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -27,7 +30,7 @@ export function TestInstructions({
         <Button
           variant="ghost"
           size="icon-sm"
-          onClick={() => navigate(`/${locale}/practice`)}
+          onClick={() => navigate(backTo ?? `/${locale}/practice`)}
           aria-label={t("Practice.exit")}
           className="self-start"
         >
