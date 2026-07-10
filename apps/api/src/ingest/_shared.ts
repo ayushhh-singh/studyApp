@@ -245,27 +245,6 @@ export const PAPERS: PaperDef[] = [
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन षष्ठम प्रश्नपत्र (उत्तर प्रदेश विशेष)", en: "Mains — General Studies Paper VI (UP-specific)" },
   },
-  // Pre-reform Mains (2018-2022): the historical 4-GS-paper structure.
-  {
-    paperCode: "MAINS_GS1_PRE",
-    stage: "mains",
-    title: { hi: "मुख्य (2018-22) — सामान्य अध्ययन प्रथम प्रश्नपत्र (पुरानी संरचना)", en: "Mains (2018-22) — General Studies Paper I (pre-reform)" },
-  },
-  {
-    paperCode: "MAINS_GS2_PRE",
-    stage: "mains",
-    title: { hi: "मुख्य (2018-22) — सामान्य अध्ययन द्वितीय प्रश्नपत्र (पुरानी संरचना)", en: "Mains (2018-22) — General Studies Paper II (pre-reform)" },
-  },
-  {
-    paperCode: "MAINS_GS3_PRE",
-    stage: "mains",
-    title: { hi: "मुख्य (2018-22) — सामान्य अध्ययन तृतीय प्रश्नपत्र (पुरानी संरचना)", en: "Mains (2018-22) — General Studies Paper III (pre-reform)" },
-  },
-  {
-    paperCode: "MAINS_GS4_PRE",
-    stage: "mains",
-    title: { hi: "मुख्य (2018-22) — सामान्य अध्ययन चतुर्थ प्रश्नपत्र (पुरानी संरचना)", en: "Mains (2018-22) — General Studies Paper IV (pre-reform)" },
-  },
 ];
 
 export function paperByCode(code: string): PaperDef | undefined {
@@ -369,15 +348,13 @@ export function classifyPyqId(
     essay: "MAINS_ESSAY",
     general_hindi: "MAINS_GH",
   };
-  let paperCode = map[paperRaw];
+  const paperCode = map[paperRaw];
   if (!paperCode) return null;
-  // Pre-reform UPPSC Mains (2018-2022) used a 4-GS-paper structure (GS I-IV)
-  // whose syllabus differs from the reformed GS1-6. Store those under historical
-  // paper codes (MAINS_GS1_PRE..GS4_PRE) so they don't mislabel as reformed
-  // papers; Essay/General-Hindi are unchanged across the reform. 2023+ is reformed.
-  if (stage === "mains" && year <= 2022 && /^gs[1-4]$/.test(paperRaw)) {
-    paperCode = `${paperCode}_PRE`;
-  }
+  // Pre-reform UPPSC Mains (2018-2022) used a 4-GS-paper structure. This is a
+  // parse-time placeholder (MAINS_GS1-4); those questions are then CONTENT-mapped
+  // to the reformed GS1-6 nodes and their paper_code re-assigned to the mapped
+  // node's paper (with the original preserved in meta.historical_paper). We do
+  // NOT use separate MAINS_*_PRE paper codes — they'd duplicate the paper list.
   return { examCode, paperCode, year, stage };
 }
 
