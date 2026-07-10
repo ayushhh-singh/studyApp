@@ -247,8 +247,16 @@ async function main(): Promise<void> {
   // (e.g. keys stripped / questions held) leaves a 0-question test that renders
   // broken in the UI. Delete any auto-built pyq_full/sectional test with no members.
   const { data: allTests } = await supabase().from("tests").select("id, slug, kind").in("kind", ["pyq_full", "sectional"]);
-  const { data: memberRows } = await supabase().from("test_questions").select("test_id");
-  const hasMembers = new Set((memberRows ?? []).map((m) => m.test_id as string));
+  // Paginate past the 1000-row cap — test_questions has thousands of rows, so an
+  // unpaginated fetch would see only the first 1000 memberships and wrongly flag
+  // most real tests as empty (and delete them).
+  const hasMembers = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data } = await supabase().from("test_questions").select("test_id").range(from, from + 999);
+    const rows = data ?? [];
+    for (const m of rows) hasMembers.add(m.test_id as string);
+    if (rows.length < 1000) break;
+  }
   const emptyIds = (allTests ?? []).filter((t) => !hasMembers.has(t.id as string)).map((t) => t.id as string);
   if (emptyIds.length) {
     await supabase().from("test_questions").delete().in("test_id", emptyIds);
