@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { BookmarkPlus, BookOpen, Check, Layers, ListTree, Lock, Zap } from "lucide-react";
+import { useSearchParams } from "react-router";
+import { BookmarkPlus, BookOpen, Check, GraduationCap, Layers, ListTree, Lock, Zap } from "lucide-react";
 import type { Locale, NoteBody } from "@prayasup/shared";
+import { hasChapter } from "@prayasup/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useNoteForNode, useAddNoteDeck, useAddNoteBlock } from "@/hooks/use-notes";
 import { useRecordEvent } from "@/hooks/use-record-event";
 import { usePaywallStore } from "@/stores/paywall-store";
 import { billingCopy as bc, pick } from "@/lib/billing-copy";
 import { cn } from "@/lib/utils";
 import { NoteArticle, noteVisibleSections } from "./note-article";
+import { ChapterView } from "./chapter-view";
 
 /** A prose block that respects Devanagari reading rhythm (taller leading, comfortable measure). */
 function Prose({ children, locale }: { children: string; locale: Locale }) {
@@ -56,8 +60,16 @@ function AddButton({
   );
 }
 
+// Study | Quick Revision tab labels — local (bilingual) to avoid editing the
+// shared messages/*.json files (concurrent-edit races).
+const TAB_COPY = {
+  en: { study: "Study", quick: "Quick Revision" },
+  hi: { study: "अध्ययन", quick: "त्वरित रिवीजन" },
+} as const;
+
 export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paperCode: string; locale: Locale }) {
   const { t } = useTranslation();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { data: note, isLoading, isError } = useNoteForNode(nodeId);
   const addDeck = useAddNoteDeck();
   const addBlock = useAddNoteBlock();
@@ -106,10 +118,36 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
     );
   }
 
+  const hasStudyChapter = hasChapter(note.study_content_i18n) && note.chapter_version > 0;
+  const studyTab = searchParams.get("study") === "quick" ? "quick" : "study";
+  const tabCopy = TAB_COPY[locale];
+
+  function setStudyTab(next: string) {
+    setSearchParams(
+      (prev) => {
+        const params = new URLSearchParams(prev);
+        if (next === "quick") params.set("study", "quick");
+        else params.delete("study");
+        return params;
+      },
+      { replace: true },
+    );
+  }
+
   // Free users get the top-5 notes per paper in full; any other note comes back
-  // `locked` (content trimmed to the overview). Show that preview, then an
-  // upgrade gate — first-block preview + upgrade, per the paywall spec.
+  // `locked` (content trimmed to the overview / first chapter section). Show
+  // that preview, then an upgrade gate — first-block preview + upgrade.
   if (note.locked) {
+    // A locked note that still carries a (server-trimmed) chapter shows the
+    // first section, then the upgrade gate; otherwise the plain overview preview.
+    if (hasStudyChapter) {
+      return (
+        <div className="flex flex-col gap-4">
+          <ChapterView note={note} paperCode={paperCode} nodeId={nodeId} locale={locale} />
+          <UpgradeGate locale={locale} />
+        </div>
+      );
+    }
     return <LockedNote overview={body.overview} locale={locale} />;
   }
 
@@ -157,7 +195,9 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
   // TOC entries (aside) — the article itself recomputes the same visible set.
   const visible = noteVisibleSections(t, body, quick);
 
-  return (
+  // The compact digest layer (unchanged) — the Quick Revision tab when a Study
+  // chapter exists, or the whole note when it doesn't.
+  const digestLayer = (
     <div className="flex flex-col gap-5 lg:flex-row lg:gap-8">
       {/* sticky mini-TOC (desktop) + toolbar */}
       <aside className="lg:sticky lg:top-20 lg:h-fit lg:w-52 lg:shrink-0">
@@ -244,11 +284,48 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
       />
     </div>
   );
+
+  // Digest-only note (no Study chapter): render exactly as before — no tabs.
+  if (!hasStudyChapter) return digestLayer;
+
+  // Study | Quick Revision split. Study default; choice persisted in ?study=quick.
+  return (
+    <Tabs value={studyTab} onValueChange={setStudyTab}>
+      <TabsList className="max-w-sm">
+        <TabsTrigger value="study">
+          <GraduationCap className="size-4" aria-hidden /> {tabCopy.study}
+        </TabsTrigger>
+        <TabsTrigger value="quick">
+          <Zap className="size-4" aria-hidden /> {tabCopy.quick}
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="study">
+        <ChapterView note={note} paperCode={paperCode} nodeId={nodeId} locale={locale} />
+      </TabsContent>
+      <TabsContent value="quick">{digestLayer}</TabsContent>
+    </Tabs>
+  );
+}
+
+/** The upgrade call-to-action box, shared by the overview-preview gate and the trimmed-chapter gate. */
+function UpgradeGate({ locale }: { locale: Locale }) {
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
+  return (
+    <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
+      <span className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
+        <Lock className="size-5" aria-hidden />
+      </span>
+      <div>
+        <h3 className="text-base font-semibold">{pick(locale, bc.lockedNoteHeading)}</h3>
+        <p className="mt-1 text-sm text-muted-foreground">{pick(locale, bc.paywallNotesBody)}</p>
+      </div>
+      <Button onClick={() => openPaywall("all_notes")}>{pick(locale, bc.upgradeToPro)}</Button>
+    </div>
+  );
 }
 
 /** Free-tier gate for a note outside the top-5-per-paper allowance. */
 function LockedNote({ overview, locale }: { overview: string; locale: Locale }) {
-  const openPaywall = usePaywallStore((s) => s.openPaywall);
   return (
     <div className="flex flex-col gap-4">
       {/* Overview preview, fading into the gate. */}
@@ -256,16 +333,7 @@ function LockedNote({ overview, locale }: { overview: string; locale: Locale }) 
         <Prose locale={locale}>{overview}</Prose>
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background to-transparent" />
       </div>
-      <div className="flex flex-col items-center gap-3 rounded-xl border border-primary/30 bg-primary/5 p-6 text-center">
-        <span className="flex size-11 items-center justify-center rounded-full bg-primary/15 text-primary">
-          <Lock className="size-5" aria-hidden />
-        </span>
-        <div>
-          <h3 className="text-base font-semibold">{pick(locale, bc.lockedNoteHeading)}</h3>
-          <p className="mt-1 text-sm text-muted-foreground">{pick(locale, bc.paywallNotesBody)}</p>
-        </div>
-        <Button onClick={() => openPaywall("all_notes")}>{pick(locale, bc.upgradeToPro)}</Button>
-      </div>
+      <UpgradeGate locale={locale} />
     </div>
   );
 }

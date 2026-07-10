@@ -110,7 +110,8 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
       .eq("review_state", "approved")
       .not("syllabus_node_id", "is", null),
     // Published study notes per paper (via the node's paper_code) → coverage %.
-    supabase().from("notes").select("syllabus_nodes(paper_code)").eq("status", "published"),
+    // chapter_version > 0 distinguishes a full Study chapter from a digest note.
+    supabase().from("notes").select("chapter_version, syllabus_nodes(paper_code)").eq("status", "published"),
     getGradedAnswers(userId),
   ]);
   if (rootsResult.error) throw new HttpError(500, `paper roots lookup failed: ${rootsResult.error.message}`);
@@ -137,13 +138,18 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
   }
 
   const notesByPaper = new Map<string, number>();
+  const chaptersByPaper = new Map<string, number>();
   for (const row of notesResult.data ?? []) {
     // PostgREST embeds the to-one join as an object or a single-element array.
-    const sn = (row as unknown as { syllabus_nodes: { paper_code: string } | { paper_code: string }[] | null })
-      .syllabus_nodes;
+    const r = row as unknown as {
+      chapter_version: number | null;
+      syllabus_nodes: { paper_code: string } | { paper_code: string }[] | null;
+    };
+    const sn = r.syllabus_nodes;
     const code = Array.isArray(sn) ? sn[0]?.paper_code : sn?.paper_code;
     if (!code) continue;
     notesByPaper.set(code, (notesByPaper.get(code) ?? 0) + 1);
+    if ((r.chapter_version ?? 0) > 0) chaptersByPaper.set(code, (chaptersByPaper.get(code) ?? 0) + 1);
   }
 
   const accuracyByPaper = new Map<string, { correct: number; total: number }>();
@@ -167,6 +173,7 @@ export async function getPaperSummaries(userId: string): Promise<PaperSummary[]>
       accuracy_pct: stats && stats.total > 0 ? round2((stats.correct / stats.total) * 100) : null,
       answered_count: stats?.total ?? 0,
       notes_published_count: notesByPaper.get(root.paper_code) ?? 0,
+      chapters_published_count: chaptersByPaper.get(root.paper_code) ?? 0,
     };
   });
 }

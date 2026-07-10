@@ -29,6 +29,8 @@ export const paperSummarySchema = z.object({
   answered_count: z.number().int(),
   /** Published study notes for this paper — drives the coverage % on the card. */
   notes_published_count: z.number().int(),
+  /** Of those, how many are full Study chapters (Session 28) vs digest-only notes. */
+  chapters_published_count: z.number().int().default(0),
 });
 export type PaperSummary = z.infer<typeof paperSummarySchema>;
 

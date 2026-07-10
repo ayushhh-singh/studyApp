@@ -1,13 +1,16 @@
 import { createHash } from "node:crypto";
 import type {
   BilingualText,
+  FactAudit,
   NoteContentI18n,
   NoteDetail,
   NoteSource,
   NoteSrsCandidate,
   ReviewNote,
   ReviewNoteEditBody,
+  StudyContent,
 } from "@prayasup/shared";
+import { hasChapter, unresolvedFlagCount } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
@@ -32,14 +35,30 @@ export async function deleteNoteEmbeddings(noteId: string): Promise<void> {
 // Reader
 // ---------------------------------------------------------------------------
 const NOTE_DETAIL_COLUMNS =
-  "id, syllabus_node_id, status, version, content_i18n, sources, srs_candidates, updated_at";
+  "id, syllabus_node_id, status, version, content_i18n, study_content_i18n, chapter_version, fact_audit, sources, srs_candidates, updated_at";
+
+const EMPTY_STUDY: StudyContent = { sections: [], toc: [], est_read_minutes: 0, word_count: 0 };
+
+interface NoteDetailRow {
+  id: string;
+  syllabus_node_id: string;
+  status: NoteDetail["status"];
+  version: number;
+  content_i18n: NoteContentI18n;
+  study_content_i18n: StudyContent | null;
+  chapter_version: number | null;
+  fact_audit: FactAudit | null;
+  sources: NoteSource[] | null;
+  srs_candidates: NoteSrsCandidate[] | null;
+  updated_at: string;
+}
 
 /**
  * GET /notes/node/:nodeId — the PUBLISHED note for a topic, or null.
  *
  * Entitlement: Free users read the full note only for the top-5 notes per paper
- * (by weightage). Any other note comes back `locked` with content trimmed to
- * the overview block — the reader shows that preview plus an upgrade gate.
+ * (by weightage). Any other note comes back `locked` with content trimmed to a
+ * preview (the overview + the chapter's first section) plus an upgrade gate.
  */
 export async function getNoteForNode(userId: string, nodeId: string): Promise<NoteDetail | null> {
   const { data, error } = await supabase()
@@ -49,13 +68,29 @@ export async function getNoteForNode(userId: string, nodeId: string): Promise<No
     .eq("status", "published")
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
-  const note = (data as NoteDetail | null) ?? null;
-  if (!note) return null;
+  const row = (data as NoteDetailRow | null) ?? null;
+  if (!row) return null;
 
-  if (await canReadFullNote(userId, nodeId)) return { ...note, locked: false };
+  const study = row.study_content_i18n ?? EMPTY_STUDY;
+  const base: NoteDetail = {
+    id: row.id,
+    syllabus_node_id: row.syllabus_node_id,
+    status: row.status,
+    version: row.version,
+    content_i18n: row.content_i18n,
+    study_content_i18n: study,
+    chapter_version: row.chapter_version ?? 0,
+    fact_audit_ok: unresolvedFlagCount(row.fact_audit) === 0,
+    sources: row.sources ?? [],
+    srs_candidates: row.srs_candidates ?? [],
+    updated_at: row.updated_at,
+    locked: false,
+  };
 
-  // Locked: keep only the overview block in each locale, drop everything else
-  // (facts, up-angle, mnemonics, further reading) and the SRS candidates.
+  if (await canReadFullNote(userId, nodeId)) return base;
+
+  // Locked: overview only, plus a preview of the chapter's first section (body,
+  // no boxes/diagram). Drop everything else + the SRS candidates.
   const emptyBody = (overview: string) => ({
     overview,
     key_facts: [],
@@ -65,11 +100,28 @@ export async function getNoteForNode(userId: string, nodeId: string): Promise<No
     quick_revision: [],
     further_reading: [],
   });
-  const trimmed: NoteContentI18n = {
-    hi: emptyBody(note.content_i18n?.hi?.overview ?? ""),
-    en: emptyBody(note.content_i18n?.en?.overview ?? ""),
+  const trimmedContent: NoteContentI18n = {
+    hi: emptyBody(row.content_i18n?.hi?.overview ?? ""),
+    en: emptyBody(row.content_i18n?.en?.overview ?? ""),
   };
-  return { ...note, content_i18n: trimmed, sources: [], srs_candidates: [], locked: true };
+  const firstSection = study.sections[0];
+  const trimmedStudy: StudyContent = firstSection
+    ? {
+        sections: [{ ...firstSection, boxes: [], diagram: null, pyq_ids: [] }],
+        toc: study.toc.slice(0, 1),
+        est_read_minutes: study.est_read_minutes,
+        word_count: study.word_count,
+      }
+    : EMPTY_STUDY;
+
+  return {
+    ...base,
+    content_i18n: trimmedContent,
+    study_content_i18n: trimmedStudy,
+    sources: [],
+    srs_candidates: [],
+    locked: true,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -183,7 +235,9 @@ export async function addNoteBlockToRevision(
 export const NOTES_REVIEW_PAGE_SIZE = 5;
 
 const REVIEW_NOTE_COLUMNS =
-  "id, syllabus_node_id, status, version, content_i18n, sources, srs_candidates, meta, model, cost_usd, created_at, updated_at, syllabus_nodes(paper_code, title_i18n)";
+  "id, syllabus_node_id, status, version, content_i18n, study_content_i18n, chapter_version, fact_audit, sources, srs_candidates, meta, model, cost_usd, created_at, updated_at, syllabus_nodes(paper_code, title_i18n)";
+
+const EMPTY_FACT_AUDIT: FactAudit = { facts: [], summary: { verified: 0, flagged: 0, unverifiable: 0 }, audited_at: null, model: null };
 
 function overviewComplete(content: NoteContentI18n | null): boolean {
   const hi = content?.hi?.overview?.trim();
@@ -197,6 +251,9 @@ interface ReviewNoteRow {
   status: ReviewNote["status"];
   version: number;
   content_i18n: NoteContentI18n;
+  study_content_i18n: StudyContent | null;
+  chapter_version: number | null;
+  fact_audit: FactAudit | null;
   sources: NoteSource[];
   srs_candidates: NoteSrsCandidate[];
   meta: ReviewNote["meta"];
@@ -210,6 +267,8 @@ interface ReviewNoteRow {
 function toReviewNote(r: ReviewNoteRow): ReviewNote {
   // PostgREST embeds the to-one join as an object or a single-element array.
   const sn = Array.isArray(r.syllabus_nodes) ? r.syllabus_nodes[0] : r.syllabus_nodes;
+  const study = r.study_content_i18n ?? { sections: [], toc: [], est_read_minutes: 0, word_count: 0 };
+  const factAudit = r.fact_audit ?? EMPTY_FACT_AUDIT;
   return {
     id: r.id,
     syllabus_node_id: r.syllabus_node_id,
@@ -218,12 +277,16 @@ function toReviewNote(r: ReviewNoteRow): ReviewNote {
     status: r.status,
     version: r.version,
     content_i18n: r.content_i18n,
+    study_content_i18n: study,
+    chapter_version: r.chapter_version ?? 0,
+    fact_audit: factAudit,
     sources: r.sources ?? [],
     srs_candidates: r.srs_candidates ?? [],
     meta: r.meta ?? null,
     model: r.model,
     cost_usd: Number(r.cost_usd ?? 0),
     publish_gate_ok: overviewComplete(r.content_i18n),
+    unresolved_flags: unresolvedFlagCount(factAudit),
     created_at: r.created_at,
     updated_at: r.updated_at,
   };
@@ -258,8 +321,9 @@ async function loadNoteForAction(id: string): Promise<ReviewNoteRow> {
   const { data, error } = await supabase()
     // `meta` is needed so rejectNote can MERGE reject_reason into the existing
     // generation/critic audit blob instead of overwriting it with just the reason.
+    // study_content_i18n + fact_audit drive the chapter publish gate.
     .from("notes")
-    .select("id, content_i18n, status, meta")
+    .select("id, content_i18n, study_content_i18n, fact_audit, status, meta")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
@@ -271,6 +335,16 @@ export async function approveNote(id: string): Promise<{ id: string; status: Rev
   const note = await loadNoteForAction(id);
   if (!overviewComplete(note.content_i18n)) {
     throw badRequest("Cannot publish: the note is missing a Hindi or English overview");
+  }
+  // Chapter gate: a chapter with ANY unresolved flagged/unverifiable decisive fact
+  // cannot publish (Session 28). Resolve or fix the flagged facts first.
+  if (hasChapter(note.study_content_i18n)) {
+    const unresolved = unresolvedFlagCount(note.fact_audit);
+    if (unresolved > 0) {
+      throw badRequest(
+        `Cannot publish: ${unresolved} decisive fact(s) are still flagged/unverifiable. Resolve them in the fact-audit panel first.`,
+      );
+    }
   }
   const { error } = await supabase().from("notes").update({ status: "published" }).eq("id", id);
   if (error) throw new HttpError(500, `note publish failed: ${error.message}`);
@@ -291,6 +365,8 @@ export async function rejectNote(id: string, reason?: string): Promise<{ id: str
 export async function editNote(id: string, body: ReviewNoteEditBody): Promise<{ id: string; status: ReviewNote["status"] }> {
   const patch: Record<string, unknown> = {};
   if (body.content_i18n) patch.content_i18n = body.content_i18n;
+  if (body.study_content_i18n) patch.study_content_i18n = body.study_content_i18n;
+  if (body.fact_audit) patch.fact_audit = body.fact_audit;
   if (body.sources) patch.sources = body.sources;
   if (body.srs_candidates) patch.srs_candidates = body.srs_candidates;
   if (Object.keys(patch).length > 0) {

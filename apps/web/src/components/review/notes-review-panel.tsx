@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { useNoteApprove, useNoteEdit, useNoteReject, useReviewNotes } from "@/hooks/use-review-notes";
+import { ChapterReview, isChapterNote } from "@/components/review/chapter-review";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
@@ -302,7 +303,25 @@ export function NotesReviewPanel() {
         </div>
       )}
 
-      {editing ? (
+      {isChapterNote(current) ? (
+        // Chapters (Session 28) own their whole review surface (fact-audit gate
+        // + section-level edit); its internal edit mode reports up via
+        // onEditingChange so the queue nav is disabled while editing, same as
+        // the digest form. key={current.id} remounts if the queue shifts.
+        <ChapterReview
+          key={current.id}
+          note={current}
+          pending={pending}
+          onEditingChange={setEditing}
+          onSendBack={() => reject.mutate({ id: current.id }, { onSuccess: refresh })}
+          onSave={(body, onDone) =>
+            edit.mutate(
+              { id: current.id, body },
+              { onSuccess: () => { onDone?.(); refresh(); } },
+            )
+          }
+        />
+      ) : editing ? (
         // key={current.id}: forces a remount if `current` ever changes while
         // editing (e.g. a concurrent action elsewhere shrinks the queue and
         // the index-clamp effect above shifts `current`) — same fix as

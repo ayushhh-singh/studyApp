@@ -212,8 +212,8 @@ export function NoteArticle({
                   </a>
                 </li>
               ))}
-              {sources.map((src) => (
-                <li key={src.id}>
+              {sources.map((src, i) => (
+                <li key={`${src.id}-${i}`}>
                   <a
                     href={src.url}
                     target="_blank"
