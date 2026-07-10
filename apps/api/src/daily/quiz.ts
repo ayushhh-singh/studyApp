@@ -140,13 +140,20 @@ async function currentAffairsPool(days: number): Promise<PoolItem[]> {
   if (itemsErr) throw new Error(`current affairs lookup failed: ${itemsErr.message}`);
   const ids = [...new Set((items ?? []).flatMap((i) => (i.mcq_question_ids ?? []) as string[]))];
   if (ids.length === 0) return [];
-  const { data, error } = await supabase()
-    .from("questions")
-    .select(MCQ_COLUMNS)
-    .in("id", ids)
-    .or(questionVisibilityOrFilter("test"));
-  if (error) throw new Error(`current affairs question lookup failed: ${error.message}`);
-  return shuffle((data ?? []) as { id: string; marks: number | null }[]).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
+  // Chunk the id list: `.in("id", ids)` becomes a URL query param, and a large
+  // list (the CA bank now has ~400 linked MCQs) makes the URL exceed the HTTP
+  // client's limit → an opaque "TypeError: fetch failed". Batch in groups of 100.
+  const rows: { id: string; marks: number | null }[] = [];
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select(MCQ_COLUMNS)
+      .in("id", ids.slice(i, i + 100))
+      .or(questionVisibilityOrFilter("test"));
+    if (error) throw new Error(`current affairs question lookup failed: ${error.message}`);
+    rows.push(...((data ?? []) as { id: string; marks: number | null }[]));
+  }
+  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
 }
 
 /** Every catalog-visible MCQ — the random-coverage slice AND the backfill reservoir. */
