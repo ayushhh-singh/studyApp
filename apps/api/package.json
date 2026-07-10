@@ -15,6 +15,7 @@
     "ingest:pyq:load": "tsx --env-file-if-exists=.env src/ingest/pyq-load.ts",
     "ingest:resolve": "tsx --env-file-if-exists=.env src/ingest/resolve.ts",
     "ingest:explain": "tsx --env-file-if-exists=.env src/ingest/explain.ts",
+    "ingest:assemble": "tsx --env-file-if-exists=.env src/ingest/agent-assemble.ts",
     "ingest:tests": "tsx --env-file-if-exists=.env src/ingest/tests.ts",
     "ingest:embed": "tsx --env-file-if-exists=.env src/ingest/embed.ts",
     "ingest:verify": "tsx --env-file-if-exists=.env src/ingest/verify.ts",
