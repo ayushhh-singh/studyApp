@@ -35,10 +35,11 @@ const TTL_MS = 30_000;
 async function probe(): Promise<MentorCacheHealth> {
   const db = supabase();
 
-  // (a) table present + selectable
-  let tableOk = false;
-  const { error: tableErr } = await db.from("doubt_faq_cache").select("id").limit(1);
-  tableOk = !tableErr;
+  // (a) table present + selectable, AND carries the post-0070 `mode` column
+  // (selecting `mode` fails on a pre-0070 table even when the cache is empty,
+  // which the RPC probe below can't catch on an empty cache).
+  const { error: tableErr } = await db.from("doubt_faq_cache").select("id, mode").limit(1);
+  const tableOk = !tableErr;
 
   // (b) RPC present, runs, and returns the mode column (proves 0070 applied)
   let rpcOk = false;
@@ -56,7 +57,7 @@ async function probe(): Promise<MentorCacheHealth> {
   const detail = tableOk && rpcOk
     ? "ok"
     : [
-        !tableOk ? "doubt_faq_cache table missing (migration 0049)" : null,
+        !tableOk ? "doubt_faq_cache table missing or pre-0070 (migrations 0049/0070)" : null,
         tableOk && !rpcOk ? "match_doubt_faq RPC missing or pre-0070 (migrations 0049/0070)" : null,
       ]
         .filter(Boolean)

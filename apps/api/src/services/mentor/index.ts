@@ -349,8 +349,10 @@ async function compressToRevision(opts: {
 async function logDoubtLookup(
   userId: string,
   props: {
-    outcome: "hit_silent" | "hit_similar" | "hit_compressed" | "miss" | "bypass" | "personal";
-    mode: "normal" | "revision";
+    outcome: "hit_silent" | "hit_similar" | "hit_compressed" | "miss" | "bypass" | "personal" | "teacher";
+    mode: "normal" | "revision" | "teacher";
+    /** Teacher-lesson depth, when outcome is "teacher" — so cost:report can split in-depth latency out. */
+    depth?: MentorDepth;
     nearest_similarity: number | null;
     model_call: boolean;
     ttft_ms: number | null;
@@ -406,21 +408,37 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
       emit("citations", { citations: decision.entry.citations, weak: decision.entry.citations.length === 0 });
       emit("source", { from_cache: true, similar: showSimilar });
 
-      let served: string;
+      let served = "";
+      let compressOk = false;
       if (decision.kind === "compress") {
         emit("status", { phase: "answering" });
-        served = await compressToRevision({
-          text: decision.entry.answer,
-          locale,
-          userId,
-          signal,
-          onDelta: (d) => {
-            markFirstDelta();
-            emit("delta", { text: d });
-          },
-        });
-        // Cache the compressed revision so the next revision hit is direct.
-        if (served.trim()) {
+        let streamedAny = false;
+        try {
+          served = await compressToRevision({
+            text: decision.entry.answer,
+            locale,
+            userId,
+            signal,
+            onDelta: (d) => {
+              streamedAny = true;
+              markFirstDelta();
+              emit("delta", { text: d });
+            },
+          });
+          compressOk = true;
+        } catch (err) {
+          // Compression failed — rather than error a doubt we already had a good
+          // cached full answer for, fall back to serving that answer. Only safe
+          // if nothing was streamed yet (else we'd emit a half recap + full text).
+          if (streamedAny) throw err;
+          logger.warn({ err }, "mentor: revision compression failed; serving the cached full answer");
+          served = decision.entry.answer;
+          markFirstDelta();
+          emit("delta", { text: served });
+        }
+        // Cache the compressed revision (only when it actually compressed) so the
+        // next revision hit is direct.
+        if (compressOk && served.trim()) {
           await upsertFaqCache({
             questionText: question,
             vectorLiteral,
@@ -448,7 +466,9 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
           ...(decision.kind === "compress" ? { compressed: true } : {}),
         },
       });
-      await logDoubtLookup(userId, {
+      emit("done", { message_id: messageId, thread_id: threadId });
+      // Observability write is off the critical path — never delay `done`.
+      void logDoubtLookup(userId, {
         outcome: decision.kind === "compress" ? "hit_compressed" : showSimilar ? "hit_similar" : "hit_silent",
         mode,
         nearest_similarity: nearestSimilarity,
@@ -456,7 +476,6 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
         ttft_ms: ttft(),
         total_ms: Date.now() - startedAt,
       });
-      emit("done", { message_id: messageId, thread_id: threadId });
       return;
     }
   }
@@ -516,7 +535,9 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
     await upsertFaqCache({ questionText: question, vectorLiteral, locale, answer, citations: context.citations, mode });
   }
 
-  await logDoubtLookup(userId, {
+  emit("done", { message_id: messageId, thread_id: threadId });
+  // Observability write is off the critical path — never delay `done`.
+  void logDoubtLookup(userId, {
     outcome: personal ? "personal" : bypassCache ? "bypass" : "miss",
     mode,
     nearest_similarity: nearestSimilarity,
@@ -524,7 +545,6 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
     ttft_ms: ttft(),
     total_ms: Date.now() - startedAt,
   });
-  emit("done", { message_id: messageId, thread_id: threadId });
 }
 
 // ---------------------------------------------------------------------------
@@ -548,6 +568,14 @@ function resolveLessonNode(explicitNodeId: string | undefined, citations: Mentor
 async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: MentorEmit, signal?: AbortSignal): Promise<void> {
   const { locale, question, depth, nodeId, vectorLiteral } = plan;
   const threadId = plan.thread.id;
+
+  // Latency instrumentation — teacher (esp. in-depth, which does web research) is
+  // the "long answer feels slow" path the user flagged, so measure it too.
+  const startedAt = Date.now();
+  let firstDeltaAt: number | null = null;
+  const markFirstDelta = () => {
+    if (firstDeltaAt === null) firstDeltaAt = Date.now();
+  };
 
   emit("teacher", { depth, node_id: nodeId ?? null });
   emit("status", { phase: "retrieving" });
@@ -605,6 +633,7 @@ async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: Mento
     userId,
     signal,
     onDelta: (delta) => {
+      markFirstDelta();
       answer += delta;
       emit("delta", { text: delta });
     },
@@ -651,6 +680,17 @@ async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: Mento
   });
 
   emit("done", { message_id: messageId, thread_id: threadId });
+  // Off the critical path. Teacher lessons never use the cache; logged with a
+  // distinct outcome + depth so cost:report can split in-depth latency out.
+  void logDoubtLookup(userId, {
+    outcome: "teacher",
+    mode: "teacher",
+    depth,
+    nearest_similarity: null,
+    model_call: true,
+    ttft_ms: firstDeltaAt === null ? null : firstDeltaAt - startedAt,
+    total_ms: Date.now() - startedAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
