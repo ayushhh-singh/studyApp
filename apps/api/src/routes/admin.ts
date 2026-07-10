@@ -19,6 +19,11 @@ import {
   reportsQueueResponseSchema,
   reportTargetTypeSchema,
   resolveReportBodySchema,
+  reviewMagazineEditBodySchema,
+  reviewMagazineQuerySchema,
+  reviewMagazineRejectBodySchema,
+  reviewMagazineResponseSchema,
+  reviewMagazineActionResponseSchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -42,6 +47,13 @@ import {
   rejectNote,
 } from "../services/notes.js";
 import { listReportsQueue, REPORTS_PAGE_SIZE, resolveReportsForTarget } from "../services/community-admin.js";
+import {
+  approveMagazineDeepDive,
+  editMagazineDeepDive,
+  listReviewMagazine,
+  MAGAZINE_REVIEW_PAGE_SIZE,
+  rejectMagazineDeepDive,
+} from "../services/magazine.js";
 
 export const adminRouter = Router();
 
@@ -59,6 +71,7 @@ adminRouter.get(
 adminRouter.use("/admin/review", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/notes", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/community", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
+adminRouter.use("/admin/magazine", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 
 adminRouter.get(
   "/admin/review",
@@ -214,5 +227,58 @@ adminRouter.post(
     const { action } = parse(resolveReportBodySchema, req.body);
     const result = await resolveReportsForTarget(currentUserId(), targetType, targetId, action);
     res.json(reportActionResponseSchema.parse({ data: result, error: null }));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Magazine deep-dive review (the Review Queue's Magazine tab). A deep dive is
+// not a `questions` row, so — like notes/reports above — it gets its own
+// list/action endpoints rather than services/review.ts's applyTab.
+// ---------------------------------------------------------------------------
+adminRouter.get(
+  "/admin/magazine/review",
+  asyncHandler(async (req, res) => {
+    const { page } = parse(reviewMagazineQuerySchema, req.query);
+    const { items, total } = await listReviewMagazine(page);
+    res.json(
+      reviewMagazineResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: MAGAZINE_REVIEW_PAGE_SIZE,
+            total,
+            total_pages: Math.max(1, Math.ceil(total / MAGAZINE_REVIEW_PAGE_SIZE)),
+          },
+        },
+        error: null,
+      }),
+    );
+  }),
+);
+
+adminRouter.post(
+  "/admin/magazine/:id/approve",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(reviewMagazineActionResponseSchema.parse({ data: await approveMagazineDeepDive(id), error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/magazine/:id/reject",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    const { reason } = parse(reviewMagazineRejectBodySchema, req.body);
+    res.json(reviewMagazineActionResponseSchema.parse({ data: await rejectMagazineDeepDive(id, reason), error: null }));
+  }),
+);
+
+adminRouter.patch(
+  "/admin/magazine/:id",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    const body = parse(reviewMagazineEditBodySchema, req.body);
+    res.json(reviewMagazineActionResponseSchema.parse({ data: await editMagazineDeepDive(id, body), error: null }));
   }),
 );

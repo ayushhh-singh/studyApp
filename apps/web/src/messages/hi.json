@@ -697,7 +697,8 @@
       "machine_translated": "मशीन-अनूदित",
       "current_affairs": "करेंट अफेयर्स",
       "notes": "अध्ययन नोट्स",
-      "reports": "रिपोर्ट"
+      "reports": "रिपोर्ट",
+      "magazine": "मैगज़ीन"
     },
     "difficulty": {
       "easy": "आसान",
@@ -810,10 +811,37 @@
     "back": "सभी माह",
     "print": "प्रिंट / PDF",
     "masthead": "प्रयासUP करेंट अफेयर्स",
-    "coverStats": "{{total}} समाचार · {{up}} उत्तर-प्रदेश-विशिष्ट",
     "upSection": "उत्तर प्रदेश फोकस",
-    "quizAppendix": "अभ्यास प्रश्नोत्तरी ({{count}} प्रश्न)",
-    "footer": "प्रकाशित स्रोतों से हमारे अपने शब्दों में संकलित। UPPSC परीक्षा तैयारी हेतु।"
+    "footer": "प्रकाशित स्रोतों से हमारे अपने शब्दों में संकलित। UPPSC परीक्षा तैयारी हेतु।",
+    "editionCounts": "{{prelims}} प्रीलिम्स तथ्य · {{mains}} मेन्स मुद्दे",
+    "prelimsEditionTitle": "प्रीलिम्स कम्पेंडियम",
+    "prelimsEditionDescription": "बॉक्स्ड तथ्य, योजनाएँ, रिपोर्ट व सूचकांक, स्थान, संगठन — त्वरित पुनरावृत्ति हेतु विषयवार।",
+    "mainsEditionTitle": "मेन्स विश्लेषण",
+    "mainsEditionDescription": "GS-पेपरवार मुद्दा विवरण, पाँच चयनित डीप डाइव्स, और मार्किंग-पॉइंट फ्रेमवर्क सहित मॉडल मेन्स प्रश्न।",
+    "deepDiveCount": "{{count}} डीप डाइव्स",
+    "prelimsCoverStats": "{{items}} आइटम · {{facts}} बॉक्स्ड तथ्य",
+    "mainsCoverStats": "{{issues}} मुद्दे · {{deepDives}} डीप डाइव्स",
+    "indexToc": "इस अंक में",
+    "boxedFeature.scheme": "इस माह की योजनाएँ",
+    "boxedFeature.report_index": "रिपोर्ट व सूचकांक",
+    "boxedFeature.place": "चर्चा में स्थान",
+    "boxedFeature.org": "चर्चा में संगठन",
+    "boxedFeature.species": "प्रजातियाँ व पर्यावरण",
+    "boxedFeature.appointment": "नियुक्तियाँ व व्यक्ति",
+    "boxedFeature.day_theme": "दिवस व थीम",
+    "boxedFeature.misc": "अन्य तथ्य",
+    "workbookAppendix": "वर्कबुक ({{count}} प्रश्न)",
+    "deepDivesSection": "डीप डाइव्स",
+    "deepDiveLabel": "डीप डाइव #{{rank}}",
+    "modelQuestionsSection": "मॉडल मेन्स प्रश्न",
+    "modelQMarks": "{{marks}} अंक",
+    "modelQWords": "{{words}} शब्द",
+    "markingPoints": "मार्किंग पॉइंट्स",
+    "printProOnly": "प्रिंट या PDF डाउनलोड के लिए प्रो में अपग्रेड करें",
+    "reviewTitle": "शीर्षक",
+    "reviewIntro": "परिचय",
+    "reviewSynthesis": "संश्लेषण",
+    "reviewSourceCount": "{{count}} स्रोत"
   },
   "Notifications": {
     "title": "सूचनाएँ",
@@ -1266,5 +1294,9 @@
     "delete": "नोट हटाएँ",
     "deleteConfirm": "यह नोट हटाएँ? इसे पूर्ववत नहीं किया जा सकता।",
     "otherLocaleNotice": "यह नोट दूसरी भाषा में लिखा गया था। इसे यहाँ पढ़ने के लिए अनुवाद करें।"
+  },
+  "ReviewMagazine": {
+    "emptyTitle": "समीक्षा हेतु कोई डीप डाइव नहीं",
+    "emptyDescription": "इस माह के पाँच डीप डाइव्स बनाने के लिए `pnpm ca:deepdive --month YYYY-MM --run` चलाएँ।"
   }
 }

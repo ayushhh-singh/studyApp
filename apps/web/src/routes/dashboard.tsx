@@ -10,6 +10,7 @@ import { PerformanceCard } from "@/components/dashboard/performance-card";
 import { WeaknessCard } from "@/components/dashboard/weakness-card";
 import { AnswerSpotlightCard } from "@/components/dashboard/answer-spotlight-card";
 import { WeeklyDigestCard } from "@/components/dashboard/weekly-digest-card";
+import { MagazineLinkCard } from "@/components/dashboard/magazine-link-card";
 import { ActivityHeatmapCard } from "@/components/dashboard/activity-heatmap-card";
 import { MentorInsightCard } from "@/components/dashboard/mentor-insight-card";
 import { useDashboardSummary } from "@/hooks/use-dashboard-summary";
@@ -67,6 +68,8 @@ export function Component() {
       </div>
 
       <WeeklyDigestCard />
+
+      <MagazineLinkCard />
 
       <ActivityHeatmapCard />
 

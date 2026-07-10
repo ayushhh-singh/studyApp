@@ -102,7 +102,7 @@ export function Component() {
         description={t("CurrentAffairs.description")}
         action={
           <Link
-            to={`/${locale}/magazine`}
+            to={`/${locale}/magazine/${istToday().slice(0, 7)}`}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-sm font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <BookMarked className="size-4" /> {t("Magazine.navTitle")}

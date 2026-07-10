@@ -28,7 +28,8 @@
     "push:send": "pnpm --filter api push:send",
     "demo:seed": "pnpm --filter api demo:seed",
     "ca:assemble": "pnpm --filter api ca:assemble",
-    "ca:backfill": "pnpm --filter api ca:backfill"
+    "ca:backfill": "pnpm --filter api ca:backfill",
+    "ca:deepdive": "pnpm --filter api ca:deepdive"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

@@ -106,9 +106,12 @@ export const router = createBrowserRouter([
           { path: "practice/ghost/:attemptId", lazy: () => import("@/routes/practice-ghost") },
           // Same rationale as the test player — a focused full-screen review flow.
           { path: "revision/session", lazy: () => import("@/routes/revision-session") },
-          // The monthly magazine is a print-styled document (own header + print
-          // button, no app chrome) so print-to-PDF is clean.
-          { path: "magazine/:month", lazy: () => import("@/routes/magazine") },
+          // The magazine editions are print-styled documents (own header +
+          // print button, no app chrome) so print-to-PDF is clean. The
+          // month page itself is a lightweight edition picker (two cards).
+          { path: "magazine/:month", lazy: () => import("@/routes/magazine-month") },
+          { path: "magazine/:month/prelims", lazy: () => import("@/routes/magazine-prelims") },
+          { path: "magazine/:month/mains", lazy: () => import("@/routes/magazine-mains") },
         ],
       },
       // A path with a VALID locale prefix but no matching child (e.g.

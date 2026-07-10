@@ -41,7 +41,9 @@ export function Component() {
                 </span>
                 <span className="flex min-w-0 flex-1 flex-col">
                   <span className="font-semibold">{m.title_i18n[locale]}</span>
-                  <span className="text-xs text-muted-foreground">{t("Magazine.itemCount", { count: m.item_count })}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {t("Magazine.editionCounts", { prelims: m.prelims_item_count, mains: m.mains_item_count })}
+                  </span>
                 </span>
                 <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               </Link>

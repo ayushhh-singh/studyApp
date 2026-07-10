@@ -84,6 +84,11 @@ export const billingCopy = {
     en: "Free covers the 5 highest-weightage topics per paper. Unlock every note with Pro.",
     hi: "मुफ़्त में प्रति पेपर 5 सर्वाधिक-वेटेज विषय शामिल हैं। प्रो के साथ हर नोट अनलॉक करें।",
   } as T,
+  paywallMagazineTitle: { en: "Magazine PDF download is a Pro feature", hi: "मैगज़ीन PDF डाउनलोड एक प्रो सुविधा है" } as T,
+  paywallMagazineBody: {
+    en: "Read both monthly editions free online. Printing/downloading a clean PDF is a Pro feature.",
+    hi: "दोनों मासिक संस्करण मुफ़्त ऑनलाइन पढ़ें। स्वच्छ PDF प्रिंट/डाउनलोड करना एक प्रो सुविधा है।",
+  } as T,
   paywallGenericTitle: { en: "Unlock with Pro", hi: "प्रो के साथ अनलॉक करें" } as T,
   yourGains: { en: "Your proven gains", hi: "आपका सिद्ध सुधार" } as T,
   gainsAvg: { en: "On answers you rewrote, your score improved by", hi: "जिन उत्तरों को आपने दोबारा लिखा, उनका स्कोर बढ़ा" } as T,

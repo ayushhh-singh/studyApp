@@ -22,6 +22,7 @@ import { HttpError, notFound } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { reviewNotesCount } from "./notes.js";
 import { reportsCounts } from "./community-admin.js";
+import { reviewMagazineCount } from "./magazine.js";
 
 export const REVIEW_PAGE_SIZE = 10;
 
@@ -143,8 +144,8 @@ function mapRow(row: ReviewRow, similar: SimilarQuestion[]): ReviewQuestion {
 }
 
 export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ items: ReviewQuestion[]; total: number }> {
-  // Notes have their own list endpoint (services/notes.ts) — never a question query.
-  if (tab === "notes") return { items: [], total: 0 };
+  // Notes/magazine have their own list endpoints — never a questions query.
+  if (tab === "notes" || tab === "magazine") return { items: [], total: 0 };
   const from = (page - 1) * REVIEW_PAGE_SIZE;
   const to = from + REVIEW_PAGE_SIZE - 1;
   const base = supabase().from("questions").select(REVIEW_COLUMNS, { count: "exact" });
@@ -160,7 +161,7 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
 
 export async function reviewCounts(): Promise<ReviewCounts> {
   const tabs: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs"];
-  const [questionEntries, notes, reports] = await Promise.all([
+  const [questionEntries, notes, reports, magazine] = await Promise.all([
     Promise.all(
       tabs.map(async (tab) => {
         const { count, error } = await applyTab(
@@ -173,11 +174,13 @@ export async function reviewCounts(): Promise<ReviewCounts> {
     ),
     reviewNotesCount(),
     reportsCounts(),
+    reviewMagazineCount(),
   ]);
   return {
-    ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes" | "reports">),
+    ...(Object.fromEntries(questionEntries) as Omit<ReviewCounts, "notes" | "reports" | "magazine">),
     notes,
     reports: reports.open,
+    magazine,
   };
 }
 

@@ -1,13 +1,15 @@
 /**
  * `pnpm ca:compile --month YYYY-MM` — assemble a month's PUBLISHED current
- * affairs into the structured bilingual magazine document and print a summary.
+ * affairs into both magazine editions (Prelims Compendium + Mains Analysis)
+ * and print a summary.
  *
- * The magazine is computed on demand (no table) by services/magazine.ts and
- * served at GET /magazine/:month → rendered at the print-styled route
- * /:locale/magazine/:month. This CLI is a smoke-test / ops entry point; with
- * no --month it lists every compilable month.
+ * Both editions are computed on demand (no table, except the reviewed Deep
+ * Dives) by services/magazine.ts and served at GET /magazine/:month/{prelims,
+ * mains} → rendered at the print-styled routes /:locale/magazine/:month/
+ * {prelims,mains}. This CLI is a smoke-test / ops entry point; with no
+ * --month it lists every compilable month.
  */
-import { compileMagazine, listMagazineMonths } from "../services/magazine.js";
+import { compileMainsEdition, compilePrelimsEdition, listMagazineMonths } from "../services/magazine.js";
 
 function arg(name: string): string | null {
   const i = process.argv.indexOf(`--${name}`);
@@ -24,24 +26,41 @@ async function main(): Promise<void> {
       console.log("  (no published current affairs yet — run pnpm ca:run first)");
       return;
     }
-    for (const m of months) console.log(`  ${m.month}  ${m.title_i18n.en}  (${m.item_count} items)`);
+    for (const m of months) {
+      console.log(
+        `  ${m.month}  ${m.title_i18n.en}  (${m.prelims_item_count} prelims, ${m.mains_item_count} mains, ${m.deep_dive_count} deep dives)`,
+      );
+    }
     console.log("\nRun: pnpm ca:compile --month <YYYY-MM>");
     return;
   }
 
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("--month must be YYYY-MM");
 
-  const mag = await compileMagazine(month);
-  if (!mag) {
-    console.log(`No published current affairs for ${month}.`);
-    return;
+  const [prelims, mains] = await Promise.all([compilePrelimsEdition(month), compileMainsEdition(month)]);
+
+  if (!prelims) {
+    console.log(`No prelims-life published current affairs for ${month}.`);
+  } else {
+    console.log(`\n📰  Prelims Compendium — ${prelims.title_i18n.en} / ${prelims.title_i18n.hi}`);
+    console.log(`    ${prelims.total_items} items · ${prelims.total_facts} facts · ${prelims.workbook.length} workbook MCQs`);
+    console.log(`    UP Special (lead section): ${prelims.up_special.length} fact(s)`);
+    for (const s of prelims.topic_sections) console.log(`    topic ${s.category}: ${s.facts.length} fact(s)`);
+    for (const b of prelims.boxed_features) console.log(`    boxed ${b.kind}: ${b.facts.length} fact(s)`);
+    console.log(`    Rendered at: /<locale>/magazine/${month}/prelims  (print-to-PDF ready)`);
   }
 
-  console.log(`\n📰  ${mag.title_i18n.en} / ${mag.title_i18n.hi}`);
-  console.log(`    ${mag.total_items} items · ${mag.up_item_count} UP-specific · ${mag.mcq_appendix.length} quiz MCQs\n`);
-  console.log(`  UP-Specific (lead section): ${mag.up_section.length} item(s)`);
-  for (const s of mag.sections) console.log(`  ${s.category}: ${s.items.length} item(s)`);
-  console.log(`\n  Rendered at: /<locale>/magazine/${month}  (print-to-PDF ready)`);
+  if (!mains) {
+    console.log(`\nNo mains-life published current affairs for ${month}.`);
+  } else {
+    console.log(`\n📰  Mains Analysis — ${mains.title_i18n.en} / ${mains.title_i18n.hi}`);
+    console.log(
+      `    ${mains.total_issues} issues · ${mains.deep_dives.length} published deep dives · ${mains.model_questions.length} model questions`,
+    );
+    for (const s of mains.gs_sections) console.log(`    ${s.paper}: ${s.items.length} issue brief(s)`);
+    console.log(`    Rendered at: /<locale>/magazine/${month}/mains  (print-to-PDF ready)`);
+    console.log(`\n    Deep dives: run \`pnpm ca:deepdive --month ${month} --run\` then approve in the admin Review Queue's Magazine tab.`);
+  }
 }
 
 main().catch((err) => {

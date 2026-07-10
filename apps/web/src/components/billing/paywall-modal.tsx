@@ -27,6 +27,8 @@ function featureCopy(feature: PaywallFeature) {
       return { title: c.paywallDrillsTitle, body: c.paywallDrillsBody };
     case "all_notes":
       return { title: c.paywallNotesTitle, body: c.paywallNotesBody };
+    case "magazine_pdf":
+      return { title: c.paywallMagazineTitle, body: c.paywallMagazineBody };
     default:
       return { title: c.paywallGenericTitle, body: c.pricingSubtitle };
   }

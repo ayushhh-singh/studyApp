@@ -697,7 +697,8 @@
       "machine_translated": "Machine-translated",
       "current_affairs": "Current Affairs",
       "notes": "Study Notes",
-      "reports": "Reports"
+      "reports": "Reports",
+      "magazine": "Magazine"
     },
     "difficulty": {
       "easy": "Easy",
@@ -810,10 +811,37 @@
     "back": "All months",
     "print": "Print / PDF",
     "masthead": "PrayasUP Current Affairs",
-    "coverStats": "{{total}} stories · {{up}} Uttar-Pradesh-specific",
     "upSection": "Uttar Pradesh Focus",
-    "quizAppendix": "Practice Quiz ({{count}} questions)",
-    "footer": "Compiled in our own words from published sources. For UPPSC exam preparation."
+    "footer": "Compiled in our own words from published sources. For UPPSC exam preparation.",
+    "editionCounts": "{{prelims}} prelims facts · {{mains}} mains issues",
+    "prelimsEditionTitle": "Prelims Compendium",
+    "prelimsEditionDescription": "Boxed facts, schemes, reports & indices, places, organizations — topic-wise for quick revision.",
+    "mainsEditionTitle": "Mains Analysis",
+    "mainsEditionDescription": "GS-paper-wise issue briefs, five curated Deep Dives, and Model Mains Questions with marking-point frameworks.",
+    "deepDiveCount": "{{count}} deep dives",
+    "prelimsCoverStats": "{{items}} items · {{facts}} boxed facts",
+    "mainsCoverStats": "{{issues}} issues · {{deepDives}} deep dives",
+    "indexToc": "In this issue",
+    "boxedFeature.scheme": "Schemes of the Month",
+    "boxedFeature.report_index": "Reports & Indices",
+    "boxedFeature.place": "Places in News",
+    "boxedFeature.org": "Organizations in News",
+    "boxedFeature.species": "Species & Environment",
+    "boxedFeature.appointment": "Appointments & Persons",
+    "boxedFeature.day_theme": "Days & Themes",
+    "boxedFeature.misc": "Other Facts",
+    "workbookAppendix": "Workbook ({{count}} questions)",
+    "deepDivesSection": "Deep Dives",
+    "deepDiveLabel": "Deep Dive #{{rank}}",
+    "modelQuestionsSection": "Model Mains Questions",
+    "modelQMarks": "{{marks}} marks",
+    "modelQWords": "{{words}} words",
+    "markingPoints": "Marking points",
+    "printProOnly": "Upgrade to Pro to print or download a PDF",
+    "reviewTitle": "Title",
+    "reviewIntro": "Intro",
+    "reviewSynthesis": "Synthesis",
+    "reviewSourceCount": "{{count}} source(s)"
   },
   "Notifications": {
     "title": "Notifications",
@@ -1266,5 +1294,9 @@
     "delete": "Delete note",
     "deleteConfirm": "Delete this note? This can't be undone.",
     "otherLocaleNotice": "This note was written in the other language. Translate it to read it here."
+  },
+  "ReviewMagazine": {
+    "emptyTitle": "No deep dives awaiting review",
+    "emptyDescription": "Run `pnpm ca:deepdive --month YYYY-MM --run` to generate this month's five Deep Dives."
   }
 }

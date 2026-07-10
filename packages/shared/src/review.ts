@@ -100,6 +100,7 @@ export const reviewTabSchema = z.enum([
   "current_affairs",
   "notes",
   "reports",
+  "magazine",
 ]);
 export type ReviewTab = z.infer<typeof reviewTabSchema>;
 
@@ -120,6 +121,7 @@ export const reviewCountsSchema = z.object({
   current_affairs: z.number().int(),
   notes: z.number().int(),
   reports: z.number().int(),
+  magazine: z.number().int(),
 });
 export type ReviewCounts = z.infer<typeof reviewCountsSchema>;
 

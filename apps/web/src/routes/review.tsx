@@ -18,6 +18,7 @@ import { ReviewCard } from "@/components/review/review-card";
 import { ReviewEditForm } from "@/components/review/review-edit-form";
 import { NotesReviewPanel } from "@/components/review/notes-review-panel";
 import { ReportsReviewPanel } from "@/components/review/reports-review-panel";
+import { MagazineReviewPanel } from "@/components/review/magazine-review-panel";
 import {
   useAdminStatus,
   useReviewApprove,
@@ -39,6 +40,7 @@ const TABS: ReviewTab[] = [
   "current_affairs",
   "notes",
   "reports",
+  "magazine",
 ];
 
 /** A generated item is "high-confidence" (bulk-approvable) when the blind verify agreed and no factual flags were raised. */
@@ -64,7 +66,8 @@ export function Component() {
   const counts = useReviewCounts(adminMode);
   const isNotesTab = tab === "notes";
   const isReportsTab = tab === "reports";
-  const queue = useReviewQueue(tab, page, adminMode && !isNotesTab && !isReportsTab);
+  const isMagazineTab = tab === "magazine";
+  const queue = useReviewQueue(tab, page, adminMode && !isNotesTab && !isReportsTab && !isMagazineTab);
   const items = useMemo(() => queue.data?.items ?? [], [queue.data]);
   const totalPages = queue.data?.pagination.total_pages ?? 1;
 
@@ -235,6 +238,8 @@ export function Component() {
         <NotesReviewPanel />
       ) : isReportsTab ? (
         <ReportsReviewPanel />
+      ) : isMagazineTab ? (
+        <MagazineReviewPanel />
       ) : queue.isLoading ? (
         <Skeleton className="h-72 w-full" />
       ) : items.length === 0 ? (

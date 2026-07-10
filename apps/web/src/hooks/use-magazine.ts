@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { magazineMonthsResponseSchema, magazineResponseSchema } from "@prayasup/shared";
+import { magazineMainsResponseSchema, magazineMonthsResponseSchema, magazinePrelimsResponseSchema } from "@prayasup/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -11,12 +11,23 @@ export function useMagazineMonths() {
   });
 }
 
-export function useMagazine(month: string) {
+const MONTH_RE = /^\d{4}-\d{2}$/;
+
+export function useMagazinePrelims(month: string) {
   return useQuery({
-    queryKey: queryKeys.magazine(month),
-    queryFn: () => api.get(`/api/v1/magazine/${month}`, magazineResponseSchema),
-    enabled: /^\d{4}-\d{2}$/.test(month),
-    // A past month's compiled magazine is immutable once the month has rolled over.
+    queryKey: queryKeys.magazinePrelims(month),
+    queryFn: () => api.get(`/api/v1/magazine/${month}/prelims`, magazinePrelimsResponseSchema),
+    enabled: MONTH_RE.test(month),
+    // A past month's edition is immutable once the month has rolled over.
+    staleTime: 30 * 60_000,
+  });
+}
+
+export function useMagazineMains(month: string) {
+  return useQuery({
+    queryKey: queryKeys.magazineMains(month),
+    queryFn: () => api.get(`/api/v1/magazine/${month}/mains`, magazineMainsResponseSchema),
+    enabled: MONTH_RE.test(month),
     staleTime: 30 * 60_000,
   });
 }
