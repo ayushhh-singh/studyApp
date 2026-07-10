@@ -82,6 +82,16 @@ function decideReview(
 
   if (q.type === "mcq") {
     const blindStatus = meta.blind_resolve?.status;
+    // CSAT (Paper-II) is comprehension/reasoning/quant — a blind re-solve WITHOUT
+    // the passage is unreliable, so the official key is authoritative for CSAT and
+    // blind-resolve is NOT a gate here. Publish key-verified CSAT directly.
+    // (Misaligned CSAT papers have their key stripped upstream — answer_key_verified
+    // becomes false — so they fall through to the blind gate below and stay held.)
+    if (q.paper_code === "PRE_CSAT" && meta.answer_key_verified === true) {
+      return compilation
+        ? { reviewState: "needs_review", isPublished: true }
+        : { reviewState: "approved", isPublished: true };
+    }
     // Independent (web-verified) solve disputes the key, or the solve errored → hold.
     if (blindStatus === "flagged" || blindStatus === "error") {
       return { reviewState: "needs_review", isPublished: false };

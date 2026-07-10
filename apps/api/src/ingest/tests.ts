@@ -232,6 +232,19 @@ async function main(): Promise<void> {
     sectionalCount++;
   }
 
+  // Clean up stale EMPTY tests: a paper that lost all its published questions
+  // (e.g. keys stripped / questions held) leaves a 0-question test that renders
+  // broken in the UI. Delete any auto-built pyq_full/sectional test with no members.
+  const { data: allTests } = await supabase().from("tests").select("id, slug, kind").in("kind", ["pyq_full", "sectional"]);
+  const { data: memberRows } = await supabase().from("test_questions").select("test_id");
+  const hasMembers = new Set((memberRows ?? []).map((m) => m.test_id as string));
+  const emptyIds = (allTests ?? []).filter((t) => !hasMembers.has(t.id as string)).map((t) => t.id as string);
+  if (emptyIds.length) {
+    await supabase().from("test_questions").delete().in("test_id", emptyIds);
+    await supabase().from("tests").delete().in("id", emptyIds);
+    report.ok(`removed ${emptyIds.length} empty (0-question) tests`);
+  }
+
   report.section("Summary");
   report.ok(`full PYQ paper tests: ${fullCount}`);
   report.ok(`sectional tests: ${sectionalCount}`);
