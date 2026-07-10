@@ -16,13 +16,16 @@ const CA_COLUMNS =
 const CATEGORY_ORDER: CurrentAffairsCategory[] = [
   "polity_governance",
   "economy",
-  "schemes_welfare",
+  "schemes",
+  "international_relations",
   "environment_ecology",
   "science_tech",
-  "national",
-  "international",
-  "awards_sports_misc",
-  "up_state_affairs",
+  "security",
+  "social_issues",
+  "art_culture",
+  "reports_indices",
+  "places_persons",
+  "up_special",
 ];
 
 const MONTHS_EN = [
@@ -87,7 +90,7 @@ export async function compileMagazine(month: string): Promise<Magazine | null> {
 
   const byCategory = new Map<CurrentAffairsCategory, CurrentAffairsItem[]>();
   for (const item of rest) {
-    const cat = (item.category ?? "national") as CurrentAffairsCategory;
+    const cat = (item.category ?? "polity_governance") as CurrentAffairsCategory;
     const arr = byCategory.get(cat) ?? [];
     arr.push(item);
     byCategory.set(cat, arr);

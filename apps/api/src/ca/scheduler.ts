@@ -10,8 +10,13 @@
 import cron from "node-cron";
 import { logger } from "../lib/logger.js";
 import { runPipeline } from "./pipeline.js";
+import { assembleWeeklySets } from "./assemble.js";
 
 const DEV_SCHEDULE = "0 */6 * * *"; // every 6 hours
+// Weekly assemblies: Monday 06:00 IST — after the weekend's items are triaged
+// and (ideally) reviewed. Idempotent per week, so an extra run is harmless.
+const WEEKLY_ASSEMBLE_SCHEDULE = "0 6 * * 1";
+const IST_TZ = "Asia/Kolkata";
 
 export function startDevCaScheduler(): void {
   cron.schedule(DEV_SCHEDULE, () => {
@@ -20,5 +25,17 @@ export function startDevCaScheduler(): void {
       .then((result) => logger.info({ result }, "ca: scheduled pipeline run finished"))
       .catch((err) => logger.error({ err }, "ca: scheduled pipeline run failed"));
   });
-  logger.info(`ca: dev scheduler started (cron "${DEV_SCHEDULE}")`);
+
+  cron.schedule(
+    WEEKLY_ASSEMBLE_SCHEDULE,
+    () => {
+      logger.info("ca: weekly assembly starting");
+      assembleWeeklySets()
+        .then((r) => logger.info({ r }, "ca: weekly assembly finished"))
+        .catch((err) => logger.error({ err }, "ca: weekly assembly failed"));
+    },
+    { timezone: IST_TZ },
+  );
+
+  logger.info(`ca: dev scheduler started (pipeline "${DEV_SCHEDULE}", weekly assembly "${WEEKLY_ASSEMBLE_SCHEDULE}" IST)`);
 }

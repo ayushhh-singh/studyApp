@@ -1,28 +1,51 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
-import { Sparkles } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { useCurrentAffairsQuiz } from "@/hooks/use-current-affairs";
+import { Link } from "react-router";
+import { ListChecks, PenLine } from "lucide-react";
+import { useWeeklyCaSets } from "@/hooks/use-current-affairs";
 import { useLocale } from "@/hooks/use-locale";
+import { cn } from "@/lib/utils";
 
-/** "Quiz me on this week" — builds a custom test from the last 7 days of CA-linked MCQs and jumps straight into the player. */
-export function CurrentAffairsQuizButton() {
+/**
+ * The two weekly-assembly entry points: a Prelims MCQ quiz (→ the test player)
+ * and a Mains descriptive practice set (→ the answer session). Each links to its
+ * pre-built weekly test; disabled with a hint when there's no approved supply.
+ */
+export function CurrentAffairsWeeklyQuizButtons() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const navigate = useNavigate();
-  const quiz = useCurrentAffairsQuiz();
+  const { data, isLoading } = useWeeklyCaSets();
+
+  const base =
+    "inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+  const prelims = data?.prelims;
+  const mains = data?.mains;
 
   return (
-    <div className="flex flex-col items-end gap-1.5">
-      <Button
-        type="button"
-        onClick={() => quiz.mutate(7, { onSuccess: (test) => navigate(`/${locale}/practice/test/${test.id}`) })}
-        disabled={quiz.isPending}
-      >
-        <Sparkles aria-hidden />
-        {quiz.isPending ? t("CurrentAffairs.quizCreating") : t("CurrentAffairs.quizMeButton")}
-      </Button>
-      {quiz.isError && <p className="max-w-64 text-right text-xs text-destructive">{t("CurrentAffairs.quizError")}</p>}
+    <div className="flex flex-wrap items-center gap-2">
+      {prelims ? (
+        <Link to={`/${locale}/practice/test/${prelims.id}`} className={cn(base, "bg-primary text-primary-foreground hover:bg-primary/90")}>
+          <ListChecks className="size-4" aria-hidden />
+          {t("CurrentAffairs.prelimsQuizButton")}
+        </Link>
+      ) : (
+        <span className={cn(base, "cursor-not-allowed border border-border text-muted-foreground")} title={t("CurrentAffairs.weeklyEmptyPrelims")}>
+          <ListChecks className="size-4" aria-hidden />
+          {isLoading ? t("CurrentAffairs.weeklyLoading") : t("CurrentAffairs.prelimsQuizButton")}
+        </span>
+      )}
+
+      {mains ? (
+        <Link to={`/${locale}/answers/session/${mains.id}`} className={cn(base, "bg-marigold text-marigold-foreground hover:bg-marigold/90")}>
+          <PenLine className="size-4" aria-hidden />
+          {t("CurrentAffairs.mainsPracticeButton")}
+        </Link>
+      ) : (
+        <span className={cn(base, "cursor-not-allowed border border-border text-muted-foreground")} title={t("CurrentAffairs.weeklyEmptyMains")}>
+          <PenLine className="size-4" aria-hidden />
+          {isLoading ? t("CurrentAffairs.weeklyLoading") : t("CurrentAffairs.mainsPracticeButton")}
+        </span>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import {
   currentAffairsQuizBodySchema,
   currentAffairsQuizResponseSchema,
   currentAffairsResponseSchema,
+  currentAffairsWeeklySetsResponseSchema,
 } from "@prayasup/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
@@ -14,6 +15,7 @@ import {
   getCurrentAffairsItemById,
   listCurrentAffairs,
 } from "../services/current-affairs.js";
+import { getWeeklyCaSets } from "../ca/assemble.js";
 import { createCustomTestFromCurrentAffairs } from "../services/tests.js";
 
 export const currentAffairsRouter = Router();
@@ -47,6 +49,14 @@ currentAffairsRouter.post(
     const body = parse(currentAffairsQuizBodySchema, req.body);
     const test = await createCustomTestFromCurrentAffairs(body.days);
     res.status(201).json(currentAffairsQuizResponseSchema.parse({ data: test, error: null }));
+  }),
+);
+
+currentAffairsRouter.get(
+  "/current-affairs/weekly-sets",
+  asyncHandler(async (_req, res) => {
+    const sets = await getWeeklyCaSets();
+    res.json(currentAffairsWeeklySetsResponseSchema.parse({ data: sets, error: null }));
   }),
 );
 

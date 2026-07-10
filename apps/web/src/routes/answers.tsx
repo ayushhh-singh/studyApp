@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { TodaysQuestionCard } from "@/components/answers/todays-question-card";
 import { DailyAnswerSet } from "@/components/answers/daily-answer-set";
+import { CaMainsSetCard } from "@/components/answers/ca-mains-set-card";
 import { PyqPicker } from "@/components/answers/pyq-picker";
 import { AnswerTestTabs } from "@/components/answers/answer-test-tabs";
 import { SubmissionHistoryList } from "@/components/answers/submission-history-list";
@@ -48,6 +49,8 @@ export function Component() {
       />
 
       <DailyAnswerSet />
+
+      <CaMainsSetCard />
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <PyqPicker />

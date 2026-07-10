@@ -185,6 +185,7 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
 
 interface CurrentAffairsItemForFactRow {
   title_i18n: BilingualText;
+  prelims_facts: { fact_i18n: BilingualText }[] | null;
   key_facts_i18n: { hi: string[]; en: string[] } | null;
 }
 
@@ -216,7 +217,7 @@ export async function addCurrentAffairsFactToRevision(
 ): Promise<SrsCard> {
   const { data: item, error: itemError } = await supabase()
     .from("current_affairs_items")
-    .select("title_i18n, detail_i18n->key_facts_i18n")
+    .select("title_i18n, prelims_facts, detail_i18n->key_facts_i18n")
     .eq("id", itemId)
     .eq("is_published", true)
     .maybeSingle();
@@ -224,9 +225,18 @@ export async function addCurrentAffairsFactToRevision(
   const row = item as unknown as CurrentAffairsItemForFactRow | null;
   if (!row) throw notFound("Current affairs item not found");
 
-  const facts = row.key_facts_i18n;
-  const hi = facts?.hi?.[factIndex];
-  const en = facts?.en?.[factIndex];
+  // New items store boxed facts in `prelims_facts`; un-backfilled legacy items
+  // still carry the flat `detail_i18n.key_facts_i18n` — read whichever exists.
+  let hi: string | undefined;
+  let en: string | undefined;
+  if (row.prelims_facts && row.prelims_facts.length > 0) {
+    const fact = row.prelims_facts[factIndex];
+    hi = fact?.fact_i18n?.hi;
+    en = fact?.fact_i18n?.en;
+  } else {
+    hi = row.key_facts_i18n?.hi?.[factIndex];
+    en = row.key_facts_i18n?.en?.[factIndex];
+  }
   if (!hi && !en) throw badRequest("This item has no key fact at that index");
 
   const { data: card, error: upsertError } = await supabase()

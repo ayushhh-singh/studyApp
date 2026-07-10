@@ -3,7 +3,9 @@ import {
   currentAffairsItemResponseSchema,
   currentAffairsQuizResponseSchema,
   currentAffairsResponseSchema,
+  currentAffairsWeeklySetsResponseSchema,
   type CurrentAffairsCategory,
+  type CurrentAffairsLens,
 } from "@prayasup/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -11,6 +13,7 @@ import { queryKeys } from "@/lib/query-keys";
 export function useCurrentAffairs(filters?: {
   date?: string;
   category?: CurrentAffairsCategory;
+  lens?: CurrentAffairsLens;
   up_only?: boolean;
   page?: number;
 }) {
@@ -25,6 +28,14 @@ export function useCurrentAffairsItem(id: string | undefined) {
     queryKey: queryKeys.currentAffairsItem(id ?? ""),
     queryFn: () => api.get(`/api/v1/current-affairs/${id}`, currentAffairsItemResponseSchema),
     enabled: !!id,
+  });
+}
+
+/** The two ready-to-run weekly assemblies (CA Prelims Quiz + CA Mains Set). */
+export function useWeeklyCaSets() {
+  return useQuery({
+    queryKey: queryKeys.currentAffairsWeeklySets(),
+    queryFn: () => api.get("/api/v1/current-affairs/weekly-sets", currentAffairsWeeklySetsResponseSchema),
   });
 }
 

@@ -1,16 +1,22 @@
 /**
- * Current-affairs ingestion pipeline. Fetches each configured RSS source
- * (./sources.ts), and per item: relevance-filters + classifies + maps
- * syllabus nodes, writes a bilingual exam-oriented summary, embeds it, and
- * (for "important" items) generates 2 unpublished practice MCQs.
+ * Current-affairs ingestion pipeline, re-engineered around EXAM RELEVANCE.
  *
- * Idempotent across runs via `content_hash` (sha256 of the item's link) —
- * safe to run repeatedly (cron or `pnpm ca:run`) without duplicating items.
+ * Per item (idempotent across runs via `content_hash` = sha256 of the link):
+ *   1. TRIAGE (haiku) — score prelims_relevance + mains_relevance (0-3),
+ *      category, gs_papers, is_up_specific, syllabus nodes.
+ *   2. HARD GATE — max(prelims, mains) < 2 → store as status='archived' and
+ *      STOP (no further LLM spend). This is the "too broad" fix, in code.
+ *   3. ENRICH (haiku) — one call filling exactly the lives triage found:
+ *      prelims_facts (prelims life) and/or the full mains_brief (mains life),
+ *      plus possible_questions + per-node significance lines.
+ *   4. Bilingual publish gate (title + summary present in both languages) →
+ *      status='published', else 'draft'. Embed published items.
+ *   5. DUAL QUIZ — prelims_relevance >= 2 → 2 practice MCQs (review-gated);
+ *      mains_relevance === 3 → ONE descriptive question (sonnet + critic),
+ *      tagged ca_linked, into the descriptive pool (review-gated).
  *
- * Respects source ToS: only RSS metadata (title + short snippet) is ever
- * sent to the model as *context*; every persisted summary is a fresh
- * paraphrase (enforced by the prompt in ./prompts.ts), never copied source
- * text. We link back to the source, never mirror its article body.
+ * ToS: only the RSS title + short snippet is ever sent to the model as CONTEXT;
+ * every persisted string is a fresh own-words paraphrase (enforced in prompts).
  */
 import { createHash } from "node:crypto";
 import Parser from "rss-parser";
@@ -18,14 +24,28 @@ import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
 import { i18nComplete } from "../ingest/_shared.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
+import type { LlmUsage } from "../lib/anthropic.js";
+import { structuredJson } from "../lib/anthropic.js";
+import { MODELS } from "../lib/models.js";
+import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION } from "../qgen/prompts.js";
+import type {
+  CurrentAffairsFact,
+  CurrentAffairsMainsBrief,
+  CurrentAffairsNodeSignificance,
+  CurrentAffairsPossibleQuestions,
+} from "@prayasup/shared";
 import { CA_SOURCES } from "./sources.js";
 import {
-  classifyItem,
+  enrichItem,
+  generateMainsQuestion,
   generateMcqs,
-  summarizeItem,
-  type SummarizeResult,
+  triageItem,
+  type EnrichResult,
   type SyllabusCandidate,
 } from "./prompts.js";
+
+/** Items scoring below this on BOTH lives are archived (the hard gate). */
+export const RELEVANCE_GATE = 2;
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 function istDateString(d: Date): string {
@@ -38,6 +58,17 @@ function sha256(text: string): string {
 
 function toVectorLiteral(vec: number[]): string {
   return `[${vec.join(",")}]`;
+}
+
+interface BilingualPair {
+  hi: string;
+  en: string;
+}
+
+/** A bilingual pair with nothing in either language → null. */
+function nullIfEmpty(pair: BilingualPair | null | undefined): BilingualPair | null {
+  if (!pair) return null;
+  return pair.hi.trim() || pair.en.trim() ? pair : null;
 }
 
 async function loadSyllabusCandidates(): Promise<SyllabusCandidate[]> {
@@ -55,7 +86,7 @@ async function loadSyllabusCandidates(): Promise<SyllabusCandidate[]> {
   }));
 }
 
-/** content_hash of every item inserted in the last 60 days — enough to dedupe any realistic re-run window. */
+/** content_hash of every item seen in the last 60 days — dedupe any realistic re-run window. */
 async function loadRecentHashes(): Promise<Set<string>> {
   const cutoff = istDateString(new Date(Date.now() - 60 * 24 * 3600 * 1000));
   const { data, error } = await supabase()
@@ -76,13 +107,18 @@ export interface PipelineOptions {
 export interface PipelineResult {
   processed: number;
   published: number;
-  important: number;
+  draft: number;
+  archived: number;
+  prelimsLife: number;
+  mainsLife: number;
+  dualLife: number;
   mcqsGenerated: number;
+  mainsQuestionsGenerated: number;
   skippedDuplicate: number;
   skippedOld: number;
-  skippedIrrelevant: number;
   skippedNoDate: number;
   cappedTotal: number;
+  costUsd: number;
   sourceFailures: { source: string; error: string }[];
 }
 
@@ -92,18 +128,28 @@ interface EmbedTask {
   text: string;
 }
 
+/** Build the node_significance record, keeping only lines for the item's active lives. */
+function buildNodeSignificance(
+  enrich: EnrichResult,
+  hasPrelims: boolean,
+  hasMains: boolean,
+): CurrentAffairsNodeSignificance | null {
+  const record: CurrentAffairsNodeSignificance = {};
+  for (const row of enrich.node_significance ?? []) {
+    const prelims = hasPrelims ? nullIfEmpty(row.prelims_i18n) : null;
+    const mains = hasMains ? nullIfEmpty(row.mains_i18n) : null;
+    if (prelims || mains) record[row.node_id] = { prelims_i18n: prelims, mains_i18n: mains };
+  }
+  return Object.keys(record).length > 0 ? record : null;
+}
+
 async function insertMcqsForItem(opts: {
-  itemId: string;
   syllabusNodeId: string | null;
   title: string;
-  summary: SummarizeResult;
+  facts: string[];
+  onUsage: (u: LlmUsage) => void;
 }): Promise<string[]> {
-  const mcqs = await generateMcqs({
-    title: opts.title,
-    summary: opts.summary.summary_i18n.en,
-    whyItMatters: opts.summary.why_it_matters_i18n.en,
-    keyFacts: opts.summary.key_facts_i18n.en,
-  });
+  const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts });
   if (mcqs.length === 0) return [];
 
   const rows = mcqs.map((q) => ({
@@ -120,10 +166,8 @@ async function insertMcqsForItem(opts: {
     difficulty: q.difficulty,
     word_limit: null,
     marks: 2,
-    // Always false — CA-generated MCQs are review-gated, never auto-published
-    // regardless of bilingual completeness (unlike PYQ ingestion). They enter
-    // the Review Queue as needs_review; approving one there publishes it
-    // (migration 0035 / lib/question-visibility.ts).
+    // Always review-gated (needs_review, is_published=false) — approving one in
+    // the Review Queue publishes it (see lib/question-visibility.ts).
     is_published: false,
     review_state: "needs_review" as const,
   }));
@@ -131,6 +175,73 @@ async function insertMcqsForItem(opts: {
   const { data, error } = await supabase().from("questions").insert(rows).select("id");
   if (error) throw new Error(`CA mcq insert failed: ${error.message}`);
   return (data ?? []).map((r) => r.id as string);
+}
+
+/**
+ * Generate ONE descriptive question for a mains-3 item, grounded on its brief,
+ * run it through the shared qgen critic, and insert it (review-gated,
+ * tagged ca_linked) if the critic approves. Returns the question id or null.
+ */
+async function insertMainsQuestionForItem(opts: {
+  itemId: string;
+  syllabusNodeId: string | null;
+  title: string;
+  brief: CurrentAffairsMainsBrief;
+  onUsage: (u: LlmUsage) => void;
+}): Promise<string | null> {
+  const q = await generateMainsQuestion({ title: opts.title, brief: opts.brief, onUsage: opts.onUsage });
+
+  // Session-11 qgen critic gate — reject anything not exam-worthy.
+  const criticJson = await structuredJson({
+    ...buildCriticParams({
+      node: {
+        id: opts.syllabusNodeId ?? "",
+        paperCode: CURRENT_AFFAIRS_PAPER_CODE,
+        stage: "mains",
+        title_i18n: { hi: "", en: opts.title },
+        description_i18n: null,
+      },
+      rendered:
+        `Type: Descriptive (Mains)\nQuestion: ${q.stem_i18n.en}\nMarks: ${q.marks} | Word limit: ${q.word_limit}\n` +
+        `Marking points:\n${q.marking_points_i18n.en.map((p) => `  - ${p}`).join("\n")}`,
+    }),
+    purpose: "ca_mains_critic",
+    onUsage: opts.onUsage,
+  });
+  const critic = parseCritic(criticJson);
+  if (!critic.approve) return null;
+
+  const { data, error } = await supabase()
+    .from("questions")
+    .insert({
+      type: "descriptive",
+      stage: "mains",
+      paper_code: CURRENT_AFFAIRS_PAPER_CODE,
+      syllabus_node_id: opts.syllabusNodeId,
+      year: null,
+      source: "generated",
+      stem_i18n: q.stem_i18n,
+      options_i18n: null,
+      correct_option_key: null,
+      explanation_i18n: null,
+      difficulty: q.difficulty,
+      word_limit: q.word_limit,
+      marks: q.marks,
+      is_published: false,
+      review_state: "needs_review",
+      generation_meta: {
+        ca_linked: true,
+        source_item_id: opts.itemId,
+        model: MODELS.sonnet,
+        prompt_version: QGEN_PROMPT_VERSION,
+        marking_points_i18n: q.marking_points_i18n,
+        critic,
+      },
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`CA mains question insert failed: ${error.message}`);
+  return data.id as string;
 }
 
 export async function runPipeline(
@@ -141,17 +252,24 @@ export async function runPipeline(
   const result: PipelineResult = {
     processed: 0,
     published: 0,
-    important: 0,
+    draft: 0,
+    archived: 0,
+    prelimsLife: 0,
+    mainsLife: 0,
+    dualLife: 0,
     mcqsGenerated: 0,
+    mainsQuestionsGenerated: 0,
     skippedDuplicate: 0,
     skippedOld: 0,
-    skippedIrrelevant: 0,
     skippedNoDate: 0,
     cappedTotal: 0,
+    costUsd: 0,
     sourceFailures: [],
   };
+  const onUsage = (u: LlmUsage) => (result.costUsd += u.costUsd);
 
   const candidates = await loadSyllabusCandidates();
+  const candidateById = new Map(candidates.map((c) => [c.id, c]));
   log(`syllabus candidates for mapping: ${candidates.length}`);
   const seenHashes = await loadRecentHashes();
   log(`known items in the last 60 days: ${seenHashes.size}`);
@@ -204,42 +322,90 @@ export async function runPipeline(
       }
 
       const snippet = (item.contentSnippet ?? item.content ?? "").slice(0, 1200);
+      const dateStr = istDateString(pubDate);
 
-      const classification = await classifyItem({
-        title,
-        snippet,
-        sourceIsUp: source.isUpSource,
-        candidates,
-      });
-      seenHashes.add(hash); // never re-fetch this link again, relevant or not
+      // --- 1. Triage --------------------------------------------------------
+      const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates, onUsage });
+      seenHashes.add(hash); // never re-triage this link again, kept or archived
       takenFromSource++;
 
-      if (!classification.is_relevant) {
-        result.skippedIrrelevant++;
+      const bestScore = Math.max(triage.prelims_relevance, triage.mains_relevance);
+      const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
+      const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
+
+      // --- 2. Hard gate -----------------------------------------------------
+      if (bestScore < RELEVANCE_GATE) {
+        await supabase()
+          .from("current_affairs_items")
+          .insert({
+            date: dateStr,
+            status: "archived",
+            category: triage.category,
+            is_up_specific: triage.is_up_specific,
+            prelims_relevance: triage.prelims_relevance,
+            mains_relevance: triage.mains_relevance,
+            gs_papers: triage.gs_papers,
+            title_i18n: { hi: "", en: title },
+            syllabus_node_ids: triage.syllabus_node_ids,
+            mcq_question_ids: [],
+            content_hash: hash,
+            source_id: source.id,
+            source_urls: [link],
+          });
+        result.archived++;
+        log(
+          `[${source.id}] ARCHIVED (P${triage.prelims_relevance}/M${triage.mains_relevance}) "${title.slice(0, 64)}" — ${triage.prelims_reason} | ${triage.mains_reason}`,
+        );
         continue;
       }
 
-      const summary = await summarizeItem({ title, snippet, category: classification.category });
-      const isPublished = i18nComplete(summary.title_i18n) && i18nComplete(summary.summary_i18n);
+      // --- 3. Enrich (only the active lives) --------------------------------
+      const linkedNodes = triage.syllabus_node_ids
+        .map((id) => candidateById.get(id))
+        .filter((n): n is SyllabusCandidate => !!n);
+      const enrich = await enrichItem({
+        title,
+        snippet,
+        category: triage.category,
+        hasPrelimsLife: hasPrelims,
+        hasMainsLife: hasMains,
+        linkedNodes,
+        onUsage,
+      });
+
+      const prelimsFacts: CurrentAffairsFact[] | null =
+        hasPrelims && enrich.prelims_facts.length > 0 ? enrich.prelims_facts : null;
+      const mainsBrief: CurrentAffairsMainsBrief | null =
+        hasMains && enrich.mains_brief.why_in_news_i18n.en.trim() ? enrich.mains_brief : null;
+      const possibleQuestions: CurrentAffairsPossibleQuestions = {
+        prelims_i18n: hasPrelims ? nullIfEmpty(enrich.possible_questions.prelims_i18n) : null,
+        mains_i18n: hasMains ? nullIfEmpty(enrich.possible_questions.mains_i18n) : null,
+      };
+      const nodeSignificance = buildNodeSignificance(enrich, hasPrelims, hasMains);
+
+      // --- 4. Publish gate + insert -----------------------------------------
+      const isPublished = i18nComplete(enrich.title_i18n) && i18nComplete(enrich.summary_i18n);
+      const status = isPublished ? "published" : "draft";
 
       const { data: row, error: insertError } = await supabase()
         .from("current_affairs_items")
         .insert({
-          date: istDateString(pubDate),
-          category: classification.category,
-          is_up_specific: classification.is_up_specific || source.isUpSource,
-          title_i18n: summary.title_i18n,
-          summary_i18n: summary.summary_i18n,
-          detail_i18n: {
-            what_happened_i18n: summary.what_happened_i18n,
-            why_it_matters_i18n: summary.why_it_matters_i18n,
-            key_facts_i18n: summary.key_facts_i18n,
-            question_angle_i18n: summary.question_angle_i18n,
-          },
+          date: dateStr,
+          status,
+          category: triage.category,
+          is_up_specific: triage.is_up_specific,
+          prelims_relevance: triage.prelims_relevance,
+          mains_relevance: triage.mains_relevance,
+          gs_papers: triage.gs_papers,
+          title_i18n: enrich.title_i18n,
+          summary_i18n: enrich.summary_i18n,
+          prelims_facts: prelimsFacts,
+          mains_brief: mainsBrief,
+          possible_questions: possibleQuestions,
+          node_significance: nodeSignificance,
           source_urls: [link],
-          syllabus_node_ids: classification.syllabus_node_ids,
+          syllabus_node_ids: triage.syllabus_node_ids,
           mcq_question_ids: [],
-          is_published: isPublished,
           content_hash: hash,
           source_id: source.id,
         })
@@ -253,19 +419,27 @@ export async function runPipeline(
       const itemId = row.id as string;
       result.processed++;
       if (isPublished) result.published++;
+      else result.draft++;
+      if (hasPrelims) result.prelimsLife++;
+      if (hasMains) result.mainsLife++;
+      if (hasPrelims && hasMains) result.dualLife++;
 
-      embedTasks.push({ itemId, locale: "hi", text: `${summary.title_i18n.hi}. ${summary.summary_i18n.hi}` });
-      embedTasks.push({ itemId, locale: "en", text: `${summary.title_i18n.en}. ${summary.summary_i18n.en}` });
+      if (isPublished) {
+        embedTasks.push({ itemId, locale: "hi", text: `${enrich.title_i18n.hi}. ${enrich.summary_i18n.hi}` });
+        embedTasks.push({ itemId, locale: "en", text: `${enrich.title_i18n.en}. ${enrich.summary_i18n.en}` });
+      }
 
-      let mcqIds: string[] = [];
-      if (classification.is_important && isPublished) {
-        result.important++;
+      // --- 5. Dual quiz generation ------------------------------------------
+      const nodeId = triage.syllabus_node_ids[0] ?? null;
+
+      // Prelims MCQs — a real factual nugget (prelims_relevance >= 2), published.
+      if (hasPrelims && isPublished && prelimsFacts) {
         try {
-          mcqIds = await insertMcqsForItem({
-            itemId,
-            syllabusNodeId: classification.syllabus_node_ids[0] ?? null,
-            title,
-            summary,
+          const mcqIds = await insertMcqsForItem({
+            syllabusNodeId: nodeId,
+            title: enrich.title_i18n.en,
+            facts: prelimsFacts.map((f) => f.fact_i18n.en),
+            onUsage,
           });
           if (mcqIds.length > 0) {
             await supabase().from("current_affairs_items").update({ mcq_question_ids: mcqIds }).eq("id", itemId);
@@ -276,8 +450,27 @@ export async function runPipeline(
         }
       }
 
+      // Mains descriptive question — only the richest issues (mains_relevance === 3).
+      let mainsQId: string | null = null;
+      if (triage.mains_relevance === 3 && isPublished && mainsBrief) {
+        try {
+          mainsQId = await insertMainsQuestionForItem({
+            itemId,
+            syllabusNodeId: nodeId,
+            title: enrich.title_i18n.en,
+            brief: mainsBrief,
+            onUsage,
+          });
+          if (mainsQId) result.mainsQuestionsGenerated++;
+        } catch (err) {
+          log(`[${source.id}] Mains question generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
+        }
+      }
+
       log(
-        `[${source.id}] "${title.slice(0, 70)}" -> published=${isPublished} important=${classification.is_important} mcqs=${mcqIds.length}`,
+        `[${source.id}] KEPT (P${triage.prelims_relevance}/M${triage.mains_relevance}) status=${status} ` +
+          `lives=${[hasPrelims ? "prelims" : null, hasMains ? "mains" : null].filter(Boolean).join("+") || "none"} ` +
+          `mains_q=${mainsQId ? "yes" : "no"} "${enrich.title_i18n.en.slice(0, 56)}"`,
       );
     }
   }

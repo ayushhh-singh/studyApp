@@ -18,11 +18,17 @@ async function main(): Promise<void> {
   const result = await runPipeline({ days, maxPerSource, maxTotal }, (msg) => report.step(msg));
 
   report.section("Summary");
-  report.ok(`processed: ${result.processed} (published: ${result.published}, important: ${result.important})`);
-  report.ok(`MCQs generated: ${result.mcqsGenerated}`);
+  report.ok(
+    `kept: ${result.processed} (published: ${result.published}, draft: ${result.draft})  |  ARCHIVED by gate: ${result.archived}`,
+  );
+  report.ok(
+    `lives — prelims: ${result.prelimsLife}, mains: ${result.mainsLife}, BOTH: ${result.dualLife}`,
+  );
+  report.ok(
+    `generated — prelims MCQs: ${result.mcqsGenerated}, mains questions: ${result.mainsQuestionsGenerated}  |  cost: $${result.costUsd.toFixed(4)}`,
+  );
   report.warn(
-    `skipped — duplicate: ${result.skippedDuplicate}, too old: ${result.skippedOld}, ` +
-      `no date: ${result.skippedNoDate}, irrelevant: ${result.skippedIrrelevant}`,
+    `skipped — duplicate: ${result.skippedDuplicate}, too old: ${result.skippedOld}, no date: ${result.skippedNoDate}`,
   );
   if (result.cappedTotal > 0) {
     report.warn(`hit --max-total cap: ${result.cappedTotal} source(s) had remaining items left unprocessed`);

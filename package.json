@@ -26,7 +26,9 @@
     "notes:embed": "pnpm --filter api notes:embed",
     "migrate:dev-user": "pnpm --filter api migrate:dev-user",
     "push:send": "pnpm --filter api push:send",
-    "demo:seed": "pnpm --filter api demo:seed"
+    "demo:seed": "pnpm --filter api demo:seed",
+    "ca:assemble": "pnpm --filter api ca:assemble",
+    "ca:backfill": "pnpm --filter api ca:backfill"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

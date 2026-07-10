@@ -34,7 +34,9 @@
     "nightly:settle": "tsx --env-file-if-exists=.env scripts/nightly-settle.ts",
     "notifications:run": "tsx --env-file-if-exists=.env scripts/notifications-run.ts",
     "demo:seed": "tsx --env-file-if-exists=.env scripts/seed-demo-account.ts",
-    "og:generate": "tsx scripts/generate-marketing-og.ts"
+    "og:generate": "tsx scripts/generate-marketing-og.ts",
+    "ca:assemble": "tsx --env-file-if-exists=.env src/ca/assemble-run.ts",
+    "ca:backfill": "tsx --env-file-if-exists=.env src/ca/backfill-run.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

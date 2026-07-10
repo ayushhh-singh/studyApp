@@ -22,15 +22,17 @@ export const queryKeys = {
   drillRecommendation: () => ["drills", "recommendation"] as const,
   drillHistory: () => ["drills", "history"] as const,
   activePlan: () => ["study-plan", "active"] as const,
-  currentAffairs: (filters?: { date?: string; category?: string; up_only?: boolean; page?: number }) =>
+  currentAffairs: (filters?: { date?: string; category?: string; lens?: string; up_only?: boolean; page?: number }) =>
     [
       "current-affairs",
       filters?.date ?? "all",
       filters?.category ?? "all",
+      filters?.lens ?? "all",
       filters?.up_only ?? "all",
       filters?.page ?? 1,
     ] as const,
   currentAffairsItem: (id: string) => ["current-affairs", "detail", id] as const,
+  currentAffairsWeeklySets: () => ["current-affairs", "weekly-sets"] as const,
   questions: (filters?: {
     type?: QuestionType;
     paper?: string;
