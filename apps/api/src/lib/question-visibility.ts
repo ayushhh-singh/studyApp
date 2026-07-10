@@ -25,6 +25,21 @@
  */
 export const CURRENT_AFFAIRS_PAPER_CODE = "CURRENT_AFFAIRS";
 
+/**
+ * This app also ingests non-UPPSC exams (UPSC Civil Services, UPSSSC PET)
+ * onto the same Prelims/Mains paper codes for weightage-overlap analytics
+ * (see ingest/_shared.ts's classifyPyqId) — any surface that presents itself
+ * as "the UPPSC paper/pattern" (pyq_full, sectional, mock, and custom-set
+ * assembly, for both MCQ and descriptive) MUST filter `.eq("exam_code",
+ * UPPSC_EXAM_CODE)`, or it silently mixes a different exam's questions into
+ * a paper labeled UPPSC. This happened once already (a new custom-set
+ * builder shipped without the filter); centralized here instead of a raw
+ * string literal repeated at every call site so a future test-assembly
+ * surface has one obvious constant to import rather than one more place to
+ * remember to type the literal correctly.
+ */
+export const UPPSC_EXAM_CODE = "uppsc";
+
 export type QuestionVisibilityScope = "catalog" | "test";
 
 /**

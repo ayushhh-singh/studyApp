@@ -12,7 +12,7 @@
 import type { ExamCutoff } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
-import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 
 const MCQ_MARKS = 2;
 
@@ -98,7 +98,7 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
       // UPSSSC PET) intentionally share this paper_code for weightage
       // analytics elsewhere, but must never end up inside a paper claiming
       // to be the genuine UPPSC pattern.
-      .eq("exam_code", "uppsc")
+      .eq("exam_code", UPPSC_EXAM_CODE)
       .or(questionVisibilityOrFilter("catalog")),
     topLevelByNode(paperCode),
   ]);
@@ -254,7 +254,7 @@ async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[
       .select("id, marks, syllabus_node_id")
       .eq("type", "descriptive")
       .eq("paper_code", paperCode)
-      .eq("exam_code", "uppsc")
+      .eq("exam_code", UPPSC_EXAM_CODE)
       .or(questionVisibilityOrFilter("catalog")),
     topLevelByNode(paperCode),
   ]);

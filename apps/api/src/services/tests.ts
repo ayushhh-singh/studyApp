@@ -10,7 +10,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { currentUserId } from "../lib/user-context.js";
-import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
 export { CURRENT_AFFAIRS_PAPER_CODE };
@@ -362,7 +362,7 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
     // ingest/_shared.ts). A user-built custom set must stay UPPSC-only, or
     // it silently reintroduces the exact mixed-exam contamination this
     // session's earlier fix addressed for every other test-assembly path.
-    .eq("exam_code", "uppsc")
+    .eq("exam_code", UPPSC_EXAM_CODE)
     .or(questionVisibilityOrFilter("catalog"));
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];

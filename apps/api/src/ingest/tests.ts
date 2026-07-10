@@ -23,6 +23,7 @@
  * Idempotent: tests keyed on slug; a test's membership is rebuilt each run.
  */
 import { supabase } from "../lib/supabase.js";
+import { UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { paperByCode, report } from "./_shared.js";
 
 interface QRow {
@@ -60,7 +61,7 @@ async function fetchPublished(): Promise<QRow[]> {
     // "other"/legacy rows with no exam_code default to uppsc via
     // examCodeFromId at ingest time, so this is never over-restrictive for
     // real UPPSC content.
-    .eq("exam_code", "uppsc");
+    .eq("exam_code", UPPSC_EXAM_CODE);
   if (error) throw new Error(`fetch questions: ${error.message}`);
   return (data ?? []) as QRow[];
 }
