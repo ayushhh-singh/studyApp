@@ -67,7 +67,9 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((err) => {
-  console.error("notes:chapter:context failed:", err instanceof Error ? err.stack : err);
-  process.exit(1);
-});
+if (process.argv[1] && process.argv[1].endsWith("chapter-context.ts")) {
+  main().catch((err) => {
+    console.error("notes:chapter:context failed:", err instanceof Error ? err.stack : err);
+    process.exit(1);
+  });
+}
