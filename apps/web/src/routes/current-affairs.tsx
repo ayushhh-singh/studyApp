@@ -1,4 +1,3 @@
-import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { Newspaper, BookMarked, ScanLine } from "lucide-react";
@@ -9,7 +8,6 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
-import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { CurrentAffairsItemCard } from "@/components/current-affairs/item-card";
 import { CurrentAffairsDetailSheet } from "@/components/current-affairs/item-detail-sheet";
 import { CurrentAffairsWeeklyQuizButtons } from "@/components/current-affairs/quiz-button";
@@ -67,7 +65,6 @@ export function Component() {
   const page = Number(searchParams.get("page")) || 1;
   const scan = searchParams.get("scan") === "1";
   const selectedId = searchParams.get("item");
-  const lensTabsRef = useRef<HTMLDivElement>(null);
 
   function patchParams(patch: Record<string, string | null>) {
     setSearchParams(
@@ -103,6 +100,7 @@ export function Component() {
       <PageHeader
         title={t("CurrentAffairs.title")}
         description={t("CurrentAffairs.description")}
+        tourAnchor="current_affairs"
         action={
           <Link
             to={`/${locale}/magazine/${istToday().slice(0, 7)}`}
@@ -118,14 +116,8 @@ export function Component() {
       </SectionCard>
 
       <SectionCard title={t("CurrentAffairs.latest")}>
-        <FirstVisitCoachmark
-          sectionKey="current_affairs"
-          targetRef={lensTabsRef}
-          message={t("Explore.coachmarkCurrentAffairs")}
-          dismissLabel={t("Explore.coachmarkGotIt")}
-        />
         {/* Exam-lens tabs */}
-        <div ref={lensTabsRef} className="flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+        <div className="flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1">
           {LENSES.map((l) => (
             <button
               key={l}

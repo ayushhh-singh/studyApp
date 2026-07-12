@@ -4,6 +4,7 @@ import { Sidebar } from "@/components/app-shell/sidebar";
 import { TopBar } from "@/components/app-shell/top-bar";
 import { BottomTabBar } from "@/components/app-shell/bottom-tab-bar";
 import { CommandPalette } from "@/components/ui-x/command-palette";
+import { GuidedTourCoachmark } from "@/components/ui-x/guided-tour-coachmark";
 import { MilestoneToaster } from "@/components/app-shell/milestone-toaster";
 import { PwaInstallBanner } from "@/components/app-shell/pwa-install-banner";
 import { FloatingMentorButton } from "@/components/mentor/floating-mentor-button";
@@ -46,6 +47,7 @@ export function Component() {
       <MilestoneToaster />
       <FloatingMentorButton />
       <PaywallModal />
+      <GuidedTourCoachmark />
     </div>
   );
 }

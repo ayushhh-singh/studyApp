@@ -30,6 +30,7 @@ export function Component() {
       <PageHeader
         title={t("Answers.title")}
         description={t("Answers.description")}
+        tourAnchor="answers"
         action={
           <div className="flex flex-wrap items-center gap-2">
             <EvaluationQuotaChip />

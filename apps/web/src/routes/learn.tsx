@@ -96,7 +96,7 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("Learn.title")} description={t("Learn.description")} />
+      <PageHeader title={t("Learn.title")} description={t("Learn.description")} tourAnchor="learn" />
 
       {isLoading || !data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

@@ -83,11 +83,13 @@ function ChecklistRow({ item, to }: { item: TourChecklistItem; to: string }) {
 }
 
 /**
- * The 5-layer tour's two-stage Dashboard checklist (layer 3). Stage 1 ("Get
- * Started") replaces itself with Stage 2 ("Explore Neev") the instant it
- * completes — never both at once, since show_checklist/active_stage collapse
- * to a single card server-side (services/tour.ts). Auto-hides on full
- * completion, 14 days, or a one-tap dismiss (bring-it-back lives in Settings).
+ * The tour's two-stage checklist. Stage 1 ("Get Started") replaces itself
+ * with Stage 2 ("Explore Neev") the instant it completes — never both at
+ * once, since show_checklist/active_stage collapse to a single card
+ * server-side (services/tour.ts). Auto-hides on full completion, 14 days, or
+ * a one-tap dismiss (bring-it-back lives in Settings). Lives on /explore only
+ * (not the Dashboard) — the guided tab tour now owns first-arrival, tab-level
+ * orientation, so the Dashboard stays a clean daily-activity surface.
  */
 export function TourChecklistCard() {
   const { t } = useTranslation();

@@ -306,7 +306,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
       </TabsContent>
       <TabsContent value="quick">{digestLayer}</TabsContent>
       <FirstVisitCoachmark
-        sectionKey="learn"
+        sectionKey="chapter_study_tabs"
         targetRef={studyTabRef}
         message={t("Explore.coachmarkLearn")}
         dismissLabel={t("Explore.coachmarkGotIt")}

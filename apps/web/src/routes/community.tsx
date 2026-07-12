@@ -17,7 +17,7 @@ export function Component() {
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-4">
-      <PageHeader title={t("Community.hubTitle")} description={t("Community.hubDescription")} />
+      <PageHeader title={t("Community.hubTitle")} description={t("Community.hubDescription")} tourAnchor="community" />
 
       <SectionCard title={t("Community.myThreads")}>
         {hub.isLoading ? (

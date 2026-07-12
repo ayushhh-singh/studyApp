@@ -1,8 +1,9 @@
 /**
- * The 5-layer onboarding tour's server side: the two-stage Dashboard
- * checklist (detected entirely from feature_first_touch, itself stamped at
- * real usage points across the app — see lib/feature-touch.ts) and the
- * tour_state merge-patch (welcome/sections-seen/dismissed/reset).
+ * The onboarding tour's server side: the two-stage checklist (detected
+ * entirely from feature_first_touch, itself stamped at real usage points
+ * across the app — see lib/feature-touch.ts), the guided tab tour's
+ * progress (choice/status/step_index over GUIDED_TOUR_STOPS), and the
+ * tour_state merge-patch (welcome/sections-seen/dismissed/reset/guided_tour_*).
  *
  * Every checklist item maps 1:1 (or, for "mock_or_time_attack", 1:2) onto a
  * feature_first_touch key, so there is exactly one source of truth for "has
@@ -18,7 +19,7 @@ import type {
   TourSuggestedChapterNode,
   TourUpdateBody,
 } from "@prayasup/shared";
-import { FEATURE_KEYS } from "@prayasup/shared";
+import { FEATURE_KEYS, GUIDED_TOUR_STOPS } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, daysBetween } from "../lib/ist.js";
@@ -42,6 +43,7 @@ const DEFAULT_TOUR_STATE: TourState = {
   checklist_stage: 0,
   sections_seen: {},
   dismissed: false,
+  guided_tour: { choice: null, status: "not_started", step_index: 0 },
 };
 
 type TouchMap = Record<FeatureKey, string | null>;
@@ -162,6 +164,23 @@ export async function updateTourState(userId: string, patch: TourUpdateBody): Pr
     if (patch.welcome_seen !== undefined) next.welcome_seen = patch.welcome_seen;
     if (patch.dismissed !== undefined) next.dismissed = patch.dismissed;
     if (patch.sections_seen) next.sections_seen = { ...next.sections_seen, ...patch.sections_seen };
+
+    if (patch.guided_tour_choice === "tour") {
+      // Always a fresh (re)start from stop 0 — covers the welcome choice,
+      // /explore's "Take the tour" (never started / abandoned), and
+      // "Retake the tour" (already completed) with the same one action.
+      next.guided_tour = { choice: "tour", status: "in_progress", step_index: 0 };
+    } else if (patch.guided_tour_choice === "skip") {
+      next.guided_tour = { choice: "skip", status: "not_started", step_index: 0 };
+    }
+
+    if (patch.guided_tour_advance && next.guided_tour.status === "in_progress") {
+      const lastIndex = GUIDED_TOUR_STOPS.length - 1;
+      next.guided_tour =
+        next.guided_tour.step_index >= lastIndex
+          ? { ...next.guided_tour, status: "completed" }
+          : { ...next.guided_tour, step_index: next.guided_tour.step_index + 1 };
+    }
   }
   await writeTourState(userId, next);
   return buildPayload(userId, { tour_state: next, created_at: profileRow.created_at });

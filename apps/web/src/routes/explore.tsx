@@ -17,6 +17,8 @@ import type { FeatureKey } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
+import { TourChecklistCard } from "@/components/explore/tour-checklist-card";
+import { GuidedTourLauncher } from "@/components/explore/guided-tour-launcher";
 import { useLocale } from "@/hooks/use-locale";
 import { useTourState } from "@/hooks/use-tour";
 import { cn } from "@/lib/utils";
@@ -98,7 +100,7 @@ export function Component() {
   if (tourQuery.isPending) {
     return (
       <div className="flex flex-col gap-4">
-        <PageHeader title={t("Explore.title")} description={t("Explore.description")} />
+        <PageHeader title={t("Explore.title")} description={t("Explore.description")} tourAnchor="explore" />
         <div className="grid gap-3 md:grid-cols-2">
           {PILLAR_ORDER.map((key) => (
             <SectionCard key={key}>
@@ -121,7 +123,12 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-4">
-      <PageHeader title={t("Explore.title")} description={t("Explore.description")} />
+      <PageHeader title={t("Explore.title")} description={t("Explore.description")} tourAnchor="explore" />
+
+      <GuidedTourLauncher />
+
+      <TourChecklistCard />
+
       <div className="grid gap-3 md:grid-cols-2">
         {pillars.map((key) => {
           const Icon = PILLAR_ICONS[key];

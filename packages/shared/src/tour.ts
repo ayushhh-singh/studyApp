@@ -24,23 +24,49 @@ export type FeatureKey = z.infer<typeof featureKeySchema>;
 export const FEATURE_KEYS = featureKeySchema.options;
 
 /**
- * The sections a <FirstVisitCoachmark> can fire in, once each, ever. Nine, not
- * eight — current_affairs (the exam-lens filter tabs) is a real coachmark
- * anchor and a real feature_first_touch/Explore pillar, so it belongs here
- * alongside the other eight even though it wasn't in the original shorthand list.
+ * The sections a <FirstVisitCoachmark> can fire in, once each, ever. Now
+ * scoped to genuine SUB-features within a tab (the guided tab tour below
+ * owns tab-level "what is this" orientation): a chapter's Study vs Quick
+ * Revision tabs, the mentor's teach-mode toggle, "Share for peer review" on
+ * an evaluation, and the magazine (which the guided tour doesn't visit, so
+ * it keeps its own first-arrival orientation).
  */
-export const tourSectionKeySchema = z.enum([
+export const tourSectionKeySchema = z.enum(["chapter_study_tabs", "mentor_teach_mode", "peer_review_share", "magazine"]);
+export type TourSectionKey = z.infer<typeof tourSectionKeySchema>;
+
+/**
+ * The guided tab tour's 9 stops, in navigation order — checked against the
+ * real lib/nav.ts item ids. Dashboard is the launch point (where the
+ * welcome binary choice lives), not a stop itself.
+ */
+export const guidedTourStopKeySchema = z.enum([
   "learn",
   "practice",
   "answers",
   "revision",
-  "mentor",
-  "community",
-  "scoreboard",
-  "magazine",
+  "doubts",
   "current_affairs",
+  "scoreboard",
+  "community",
+  "explore",
 ]);
-export type TourSectionKey = z.infer<typeof tourSectionKeySchema>;
+export type GuidedTourStopKey = z.infer<typeof guidedTourStopKeySchema>;
+export const GUIDED_TOUR_STOPS = guidedTourStopKeySchema.options;
+
+export const welcomeTourChoiceSchema = z.enum(["tour", "skip"]);
+export type WelcomeTourChoice = z.infer<typeof welcomeTourChoiceSchema>;
+
+export const guidedTourStatusSchema = z.enum(["not_started", "in_progress", "completed"]);
+export type GuidedTourStatus = z.infer<typeof guidedTourStatusSchema>;
+
+export const guidedTourStateSchema = z.object({
+  /** The welcome moment's explicit binary choice — persisted once, never re-asked. */
+  choice: welcomeTourChoiceSchema.nullable().default(null),
+  status: guidedTourStatusSchema.default("not_started"),
+  /** Index into GUIDED_TOUR_STOPS of the stop currently shown / next to resume at. */
+  step_index: z.number().int().min(0).default(0),
+});
+export type GuidedTourState = z.infer<typeof guidedTourStateSchema>;
 
 export const tourStateSchema = z.object({
   welcome_seen: z.boolean().default(false),
@@ -48,6 +74,7 @@ export const tourStateSchema = z.object({
   sections_seen: z.record(tourSectionKeySchema, z.boolean()).default({}),
   /** One-tap dismiss of the Dashboard checklist card ("bring it back" in Settings). */
   dismissed: z.boolean().default(false),
+  guided_tour: guidedTourStateSchema.default({ choice: null, status: "not_started", step_index: 0 }),
 });
 export type TourState = z.infer<typeof tourStateSchema>;
 
@@ -110,6 +137,19 @@ export const tourUpdateBodySchema = z
     dismissed: z.boolean().optional(),
     /** "Replay tour" — resets tour_state to its default, wizard-fresh shape. */
     reset: z.boolean().optional(),
+    /**
+     * (Re)start the guided tab tour ("tour") or record the welcome moment's
+     * "skip, I'll explore myself" choice ("skip"). "tour" always resets
+     * guided_tour to {status: in_progress, step_index: 0} regardless of any
+     * prior progress — used at the welcome choice screen AND by /explore's
+     * Take-the-tour / Retake-the-tour buttons.
+     */
+    guided_tour_choice: welcomeTourChoiceSchema.optional(),
+    /**
+     * Advance one stop (or, from the last stop, finish). No-ops unless the
+     * tour is currently in_progress.
+     */
+    guided_tour_advance: z.boolean().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "No fields to update" });
 export type TourUpdateBody = z.infer<typeof tourUpdateBodySchema>;

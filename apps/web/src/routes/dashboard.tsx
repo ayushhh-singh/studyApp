@@ -3,7 +3,6 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { GreetingHeader } from "@/components/dashboard/greeting-header";
 import { GuidedTodayCard } from "@/components/dashboard/guided-today-card";
-import { TourChecklistCard } from "@/components/dashboard/tour-checklist-card";
 import { ContinueCard } from "@/components/dashboard/continue-card";
 import { TodayCard } from "@/components/dashboard/today-card";
 import { useLocale } from "@/hooks/use-locale";
@@ -60,8 +59,6 @@ export function Component() {
       <GreetingHeader greeting={data.greeting} />
 
       <MentorInsightCard />
-
-      <TourChecklistCard />
 
       <GuidedTodayCard today={data.today} cont={data.continue} locale={locale} />
 

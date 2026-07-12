@@ -235,7 +235,7 @@ export function MentorChat({
       <div className="border-t border-border pt-2">
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <FirstVisitCoachmark
-            sectionKey="mentor"
+            sectionKey="mentor_teach_mode"
             targetRef={teachButtonRef}
             message={t("Explore.coachmarkMentor")}
             dismissLabel={t("Explore.coachmarkGotIt")}

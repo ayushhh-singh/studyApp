@@ -132,6 +132,7 @@ export function Component() {
       <PageHeader
         title={t("Mentor.title")}
         description={t("Mentor.pageDescription")}
+        tourAnchor="doubts"
         action={
           <Button size="sm" onClick={newThread} disabled={createThread.isPending}>
             <Plus className="size-4" aria-hidden /> {t("Mentor.newDoubt")}

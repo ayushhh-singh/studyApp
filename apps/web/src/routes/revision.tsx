@@ -22,7 +22,7 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("Revision.title")} description={t("Revision.description")} />
+      <PageHeader title={t("Revision.title")} description={t("Revision.description")} tourAnchor="revision" />
 
       {isLoading || !stats ? (
         <div className="grid grid-cols-3 gap-3 max-w-lg">

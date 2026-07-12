@@ -176,7 +176,7 @@ export function Component() {
             {addToRevision.isSuccess ? t("Learn.addedToRevision") : t("Answers.addKeyPointsCta")}
           </Button>
           <FirstVisitCoachmark
-            sectionKey="community"
+            sectionKey="peer_review_share"
             targetRef={shareButtonRef}
             message={t("Explore.coachmarkCommunity")}
             dismissLabel={t("Explore.coachmarkGotIt")}
