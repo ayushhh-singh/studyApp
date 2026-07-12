@@ -28,6 +28,7 @@ import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { badRequest, conflict, HttpError, notFound } from "../../lib/http-error.js";
 import { MODELS, streamText, structuredJson, translateBatch, type LlmUsage } from "../../lib/anthropic.js";
+import { touchFeature } from "../../lib/feature-touch.js";
 import { retrieveGrounding } from "./grounding.js";
 import {
   computeOverallScore,
@@ -189,6 +190,7 @@ export async function createSubmission(userId: string, body: CreateSubmissionBod
     .select(SUBMISSION_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `submission insert failed: ${error.message}`);
+  void touchFeature(userId, "answer_evaluation");
   return mapSubmission(data as SubmissionRow);
 }
 

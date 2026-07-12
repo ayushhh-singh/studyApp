@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { BookmarkPlus, BookOpen, Check, GraduationCap, Layers, ListTree, Lock, Zap } from "lucide-react";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { useNoteForNode, useAddNoteDeck, useAddNoteBlock } from "@/hooks/use-notes";
 import { useRecordEvent } from "@/hooks/use-record-event";
 import { usePaywallStore } from "@/stores/paywall-store";
@@ -77,6 +78,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
   const [quick, setQuick] = useState(false);
   const [added, setAdded] = useState<Set<string>>(new Set());
   const [deckDone, setDeckDone] = useState(false);
+  const studyTabRef = useRef<HTMLButtonElement>(null);
 
   // Reading-progress signal (feeds analytics + the dashboard "continue" card).
   useEffect(() => {
@@ -292,7 +294,7 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
   return (
     <Tabs value={studyTab} onValueChange={setStudyTab}>
       <TabsList className="max-w-sm">
-        <TabsTrigger value="study">
+        <TabsTrigger ref={studyTabRef} value="study">
           <GraduationCap className="size-4" aria-hidden /> {tabCopy.study}
         </TabsTrigger>
         <TabsTrigger value="quick">
@@ -303,6 +305,12 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
         <ChapterView note={note} paperCode={paperCode} nodeId={nodeId} locale={locale} />
       </TabsContent>
       <TabsContent value="quick">{digestLayer}</TabsContent>
+      <FirstVisitCoachmark
+        sectionKey="learn"
+        targetRef={studyTabRef}
+        message={t("Explore.coachmarkLearn")}
+        dismissLabel={t("Explore.coachmarkGotIt")}
+      />
     </Tabs>
   );
 }

@@ -22,6 +22,7 @@
     "ingest:verify": "tsx --env-file-if-exists=.env src/ingest/verify.ts",
     "eval:answers": "tsx --env-file-if-exists=.env scripts/eval-harness.ts",
     "cost:report": "tsx --env-file-if-exists=.env scripts/cost-report.ts",
+    "feature-discovery:report": "tsx --env-file-if-exists=.env scripts/feature-discovery-report.ts",
     "audit:consistency": "tsx --env-file-if-exists=.env src/audit/consistency-run.ts",
     "audit:resolve": "tsx --env-file-if-exists=.env src/audit/resolve-run.ts",
     "ca:run": "tsx --env-file-if-exists=.env src/ca/run.ts",

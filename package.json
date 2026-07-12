@@ -14,6 +14,7 @@
     "ingest:verify": "pnpm --filter api ingest:verify",
     "eval:answers": "pnpm --filter api eval:answers",
     "cost:report": "pnpm --filter api cost:report",
+    "feature-discovery:report": "pnpm --filter api feature-discovery:report",
     "audit:consistency": "pnpm --filter api audit:consistency",
     "audit:resolve": "pnpm --filter api audit:resolve",
     "ca:run": "pnpm --filter api ca:run",

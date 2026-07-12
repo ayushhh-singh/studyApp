@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, localeSchema } from "./types";
+import { tourStateSchema } from "./tour";
 
 export const userPlanSchema = z.enum(["free", "pro"]);
 export type UserPlan = z.infer<typeof userPlanSchema>;
@@ -30,6 +31,8 @@ export const profileSchema = z.object({
   next_exam_label_i18n: z.object({ hi: z.string(), en: z.string() }).nullable(),
   /** Opt-in only — Mains (Answer Writing) scores are personal; never forced. See Scoreboard. */
   show_on_mains_board: z.boolean(),
+  /** The 5-layer onboarding tour's persisted progress — see GET/PATCH /tour for the full picture (checklist + feature-touch map). */
+  tour_state: tourStateSchema,
 });
 export type Profile = z.infer<typeof profileSchema>;
 

@@ -1,11 +1,12 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
-import { Download, Moon, ShieldAlert, Sun } from "lucide-react";
+import { Compass, Download, Moon, ShieldAlert, Sun } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/hooks/use-locale";
 import { useUpdateProfile } from "@/hooks/use-profile";
+import { useTourState, useUpdateTourState } from "@/hooks/use-tour";
 import { getAccessToken } from "@/lib/auth";
 import { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, switchLocale, type Locale } from "@/lib/locale";
 import { useThemeStore } from "@/stores/theme-store";
@@ -21,6 +22,9 @@ export function SettingsCard() {
   const updateProfile = useUpdateProfile();
   const theme = useThemeStore((s) => s.theme);
   const toggleTheme = useThemeStore((s) => s.toggleTheme);
+  const tourQuery = useTourState();
+  const updateTour = useUpdateTourState();
+  const checklistDismissed = tourQuery.data?.tour_state.dismissed ?? false;
 
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
@@ -106,6 +110,41 @@ export function SettingsCard() {
               </Button>
             </div>
             {exportError && <p className="text-sm text-destructive">{exportError}</p>}
+          </div>
+
+          <div className="flex flex-col gap-2 rounded-lg border border-border p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{t("Profile.settingsShowChecklist")}</span>
+                <span className="text-xs text-muted-foreground">{t("Profile.settingsShowChecklistHint")}</span>
+              </div>
+              <Button
+                type="button"
+                variant={checklistDismissed ? "outline" : "default"}
+                size="sm"
+                onClick={() => updateTour.mutate({ dismissed: !checklistDismissed })}
+                aria-pressed={!checklistDismissed}
+              >
+                {checklistDismissed ? t("Profile.settingsShowChecklistBringBack") : t("Profile.settingsShowChecklistOn")}
+              </Button>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm font-medium">{t("Profile.settingsReplayTour")}</span>
+                <span className="text-xs text-muted-foreground">{t("Profile.settingsReplayTourHint")}</span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => updateTour.mutate({ reset: true })}
+                disabled={updateTour.isPending}
+                className="gap-2"
+              >
+                <Compass className="size-4" aria-hidden />
+                {t("Profile.settingsReplayTourButton")}
+              </Button>
+            </div>
           </div>
 
           <div className="flex flex-col gap-2 rounded-lg border border-coral/30 bg-coral/5 p-3">

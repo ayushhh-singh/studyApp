@@ -16,6 +16,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { touchFeatureOnRequest } from "../lib/feature-touch.js";
 import {
   getDailyQuizTodayBoard,
   getDailyQuizWeeklyBoard,
@@ -32,6 +33,7 @@ import {
 
 export const scoreboardRouter = Router();
 scoreboardRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
+scoreboardRouter.use(touchFeatureOnRequest("scoreboard"));
 
 scoreboardRouter.get(
   "/scoreboard/prelims/daily-quiz/today",

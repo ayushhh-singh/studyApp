@@ -10,6 +10,7 @@ import { useDoubtStream } from "@/hooks/use-doubt-stream";
 import { useEntitlements } from "@/hooks/use-billing";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { MentorMessage } from "./mentor-message";
 import { cn } from "@/lib/utils";
 
@@ -57,6 +58,7 @@ export function MentorChat({
   const [revision, setRevision] = useState(false);
   const [teachMode, setTeachMode] = useState(seedTeach);
   const [depth, setDepth] = useState<MentorDepth>(seedDepth);
+  const teachButtonRef = useRef<HTMLButtonElement>(null);
   const [pendingUser, setPendingUser] = useState<string | null>(null);
   // The last dispatched send, so "Answer fresh" can replay it with the cache
   // bypassed (same question, same mode/teach/depth).
@@ -232,7 +234,14 @@ export function MentorChat({
 
       <div className="border-t border-border pt-2">
         <div className="mb-2 flex flex-wrap items-center gap-2">
+          <FirstVisitCoachmark
+            sectionKey="mentor"
+            targetRef={teachButtonRef}
+            message={t("Explore.coachmarkMentor")}
+            dismissLabel={t("Explore.coachmarkGotIt")}
+          />
           <Button
+            ref={teachButtonRef}
             type="button"
             variant={teachMode ? "default" : "outline"}
             size="xs"

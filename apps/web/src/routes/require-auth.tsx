@@ -43,6 +43,10 @@ export function ProfileLoadError({ onRetry }: { onRetry: () => void }) {
  *     user lands back where they were headed after signing in.
  *   - Signed in but onboarding not finished → bounce to /:locale/onboarding
  *     (except when already there).
+ *   - Onboarded but the tour's welcome moment hasn't been seen yet → bounce to
+ *     /:locale/welcome (except when already there) — this is what makes
+ *     "wizard -> welcome -> Dashboard" true for every entry point, not just
+ *     onboarding.tsx's own finish() navigation target.
  * Gated on both auth loading and the profile query so we never flash a
  * protected screen before the redirect decision is made.
  */
@@ -53,6 +57,8 @@ export function Component() {
 
   const onboardingPath = `/${locale}/onboarding`;
   const isOnboardingRoute = location.pathname === onboardingPath;
+  const welcomePath = `/${locale}/welcome`;
+  const isWelcomeRoute = location.pathname === welcomePath;
 
   // Only fetch the profile once we know there's a session (avoids a doomed
   // unauthenticated request while auth is still resolving).
@@ -86,6 +92,11 @@ export function Component() {
   const onboarded = profileQuery.data?.onboarding_completed ?? false;
   if (!onboarded && !isOnboardingRoute) {
     return <Navigate to={onboardingPath} replace />;
+  }
+
+  const welcomeSeen = profileQuery.data?.tour_state.welcome_seen ?? false;
+  if (onboarded && !welcomeSeen && !isWelcomeRoute && !isOnboardingRoute) {
+    return <Navigate to={welcomePath} replace />;
   }
 
   return <Outlet />;

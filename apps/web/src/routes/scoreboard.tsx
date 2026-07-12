@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { BoardTable } from "@/components/scoreboard/board-table";
 import { MainsOptInCard } from "@/components/scoreboard/mains-opt-in-card";
 import { DimensionBestsPanel } from "@/components/scoreboard/dimension-bests-panel";
@@ -280,6 +281,7 @@ export function Component() {
   const rawSub = searchParams.get("sub");
   const prelimsSub: PrelimsSub = isPrelimsSub(rawSub) ? (rawSub as PrelimsSub) : "daily";
   const mainsSub: MainsSub = isMainsSub(rawSub) ? (rawSub as MainsSub) : "writing";
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   function setTab(next: MainTab) {
     setSearchParams(
@@ -309,8 +311,14 @@ export function Component() {
     <div className="flex flex-col gap-6">
       <PageHeader title={t("Scoreboard.title")} description={t("Scoreboard.description")} />
 
+      <FirstVisitCoachmark
+        sectionKey="scoreboard"
+        targetRef={tabsRef}
+        message={t("Explore.coachmarkScoreboard")}
+        dismissLabel={t("Explore.coachmarkGotIt")}
+      />
       <Tabs value={tab} onValueChange={(v) => setTab(v as MainTab)}>
-        <TabsList>
+        <TabsList ref={tabsRef}>
           <TabsTrigger value="prelims">{t("Scoreboard.tabPrelims")}</TabsTrigger>
           <TabsTrigger value="mains">{t("Scoreboard.tabMains")}</TabsTrigger>
         </TabsList>

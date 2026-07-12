@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
@@ -8,6 +9,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamFilter } from "@/components/ui-x/exam-filter";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PyqList } from "@/components/learn/pyq-list";
@@ -223,6 +225,7 @@ export function Component() {
   const [searchParams, setSearchParams] = useSearchParams();
   const nodeFilter = searchParams.get("node");
   const tab: Tab = isTab(searchParams.get("tab")) ? (searchParams.get("tab") as Tab) : "pyq";
+  const dailyTabRef = useRef<HTMLButtonElement>(null);
 
   if (nodeFilter) {
     return (
@@ -249,9 +252,15 @@ export function Component() {
     <div className="flex flex-col gap-6">
       <PageHeader title={t("Practice.title")} description={t("Practice.description")} />
 
+      <FirstVisitCoachmark
+        sectionKey="practice"
+        targetRef={dailyTabRef}
+        message={t("Explore.coachmarkPractice")}
+        dismissLabel={t("Explore.coachmarkGotIt")}
+      />
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList>
-          <TabsTrigger value="daily">{t("Practice.tabDaily")}</TabsTrigger>
+          <TabsTrigger ref={dailyTabRef} value="daily">{t("Practice.tabDaily")}</TabsTrigger>
           <TabsTrigger value="pyq">{t("Practice.tabPyq")}</TabsTrigger>
           <TabsTrigger value="sectional">{t("Practice.tabSectional")}</TabsTrigger>
           <TabsTrigger value="mock">{t("Practice.tabMock")}</TabsTrigger>

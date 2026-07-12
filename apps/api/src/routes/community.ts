@@ -27,6 +27,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { touchFeatureOnRequest } from "../lib/feature-touch.js";
 import {
   addPost,
   blockUser,
@@ -47,6 +48,7 @@ import {
 
 export const communityRouter = Router();
 communityRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
+communityRouter.use(touchFeatureOnRequest("community"));
 // Posting is rate-limited more tightly than reads — the non-negotiable
 // per-user posts/hour cap (CLAUDE.md's moderation requirement). Applied only
 // to the two content-creation routes below, NOT router.use()'d onto the

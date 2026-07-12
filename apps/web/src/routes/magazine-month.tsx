@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useNavigate, useLocation } from "react-router";
 import { ArrowLeft, BookOpenCheck, Languages, ListChecks, Newspaper } from "lucide-react";
@@ -7,6 +8,7 @@ import { switchLocale } from "@/lib/locale";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 
 /**
  * The month landing page — a clean index (TOC) between the month picker and
@@ -19,6 +21,7 @@ export function Component() {
   const location = useLocation();
   const { month = "" } = useParams<{ month: string }>();
   const { data: months, isLoading, isError, refetch } = useMagazineMonths();
+  const editionsRef = useRef<HTMLDivElement>(null);
 
   const summary = months?.find((m) => m.month === month) ?? null;
 
@@ -68,7 +71,13 @@ export function Component() {
               </h1>
             </div>
 
-            <div className="flex flex-col gap-4">
+            <div ref={editionsRef} className="flex flex-col gap-4">
+              <FirstVisitCoachmark
+                sectionKey="magazine"
+                targetRef={editionsRef}
+                message={t("Explore.coachmarkMagazine")}
+                dismissLabel={t("Explore.coachmarkGotIt")}
+              />
               <Link
                 to={`/${locale}/magazine/${month}/prelims`}
                 className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

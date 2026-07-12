@@ -30,6 +30,7 @@ import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { getTestDetail } from "./tests.js";
 import { startAttempt } from "./attempts.js";
+import { touchFeature } from "../lib/feature-touch.js";
 
 const NO_NEGATIVE = { type: "time_attack", negative_marking: 0, note: "no negative marking" };
 
@@ -256,6 +257,7 @@ export async function startTimeAttack(userId: string, nodeId: string): Promise<T
   if (memErr) throw new HttpError(500, `time attack membership insert failed: ${memErr.message}`);
 
   const attempt = await startAttempt(userId, { test_id: testId });
+  void touchFeature(userId, "time_attack");
   const detail = await getTestDetail(testId);
   const answerKey: Record<string, string> = {};
   for (const q of picked) if (q.correct_option_key) answerKey[q.id] = q.correct_option_key;

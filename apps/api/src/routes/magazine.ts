@@ -9,10 +9,12 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
+import { touchFeatureOnRequest } from "../lib/feature-touch.js";
 import { compileMainsEdition, compilePrelimsEdition, listMagazineMonths } from "../services/magazine.js";
 
 export const magazineRouter = Router();
 magazineRouter.use("/magazine", rateLimit({ windowMs: 60_000, max: 120 }));
+magazineRouter.use("/magazine", touchFeatureOnRequest("magazine"));
 
 /** Months that have a compilable magazine edition (for the index/picker). */
 magazineRouter.get(

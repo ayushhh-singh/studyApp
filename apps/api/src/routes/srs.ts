@@ -20,6 +20,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { touchFeature } from "../lib/feature-touch.js";
 import {
   addCurrentAffairsFactToRevision,
   addEvaluationToRevision,
@@ -38,6 +39,15 @@ import {
 
 export const srsRouter = Router();
 srsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
+// Every card-adding endpoint ("add to revision", manual create, the two seed
+// endpoints) counts as touching the revision_srs feature — one middleware
+// instead of a call at each of the 7 service functions that create a card.
+srsRouter.use((req, _res, next) => {
+  if (req.method === "POST" && (req.path.startsWith("/srs/cards") || req.path.startsWith("/srs/seed"))) {
+    void touchFeature(currentUserId(), "revision_srs");
+  }
+  next();
+});
 
 srsRouter.post(
   "/srs/cards/from-node",

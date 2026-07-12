@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { NotebookPen } from "lucide-react";
@@ -6,6 +6,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { useQuestions } from "@/hooks/use-questions";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { useLocale } from "@/hooks/use-locale";
@@ -18,6 +19,7 @@ export function PyqPicker() {
   const { t } = useTranslation();
   const locale = useLocale();
   const [paper, setPaper] = useState("");
+  const paperFilterRef = useRef<HTMLSelectElement>(null);
   const { data: allPapers } = usePaperSummaries();
   // Answer Writing is Mains-only (descriptive PYQs) — Prelims papers are
   // entirely MCQ, so listing them here just leads to a real, confusingly
@@ -32,7 +34,14 @@ export function PyqPicker() {
 
   return (
     <SectionCard title={t("Answers.pyqPickerTitle")}>
+      <FirstVisitCoachmark
+        sectionKey="answers"
+        targetRef={paperFilterRef}
+        message={t("Explore.coachmarkAnswers")}
+        dismissLabel={t("Explore.coachmarkGotIt")}
+      />
       <select
+        ref={paperFilterRef}
         className={`${SELECT_CLASS} self-start`}
         value={paper}
         onChange={(e) => setPaper(e.target.value)}

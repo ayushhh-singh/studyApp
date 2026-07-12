@@ -36,6 +36,7 @@ import { communityRouter } from "./routes/community.js";
 import { scoreboardRouter } from "./routes/scoreboard.js";
 import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./routes/billing.js";
 import { pushRouter } from "./routes/push.js";
+import { tourRouter } from "./routes/tour.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
 import { initSentry } from "./lib/sentry.js";
@@ -136,6 +137,7 @@ app.use("/api/v1", communityRouter);
 app.use("/api/v1", scoreboardRouter);
 app.use("/api/v1", billingRouter);
 app.use("/api/v1", pushRouter);
+app.use("/api/v1", tourRouter);
 app.use("/api/v1", adminRouter);
 
 app.use("/api/v1", notFoundHandler);

@@ -10,6 +10,7 @@ import {
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
+import { touchFeatureOnRequest } from "../lib/feature-touch.js";
 import {
   CURRENT_AFFAIRS_PAGE_SIZE,
   getCurrentAffairsItemById,
@@ -20,6 +21,7 @@ import { createCustomTestFromCurrentAffairs } from "../services/tests.js";
 
 export const currentAffairsRouter = Router();
 currentAffairsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
+currentAffairsRouter.use(touchFeatureOnRequest("current_affairs"));
 
 currentAffairsRouter.get(
   "/current-affairs",

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
 import { FileQuestion, Loader2, PenLine, Share2, Sparkles } from "lucide-react";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
+import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { EvaluationDimensions } from "@/components/answers/evaluation-dimensions";
 import { EvaluationScoreHero } from "@/components/answers/evaluation-score-hero";
 import { EvaluationFeedback } from "@/components/answers/evaluation-feedback";
@@ -48,6 +49,7 @@ export function Component() {
   const stream = useEvaluationStream(submissionId, locale);
   const addToRevision = useAddEvaluationToRevision();
   const shareAnswer = useShareAnswer();
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
   const { data: percentile } = useEvaluationPercentile(stream.done ? submissionId : undefined);
   const { data: catalogedQuestion } = useQuestion(detail?.submission.question_id ?? undefined);
 
@@ -173,7 +175,14 @@ export function Component() {
             <Sparkles aria-hidden />
             {addToRevision.isSuccess ? t("Learn.addedToRevision") : t("Answers.addKeyPointsCta")}
           </Button>
+          <FirstVisitCoachmark
+            sectionKey="community"
+            targetRef={shareButtonRef}
+            message={t("Explore.coachmarkCommunity")}
+            dismissLabel={t("Explore.coachmarkGotIt")}
+          />
           <Button
+            ref={shareButtonRef}
             variant="ghost"
             disabled={shareAnswer.isPending}
             onClick={() =>

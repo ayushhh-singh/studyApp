@@ -31,6 +31,7 @@ import { logger } from "../../lib/logger.js";
 import { MODELS, streamChat, streamText, structuredJson, webResearch } from "../../lib/anthropic.js";
 import { getLearnerProfile, formatProfileForPrompt } from "../learner-profile.js";
 import { isAnalyticalQuery, isPersonalQuery } from "./heuristics.js";
+import { touchFeature } from "../../lib/feature-touch.js";
 import {
   buildMentorPersona,
   buildProfileSegment,
@@ -250,6 +251,8 @@ export async function planDoubtMessage(
     // (an in-depth lesson = 2) instead of counting rows.
     .insert({ thread_id: threadId, role: "user", content: question, meta: { quota_cost: cost, teach } });
   if (insertError) throw new HttpError(500, `message insert failed: ${insertError.message}`);
+  void touchFeature(userId, "mentor_chat");
+  if (teach) void touchFeature(userId, "mentor_teach_mode");
 
   // First user message names the thread if it was untitled.
   if (!thread.title) {

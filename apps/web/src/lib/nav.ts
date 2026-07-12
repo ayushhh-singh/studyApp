@@ -11,6 +11,7 @@ import {
   User,
   MessagesSquare,
   StickyNote,
+  Compass,
   type LucideIcon,
 } from "lucide-react";
 
@@ -50,6 +51,9 @@ export const NAV_ITEMS: NavItem[] = [
   // ignores this flag and always shows every item).
   { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain, mobilePrimary: true },
   { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
+  // The tour's permanent discovery surface — deliberately a real nav item
+  // (not buried in Settings) so it's trivially findable on demand at any time.
+  { id: "explore", to: "explore", labelKey: "Nav.explore", icon: Compass },
   { id: "review", to: "review", labelKey: "Nav.review", icon: ShieldCheck, adminOnly: true },
   { id: "profile", to: "profile", labelKey: "Nav.profile", icon: User },
 ];

@@ -20,6 +20,7 @@ import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { assertMockTests } from "./entitlements.js";
 import { recordDailyQuizResult } from "./scoreboard.js";
+import { touchFeature } from "../lib/feature-touch.js";
 
 interface AttemptMeta {
   question_ids: string[];
@@ -156,6 +157,8 @@ export async function startAttempt(
     if (!test || !test.is_published) throw notFound("Test not found");
     // The mock test series is Pro-only.
     if (test.kind === "mock") await assertMockTests(userId);
+    if (test.kind === "mock") void touchFeature(userId, "mock");
+    else if (test.kind === "daily_quiz") void touchFeature(userId, "daily_quiz");
     markingScheme = ((test.meta as { marking_scheme?: MarkingScheme } | null)?.marking_scheme ??
       null) as MarkingScheme;
 

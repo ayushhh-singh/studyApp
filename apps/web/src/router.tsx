@@ -41,10 +41,15 @@ export const router = createBrowserRouter([
         lazy: () => import("@/routes/require-auth"),
         children: [
           { path: "onboarding", lazy: () => import("@/routes/onboarding") },
+          // The 5-layer tour's welcome moment — 2-3 skippable value-prop
+          // screens shown exactly once, between onboarding and the Dashboard.
+          { path: "welcome", lazy: () => import("@/routes/welcome") },
           {
             lazy: () => import("@/routes/app-shell"),
             children: [
               { path: "dashboard", lazy: () => import("@/routes/dashboard") },
+              // The tour's permanent, always-findable discovery surface (layer 5).
+              { path: "explore", lazy: () => import("@/routes/explore") },
               { path: "learn", lazy: () => import("@/routes/learn") },
               { path: "learn/:paperCode", lazy: () => import("@/routes/learn-paper") },
               { path: "learn/:paperCode/trends", lazy: () => import("@/routes/learn-trends") },
