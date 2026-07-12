@@ -88,24 +88,28 @@ interface NoteRow {
   study_content_i18n: StudyContent | null;
 }
 
-async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const limIdx = args.indexOf("--limit");
-  const limit = limIdx >= 0 ? Number(args[limIdx + 1]) : undefined;
-  const nodeIdx = args.indexOf("--node");
-  const nodeId = nodeIdx >= 0 ? args[nodeIdx + 1] : undefined;
+export interface EmbedNotesResult {
+  noteCount: number;
+  chapterCount: number;
+  chunkCount: number;
+}
 
-  console.log(`notes:embed  (provider: ${embeddings().id}, ${embeddings().dimensions}d)`);
+/**
+ * Embed published notes IN-PROCESS (no child-process spawn). Callers that need
+ * to embed many notes from a loop (e.g. a batch checkpoint script) MUST call this
+ * directly rather than shelling out to `tsx .../embed.ts --node <id>` per note —
+ * spawning a fresh node process per note under a tight loop is fragile (observed:
+ * silent failures with no visible stderr, verified this way in Session 28's
+ * post-rollout audit) and needlessly slow (a fresh Supabase/OpenAI client per call).
+ */
+export async function embedNotes(opts: { nodeId?: string; limit?: number } = {}): Promise<EmbedNotesResult> {
   let q = supabase().from("notes").select("id, content_i18n, study_content_i18n").eq("status", "published");
-  if (nodeId) q = q.eq("syllabus_node_id", nodeId);
+  if (opts.nodeId) q = q.eq("syllabus_node_id", opts.nodeId);
   const { data, error } = await q;
   if (error) throw new Error(`fetch notes: ${error.message}`);
 
-  const notes = ((data ?? []) as NoteRow[]).slice(0, limit);
-  if (notes.length === 0) {
-    console.log("nothing to embed (no published notes match).");
-    return;
-  }
+  const notes = ((data ?? []) as NoteRow[]).slice(0, opts.limit);
+  if (notes.length === 0) return { noteCount: 0, chapterCount: 0, chunkCount: 0 };
 
   const chunks: Chunk[] = [];
   let chapterCount = 0;
@@ -117,9 +121,7 @@ async function main(): Promise<void> {
       texts.forEach((chunk_text, chunk_index) => chunks.push({ source_id: n.id, locale: loc, chunk_index, chunk_text }));
     }
   }
-
-  console.log(`  ${notes.length} note(s) (${chapterCount} chapter${chapterCount === 1 ? "" : "s"}) → ${chunks.length} chunk(s)`);
-  if (chunks.length === 0) return;
+  if (chunks.length === 0) return { noteCount: notes.length, chapterCount, chunkCount: 0 };
 
   // Delete existing chunks for the notes we're re-embedding so a shrunk chapter
   // leaves no orphan chunk_index rows behind.
@@ -147,12 +149,30 @@ async function main(): Promise<void> {
       .upsert(rows, { onConflict: "source_type,source_id,locale,chunk_index" });
     if (upErr) throw new Error(`upsert embeddings: ${upErr.message}`);
     upserted += rows.length;
-    console.log(`  embedded ${Math.min(i + batchSize, chunks.length)}/${chunks.length}`);
   }
-  console.log(`✓ ${upserted} note chunk(s) embedded + upserted.`);
+  return { noteCount: notes.length, chapterCount, chunkCount: upserted };
 }
 
-main().catch((err) => {
-  console.error("\nnotes:embed failed:", err instanceof Error ? err.stack : err);
-  process.exit(1);
-});
+async function main(): Promise<void> {
+  const args = process.argv.slice(2);
+  const limIdx = args.indexOf("--limit");
+  const limit = limIdx >= 0 ? Number(args[limIdx + 1]) : undefined;
+  const nodeIdx = args.indexOf("--node");
+  const nodeId = nodeIdx >= 0 ? args[nodeIdx + 1] : undefined;
+
+  console.log(`notes:embed  (provider: ${embeddings().id}, ${embeddings().dimensions}d)`);
+  const result = await embedNotes({ nodeId, limit });
+  if (result.noteCount === 0) {
+    console.log("nothing to embed (no published notes match).");
+    return;
+  }
+  console.log(`  ${result.noteCount} note(s) (${result.chapterCount} chapter${result.chapterCount === 1 ? "" : "s"}) → ${result.chunkCount} chunk(s)`);
+  console.log(`✓ ${result.chunkCount} note chunk(s) embedded + upserted.`);
+}
+
+if (process.argv[1] && process.argv[1].endsWith("embed.ts")) {
+  main().catch((err) => {
+    console.error("\nnotes:embed failed:", err instanceof Error ? err.stack : err);
+    process.exit(1);
+  });
+}
