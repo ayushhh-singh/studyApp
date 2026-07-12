@@ -22,7 +22,9 @@ function renderInline(text: string, keyBase: string, sources?: NoteSource[]): Re
     if (/^\[S\d+\]$/.test(part)) {
       const id = part.slice(1, -1);
       const src = sources?.find((s) => s.id === id);
-      if (src?.url) {
+      // Only render a clickable link for a real http(s) URL — a source grounded in
+      // our own bank (no external URL) still gets a plain numbered citation.
+      if (src?.url && /^https?:\/\//.test(src.url)) {
         return (
           <a key={key} href={src.url} target="_blank" rel="noreferrer" title={src.title}
              className="mx-0.5 inline-flex items-center gap-0.5 rounded bg-primary/10 px-1 text-[0.65em] font-semibold text-primary align-super">

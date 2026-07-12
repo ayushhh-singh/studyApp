@@ -89,6 +89,9 @@ export function NoteArticle({
   });
 
   const visible = quick ? sections.filter((s) => s.key === "key_facts" || s.key === "quick_revision") : sections;
+  // A source grounded in our own bank (no real web URL) has nothing to link to —
+  // only show/link sources with an actual http(s) URL in the further-reading footer.
+  const linkableSources = sources.filter((src) => /^https?:\/\//.test(src.url));
 
   return (
     <article className="min-w-0 flex-1">
@@ -141,7 +144,8 @@ export function NoteArticle({
             {s.key === "key_facts" && (
               <ul className="flex flex-col gap-2">
                 {body.key_facts.map((f, i) => {
-                  const source = f.source_ref ? sources.find((src) => src.id === f.source_ref) : null;
+                  const matched = f.source_ref ? sources.find((src) => src.id === f.source_ref) : null;
+                  const source = matched && /^https?:\/\//.test(matched.url) ? matched : null;
                   return (
                     <li key={i} className="flex items-start gap-2.5 rounded-lg border border-border bg-background px-3 py-2.5">
                       <span className={cn("min-w-0 flex-1 text-[15px]", locale === "hi" ? "leading-[1.9]" : "leading-relaxed")}>
@@ -196,7 +200,7 @@ export function NoteArticle({
           </section>
         ))}
 
-        {!quick && (body.further_reading.length > 0 || sources.length > 0) && (
+        {!quick && (body.further_reading.length > 0 || linkableSources.length > 0) && (
           <section className="flex flex-col gap-3 border-t border-border pt-5">
             <h3 className="text-sm font-semibold text-muted-foreground">{t("Notes.furtherReading")}</h3>
             <ul className="flex flex-col gap-1.5">
@@ -212,7 +216,7 @@ export function NoteArticle({
                   </a>
                 </li>
               ))}
-              {sources.map((src, i) => (
+              {linkableSources.map((src, i) => (
                 <li key={`${src.id}-${i}`}>
                   <a
                     href={src.url}
