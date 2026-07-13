@@ -1,7 +1,12 @@
 /**
  * eval:answers — end-to-end tuning harness for the AI answer-evaluation engine.
  *
- *   pnpm eval:answers [--runs N] [--keep] [--lang en|hi]
+ *   pnpm eval:answers [--runs N] [--keep] [--lang en|hi] [--email <addr>]
+ *
+ * The throwaway submissions are owned by a REAL auth user (the pre-auth
+ * DEV_USER_ID stand-in was removed in the Auth phase): pick one with --email or
+ * EVAL_USER_EMAIL, else the first user in the project is used. They're deleted
+ * afterwards unless --keep is passed.
  *
  * Runs three sample answers (a strong one, a mediocre one, and an off-topic one)
  * to the SAME question through the REAL pipeline (createSubmission → RAG
@@ -22,7 +27,6 @@ import {
   type RubricDimensionKey,
 } from "@neev/shared";
 import { supabase } from "../src/lib/supabase.js";
-import { devUserId } from "../src/lib/dev-user.js";
 import { createSubmission, runEvaluation, type EvalEmit } from "../src/services/evaluation/evaluate.js";
 
 // ---------------------------------------------------------------------------
@@ -123,16 +127,42 @@ function makeCapture(): { emit: EvalEmit; captured: Captured } {
   return { emit, captured };
 }
 
-function parseArgs(argv: string[]): { runs: number; keep: boolean; lang: Locale } {
+function parseArgs(argv: string[]): { runs: number; keep: boolean; lang: Locale; email: string | undefined } {
   let runs = 2;
   let keep = false;
   let lang: Locale = "en";
+  let email = process.env.EVAL_USER_EMAIL;
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--runs") runs = Math.max(1, Number(argv[++i]) || 2);
     else if (argv[i] === "--keep") keep = true;
     else if (argv[i] === "--lang") lang = argv[++i] === "hi" ? "hi" : "en";
+    else if (argv[i] === "--email") email = argv[++i];
   }
-  return { runs, keep, lang };
+  return { runs, keep, lang, email };
+}
+
+/**
+ * Resolve a REAL auth user to own the throwaway submissions. Prefers --email /
+ * EVAL_USER_EMAIL; otherwise the first user in the project. (perPage well above
+ * the dev project's user count so an --email lookup isn't defeated by paging.)
+ */
+async function resolveUserId(email: string | undefined): Promise<string> {
+  const { data, error } = await supabase().auth.admin.listUsers({ perPage: 1000 });
+  if (error) throw new Error(`listUsers failed: ${error.message}`);
+  const users = data.users;
+  if (email) {
+    const target = email.toLowerCase();
+    const match = users.find((u) => u.email?.toLowerCase() === target);
+    if (!match) throw new Error(`no auth user found with email "${email}"`);
+    return match.id;
+  }
+  const first = users[0];
+  if (!first) {
+    throw new Error(
+      "no auth users exist — create one (e.g. pnpm --filter api set-password --email <e> --password <p>) before running eval:answers",
+    );
+  }
+  return first.id;
 }
 
 function fmt(n: number | null, dp = 2): string {
@@ -140,8 +170,8 @@ function fmt(n: number | null, dp = 2): string {
 }
 
 async function main(): Promise<void> {
-  const { runs, keep, lang } = parseArgs(process.argv.slice(2));
-  const userId = devUserId();
+  const { runs, keep, lang, email } = parseArgs(process.argv.slice(2));
+  const userId = await resolveUserId(email);
   const createdIds: string[] = [];
 
   console.log("=".repeat(78));
