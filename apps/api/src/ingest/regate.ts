@@ -49,6 +49,15 @@ async function fetchRows(paper: string): Promise<QRow[]> {
       )
       .eq("paper_code", paper)
       .eq("type", "mcq")
+      // Only re-gate actual PYQs. The answer-key publish gate (gateMcq) is keyed on
+      // an answer-key concept that `generated`/`manual` MCQs (qgen output living under
+      // a real syllabus paper) simply don't have — provenance='none', no key, no blind
+      // solve → the gate would hold them. Without this filter a strict `--apply` would
+      // DEMOTE human-approved generated questions (regate, unlike pyq-load, doesn't
+      // treat review_state='approved' as locked). Matches this module's docstring:
+      // "recompute the PYQ publish gate". (exam_code is already all-UPPSC here, but the
+      // source filter is the load-bearing one.)
+      .eq("source", "pyq")
       .range(from, from + 999);
     if (error) throw new Error(`fetch ${paper}: ${error.message}`);
     rows.push(...((data ?? []) as unknown as QRow[]));
