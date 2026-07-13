@@ -30,7 +30,6 @@ export function Component() {
       <PageHeader
         title={t("Answers.title")}
         description={t("Answers.description")}
-        tourAnchor="answers"
         action={
           <div className="flex flex-wrap items-center gap-2">
             <EvaluationQuotaChip />
@@ -51,6 +50,11 @@ export function Component() {
 
       <DailyAnswerSet />
 
+      {/* Kept high (right under today's-question CTA and the daily answer set)
+          so returning users see their own progress before scrolling past the
+          PYQ picker. */}
+      <SubmissionHistoryList />
+
       <CaMainsSetCard />
 
       <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
@@ -69,8 +73,6 @@ export function Component() {
       </div>
 
       <AnswerTestTabs />
-
-      <SubmissionHistoryList />
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
-import type { ExamCode, TestSummary } from "@prayasup/shared";
+import type { ExamCode } from "@prayasup/shared";
 import { examCodeSchema } from "@prayasup/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -18,6 +18,7 @@ import { AttemptHistoryList } from "@/components/practice/attempt-history-list";
 import { useTests } from "@/hooks/use-tests";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useLocale } from "@/hooks/use-locale";
+import { groupByYearDescending } from "@/lib/group-by-year";
 
 export const handle = { titleKey: "Nav.practice" };
 
@@ -80,20 +81,6 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
       <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
     </SectionCard>
   );
-}
-
-/** Groups tests by their real exam year, descending; a missing year (shouldn't happen for pyq_full, kept safe anyway) sorts last. */
-function groupByYearDescending(tests: TestSummary[]): [string, TestSummary[]][] {
-  const groups = new Map<string, TestSummary[]>();
-  for (const test of tests) {
-    const key = test.year != null ? String(test.year) : "unknown";
-    (groups.get(key) ?? groups.set(key, []).get(key)!).push(test);
-  }
-  return [...groups.entries()].sort(([a], [b]) => {
-    if (a === "unknown") return 1;
-    if (b === "unknown") return -1;
-    return Number(b) - Number(a);
-  });
 }
 
 function TestListPanel({ kind }: { kind: "pyq_full" | "sectional" | "mock" }) {

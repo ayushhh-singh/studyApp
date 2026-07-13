@@ -50,6 +50,16 @@ export const queryKeys = {
       filters?.exam ?? "all",
       filters?.page ?? 1,
     ] as const,
+  questionsAll: (filters?: { type?: QuestionType; paper?: string; node?: string; year?: number; exam?: ExamCode }) =>
+    [
+      "questions",
+      "all",
+      filters?.type ?? "all",
+      filters?.paper ?? "all",
+      filters?.node ?? "all",
+      filters?.year ?? "all",
+      filters?.exam ?? "all",
+    ] as const,
   todaysQuestion: () => ["answers", "today"] as const,
   dailyAnswerSet: () => ["answers", "daily-set"] as const,
   submissions: (page?: number) => ["answers", "submissions", page ?? 1] as const,
