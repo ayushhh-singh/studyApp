@@ -1335,7 +1335,8 @@
       "wrong_explanation": "गलत व्याख्या",
       "translation": "अनुवाद संबंधी समस्या",
       "ambiguous": "अस्पष्ट",
-      "other": "कुछ और"
+      "other": "कुछ और",
+      "ai_key_dispute": "AI आधिकारिक कुंजी से असहमत"
     }
   },
   "QuestionReports": {

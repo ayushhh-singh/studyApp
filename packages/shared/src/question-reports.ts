@@ -2,13 +2,20 @@ import { z } from "zod";
 import { apiEnvelopeSchema, paginatedSchema } from "./types";
 import { generationMetaSchema, reviewQuestionSchema, reviewStateSchema } from "./review";
 
-/** Why a user is reporting a question (migration 0071). */
+/**
+ * Why a question is flagged (migration 0071). The first five are user-selectable
+ * "Report this question" reasons; `ai_key_dispute` is a SYSTEM-generated flag
+ * (user_id=null) raised when the blind re-solve disagrees with an official key
+ * (migration 0074) — it lands in the same admin Review Queue but is never offered
+ * to users in the report form.
+ */
 export const questionReportReasonSchema = z.enum([
   "wrong_answer",
   "wrong_explanation",
   "translation",
   "ambiguous",
   "other",
+  "ai_key_dispute",
 ]);
 export type QuestionReportReason = z.infer<typeof questionReportReasonSchema>;
 

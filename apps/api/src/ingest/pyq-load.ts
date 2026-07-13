@@ -17,6 +17,8 @@ import { basename } from "node:path";
 import { supabase } from "../lib/supabase.js";
 import { refreshNodeWeightage } from "../lib/weightage.js";
 import { listParsed, parseArgs, questionPublishable, report, type ExamCode, type SourceKind } from "./_shared.js";
+import { gateMcq, keyProvenanceFor, type BlindStatus, type KeyProvenance } from "./key-provenance.js";
+import { raiseKeyDisputeFlag } from "./key-dispute-flag.js";
 
 interface ParsedQuestion {
   external_id: string;
@@ -45,74 +47,55 @@ interface ParsedQuestion {
 type ReviewState = "draft" | "needs_review" | "approved" | "rejected";
 
 /**
- * Decide a loaded question's review lifecycle + visibility (Session 27.5 policy).
- * A question is learner-VISIBLE only when is_published AND review_state='approved'
- * (see lib/question-visibility.ts), so "auto-publish" means approved+published.
+ * Decide a loaded question's review lifecycle + visibility (key-provenance policy,
+ * migration 0074). A question is learner-VISIBLE only when is_published AND
+ * review_state='approved' (see lib/question-visibility.ts), so "auto-publish" means
+ * approved+published.
  *
- * Prelims MCQ:
- *  - not publishable (fails bilingual/MCQ gate)         → draft, unpublished
- *  - blind re-solve FLAGGED / errored (key disputed)    → needs_review, HELD (unpublished)
- *  - no official series-aligned key, or blind didn't    → needs_review, HELD
- *    agree (no_key / series mismatch)
- *  - official key verified + blind agrees + bilingual   → approved, PUBLISHED
- *      · Tier-B compilation still gets a human eye        → needs_review, published
+ * Prelims MCQ — gated by KEY PROVENANCE (gateMcq in key-provenance.ts), uniformly
+ * (NOT CSAT-special-cased):
+ *  - official_commission + verified key → approved, PUBLISHED on the key ALONE
+ *    (blind agreement NOT required). A blind DISAGREEMENT sets keyDispute → a
+ *    non-blocking system flag in the Review Queue, but never holds the publish.
+ *  - coaching_reproduced / official-without-verified-key / none → blind-resolve
+ *    required: verified key AND blind 'ok' → approved+PUBLISHED; a flagged/errored
+ *    solve, or an unverified/absent key → needs_review, HELD.
+ *  - not publishable (fails bilingual/MCQ gate) → draft, unpublished.
  * Mains descriptive (no key / no blind-solve):
- *  - clean parse + bilingual + node-mapped              → approved, PUBLISHED
- *  - unmapped (low-confidence node) / Tier-B            → needs_review, published (queued, not yet visible)
+ *  - clean parse + bilingual → approved, PUBLISHED (Tier-B compilation → needs_review).
  *
- * machine_translated Hindi is NOT a blocker (nearly every UPPSC PDF is legacy-
- * font mojibake → translated Hindi); it's recorded in meta for optional later
- * spot-check but does not hold auto-publish. A prior HUMAN decision (approved OR
+ * machine_translated Hindi is NOT a blocker. A prior HUMAN decision (approved OR
  * rejected) is never auto-overwritten on a re-load.
  */
 function decideReview(
   q: ParsedQuestion,
   publishable: boolean,
+  provenance: KeyProvenance,
   priorHumanState: "approved" | "rejected" | undefined,
-): { reviewState: ReviewState; isPublished: boolean } {
-  if (priorHumanState === "rejected") return { reviewState: "rejected", isPublished: false };
-  if (priorHumanState === "approved") return { reviewState: "approved", isPublished: publishable };
-  if (!publishable) return { reviewState: "draft", isPublished: false };
+): { reviewState: ReviewState; isPublished: boolean; keyDispute: boolean } {
+  if (priorHumanState === "rejected") return { reviewState: "rejected", isPublished: false, keyDispute: false };
+  if (priorHumanState === "approved") return { reviewState: "approved", isPublished: publishable, keyDispute: false };
+  if (!publishable) return { reviewState: "draft", isPublished: false, keyDispute: false };
 
-  const meta = q.meta as {
-    answer_key_verified?: boolean;
-    blind_resolve?: { status?: string };
-  };
+  const meta = q.meta as { answer_key_verified?: boolean; blind_resolve?: { status?: string } };
   const compilation = q.source_kind === "compilation";
 
   if (q.type === "mcq") {
-    const blindStatus = meta.blind_resolve?.status;
-    // CSAT (Paper-II) is comprehension/reasoning/quant — a blind re-solve WITHOUT
-    // the passage is unreliable, so the official key is authoritative for CSAT and
-    // blind-resolve is NOT a gate here. Publish key-verified CSAT directly.
-    // (Misaligned CSAT papers have their key stripped upstream — answer_key_verified
-    // becomes false — so they fall through to the blind gate below and stay held.)
-    if (q.paper_code === "PRE_CSAT" && meta.answer_key_verified === true) {
-      return compilation
-        ? { reviewState: "needs_review", isPublished: true }
-        : { reviewState: "approved", isPublished: true };
-    }
-    // Independent (web-verified) solve disputes the key, or the solve errored → hold.
-    if (blindStatus === "flagged" || blindStatus === "error") {
-      return { reviewState: "needs_review", isPublished: false };
-    }
-    // Auto-publish requires an official series-aligned key AND a blind agreement.
-    const keyVerified = meta.answer_key_verified === true;
-    const blindAgrees = blindStatus === "ok";
-    if (!keyVerified || !blindAgrees) {
-      // no key / series-mismatch / no_key / not-yet-resolved → queue, held.
-      return { reviewState: "needs_review", isPublished: false };
-    }
-    if (compilation) return { reviewState: "needs_review", isPublished: true };
-    return { reviewState: "approved", isPublished: true };
+    return gateMcq({
+      provenance,
+      keyVerified: meta.answer_key_verified === true,
+      blindStatus: meta.blind_resolve?.status as BlindStatus,
+      publishable,
+      compilation,
+    });
   }
 
   // Mains descriptive: real exam PYQs with no answer-correctness risk — publish on
   // a clean bilingual parse. Node mapping enriches topic-filtering but isn't a
   // gate (pre-reform 2018-22 papers have no topic tree to map into, so requiring
   // it would queue them forever). Tier-B compilation still gets a human eye.
-  if (compilation) return { reviewState: "needs_review", isPublished: true };
-  return { reviewState: "approved", isPublished: true };
+  if (compilation) return { reviewState: "needs_review", isPublished: true, keyDispute: false };
+  return { reviewState: "approved", isPublished: true, keyDispute: false };
 }
 
 interface ParsedFile {
@@ -170,7 +153,13 @@ async function loadFile(
     // than trusting the parse-time flag — so a stale/over-optimistic flag can
     // never trip the trigger and abort the whole load.
     const publishable = questionPublishable(q.type, q.stem_i18n, q.options_i18n, q.correct_option_key);
-    const { reviewState, isPublished } = decideReview(q, publishable, priorHuman.get(q.external_id));
+    const provenance = keyProvenanceFor(q.paper_code, q.year);
+    const { reviewState, isPublished, keyDispute } = decideReview(
+      q,
+      publishable,
+      provenance,
+      priorHuman.get(q.external_id),
+    );
     const row = {
       external_id: q.external_id,
       type: q.type,
@@ -191,18 +180,31 @@ async function loadFile(
       difficulty: q.difficulty,
       marks: q.marks,
       word_limit: q.word_limit,
+      key_provenance: provenance,
       is_published: isPublished,
       review_state: reviewState,
       meta: q.meta,
     };
-    const { error } = await supabase()
+    const { data: upserted, error } = await supabase()
       .from("questions")
-      .upsert(row, { onConflict: "external_id" });
+      .upsert(row, { onConflict: "external_id" })
+      .select("id")
+      .single();
     if (error) {
       // Don't abort the batch on one bad row — report and continue.
       report.fail(`${q.external_id}: ${error.message}`);
       failed++;
       continue;
+    }
+    // Item 3 safety net: an official key we published on, but the blind re-solve
+    // disagreed with → non-blocking system flag for a human (never blocks publish).
+    if (keyDispute && upserted) {
+      const br = (q.meta as { blind_resolve?: { stored_key?: string; chosen_key?: string; confidence?: number } }).blind_resolve;
+      await raiseKeyDisputeFlag(supabase(), (upserted as { id: string }).id, {
+        official_key: br?.stored_key ?? q.correct_option_key,
+        blind_key: br?.chosen_key ?? null,
+        confidence: br?.confidence ?? null,
+      }).catch((e) => report.warn(`key-dispute flag ${q.external_id}: ${e instanceof Error ? e.message : e}`));
     }
     loaded++;
     if (reviewState === "approved" && isPublished) approved++;

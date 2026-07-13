@@ -1335,7 +1335,8 @@
       "wrong_explanation": "Wrong explanation",
       "translation": "Translation issue",
       "ambiguous": "Ambiguous / unclear",
-      "other": "Something else"
+      "other": "Something else",
+      "ai_key_dispute": "AI disputes official key"
     }
   },
   "QuestionReports": {
