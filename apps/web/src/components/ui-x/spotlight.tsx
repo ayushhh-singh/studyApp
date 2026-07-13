@@ -23,6 +23,20 @@ export function useSpotlightRect(getTarget: () => HTMLElement | null, active: bo
     function measure() {
       setRect(getTarget()?.getBoundingClientRect() ?? null);
     }
+    // If the target is currently off-screen (e.g. below the fold on a long
+    // page), scroll it into view BEFORE measuring — otherwise its rect can
+    // land entirely outside the viewport, and SpotlightFrame's positioning
+    // math pushes the tooltip (message + dismiss button) off-screen too,
+    // leaving only the full-page dim with no visible way to escape it
+    // (confirmed live: the evaluation page's "Share for peer review"
+    // coachmark, whose target sits near the bottom of a long scrollable
+    // page, did exactly this on first arrival).
+    const target = getTarget();
+    const initialRect = target?.getBoundingClientRect();
+    const offScreen = initialRect && (initialRect.top < 0 || initialRect.bottom > window.innerHeight);
+    if (target && offScreen) {
+      target.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
     measure();
     // Coarse re-measure on resize/scroll — a first-visit hint doesn't need to
     // track a smooth-scrolling target frame-by-frame. A short-lived
@@ -64,6 +78,16 @@ export function SpotlightFrame({ rect, placement = "bottom", ariaLabel, children
   );
   const spaceBelow = window.innerHeight - rect.bottom;
   const showBelow = placement === "bottom" && spaceBelow > 140;
+  // Safety clamp: if `rect` ever describes a target that's (still, or
+  // again) off-screen — e.g. useSpotlightRect's scrollIntoView hasn't
+  // finished animating yet when this re-renders — never let the tooltip's
+  // own offset go negative, which would push it past the opposite edge of
+  // the viewport and out of view entirely (see useSpotlightRect's comment;
+  // this is the belt to that suspenders).
+  const tooltipTop = showBelow ? Math.max(rect.bottom + SPOTLIGHT_VIEWPORT_MARGIN, SPOTLIGHT_VIEWPORT_MARGIN) : undefined;
+  const tooltipBottom = showBelow
+    ? undefined
+    : Math.max(window.innerHeight - rect.top + SPOTLIGHT_VIEWPORT_MARGIN, SPOTLIGHT_VIEWPORT_MARGIN);
 
   return createPortal(
     <AnimatePresence>
@@ -93,8 +117,8 @@ export function SpotlightFrame({ rect, placement = "bottom", ariaLabel, children
           style={{
             width: SPOTLIGHT_TOOLTIP_MAX_WIDTH,
             left: tooltipLeft,
-            top: showBelow ? rect.bottom + SPOTLIGHT_VIEWPORT_MARGIN : undefined,
-            bottom: showBelow ? undefined : window.innerHeight - rect.top + SPOTLIGHT_VIEWPORT_MARGIN,
+            top: tooltipTop,
+            bottom: tooltipBottom,
           }}
         >
           {children}

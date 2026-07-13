@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { ChevronRight, NotebookPen } from "lucide-react";
-import type { Locale, Question } from "@prayasup/shared";
+import type { Locale, Question } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
@@ -70,8 +70,8 @@ function YearGroup({
         className="flex w-full items-center justify-between gap-2 rounded-md px-1 py-1 text-left hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <span className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-          {year === "unknown" ? t("Answers.pyqPickerYearUnknown") : year}
-          <span className="ms-1.5 font-normal normal-case text-muted-foreground/70">
+          {year === "unknown" ? t("Answers.pyqPickerYearUnknown") : year}{" "}
+          <span className="font-normal normal-case text-muted-foreground/70">
             {t("Answers.totalCount", { count: questions.length })}
           </span>
         </span>
@@ -191,15 +191,25 @@ export function PyqPicker() {
 
   return (
     <SectionCard title={t("Answers.pyqPickerTitle")}>
+      {/* data-tour-anchor="answers" (also on the real tab strip below) needs to
+          exist in SOME form in every branch — if the guided tab tour lands on
+          this stop while paperSummaries is still loading or has errored, an
+          anchor that only exists once tabs render would strand that step with
+          no spotlight and no visible Next/Skip, since GuidedTourCoachmark only
+          renders once it finds a matching element. */}
       {papersLoading ? (
-        <div className="flex flex-col gap-2">
+        <div data-tour-anchor="answers" className="flex flex-col gap-2">
           <ListRowSkeleton />
           <ListRowSkeleton />
         </div>
       ) : papersError ? (
-        <QueryErrorState onRetry={() => refetchPapers()} />
+        <div data-tour-anchor="answers">
+          <QueryErrorState onRetry={() => refetchPapers()} />
+        </div>
       ) : papers.length === 0 ? (
-        <EmptyState icon={NotebookPen} title={t("Answers.emptyTitle")} description={t("Answers.emptyDescription")} />
+        <div data-tour-anchor="answers">
+          <EmptyState icon={NotebookPen} title={t("Answers.emptyTitle")} description={t("Answers.emptyDescription")} />
+        </div>
       ) : (
         <Tabs value={paper} onValueChange={setActivePaper}>
           {/* Guided-tab-tour "answers" stop spotlights this tab strip specifically — see GuidedTourCoachmark. */}
@@ -208,9 +218,17 @@ export function PyqPicker() {
               {papers.map((p) => {
                 const label = MAINS_TAB_LABEL[p.paper_code]?.[locale] ?? p.title_i18n[locale];
                 return (
-                  <TabsTrigger key={p.paper_code} value={p.paper_code} className="gap-1.5">
-                    <span>{label}</span>
-                    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted-foreground/15 px-1 text-[10px] font-semibold tabular-nums">
+                  <TabsTrigger
+                    key={p.paper_code}
+                    value={p.paper_code}
+                    className="gap-1.5"
+                    aria-label={`${label} — ${t("Answers.totalCount", { count: p.pyq_count })}`}
+                  >
+                    <span aria-hidden="true">{label}</span>
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted-foreground/15 px-1 text-[10px] font-semibold tabular-nums"
+                    >
                       {p.pyq_count}
                     </span>
                   </TabsTrigger>
@@ -219,7 +237,14 @@ export function PyqPicker() {
             </TabsList>
           </div>
           <TabsContent value={paper}>
+            {/* key={paper}: forces a clean remount per paper — otherwise a
+                YearGroup keyed only by its "2024"-style year string gets
+                REUSED across a tab switch whenever two papers share a year
+                (true for nearly every Mains paper pair, since they all span
+                the same ~2018-2025 range), silently carrying over its
+                expand/collapse + "show more" state from the previous paper. */}
             <PaperPyqList
+              key={paper}
               paperCode={paper}
               paperLabel={
                 MAINS_TAB_LABEL[paper]?.[locale] ?? papers.find((p) => p.paper_code === paper)?.title_i18n[locale] ?? paper
