@@ -10,6 +10,7 @@
     "ingest:syllabus": "pnpm --filter api ingest:syllabus",
     "ingest:pyq": "pnpm --filter api ingest:pyq",
     "ingest:pyq:load": "pnpm --filter api ingest:pyq:load",
+    "ingest:hindi-overlay": "pnpm --filter api ingest:hindi-overlay",
     "ingest:regate": "pnpm --filter api ingest:regate",
     "ingest:tests": "pnpm --filter api ingest:tests",
     "ingest:embed": "pnpm --filter api ingest:embed",
