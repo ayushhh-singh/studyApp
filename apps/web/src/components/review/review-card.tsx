@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Check, X, AlertTriangle, ShieldQuestion } from "lucide-react";
-import type { Difficulty, ReviewQuestion } from "@prayasup/shared";
+import type { Difficulty, ReviewQuestion } from "@neev/shared";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
 

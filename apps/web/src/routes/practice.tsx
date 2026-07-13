@@ -1,8 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
-import type { ExamCode } from "@prayasup/shared";
-import { examCodeSchema } from "@prayasup/shared";
+import type { ExamCode } from "@neev/shared";
+import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";

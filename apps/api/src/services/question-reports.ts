@@ -21,7 +21,7 @@ import type {
   QuestionReportReason,
   QuestionReportResult,
   ReviewQuestion,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { generateGroundedExplanation } from "./question-explanation.js";

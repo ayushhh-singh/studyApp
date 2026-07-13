@@ -41,7 +41,7 @@ importers:
       '@fontsource/noto-sans-devanagari':
         specifier: ^5.2.8
         version: 5.2.8
-      '@prayasup/shared':
+      '@neev/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@resvg/resvg-js':
@@ -132,7 +132,7 @@ importers:
       '@microsoft/fetch-event-source':
         specifier: ^2.0.1
         version: 2.0.1
-      '@prayasup/shared':
+      '@neev/shared':
         specifier: workspace:*
         version: link:../../packages/shared
       '@sentry/react':

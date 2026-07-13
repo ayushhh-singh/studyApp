@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import type { DiscussionAnchorType } from "@prayasup/shared";
+import type { DiscussionAnchorType } from "@neev/shared";
 import { MessageSquare, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui-x/empty-state";

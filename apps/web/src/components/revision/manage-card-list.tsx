@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Plus, Search, SquarePen, Trash2 } from "lucide-react";
-import type { SrsCardListItem, SrsSourceType } from "@prayasup/shared";
+import type { SrsCardListItem, SrsSourceType } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

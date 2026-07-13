@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Flame } from "lucide-react";
-import type { NodeWeightage } from "@prayasup/shared";
+import type { NodeWeightage } from "@neev/shared";
 import { cn } from "@/lib/utils";
 
 /**

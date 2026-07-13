@@ -1,7 +1,7 @@
 # Build context is the REPO ROOT (pnpm workspace), not apps/api — Render's
 # "Docker Build Context Directory" must be set to "." with "Dockerfile Path"
 # set to "apps/api/Dockerfile". This is required because the workspace
-# package @prayasup/shared has to be present alongside apps/api for pnpm to
+# package @neev/shared has to be present alongside apps/api for pnpm to
 # resolve it (see pnpm-workspace.yaml at the repo root).
 FROM node:22-slim AS base
 RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
@@ -16,7 +16,7 @@ COPY apps/api/package.json apps/api/package.json
 COPY packages/shared/package.json packages/shared/package.json
 RUN pnpm install --frozen-lockfile --filter api...
 
-# @prayasup/shared ships raw .ts source with no build step (a deliberate
+# @neev/shared ships raw .ts source with no build step (a deliberate
 # project decision — see CLAUDE.md) rather than compiled JS, so the runtime
 # entrypoint is `tsx src/index.ts`, not `node dist/index.js` — plain node
 # cannot resolve/execute extensionless TypeScript imports. tsx is a real

@@ -9,7 +9,7 @@
  * Everything degrades gracefully: any embed/RPC failure yields empty grounding
  * (the mentor is told so and answers from general exam guidance, clearly labelled).
  */
-import type { BilingualText, Locale, MentorCitation } from "@prayasup/shared";
+import type { BilingualText, Locale, MentorCitation } from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { embeddings } from "../../lib/embeddings.js";
 import { logger } from "../../lib/logger.js";

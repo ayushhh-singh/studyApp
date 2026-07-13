@@ -1,10 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { TimeAttackPaperCode } from "@prayasup/shared";
+import type { TimeAttackPaperCode } from "@neev/shared";
 import {
   timeAttackResultResponseSchema,
   timeAttackStartResponseSchema,
   timeAttackTopicsResponseSchema,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

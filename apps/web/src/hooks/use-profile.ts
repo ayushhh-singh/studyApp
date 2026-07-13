@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { profileResponseSchema, type OnboardingBody, type ProfileUpdateBody } from "@prayasup/shared";
+import { profileResponseSchema, type OnboardingBody, type ProfileUpdateBody } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

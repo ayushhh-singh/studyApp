@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { examCutoffsResponseSchema } from "@prayasup/shared";
+import { examCutoffsResponseSchema } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

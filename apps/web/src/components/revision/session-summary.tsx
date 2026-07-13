@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { CheckCircle2 } from "lucide-react";
-import type { SrsRating } from "@prayasup/shared";
+import type { SrsRating } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 
 const RATING_LABEL: Record<SrsRating, string> = {

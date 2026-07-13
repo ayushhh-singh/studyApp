@@ -17,7 +17,7 @@
  * supplies just the grounding block for the streamed prompt) and by the admin
  * "regenerate explanation" report action (generateGroundedExplanation).
  */
-import type { BilingualText } from "@prayasup/shared";
+import type { BilingualText } from "@neev/shared";
 import { MODELS } from "../lib/models.js";
 import { structuredJson } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";

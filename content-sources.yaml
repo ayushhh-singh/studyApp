@@ -1,4 +1,4 @@
-# PrayasUP — content acquisition source list
+# Neev — content acquisition source list
 # ---------------------------------------------------------------------------
 # Every URL under `verified:` was fetched and confirmed to serve a real PDF
 # (%PDF magic bytes / Content-Type: application/pdf) before being added.

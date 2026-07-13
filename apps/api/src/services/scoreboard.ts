@@ -31,7 +31,7 @@ import type {
   DailyQuizTodayBoard,
   DailyQuizWeeklyBoard,
   DailyQuizWeeklyRow,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";

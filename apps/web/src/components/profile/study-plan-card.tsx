@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Brain, CalendarRange, ClipboardList, NotebookPen, PenSquare } from "lucide-react";
-import type { PlanDay, PlanTask, PlanTaskKind } from "@prayasup/shared";
+import type { PlanDay, PlanTask, PlanTaskKind } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

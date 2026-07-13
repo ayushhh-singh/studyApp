@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AnalysisEvent, DimensionScoreEvent, EvalDoneEvent, EvalStatusPhase, Locale } from "@prayasup/shared";
+import type { AnalysisEvent, DimensionScoreEvent, EvalDoneEvent, EvalStatusPhase, Locale } from "@neev/shared";
 import { streamEvents } from "@/lib/sse";
 
 const API_URL = import.meta.env.VITE_API_URL as string;

@@ -10,7 +10,7 @@
  *
  * All model-facing copy lives here so prompt tuning is one file.
  */
-import type { Locale, RubricDimensionKey, SubmissionMode } from "@prayasup/shared";
+import type { Locale, RubricDimensionKey, SubmissionMode } from "@neev/shared";
 import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt } from "./rubric.js";
 import type { GroundingResult } from "./grounding.js";
 

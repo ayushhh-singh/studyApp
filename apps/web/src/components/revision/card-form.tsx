@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { BilingualText } from "@prayasup/shared";
+import type { BilingualText } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 
 const TEXTAREA_CLASS =

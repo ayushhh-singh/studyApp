@@ -9,7 +9,7 @@
  * backfills from the other pools and logs the shortfall — never shipping a
  * thin quiz.
  */
-import type { MarkingScheme } from "@prayasup/shared";
+import type { MarkingScheme } from "@neev/shared";
 
 /** The four slices of a daily quiz, in fill priority order. */
 export type QuizSlice = "generated" | "pyq" | "current_affairs" | "random";

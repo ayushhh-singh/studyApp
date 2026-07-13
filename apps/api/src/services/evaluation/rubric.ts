@@ -2,7 +2,7 @@
  * UPPSC Mains answer-evaluation rubrics — a versioned registry.
  *
  * Every rubric uses the SAME six dimension keys (shared with the web app via
- * @prayasup/shared, so the client renders any variant with its existing labels
+ * @neev/shared, so the client renders any variant with its existing labels
  * and dials) but assigns version-specific WEIGHTS and examiner DESCRIPTIONS:
  *
  *  - "v1"        — the general Mains descriptive-answer rubric (GS papers).
@@ -18,7 +18,7 @@
  * dimension keys are the shared contract. Weights within a rubric sum to 1.0
  * (asserted at load).
  */
-import { RUBRIC_VERSION, ESSAY_RUBRIC_VERSION, type DimensionScore, type RubricDimensionKey } from "@prayasup/shared";
+import { RUBRIC_VERSION, ESSAY_RUBRIC_VERSION, type DimensionScore, type RubricDimensionKey } from "@neev/shared";
 
 export { RUBRIC_VERSION, ESSAY_RUBRIC_VERSION };
 

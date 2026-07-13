@@ -13,7 +13,7 @@
  * any prompt change so notes.meta records which version produced a row.
  */
 import { MODELS, type StructuredParams, type WebSource } from "../lib/anthropic.js";
-import type { NoteContentI18n, NoteCriticVerdict, NoteSrsCandidate } from "@prayasup/shared";
+import type { NoteContentI18n, NoteCriticVerdict, NoteSrsCandidate } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
 export const NOTES_PROMPT_VERSION = "notes-v1";

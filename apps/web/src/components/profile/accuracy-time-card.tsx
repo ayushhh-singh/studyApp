@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Timer } from "lucide-react";
-import type { AccuracyTimeBucket } from "@prayasup/shared";
+import type { AccuracyTimeBucket } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

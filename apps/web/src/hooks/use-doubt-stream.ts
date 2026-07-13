@@ -7,7 +7,7 @@ import type {
   MentorPyqRef,
   MentorQuizQuestion,
   MentorWebSource,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { streamEvents } from "@/lib/sse";
 
 const API_URL = import.meta.env.VITE_API_URL as string;

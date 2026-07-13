@@ -1,5 +1,5 @@
 /**
- * Content acquisition for PrayasUP.
+ * Content acquisition for Neev.
  *
  *   pnpm content:fetch
  *

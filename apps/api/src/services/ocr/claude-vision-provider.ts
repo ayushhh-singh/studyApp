@@ -5,7 +5,7 @@
  * then a fast, cheap self-reported confidence rating. See ./index.ts for the
  * provider interface this implements.
  */
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 import { MODELS, streamText, structuredJson } from "../../lib/anthropic.js";
 import { logger } from "../../lib/logger.js";
 import type { OcrPage, OcrProvider, OcrResult } from "./index.js";

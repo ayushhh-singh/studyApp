@@ -4,7 +4,7 @@
  * and correctness — so the player can show a live marker and the end screen can
  * show deltas. Mastery updates automatically on submit (the normal submit hook).
  */
-import type { GhostEntry, GhostStart } from "@prayasup/shared";
+import type { GhostEntry, GhostStart } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { getTestDetail } from "./tests.js";

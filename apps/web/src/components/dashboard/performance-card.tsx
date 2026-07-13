@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import type { DashboardPerformance } from "@prayasup/shared";
+import type { DashboardPerformance } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { scoreBandColor } from "@/lib/score-band";
 

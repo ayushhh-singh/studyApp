@@ -23,7 +23,7 @@ import type {
   Submission,
   SubmissionDetail,
   SubmissionListItem,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { badRequest, conflict, HttpError, notFound } from "../../lib/http-error.js";

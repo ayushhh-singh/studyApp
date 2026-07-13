@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Target } from "lucide-react";
-import type { DashboardWeaknessNode } from "@prayasup/shared";
+import type { DashboardWeaknessNode } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { useLocale } from "@/hooks/use-locale";

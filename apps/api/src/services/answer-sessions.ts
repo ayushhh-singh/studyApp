@@ -8,7 +8,7 @@
  * answer_session_id) — the OCR/evaluation pipeline is completely unchanged;
  * this module only manages the session's own lifecycle and read views.
  */
-import type { AnswerSession, AnswerSessionDetail, AnswerSessionResult, SubmissionStatus } from "@prayasup/shared";
+import type { AnswerSession, AnswerSessionDetail, AnswerSessionResult, SubmissionStatus } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { getTestDetail } from "./tests.js";

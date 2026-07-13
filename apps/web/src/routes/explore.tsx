@@ -13,7 +13,7 @@ import {
   Zap,
   type LucideIcon,
 } from "lucide-react";
-import type { FeatureKey } from "@prayasup/shared";
+import type { FeatureKey } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";

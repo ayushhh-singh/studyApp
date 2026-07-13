@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bell, BellOff, BellRing } from "lucide-react";
-import type { PushPreferences } from "@prayasup/shared";
+import type { PushPreferences } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";

@@ -9,7 +9,7 @@
  * compares against the seeded official cut-offs (out of 200) by percentage, and
  * meta.official_max_marks records the real paper's max.
  */
-import type { ExamCutoff } from "@prayasup/shared";
+import type { ExamCutoff } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";

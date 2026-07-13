@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { ArrowRight, NotebookPen } from "lucide-react";
-import type { DashboardAnswerSpotlight } from "@prayasup/shared";
+import type { DashboardAnswerSpotlight } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { useLocale } from "@/hooks/use-locale";

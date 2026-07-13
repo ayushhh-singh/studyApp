@@ -10,7 +10,7 @@
  * is_published=false, source='generated', with a full generation_meta trail —
  * and record one generation_batches row (requested/accepted/cost) per node.
  */
-import type { BilingualText, Difficulty, GenerationMeta, QuestionType } from "@prayasup/shared";
+import type { BilingualText, Difficulty, GenerationMeta, QuestionType } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import {

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Target, Timer, TrendingUp } from "lucide-react";
-import type { AttemptResultDetail } from "@prayasup/shared";
+import type { AttemptResultDetail } from "@neev/shared";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { StatCard } from "@/components/ui-x/stat-card";
 import { formatSeconds } from "@/lib/format-duration";

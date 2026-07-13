@@ -1,8 +1,8 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useSearchParams } from "react-router";
-import type { Locale, SubmissionMode } from "@prayasup/shared";
-import { MAX_CUSTOM_QUESTION_CHARS } from "@prayasup/shared";
+import type { Locale, SubmissionMode } from "@neev/shared";
+import { MAX_CUSTOM_QUESTION_CHARS } from "@neev/shared";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
-import { handleSchema, type Locale, type OnboardingBody } from "@prayasup/shared";
+import { handleSchema, type Locale, type OnboardingBody } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useProfile, useCompleteOnboarding } from "@/hooks/use-profile";
 import { useStudyPlanStream } from "@/hooks/use-study-plan-stream";

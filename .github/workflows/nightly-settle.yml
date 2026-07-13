@@ -1,6 +1,6 @@
 name: Scheduled — Nightly settle
 
-# Free-tier (₹0 stack) replacement for the `prayasup-nightly-settle` Render
+# Free-tier (₹0 stack) replacement for the `neev-nightly-settle` Render
 # Cron Job in render.yaml (kept there, unused, as the paid upgrade path — see
 # docs/operations.md's "Upgrading to paid" section). Runs
 # `pnpm nightly:settle` (streak settle + Perfect Day + mastery recompute +
@@ -13,7 +13,7 @@ name: Scheduled — Nightly settle
 on:
   schedule:
     # 18:35 UTC (previous day) = 00:05 IST — matches render.yaml's
-    # prayasup-nightly-settle job exactly.
+    # neev-nightly-settle job exactly.
     - cron: "35 18 * * *"
   workflow_dispatch: {}
 

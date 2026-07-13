@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useBlocker, useNavigate } from "react-router";
 import { AlertCircle, ChevronLeft, ChevronRight, Flag, Grid3x3, Languages, Loader2, X } from "lucide-react";
-import type { AttemptAnswerRecord, AttemptSubmitResult, Locale, TestDetail } from "@prayasup/shared";
+import type { AttemptAnswerRecord, AttemptSubmitResult, Locale, TestDetail } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
@@ -25,7 +25,7 @@ interface AnswerState {
 }
 
 function markedStorageKey(attemptId: string): string {
-  return `prayasup-attempt-marked-${attemptId}`;
+  return `neev-attempt-marked-${attemptId}`;
 }
 
 function loadMarked(attemptId: string): Set<string> {

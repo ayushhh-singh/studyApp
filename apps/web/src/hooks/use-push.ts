@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { okResponseSchema, pushPreferencesResponseSchema, pushStatusResponseSchema, type PushPreferences } from "@prayasup/shared";
+import { okResponseSchema, pushPreferencesResponseSchema, pushStatusResponseSchema, type PushPreferences } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 import { removePushSubscription, requestPushSubscription } from "@/lib/push-client";

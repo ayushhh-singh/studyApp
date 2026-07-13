@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { AlertTriangle, Clock, ListChecks, X } from "lucide-react";
-import type { Locale, TestDetail } from "@prayasup/shared";
+import type { Locale, TestDetail } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
 

@@ -6,7 +6,7 @@
  * daily scheduler's hourly tick (dev) — a production deploy would run this
  * as its own scheduled job, same policy as the CA/daily-build schedulers.
  */
-import type { PushPreferences, NotificationType } from "@prayasup/shared";
+import type { PushPreferences, NotificationType } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import { pushConfigured, sendPush } from "../lib/push.js";

@@ -1,4 +1,4 @@
-import type { ExamCode, ExamStage, QuestionType } from "@prayasup/shared";
+import type { ExamCode, ExamStage, QuestionType } from "@neev/shared";
 
 export const queryKeys = {
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,

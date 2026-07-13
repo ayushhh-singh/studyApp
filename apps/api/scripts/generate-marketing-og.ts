@@ -35,12 +35,12 @@ const COPY = {
   en: {
     title: "AI Answer Evaluation for UPPSC",
     subtitle: "PYQ practice, syllabus-mapped notes, and spaced revision — bilingual, exam-focused.",
-    brand: "PrayasUP",
+    brand: "Neev",
   },
   hi: {
     title: "UPPSC के लिए AI उत्तर मूल्यांकन",
     subtitle: "PYQ अभ्यास, पाठ्यक्रम-आधारित नोट्स, और स्पेस्ड रिवीजन — द्विभाषी, परीक्षा-केंद्रित।",
-    brand: "PrayasUP",
+    brand: "नींव",
   },
 } as const;
 

@@ -14,7 +14,7 @@
  * (machine_translated flagged) — the task's "translate section-wise" step.
  */
 import { MODELS, type StructuredParams } from "../lib/anthropic.js";
-import type { ChapterBoxKind } from "@prayasup/shared";
+import type { ChapterBoxKind } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
 export const CHAPTER_PROMPT_VERSION = "chapter-v1";

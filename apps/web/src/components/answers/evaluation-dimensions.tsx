@@ -1,6 +1,6 @@
 import { motion, useReducedMotion } from "framer-motion";
 import { useTranslation } from "react-i18next";
-import type { DimensionScoreEvent } from "@prayasup/shared";
+import type { DimensionScoreEvent } from "@neev/shared";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 

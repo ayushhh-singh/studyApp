@@ -7,7 +7,7 @@
  * dashboard renders at most ONE undismissed card. Everything is templated from
  * real profile signals — no LLM call, so it's free and never hallucinates.
  */
-import type { BilingualText, MentorInsight } from "@prayasup/shared";
+import type { BilingualText, MentorInsight } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";

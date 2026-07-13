@@ -3,7 +3,7 @@
  * SRS reviews, and current streak. Backs the dashboard digest card and the
  * server-rendered share image.
  */
-import type { LeaderboardEntry, WeeklyDigest } from "@prayasup/shared";
+import type { LeaderboardEntry, WeeklyDigest } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { DrillSession } from "@prayasup/shared";
+import type { DrillSession } from "@neev/shared";
 
 /**
  * Ephemeral in-memory handoff for the active micro-drill session, from the

@@ -2,7 +2,7 @@ import { create } from "zustand";
 
 export type Theme = "light" | "dark";
 
-const STORAGE_KEY = "prayasup-theme";
+const STORAGE_KEY = "neev-theme";
 
 // Light is the default mode regardless of OS preference — only an explicit
 // user toggle (persisted below) switches to dark.

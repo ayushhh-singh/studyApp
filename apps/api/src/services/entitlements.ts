@@ -12,7 +12,7 @@
  * PRICE of a plan is data (the `plans` table). A 402 with an upgrade hint is the
  * signal the UI turns into a paywall at the exact moment a limit bites.
  */
-import type { Entitlements, Quota, UserPlan } from "@prayasup/shared";
+import type { Entitlements, Quota, UserPlan } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDayRangeUtc, istToday } from "../lib/ist.js";

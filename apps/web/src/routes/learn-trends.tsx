@@ -2,8 +2,8 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowLeft, BarChart3, Flame, Moon, TrendingUp } from "lucide-react";
-import type { ExamCode, TrendNode } from "@prayasup/shared";
-import { examCodeSchema } from "@prayasup/shared";
+import type { ExamCode, TrendNode } from "@neev/shared";
+import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -13,7 +13,7 @@ import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { Button } from "@/components/ui/button";
 import { usePaperTree, usePaperTrends } from "@/hooks/use-paper-tree";
 import { useLocale } from "@/hooks/use-locale";
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 
 export const handle = { titleKey: "Nav.learn" };
 

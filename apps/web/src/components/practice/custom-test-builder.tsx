@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import type { Difficulty, ExamCode, Locale, SyllabusNodeWithStats } from "@prayasup/shared";
+import type { Difficulty, ExamCode, Locale, SyllabusNodeWithStats } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";

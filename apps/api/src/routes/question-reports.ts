@@ -4,7 +4,7 @@
  */
 import { Router } from "express";
 import { z } from "zod";
-import { createQuestionReportBodySchema, questionReportResultResponseSchema } from "@prayasup/shared";
+import { createQuestionReportBodySchema, questionReportResultResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";

@@ -9,7 +9,7 @@ import type {
   SyllabusNodeDetail,
   SyllabusNodeWithStats,
   TrendNode,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";

@@ -5,7 +5,7 @@ import {
   drillRecommendationResponseSchema,
   drillSessionResponseSchema,
   submitDrillResponsesBodySchema,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { z } from "zod";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";

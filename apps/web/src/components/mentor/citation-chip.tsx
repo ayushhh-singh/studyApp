@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { BookOpen, FileText, Newspaper, HelpCircle } from "lucide-react";
-import type { MentorCitation } from "@prayasup/shared";
+import type { MentorCitation } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 

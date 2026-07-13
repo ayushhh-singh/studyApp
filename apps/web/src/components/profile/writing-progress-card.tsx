@@ -13,7 +13,7 @@ import {
   YAxis,
 } from "recharts";
 import { PenSquare, TrendingDown, TrendingUp } from "lucide-react";
-import { RUBRIC_DIMENSION_KEYS, type DimensionInsight, type EvaluationTrendPoint } from "@prayasup/shared";
+import { RUBRIC_DIMENSION_KEYS, type DimensionInsight, type EvaluationTrendPoint } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

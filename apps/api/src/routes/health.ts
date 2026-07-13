@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { healthResponseSchema } from "@prayasup/shared";
+import { healthResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { getMentorCacheHealth } from "../services/mentor/cache-health.js";
 

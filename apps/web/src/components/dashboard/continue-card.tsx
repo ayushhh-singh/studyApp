@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { ArrowRight, BookOpen, PenSquare } from "lucide-react";
-import type { DashboardContinue } from "@prayasup/shared";
+import type { DashboardContinue } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Button } from "@/components/ui/button";

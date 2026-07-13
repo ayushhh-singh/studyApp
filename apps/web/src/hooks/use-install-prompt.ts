@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-const DISMISSED_KEY = "prayasup-pwa-install-dismissed";
+const DISMISSED_KEY = "neev-pwa-install-dismissed";
 
 /**
  * `beforeinstallprompt` isn't in standard lib.dom.d.ts — Chromium-only,
@@ -29,7 +29,7 @@ function readDismissed(): boolean {
  * once, early, then never again for that page load) so the app can trigger
  * it later from its own UI instead of relying on the native omnibox/menu
  * affordance most users never notice. `event.preventDefault()` suppresses
- * the browser's automatic mini-infobar so PrayasUP's own banner is the only
+ * the browser's automatic mini-infobar so Neev's own banner is the only
  * prompt the user sees.
  *
  * Dismissal is a simple one-way flag in localStorage — matches

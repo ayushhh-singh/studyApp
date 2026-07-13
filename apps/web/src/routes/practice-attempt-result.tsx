@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileQuestion, Ghost } from "lucide-react";
-import type { BilingualText } from "@prayasup/shared";
+import type { BilingualText } from "@neev/shared";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";

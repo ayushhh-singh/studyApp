@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
 import { ChevronRight, Clock, Loader2, Newspaper, Sparkles } from "lucide-react";
-import type { DashboardToday } from "@prayasup/shared";
+import type { DashboardToday } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { useEnsureTodayQuiz } from "@/hooks/use-daily";
 import { useLocale } from "@/hooks/use-locale";

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { tourStateResponseSchema, type Profile, type TourUpdateBody } from "@prayasup/shared";
+import { tourStateResponseSchema, type Profile, type TourUpdateBody } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

@@ -22,7 +22,7 @@ import {
   chapterSectionSchema,
   noteSourceSchema,
   bilingualTextSchema,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { persistChapter } from "./chapter-persist.js";
 import { CHAPTER_PROMPT_VERSION } from "./chapter-prompts.js";

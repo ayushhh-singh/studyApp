@@ -9,8 +9,8 @@ import type {
   ReviewNote,
   ReviewNoteEditBody,
   StudyContent,
-} from "@prayasup/shared";
-import { hasChapter, unresolvedFlagCount } from "@prayasup/shared";
+} from "@neev/shared";
+import { hasChapter, unresolvedFlagCount } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";

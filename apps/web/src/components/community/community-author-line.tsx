@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { CommunityAuthor } from "@prayasup/shared";
+import type { CommunityAuthor } from "@neev/shared";
 
 /** A post/thread author's public identity — handle first, display_name as fallback, never an email. */
 export function CommunityAuthorLine({ author, className }: { author: CommunityAuthor; className?: string }) {

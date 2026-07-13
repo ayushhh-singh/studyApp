@@ -6,7 +6,7 @@
  *
  * Runs after each attempt submit (best-effort) and nightly — see daily/scheduler.
  */
-import type { BilingualText, ExamCode, MasteryMap, MasteryNode } from "@prayasup/shared";
+import type { BilingualText, ExamCode, MasteryMap, MasteryNode } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";

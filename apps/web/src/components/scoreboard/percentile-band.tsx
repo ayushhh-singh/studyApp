@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { TrendingUp } from "lucide-react";
-import type { EvaluationPercentile } from "@prayasup/shared";
+import type { EvaluationPercentile } from "@neev/shared";
 
 /** Private percentile band — withheld until the qualifying pool clears 30 (see Scoreboard.percentileLocked). */
 export function PercentileBand({ data }: { data: EvaluationPercentile | null | undefined }) {

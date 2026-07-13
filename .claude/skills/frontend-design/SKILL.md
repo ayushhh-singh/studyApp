@@ -1,6 +1,6 @@
 ---
 name: frontend-design
-description: "Design system for PrayasUP (UPPSC exam prep). Use when creating or modifying any UI in apps/web."
+description: "Design system for Neev (UPPSC exam prep). Use when creating or modifying any UI in apps/web."
 ---
 ## Brief: serious daily tool for UP civil-services aspirants, mostly budget Android, Hindi-first. Not a generic SaaS dashboard.
 ## Signature element: "the Rubric Dial" — a 180° graduated arc gauge (tick marks + coral->marigold->tulsi band + scoreboard numeral centered/below). Reads like an exam-hall meter, not a fitness-ring. Used for avg score stats, the Answers (flagship) nav accent, and future evaluation results. Component: `src/components/ui-x/score-gauge.tsx`.

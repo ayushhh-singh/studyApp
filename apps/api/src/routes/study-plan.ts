@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { activePlanResponseSchema, studyPlanResponseSchema, toggleTaskBodySchema } from "@prayasup/shared";
+import { activePlanResponseSchema, studyPlanResponseSchema, toggleTaskBodySchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";

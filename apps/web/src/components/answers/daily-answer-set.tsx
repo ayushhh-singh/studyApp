@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { CheckCircle2, PenLine, ScrollText } from "lucide-react";
-import type { DailyAnswerItem } from "@prayasup/shared";
+import type { DailyAnswerItem } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";

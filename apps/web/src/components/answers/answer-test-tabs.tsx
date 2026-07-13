@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { PenSquare } from "lucide-react";
-import type { TestSummary } from "@prayasup/shared";
+import type { TestSummary } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";

@@ -14,7 +14,7 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import type { Locale, TourChecklistItem, TourStatePayload } from "@prayasup/shared";
+import type { Locale, TourChecklistItem, TourStatePayload } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { useLocale } from "@/hooks/use-locale";

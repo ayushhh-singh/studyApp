@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Trophy } from "lucide-react";
-import type { DimensionBestBoard, RubricDimensionKey } from "@prayasup/shared";
+import type { DimensionBestBoard, RubricDimensionKey } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { cn } from "@/lib/utils";

@@ -19,13 +19,13 @@
 - **Database**: Supabase cloud Postgres + pgvector — the SAME project used
   for local dev and production (per CLAUDE.md). No separate prod project.
 - **Runtime note**: the API's production start command is `pnpm start` →
-  `tsx src/index.ts`, not `node dist/index.js`. `@prayasup/shared` ships raw
+  `tsx src/index.ts`, not `node dist/index.js`. `@neev/shared` ships raw
   `.ts` source with no build step (a deliberate project decision), so plain
   `node` cannot resolve/execute it — `tsx` (a real dependency of `apps/api`,
   not a devDependency) is the production runtime, exactly as it already is in
   dev (`tsx watch`). This is true on both the free and paid Render paths.
   Don't "fix" this back to `node dist/index.js` without first giving
-  `@prayasup/shared` an actual build step.
+  `@neev/shared` an actual build step.
 
 ## Free-tier (₹0) deploy — current target
 
@@ -35,7 +35,7 @@
 - **Build output directory**: `apps/web/dist`
 - **Root directory**: repo root (NOT `apps/web`) — this is a pnpm workspace;
   Cloudflare needs to run `pnpm install` at the monorepo root so
-  `@prayasup/shared`'s workspace symlink resolves before Vite builds.
+  `@neev/shared`'s workspace symlink resolves before Vite builds.
 - **Environment variables** (Pages dashboard → your project → Settings →
   Environment variables — set for both Production and Preview):
   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`,
@@ -75,7 +75,7 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
   Cloudflare's own asset-server directory-index behavior, not something
   `_redirects` controls, and it means `PageSeo`'s canonical/hreflang tags
   (`apps/web/src/components/seo/page-seo.tsx`), which declare the
-  **no-trailing-slash** form (e.g. `https://prayasup.app/en`), point at a URL
+  **no-trailing-slash** form (e.g. `https://neev.app/en`), point at a URL
   that itself redirects to a different URL. Most crawlers handle a
   redirect-to-canonical chain fine, but it's not byte-identical — a real,
   minor SEO wrinkle, not fixed here (fixing it means either always emitting a
@@ -125,7 +125,7 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
   start command `pnpm --filter api start`. No Cron Jobs on this tier either
   way — every job that would have been a Render Cron Job is now a GitHub
   Actions scheduled workflow (below).
-- **Env vars**: the same set documented in `render.yaml`'s `prayasup-secrets`
+- **Env vars**: the same set documented in `render.yaml`'s `neev-secrets`
   group — `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `ANTHROPIC_API_KEY`,
   `OPENAI_API_KEY`, `QGEN_BATCH_MAX_USD` (default `5`), `RAZORPAY_KEY_ID`/
   `_SECRET`/`_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY`/`_PRIVATE_KEY`/`_SUBJECT`,
@@ -165,7 +165,7 @@ equivalent GitHub Actions scheduled workflow under `.github/workflows/`:
 "Weekly encrypted DB backup" below). Each workflow: checks out the repo,
 sets up pnpm + Node 22 (with pnpm's dependency cache), runs
 `pnpm install --frozen-lockfile --filter api...` (installs only `apps/api`
-and its workspace deps — `@prayasup/shared` — not `apps/web`'s much heavier
+and its workspace deps — `@neev/shared` — not `apps/web`'s much heavier
 toolchain), then runs the relevant `pnpm --filter api <script>` with secrets
 injected as env vars. Each has `workflow_dispatch` for manual runs and a
 `concurrency` group (no `cancel-in-progress`) so a slow run finishes rather
@@ -326,7 +326,7 @@ worth paying for headroom:
   the repo) — it provisions the always-on Starter web service AND all five
   Render Cron Jobs in one shot, replacing the GitHub Actions workflows with
   Render's own first-class cron (per-job run history/retries/logs). Fill in
-  every `sync: false` value in the `prayasup-secrets` env var group via the
+  every `sync: false` value in the `neev-secrets` env var group via the
   dashboard.
 - **Turn off the GitHub Actions workflows once Render Cron Jobs take over**
   — disable them from the repo's Actions tab (Settings → Actions → General,

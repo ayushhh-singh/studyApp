@@ -1,6 +1,6 @@
 name: Scheduled — Notifications
 
-# Free-tier (₹0 stack) replacement for the `prayasup-notifications` Render
+# Free-tier (₹0 stack) replacement for the `neev-notifications` Render
 # Cron Job in render.yaml (kept there, unused, as the paid upgrade path — see
 # docs/operations.md's "Upgrading to paid" section). Runs
 # `pnpm notifications:run`: (re)generates/resolves each user's
@@ -13,7 +13,7 @@ name: Scheduled — Notifications
 on:
   schedule:
     # Hourly, matching the in-app bell's own hourly self-heal and
-    # render.yaml's prayasup-notifications job.
+    # render.yaml's neev-notifications job.
     - cron: "0 * * * *"
   workflow_dispatch: {}
 

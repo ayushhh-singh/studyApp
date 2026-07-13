@@ -1,4 +1,4 @@
-import type { BilingualText, Question, QuestionsQuery } from "@prayasup/shared";
+import type { BilingualText, Question, QuestionsQuery } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";

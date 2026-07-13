@@ -6,7 +6,7 @@ import type {
   MentorPyqRef,
   MentorQuizQuestion,
   MentorWebSource,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { QuizCards } from "./quiz-cards";
 import { formatQuestionStem } from "@/lib/format-question-stem";

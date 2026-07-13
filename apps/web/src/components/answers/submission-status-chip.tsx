@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, Clock, Loader2, XCircle } from "lucide-react";
-import type { SubmissionStatus } from "@prayasup/shared";
+import type { SubmissionStatus } from "@neev/shared";
 import { cn } from "@/lib/utils";
 
 const STATUS_STYLE: Record<SubmissionStatus, { icon: typeof Clock; className: string; labelKey: string }> = {

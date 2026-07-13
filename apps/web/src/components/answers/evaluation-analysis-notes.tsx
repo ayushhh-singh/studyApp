@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { AnalysisEvent } from "@prayasup/shared";
+import type { AnalysisEvent } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 
 export function EvaluationAnalysisNotes({ analysis }: { analysis: AnalysisEvent }) {

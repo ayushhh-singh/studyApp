@@ -6,7 +6,7 @@ import type {
   TestKind,
   TestQuestionPublic,
   TestSummary,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { currentUserId } from "../lib/user-context.js";

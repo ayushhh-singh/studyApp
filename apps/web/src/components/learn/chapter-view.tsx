@@ -22,7 +22,7 @@ import type {
   ChapterSection,
   Locale,
   NoteDetail,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { ChapterMarkdown } from "@/components/ui-x/chapter-markdown";
 import { MermaidDiagram } from "@/components/ui-x/mermaid-diagram";
 import { Button } from "@/components/ui/button";

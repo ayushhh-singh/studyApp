@@ -14,8 +14,8 @@ import type {
   PaperScoreTrajectory,
   ProfileAnalytics,
   RubricDimensionKey,
-} from "@prayasup/shared";
-import { RUBRIC_DIMENSION_KEYS } from "@prayasup/shared";
+} from "@neev/shared";
+import { RUBRIC_DIMENSION_KEYS } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";

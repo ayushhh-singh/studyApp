@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { useWindowVirtualizer } from "@tanstack/react-virtual";
 import { CheckCircle2, MessageCircleQuestion, MinusCircle, Sparkles, XCircle } from "lucide-react";
-import type { AttemptReviewItem, BilingualText, Locale } from "@prayasup/shared";
+import type { AttemptReviewItem, BilingualText, Locale } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { useAddQuestionToRevision } from "@/hooks/use-add-to-revision";

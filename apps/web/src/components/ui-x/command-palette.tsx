@@ -2,7 +2,7 @@ import { useEffect, useMemo } from "react";
 import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "cmdk";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
-import type { SyllabusNode } from "@prayasup/shared";
+import type { SyllabusNode } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useSyllabusTree } from "@/hooks/use-syllabus-tree";
 import { useAdminStatus } from "@/hooks/use-review";

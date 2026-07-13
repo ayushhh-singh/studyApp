@@ -8,7 +8,7 @@
  * Fire-and-forget by design: a touch failing must never break the request
  * that triggered it (a quiz submit, a doubt sent, a page load).
  */
-import type { FeatureKey } from "@prayasup/shared";
+import type { FeatureKey } from "@neev/shared";
 import { supabase } from "./supabase.js";
 import { logger } from "./logger.js";
 import { currentUserId } from "./user-context.js";

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { User } from "lucide-react";
-import type { DashboardNextExam, Locale, Profile, ProfileUpdateBody } from "@prayasup/shared";
+import type { DashboardNextExam, Locale, Profile, ProfileUpdateBody } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { FreezePips } from "@/components/ui-x/freeze-pips";

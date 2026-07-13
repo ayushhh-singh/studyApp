@@ -7,7 +7,7 @@ import type {
   MentorPyqRef,
   MentorQuizQuestion,
   MentorWebSource,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { Markdown } from "@/components/ui-x/markdown";
 import { CitationChip } from "./citation-chip";
 import { QuizCards } from "./quiz-cards";

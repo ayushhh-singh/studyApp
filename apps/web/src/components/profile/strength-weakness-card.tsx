@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useQueries } from "@tanstack/react-query";
 import { Link } from "react-router";
 import { Target } from "lucide-react";
-import { masteryMapResponseSchema, type BilingualText, type MasteryNode } from "@prayasup/shared";
+import { masteryMapResponseSchema, type BilingualText, type MasteryNode } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

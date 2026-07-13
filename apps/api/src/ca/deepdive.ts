@@ -22,7 +22,7 @@ import { retrieveGrounding } from "../services/evaluation/grounding.js";
 import { loadNodeWeightage } from "../lib/weightage.js";
 import { monthBounds } from "../lib/month.js";
 import { RELEVANCE_GATE } from "./pipeline.js";
-import type { CurrentAffairsGsPaper, CurrentAffairsMainsBrief } from "@prayasup/shared";
+import type { CurrentAffairsGsPaper, CurrentAffairsMainsBrief } from "@neev/shared";
 
 export const DEEP_DIVE_COUNT = 5;
 

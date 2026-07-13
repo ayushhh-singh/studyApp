@@ -24,7 +24,7 @@ import type {
   CurrentAffairsGsPaper,
   CurrentAffairsMainsBrief,
   CurrentAffairsPossibleQuestions,
-} from "@prayasup/shared";
+} from "@neev/shared";
 
 const CATEGORIES: CurrentAffairsCategory[] = [
   "polity_governance",

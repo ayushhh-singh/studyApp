@@ -13,7 +13,7 @@
  * fails, or the store is empty, grounding returns empty and the evaluation
  * proceeds ungrounded (the prompt is told so explicitly).
  */
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { embeddings } from "../../lib/embeddings.js";
 import { logger } from "../../lib/logger.js";

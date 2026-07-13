@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Languages, X } from "lucide-react";
-import type { Locale, SrsQueueCard, SrsRating } from "@prayasup/shared";
+import type { Locale, SrsQueueCard, SrsRating } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { formatSrsInterval } from "@/lib/srs-format";
 import { useSrsReviewQueue } from "@/hooks/use-srs-review-queue";

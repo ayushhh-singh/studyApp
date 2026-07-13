@@ -1,4 +1,4 @@
-import type { EventBody } from "@prayasup/shared";
+import type { EventBody } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { touchFeature } from "../lib/feature-touch.js";

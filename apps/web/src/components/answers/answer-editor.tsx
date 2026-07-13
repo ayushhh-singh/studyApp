@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 import { DictationButton } from "@/components/answers/dictation-button";
 import { cn } from "@/lib/utils";
 

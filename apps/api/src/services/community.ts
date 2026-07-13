@@ -11,7 +11,7 @@ import type {
   ReportReason,
   ReportTargetType,
   SharedAnswer,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { screenPost, screenThread } from "../lib/community-moderation.js";

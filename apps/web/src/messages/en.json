@@ -822,7 +822,7 @@
     "itemCount": "{{count}} items",
     "back": "All months",
     "print": "Print / PDF",
-    "masthead": "PrayasUP Current Affairs",
+    "masthead": "Neev Current Affairs",
     "upSection": "Uttar Pradesh Focus",
     "footer": "Compiled in our own words from published sources. For UPPSC exam preparation.",
     "editionCounts": "{{prelims}} prelims facts · {{mains}} mains issues",
@@ -1080,7 +1080,7 @@
     "emptyDescription": "Tell us how many hours a day you can study and we'll build a 7-day plan around your exam date."
   },
   "Auth": {
-    "title": "Sign in to PrayasUP",
+    "title": "Sign in to Neev",
     "subtitle": "Continue with Google, or your email and password.",
     "google": "Continue with Google",
     "or": "or",
@@ -1156,7 +1156,7 @@
     "error": "Couldn't save. Please try again."
   },
   "Landing": {
-    "brand": "PrayasUP",
+    "brand": "Neev",
     "signIn": "Sign in",
     "startFree": "Start free",
     "goToApp": "Go to dashboard",
@@ -1280,7 +1280,7 @@
   "Pwa": {
     "updateAvailable": "A new version is ready.",
     "refresh": "Refresh",
-    "offlineReady": "PrayasUP is ready to work offline.",
+    "offlineReady": "Neev is ready to work offline.",
     "settingsTitle": "Push notifications",
     "settingsDescription": "Get a nudge when today's quiz is ready, revision is due, or your streak needs a save.",
     "disabledHint": "Notifications are off.",
@@ -1290,11 +1290,11 @@
     "enableButton": "Enable notifications",
     "notNow": "Not now",
     "enableError": "Couldn't enable notifications — please try again.",
-    "prePromptBody": "PrayasUP can send a quiet nudge when your daily quiz is ready, revision cards are due, or your streak is about to break. No spam — just study reminders, and you can turn any of these off anytime.",
+    "prePromptBody": "Neev can send a quiet nudge when your daily quiz is ready, revision cards are due, or your streak is about to break. No spam — just study reminders, and you can turn any of these off anytime.",
     "prefQuizReady": "Daily quiz ready",
     "prefSrsDue": "Revision due",
     "prefStreakAtRisk": "Streak at risk",
-    "installTitle": "Install PrayasUP",
+    "installTitle": "Install Neev",
     "installDescription": "Add it to your home screen for one-tap access and offline studying.",
     "installCta": "Install app",
     "installDismiss": "Dismiss"

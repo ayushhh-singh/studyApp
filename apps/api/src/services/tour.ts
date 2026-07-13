@@ -18,8 +18,8 @@ import type {
   TourStatePayload,
   TourSuggestedChapterNode,
   TourUpdateBody,
-} from "@prayasup/shared";
-import { FEATURE_KEYS, GUIDED_TOUR_STOPS, TOUR_SECTION_KEYS } from "@prayasup/shared";
+} from "@neev/shared";
+import { FEATURE_KEYS, GUIDED_TOUR_STOPS, TOUR_SECTION_KEYS } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, daysBetween } from "../lib/ist.js";

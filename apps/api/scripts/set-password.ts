@@ -8,7 +8,7 @@
  *
  * Also stamps email_confirm so a never-confirmed account can log in immediately.
  */
-import { checkPasswordStrength } from "@prayasup/shared";
+import { checkPasswordStrength } from "@neev/shared";
 import { supabase } from "../src/lib/supabase.js";
 
 interface Args {

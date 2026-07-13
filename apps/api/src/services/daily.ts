@@ -4,7 +4,7 @@
  * exists" used on load in case the 5:00 AM IST job hasn't run in this dev
  * process yet.
  */
-import type { BilingualText, DailyQuizArchiveItem, TestKind } from "@prayasup/shared";
+import type { BilingualText, DailyQuizArchiveItem, TestKind } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istToday } from "../lib/ist.js";

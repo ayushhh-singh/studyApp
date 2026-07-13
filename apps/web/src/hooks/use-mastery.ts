@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { masteryMapResponseSchema, type ExamCode } from "@prayasup/shared";
+import { masteryMapResponseSchema, type ExamCode } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Clock, ListChecks, Award } from "lucide-react";
-import type { TestSummary, Locale } from "@prayasup/shared";
+import type { TestSummary, Locale } from "@neev/shared";
 import { scoreBandColor } from "@/lib/score-band";
 
 export function TestCard({

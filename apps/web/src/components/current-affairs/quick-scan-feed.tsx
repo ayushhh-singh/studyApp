@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { CurrentAffairsItem, Locale } from "@prayasup/shared";
+import type { CurrentAffairsItem, Locale } from "@neev/shared";
 
 /**
  * Quick-scan mode (Prelims tab): a facts-only compact feed — every item's boxed

@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { MainsWeeklyStats } from "@prayasup/shared";
+import type { MainsWeeklyStats } from "@neev/shared";
 import { Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUpdateProfile } from "@/hooks/use-profile";

@@ -24,7 +24,7 @@ import type {
   NoteSource,
   NoteSrsCandidate,
   StudyContent,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 
 /** Avg words/minute for dense exam prose — deliberately conservative. */

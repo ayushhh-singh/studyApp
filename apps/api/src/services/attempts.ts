@@ -13,7 +13,7 @@ import type {
   BilingualText,
   MarkingScheme,
   TestKind,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";

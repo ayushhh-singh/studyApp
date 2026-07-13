@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import type { StudyPlan } from "@prayasup/shared";
+import type { StudyPlan } from "@neev/shared";
 import { streamEvents } from "@/lib/sse";
 import { queryKeys } from "@/lib/query-keys";
 

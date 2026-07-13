@@ -1,7 +1,7 @@
 import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Camera, ChevronDown, ChevronUp, ImagePlus, RotateCw, X } from "lucide-react";
-import { MAX_ANSWER_IMAGES } from "@prayasup/shared";
+import { MAX_ANSWER_IMAGES } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 

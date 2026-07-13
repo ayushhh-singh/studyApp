@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { Brain } from "lucide-react";
-import type { SrsQueueCard } from "@prayasup/shared";
+import type { SrsQueueCard } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Button } from "@/components/ui/button";
 import { ReviewPlayer } from "@/components/revision/review-player";

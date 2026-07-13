@@ -2,7 +2,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Wordmark: a compact Rubric-Dial glyph (the app's signature arc gauge, echoing
- * score-gauge.tsx) + the "PrayasUP" wordmark. Used on the landing hero, auth,
+ * score-gauge.tsx) + the "Neev" wordmark. Used on the landing hero, auth,
  * and onboarding. Pure SVG + tokens, no external asset.
  */
 export function BrandMark({ className, showText = true }: { className?: string; showText?: boolean }) {
@@ -20,7 +20,7 @@ export function BrandMark({ className, showText = true }: { className?: string; 
       </svg>
       {showText ? (
         <span className="text-lg font-extrabold tracking-tight text-foreground">
-          Prayas<span className="text-primary">UP</span>
+          Neev
         </span>
       ) : null}
     </span>

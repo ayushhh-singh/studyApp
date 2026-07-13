@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Bell, Flame, Layers, Sparkles, X } from "lucide-react";
-import type { NotificationType } from "@prayasup/shared";
+import type { NotificationType } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { useNotifications, useNotificationAction } from "@/hooks/use-notifications";

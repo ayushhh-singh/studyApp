@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
-import { attemptAnswersResponseSchema, type AttemptAnswerInput } from "@prayasup/shared";
+import { attemptAnswersResponseSchema, type AttemptAnswerInput } from "@neev/shared";
 import { api } from "@/lib/api";
 import { createOfflineQueue, type QueueStatus } from "@/lib/offline-queue";
 
@@ -17,7 +17,7 @@ export function useAttemptAnswers(attemptId: string | undefined): {
   const queue = useMemo(() => {
     if (!attemptId) return null;
     return createOfflineQueue<AttemptAnswerInput>({
-      storageKey: `prayasup-attempt-answers-${attemptId}`,
+      storageKey: `neev-attempt-answers-${attemptId}`,
       dedupeKey: (item) => item.question_id,
       send: (answers) =>
         api.post(`/api/v1/attempts/${attemptId}/answers`, attemptAnswersResponseSchema, { answers }).then(

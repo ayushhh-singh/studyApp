@@ -1,6 +1,6 @@
 name: Scheduled — Current affairs pipeline
 
-# Free-tier (₹0 stack) replacement for the `prayasup-ca-run` Render Cron Job
+# Free-tier (₹0 stack) replacement for the `neev-ca-run` Render Cron Job
 # defined in render.yaml (kept there, unused, as the paid upgrade path — see
 # docs/operations.md's "Upgrading to paid" section). Runs `pnpm ca:run`
 # directly on a GitHub-hosted runner instead of a Render container.
@@ -14,7 +14,7 @@ name: Scheduled — Current affairs pipeline
 on:
   schedule:
     # Every 6h, matching the dev scheduler's cadence (src/ca/scheduler.ts) and
-    # render.yaml's prayasup-ca-run job.
+    # render.yaml's neev-ca-run job.
     - cron: "0 */6 * * *"
   workflow_dispatch: {}
 

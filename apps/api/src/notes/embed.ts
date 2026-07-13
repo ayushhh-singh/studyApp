@@ -14,7 +14,7 @@
  */
 import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
-import { hasChapter, type NoteBody, type StudyContent } from "@prayasup/shared";
+import { hasChapter, type NoteBody, type StudyContent } from "@neev/shared";
 
 type Locale = "hi" | "en";
 const LOCALES: Locale[] = ["hi", "en"];

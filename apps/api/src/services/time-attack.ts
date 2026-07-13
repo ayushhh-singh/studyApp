@@ -23,8 +23,8 @@ import type {
   TimeAttackResult,
   TimeAttackStart,
   TimeAttackTopic,
-} from "@prayasup/shared";
-import { TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE, timeAttackPaperCodeSchema } from "@prayasup/shared";
+} from "@neev/shared";
+import { TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE, timeAttackPaperCodeSchema } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";

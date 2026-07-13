@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileQuestion } from "lucide-react";
-import type { ExamCode, Locale, Question } from "@prayasup/shared";
+import type { ExamCode, Locale, Question } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";

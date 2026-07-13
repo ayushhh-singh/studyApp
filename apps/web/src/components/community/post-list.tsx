@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { DiscussionPost } from "@prayasup/shared";
+import type { DiscussionPost } from "@neev/shared";
 import { Pencil, ShieldOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";

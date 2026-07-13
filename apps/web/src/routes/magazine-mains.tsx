@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 import { Lightbulb, Newspaper } from "lucide-react";
-import type { Locale, MagazineDeepDive, MagazineIssueBrief, MagazineModelQuestion } from "@prayasup/shared";
+import type { Locale, MagazineDeepDive, MagazineIssueBrief, MagazineModelQuestion } from "@neev/shared";
 import { useMagazineMains } from "@/hooks/use-magazine";
 import { useLocale } from "@/hooks/use-locale";
 import { Skeleton } from "@/components/ui-x/skeleton";

@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { eventResponseSchema, type EventBody } from "@prayasup/shared";
+import { eventResponseSchema, type EventBody } from "@neev/shared";
 import { api } from "@/lib/api";
 
 export function useRecordEvent() {

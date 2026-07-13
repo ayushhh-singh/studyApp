@@ -12,7 +12,7 @@
  * is deliberately small (top-5 lists, 6 dimension averages) so it stays cheap to
  * prompt-cache in the mentor system prompt.
  */
-import type { BilingualText, DimensionScore, LearnerProfile, Locale } from "@prayasup/shared";
+import type { BilingualText, DimensionScore, LearnerProfile, Locale } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";

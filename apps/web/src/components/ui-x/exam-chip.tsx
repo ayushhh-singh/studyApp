@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { BilingualText, ExamCode } from "@prayasup/shared";
+import type { BilingualText, ExamCode } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 

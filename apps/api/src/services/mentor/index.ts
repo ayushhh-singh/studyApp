@@ -22,8 +22,8 @@ import type {
   MentorDepth,
   MentorQuizQuestion,
   MentorWebSource,
-} from "@prayasup/shared";
-import { MAX_DOUBT_CHARS, mentorQuotaCost } from "@prayasup/shared";
+} from "@neev/shared";
+import { MAX_DOUBT_CHARS, mentorQuotaCost } from "@neev/shared";
 import { getMentorQuota, LIMITS } from "../entitlements.js";
 import { supabase } from "../../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";

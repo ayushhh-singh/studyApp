@@ -6,7 +6,7 @@ import {
   testDetailResponseSchema,
   testsListResponseSchema,
   testsQuerySchema,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";

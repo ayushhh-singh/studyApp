@@ -1,4 +1,4 @@
-import { GUIDED_TOUR_STOPS, type GuidedTourStopKey } from "@prayasup/shared";
+import { GUIDED_TOUR_STOPS, type GuidedTourStopKey } from "@neev/shared";
 import type { Locale } from "@/lib/locale";
 
 export { GUIDED_TOUR_STOPS };

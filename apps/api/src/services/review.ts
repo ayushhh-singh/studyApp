@@ -16,7 +16,7 @@ import type {
   ReviewQuestion,
   ReviewTab,
   SimilarQuestion,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";

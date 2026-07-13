@@ -1,4 +1,4 @@
-import type { MasteryLevel } from "@prayasup/shared";
+import type { MasteryLevel } from "@neev/shared";
 
 /** Levels in ascending order, for the map legend. */
 export const MASTERY_LEVELS: MasteryLevel[] = ["unseen", "bronze", "silver", "gold", "exam_ready"];

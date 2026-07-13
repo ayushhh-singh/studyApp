@@ -4,7 +4,7 @@
  * /milestones runs it and returns the still-unseen ones, which the client shows
  * as one-time dismissible toasts (dismiss → mark seen).
  */
-import type { BilingualText, Milestone } from "@prayasup/shared";
+import type { BilingualText, Milestone } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";

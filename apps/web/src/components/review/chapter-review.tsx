@@ -10,7 +10,7 @@ import {
   type ReviewNote,
   type ReviewNoteEditBody,
   type StudyContent,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { ChapterMarkdown } from "@/components/ui-x/chapter-markdown";
 import { cn } from "@/lib/utils";

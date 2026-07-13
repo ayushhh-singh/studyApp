@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Users } from "lucide-react";
-import type { ScoreboardRow } from "@prayasup/shared";
+import type { ScoreboardRow } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { cn } from "@/lib/utils";
 

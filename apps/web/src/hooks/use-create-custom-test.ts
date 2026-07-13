@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { testDetailResponseSchema, type CreateCustomTestBody } from "@prayasup/shared";
+import { testDetailResponseSchema, type CreateCustomTestBody } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

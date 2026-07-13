@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { CurrentAffairsItem, Locale } from "@prayasup/shared";
+import type { CurrentAffairsItem, Locale } from "@neev/shared";
 import { RelevanceBadges } from "./relevance-badge";
 
 export function CurrentAffairsItemCard({

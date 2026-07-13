@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useNavigate } from "react-router";
-import { okResponseSchema, type PushSubscribeBody } from "@prayasup/shared";
+import { okResponseSchema, type PushSubscribeBody } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { api } from "@/lib/api";
 

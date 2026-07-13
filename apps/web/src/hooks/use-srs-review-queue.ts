@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { submitSrsReviewsResponseSchema, type SrsRating } from "@prayasup/shared";
+import { submitSrsReviewsResponseSchema, type SrsRating } from "@neev/shared";
 import { api } from "@/lib/api";
 import { createIdbOfflineQueue } from "@/lib/offline-queue-idb";
 import type { QueueStatus } from "@/lib/offline-queue";
 import { queryKeys } from "@/lib/query-keys";
 
+// Historical key name — MUST stay "prayasup-*" (the pre-Neev-rename brand): it
+// reads reviews written under the old key, so renaming it would silently orphan them.
 const LEGACY_LOCALSTORAGE_KEY = "prayasup-srs-reviews";
 
 /** One-time migration for anyone with reviews stranded in the old localStorage queue from before the IndexedDB switch. */
@@ -41,7 +43,7 @@ export function useSrsReviewQueue(): {
 
   const queue = useMemo(() => {
     const q = createIdbOfflineQueue<SrsReviewInput>({
-      dbName: "prayasup-offline",
+      dbName: "neev-offline",
       storeName: "srs-reviews",
       dedupeKey: (item) => item.card_id,
       send: (reviews) =>

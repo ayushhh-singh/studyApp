@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Flag } from "lucide-react";
-import type { QuestionReportReason } from "@prayasup/shared";
+import type { QuestionReportReason } from "@neev/shared";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { Button } from "@/components/ui/button";
 import { useReportQuestion } from "@/hooks/use-question-reports";

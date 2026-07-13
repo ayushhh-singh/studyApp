@@ -3,7 +3,7 @@ import type { TFunction } from "i18next";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { BookOpen, ExternalLink, Layers, MapPin, Sparkles, TrendingUp, Zap } from "lucide-react";
-import type { Locale, NoteBody, NoteSource } from "@prayasup/shared";
+import type { Locale, NoteBody, NoteSource } from "@neev/shared";
 import { cn } from "@/lib/utils";
 
 export type NoteBlockKey =

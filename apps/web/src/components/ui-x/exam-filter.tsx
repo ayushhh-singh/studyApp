@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { ExamCode } from "@prayasup/shared";
+import type { ExamCode } from "@neev/shared";
 import { cn } from "@/lib/utils";
 
 /**

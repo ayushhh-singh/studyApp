@@ -15,7 +15,7 @@
  * generation_meta records which version produced a row.
  */
 import { MODELS, type StructuredParams } from "../lib/anthropic.js";
-import type { CriticVerdict, Difficulty, VerifyResult } from "@prayasup/shared";
+import type { CriticVerdict, Difficulty, VerifyResult } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
 // qgen-v2 (question-bank trust hardening): the Stage-B critic now receives the

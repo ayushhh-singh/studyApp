@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { ghostStartResponseSchema } from "@prayasup/shared";
+import { ghostStartResponseSchema } from "@neev/shared";
 import { api } from "@/lib/api";
 
 /** Start a Ghost Battle replay of a completed attempt. */

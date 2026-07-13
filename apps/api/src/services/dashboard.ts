@@ -12,7 +12,7 @@ import type {
   TestKind,
   TestSummary,
   TodayPlanTask,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";

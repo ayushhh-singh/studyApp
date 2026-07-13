@@ -8,7 +8,7 @@ import {
   type ReviewEditBody,
   type ReviewQuestion,
   type ReviewTab,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";

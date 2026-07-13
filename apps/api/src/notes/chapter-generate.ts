@@ -40,7 +40,7 @@ import {
   type AuditClassification,
 } from "./chapter-prompts.js";
 import { persistChapter, type ChapterPersistResult } from "./chapter-persist.js";
-import type { AuditedFact, ChapterBox, ChapterDiagram, ChapterSection, NoteSource } from "@prayasup/shared";
+import type { AuditedFact, ChapterBox, ChapterDiagram, ChapterSection, NoteSource } from "@neev/shared";
 
 export type Log = (msg: string) => void;
 

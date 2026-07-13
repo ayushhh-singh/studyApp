@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { ChevronRight, Layers, Share2 } from "lucide-react";
-import type { ExamCode, Locale, MasteryNode } from "@prayasup/shared";
+import type { ExamCode, Locale, MasteryNode } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";

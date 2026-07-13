@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Dialog } from "radix-ui";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, ChevronRight, Grid3x3, Languages, X } from "lucide-react";
-import type { AnswerSessionDetail, AnswerSessionSubmission, Locale, SubmissionMode } from "@prayasup/shared";
+import type { AnswerSessionDetail, AnswerSessionSubmission, Locale, SubmissionMode } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";

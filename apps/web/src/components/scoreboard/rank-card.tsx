@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Trophy } from "lucide-react";
-import type { RankCard as RankCardData } from "@prayasup/shared";
+import type { RankCard as RankCardData } from "@neev/shared";
 
 /** "You ranked N of M today/this test" — embedded right after a quiz/mock result. Renders nothing if not applicable. */
 export function RankCard({ card }: { card: RankCardData | null | undefined }) {

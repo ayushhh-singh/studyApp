@@ -8,7 +8,7 @@
  * up through the syllabus subtree themselves (services/syllabus.ts), exactly
  * like pyq_count, so a chapter row reflects its descendants.
  */
-import type { ExamCode, NodeWeightage } from "@prayasup/shared";
+import type { ExamCode, NodeWeightage } from "@neev/shared";
 import { supabase } from "./supabase.js";
 import { HttpError } from "./http-error.js";
 

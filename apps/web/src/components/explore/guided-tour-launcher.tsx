@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { Compass } from "lucide-react";
-import { GUIDED_TOUR_STOPS } from "@prayasup/shared";
+import { GUIDED_TOUR_STOPS } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
 import { useLocale } from "@/hooks/use-locale";

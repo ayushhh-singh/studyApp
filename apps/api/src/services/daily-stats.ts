@@ -7,7 +7,7 @@
  * grid: per-day activity intensity computed live from raw events, with the stored
  * perfect-day flag overlaid.
  */
-import type { ActivityHeatmap, HeatmapDay } from "@prayasup/shared";
+import type { ActivityHeatmap, HeatmapDay } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";

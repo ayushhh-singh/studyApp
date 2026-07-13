@@ -33,7 +33,7 @@ import type {
   CurrentAffairsMainsBrief,
   CurrentAffairsNodeSignificance,
   CurrentAffairsPossibleQuestions,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { CA_SOURCES } from "./sources.js";
 import {
   enrichItem,

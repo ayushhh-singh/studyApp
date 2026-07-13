@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { questionResponseSchema, questionsQuerySchema, questionsResponseSchema } from "@prayasup/shared";
+import { questionResponseSchema, questionsQuerySchema, questionsResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";

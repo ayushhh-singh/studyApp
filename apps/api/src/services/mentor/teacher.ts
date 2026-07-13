@@ -9,7 +9,7 @@ import type {
   MentorContinueNode,
   MentorPyqRef,
   MentorQuizQuestion,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import type { LlmUsage } from "../../lib/anthropic.js";

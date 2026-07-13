@@ -4,7 +4,7 @@ import {
   entitlementsResponseSchema,
   plansResponseSchema,
   subscriptionResponseSchema,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { api } from "@/lib/api";
 
 // Query keys kept local to the billing feature (self-contained).

@@ -1,4 +1,4 @@
-import type { CurrentAffairsItem, CurrentAffairsQuery } from "@prayasup/shared";
+import type { CurrentAffairsItem, CurrentAffairsQuery } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";

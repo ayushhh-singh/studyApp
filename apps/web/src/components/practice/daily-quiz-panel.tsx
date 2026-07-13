@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
-import type { DailyQuizArchiveItem } from "@prayasup/shared";
+import type { DailyQuizArchiveItem } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";

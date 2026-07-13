@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { BookMarked, Check, ChevronDown, Loader2, Sparkles, X } from "lucide-react";
-import type { SyllabusNode } from "@prayasup/shared";
+import type { SyllabusNode } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useSyllabusTree } from "@/hooks/use-syllabus-tree";
 import { useSaveMentorNote } from "@/hooks/use-user-notes";

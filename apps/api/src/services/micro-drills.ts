@@ -14,7 +14,7 @@ import type {
   DrillSession,
   DrillType,
   RubricDimensionKey,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";

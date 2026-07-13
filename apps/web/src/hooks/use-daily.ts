@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { dailyQuizArchiveResponseSchema, testDetailResponseSchema, type TestDetail } from "@prayasup/shared";
+import { dailyQuizArchiveResponseSchema, testDetailResponseSchema, type TestDetail } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

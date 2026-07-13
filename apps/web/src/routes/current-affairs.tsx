@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { Newspaper, BookMarked, ScanLine } from "lucide-react";
-import type { CurrentAffairsCategory, CurrentAffairsItem, CurrentAffairsLens } from "@prayasup/shared";
+import type { CurrentAffairsCategory, CurrentAffairsItem, CurrentAffairsLens } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";

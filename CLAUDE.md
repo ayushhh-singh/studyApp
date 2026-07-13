@@ -1,4 +1,34 @@
-# Project: PrayasUP — UPPSC Exam Prep Platform (working name)
+# Project: Neev (नींव) — UPPSC Exam Prep Platform
+
+## Branding (renamed 2026-07-13: PrayasUP → Neev)
+The product is **Neev** (Devanagari **नींव**, "foundation"). This replaced the old
+working name "PrayasUP" across the whole codebase on 2026-07-13.
+- **Wordmark convention (the ONE place this is decided):** English brand = `Neev`
+  (Latin), Hindi brand = `नींव` (Devanagari). नींव is the real Hindi word for
+  "foundation" — a deliberate choice, NOT a transliteration of "Neev" (नीव) and NOT
+  the old Devanagari transliteration "प्रयासUP". Both message files, the two PWA
+  manifests, `brand-mark.tsx`, and the satori share-card/OG renderers follow this.
+  The old two-tone wordmark accented "UP" because it meant *Uttar Pradesh*; "Neev"
+  has no equivalent sub-token, so it renders monochrome (the gauge glyph carries the
+  color). NOTE: "प्रयास" (attempt/effort) is a common Hindi word used ~36× in
+  `hi.json` for genuine UI copy — only the brand form "प्रयासUP" was renamed, never
+  bare प्रयास.
+- **Mentor persona** now introduces itself as Neev (नींव) — `services/mentor/prompts.ts`.
+  Every other AI persona (examiner/rubric, question-setter, notes/chapter/CA/qgen
+  authors) is role-framed and never named a brand, so none needed a rename.
+- **Scope/domain/keys:** the workspace package is `@neev/shared` (was `@prayasup/shared`);
+  the domain is `neev.app` (was `prayasup.app`); client storage/IDB keys and Render/CI
+  infra names are `neev-*`.
+- **Deliberately left as-is (historical/technical, not live branding):** (1) the
+  session-log entries BELOW keep the old name / `prayasup.app` / `demo@prayasup.app`
+  as a factual changelog of what was done when. (2) `use-srs-review-queue.ts`'s
+  `LEGACY_LOCALSTORAGE_KEY = "prayasup-srs-reviews"` — the *source* of a one-time
+  migration; renaming it would orphan reviews written under the old key.
+- **FOLLOW-UPS (not done in the rename session):** (a) the GitHub repo is still
+  `studyApp` — renaming it can break CI/CD/remote hookups, so do it deliberately as
+  its own step. (b) The existing demo DB account is still `demo@prayasup.app` (that's
+  data, not code); the seed default is now `demo@neev.app`, so re-run `pnpm demo:seed`
+  to mint the new-domain account when wanted.
 
 ## What this is
 A bilingual (Hindi/English equal-first) web platform for UPPSC (UP PCS) aspirants.

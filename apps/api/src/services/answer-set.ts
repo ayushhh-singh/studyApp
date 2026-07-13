@@ -9,7 +9,7 @@
  * "evaluated" once the user has a completed evaluation for that question — one
  * such completion maintains the streak.
  */
-import type { BilingualText, DailyAnswerItem, DailyAnswerKind, DailyAnswerSet } from "@prayasup/shared";
+import type { BilingualText, DailyAnswerItem, DailyAnswerKind, DailyAnswerSet } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { daysBetween, istToday } from "../lib/ist.js";

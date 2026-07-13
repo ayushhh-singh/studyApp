@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronLeft, ChevronRight, Inbox, Pencil, X, AlertTriangle } from "lucide-react";
-import type { Locale, NoteBody, NoteContentI18n, ReviewNote } from "@prayasup/shared";
+import type { Locale, NoteBody, NoteContentI18n, ReviewNote } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";

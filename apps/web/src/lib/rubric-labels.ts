@@ -1,4 +1,4 @@
-import type { RubricDimensionKey } from "@prayasup/shared";
+import type { RubricDimensionKey } from "@neev/shared";
 
 /**
  * The server's DimensionScore.label is English-only examiner copy (see

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle } from "lucide-react";
-import type { AttemptResultDetail } from "@prayasup/shared";
+import type { AttemptResultDetail } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { useCutoffs } from "@/hooks/use-mocks";
 

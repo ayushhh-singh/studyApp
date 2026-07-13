@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { notificationListResponseSchema, notificationResponseSchema } from "@prayasup/shared";
+import { notificationListResponseSchema, notificationResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";

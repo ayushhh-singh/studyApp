@@ -9,7 +9,7 @@ import type {
   SrsQueueCard,
   SrsSourceType,
   SrsStats,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from "../lib/fsrs.js";

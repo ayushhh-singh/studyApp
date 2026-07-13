@@ -1,4 +1,4 @@
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 
 /**
  * Billing UI copy kept self-contained here (not in messages/*.json) so the

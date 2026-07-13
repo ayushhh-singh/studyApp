@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { examCodeSchema, localeSchema, masteryMapResponseSchema } from "@prayasup/shared";
+import { examCodeSchema, localeSchema, masteryMapResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";

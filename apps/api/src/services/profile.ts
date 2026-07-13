@@ -1,4 +1,4 @@
-import type { BilingualText, OnboardingBody, Profile, ProfileUpdateBody } from "@prayasup/shared";
+import type { BilingualText, OnboardingBody, Profile, ProfileUpdateBody } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, conflict, notFound } from "../lib/http-error.js";
 import { istToday, daysBetween } from "../lib/ist.js";

@@ -2,7 +2,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Loader2, KeyRound, AlertTriangle } from "lucide-react";
-import { checkPasswordStrength } from "@prayasup/shared";
+import { checkPasswordStrength } from "@neev/shared";
 import { supabaseBrowser } from "@/lib/supabase";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";

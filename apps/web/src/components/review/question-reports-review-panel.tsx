@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { Ban, Check, ChevronLeft, ChevronRight, Inbox, RefreshCw, Wrench } from "lucide-react";
-import type { QuestionReportAction } from "@prayasup/shared";
+import type { QuestionReportAction } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";

@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { ShieldCheck } from "lucide-react";
-import type { DashboardGreeting } from "@prayasup/shared";
+import type { DashboardGreeting } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { FreezePips } from "@/components/ui-x/freeze-pips";

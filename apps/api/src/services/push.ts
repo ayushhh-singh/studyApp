@@ -1,4 +1,4 @@
-import type { PushPreferences, PushStatus, PushSubscribeBody } from "@prayasup/shared";
+import type { PushPreferences, PushStatus, PushSubscribeBody } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError } from "../lib/http-error.js";
 

@@ -1,5 +1,5 @@
 import { useState, type RefObject } from "react";
-import type { TourSectionKey } from "@prayasup/shared";
+import type { TourSectionKey } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { SpotlightFrame, useSpotlightRect } from "@/components/ui-x/spotlight";
 import { useTourState, useUpdateTourState } from "@/hooks/use-tour";

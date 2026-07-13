@@ -8,7 +8,7 @@ import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@/lib/locale";
  * so canonical/OG URLs are at least well-formed rather than pointing at
  * localhost in a shared build artifact.
  */
-const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://prayasup.app").replace(/\/$/, "");
+const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://neev.app").replace(/\/$/, "");
 
 /**
  * Only meant for genuinely public, unauthenticated routes (landing, pricing)

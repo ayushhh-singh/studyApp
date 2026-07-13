@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, Compass, Flame, Languages, MapPinned, PenSquare } from "lucide-react";
-import { GUIDED_TOUR_STOPS, type WelcomeTourChoice } from "@prayasup/shared";
+import { GUIDED_TOUR_STOPS, type WelcomeTourChoice } from "@neev/shared";
 import { useProfile } from "@/hooks/use-profile";
 import { useUpdateTourState } from "@/hooks/use-tour";
 import { useLocale } from "@/hooks/use-locale";

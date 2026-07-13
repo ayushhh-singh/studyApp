@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Brain, CheckCircle2, TrendingUp } from "lucide-react";
-import type { SrsStats } from "@prayasup/shared";
+import type { SrsStats } from "@neev/shared";
 import { StatCard } from "@/components/ui-x/stat-card";
 import { ForecastChart } from "./forecast-chart";
 

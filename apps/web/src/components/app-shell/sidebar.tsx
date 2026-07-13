@@ -18,7 +18,7 @@ export function Sidebar() {
       className="hidden w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-3 md:flex"
     >
       <div className="flex items-center gap-2 px-2 py-3">
-        {/* BrandMark always renders "PrayasUP" in Latin — matches landing/auth/
+        {/* BrandMark always renders "Neev" in Latin — matches landing/auth/
             onboarding/pricing, unlike the old hardcoded Devanagari literal that
             ignored the active locale. */}
         <BrandMark />

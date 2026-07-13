@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { ExternalLink, GraduationCap } from "lucide-react";
-import type { CurrentAffairsFact, CurrentAffairsItem, Locale } from "@prayasup/shared";
+import type { CurrentAffairsFact, CurrentAffairsItem, Locale } from "@neev/shared";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";

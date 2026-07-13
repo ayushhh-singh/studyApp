@@ -3,4 +3,4 @@ Allow: /en
 Allow: /hi
 Disallow: /
 
-Sitemap: https://prayasup.app/sitemap.xml
+Sitemap: https://neev.app/sitemap.xml

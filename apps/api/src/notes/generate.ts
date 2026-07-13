@@ -29,7 +29,7 @@ import {
   type NoteCaItem,
   type WeightageSnapshot,
 } from "./prompts.js";
-import type { NoteContentI18n, NoteCriticVerdict, NoteSource, NoteSrsCandidate } from "@prayasup/shared";
+import type { NoteContentI18n, NoteCriticVerdict, NoteSource, NoteSrsCandidate } from "@neev/shared";
 
 export type Log = (msg: string) => void;
 

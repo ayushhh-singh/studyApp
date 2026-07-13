@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { testDetailResponseSchema, testsListResponseSchema, type TestKind } from "@prayasup/shared";
+import { testDetailResponseSchema, testsListResponseSchema, type TestKind } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

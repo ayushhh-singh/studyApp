@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
 import { MapPin, Newspaper } from "lucide-react";
-import type { CurrentAffairsFactKind, Locale, MagazineFactEntry, MagazineItemBlock } from "@prayasup/shared";
+import type { CurrentAffairsFactKind, Locale, MagazineFactEntry, MagazineItemBlock } from "@neev/shared";
 import { useMagazinePrelims } from "@/hooks/use-magazine";
 import { useLocale } from "@/hooks/use-locale";
 import { Skeleton } from "@/components/ui-x/skeleton";

@@ -1,6 +1,6 @@
 import { CalendarClock } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import type { DashboardNextExam } from "@prayasup/shared";
+import type { DashboardNextExam } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 

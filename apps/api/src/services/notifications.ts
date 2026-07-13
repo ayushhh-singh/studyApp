@@ -4,7 +4,7 @@
  * (quiz done, no SRS due, activity logged) so the bell stays accurate. It runs
  * on every GET /notifications (self-heal) and hourly from the scheduler.
  */
-import type { BilingualText, Notification, NotificationType } from "@prayasup/shared";
+import type { BilingualText, Notification, NotificationType } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istClockUtc, istToday } from "../lib/ist.js";

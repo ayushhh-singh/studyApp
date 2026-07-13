@@ -1,6 +1,6 @@
 name: Scheduled — Daily quiz build
 
-# Free-tier (₹0 stack) replacement for the `prayasup-daily-build` Render Cron
+# Free-tier (₹0 stack) replacement for the `neev-daily-build` Render Cron
 # Job in render.yaml (kept there, unused, as the paid upgrade path — see
 # docs/operations.md's "Upgrading to paid" section).
 #
@@ -10,7 +10,7 @@ name: Scheduled — Daily quiz build
 on:
   schedule:
     # 23:30 UTC (previous day) = 05:00 IST — matches render.yaml's
-    # prayasup-daily-build job exactly.
+    # neev-daily-build job exactly.
     - cron: "30 23 * * *"
   workflow_dispatch: {}
 

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router";
 import { X } from "lucide-react";
-import { GUIDED_TOUR_STOPS, type GuidedTourStopKey } from "@prayasup/shared";
+import { GUIDED_TOUR_STOPS, type GuidedTourStopKey } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { SpotlightFrame, useSpotlightRect } from "@/components/ui-x/spotlight";
 import { useLocale } from "@/hooks/use-locale";

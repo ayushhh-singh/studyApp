@@ -18,7 +18,7 @@ import type {
   MagazinePrelims,
   MagazineTopicSection,
   ReviewMagazineEditBody,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { monthBounds, monthLabel } from "../lib/month.js";

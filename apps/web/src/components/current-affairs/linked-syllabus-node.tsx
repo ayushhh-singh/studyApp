@@ -1,5 +1,5 @@
 import { Link } from "react-router";
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 
 /** One "related syllabus topic" pill in the detail sheet — resolves the node's title/paper via the existing node-detail endpoint. */

@@ -12,7 +12,7 @@ import type {
   PlanTask,
   PlanTaskKind,
   StudyPlan,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { conflict, HttpError, notFound, badRequest } from "../lib/http-error.js";
 import { istDateString, istToday, shiftDate } from "../lib/ist.js";

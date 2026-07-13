@@ -20,7 +20,7 @@ import {
   type CreateSubmissionBody,
   type Locale,
   type RubricDimensionKey,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../src/lib/supabase.js";
 import { devUserId } from "../src/lib/dev-user.js";
 import { createSubmission, runEvaluation, type EvalEmit } from "../src/services/evaluation/evaluate.js";

@@ -15,7 +15,7 @@
  *
  *   pnpm feature-discovery:report [--days N]   (N = cohort age in days, default 7)
  */
-import { FEATURE_KEYS, type FeatureKey } from "@prayasup/shared";
+import { FEATURE_KEYS, type FeatureKey } from "@neev/shared";
 import { supabase } from "../src/lib/supabase.js";
 import { normalizeTourState } from "../src/services/tour.js";
 

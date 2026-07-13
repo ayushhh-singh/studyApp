@@ -14,7 +14,7 @@
  * in the Review Queue's CA / descriptive tabs before they enter a weekly set.
  * Either set is null until there's approved supply.
  */
-import type { BilingualText, TestSummary } from "@prayasup/shared";
+import type { BilingualText, TestSummary } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";

@@ -9,7 +9,7 @@ of each other in past sessions (see CLAUDE.md's session log).
 This checklist has NOT been run yet as of this writing — it's written ahead of
 the actual account/domain setup (see docs/operations.md and the deploy PR
 description for what's still pending). Run it for real the first time
-`prayasup-api` and the web app are both reachable at their production URLs.
+`neev-api` and the web app are both reachable at their production URLs.
 
 ## 0. Pre-flight (infra, before any user-facing test)
 
@@ -21,9 +21,9 @@ description for what's still pending). Run it for real the first time
 - [ ] Supabase Auth → URL Configuration: Site URL + redirect allowlist include
       the real prod origin (not just localhost)
 - [ ] Supabase Storage → `answer-images` bucket CORS allows the prod origin
-- [ ] Render dashboard: `prayasup-api` shows healthy; all 5 cron jobs
-      (`prayasup-daily-build`, `prayasup-ca-run`, `prayasup-qgen-topup`,
-      `prayasup-nightly-settle`, `prayasup-notifications`) show at least one
+- [ ] Render dashboard: `neev-api` shows healthy; all 5 cron jobs
+      (`neev-daily-build`, `neev-ca-run`, `neev-qgen-topup`,
+      `neev-nightly-settle`, `neev-notifications`) show at least one
       successful run once their first scheduled time has passed
 - [ ] `pnpm --filter api security:rls` still passes against the prod project
       (run from a machine with the prod `.env` values — this hits the real DB,
@@ -42,7 +42,7 @@ description for what's still pending). Run it for real the first time
 ## 2. Daily quiz
 
 - [ ] `/practice` → Daily Quiz tab shows today's real generated quiz (not a
-      404/empty state — confirms `prayasup-daily-build` actually ran and
+      404/empty state — confirms `neev-daily-build` actually ran and
       wrote a row for today)
 - [ ] Take the quiz, submit, land on the result page with a real score
 
@@ -67,7 +67,7 @@ description for what's still pending). Run it for real the first time
 - [ ] Ask a real doubt in the chatbot; response is grounded (cites a
       syllabus/PYQ concept, not a generic non-answer)
 - [ ] A proactive mentor insight card appears on the dashboard within a day of
-      real activity (confirms `prayasup-nightly-settle` ran)
+      real activity (confirms `neev-nightly-settle` ran)
 
 ## 6. Note reading
 
@@ -87,7 +87,7 @@ description for what's still pending). Run it for real the first time
 
 - [ ] Enable push from the in-app pre-prompt card; browser permission granted
 - [ ] Trigger `pnpm --filter api push:send` manually (or wait for the hourly
-      `prayasup-notifications` cron) and confirm a real push arrives
+      `neev-notifications` cron) and confirm a real push arrives
 
 ## 9. PWA install (real phone, not desktop devtools emulation)
 

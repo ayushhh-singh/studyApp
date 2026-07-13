@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import { ExternalLink } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { NoteSource } from "@prayasup/shared";
+import type { NoteSource } from "@neev/shared";
 
 /**
  * Dependency-free Markdown renderer for study CHAPTER bodies (Session 28). Handles

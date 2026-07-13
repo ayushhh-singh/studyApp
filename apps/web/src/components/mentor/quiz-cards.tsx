@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, X, BookmarkPlus, BookmarkCheck } from "lucide-react";
-import type { MentorQuizQuestion } from "@prayasup/shared";
+import type { MentorQuizQuestion } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useCreateSrsCard } from "@/hooks/use-srs";
 import { Button } from "@/components/ui/button";

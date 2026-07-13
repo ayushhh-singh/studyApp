@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Line, LineChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import type { PaperScoreTrajectory } from "@prayasup/shared";
+import type { PaperScoreTrajectory } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

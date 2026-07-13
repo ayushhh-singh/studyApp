@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { z } from "zod";
-import { doubtMessageBodySchema, generatePlanBodySchema, localeSchema, type BilingualText } from "@prayasup/shared";
+import { doubtMessageBodySchema, generatePlanBodySchema, localeSchema, type BilingualText } from "@neev/shared";
 import { createSseConnection } from "../lib/sse.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";

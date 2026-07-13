@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { notificationListResponseSchema, notificationResponseSchema } from "@prayasup/shared";
+import { notificationListResponseSchema, notificationResponseSchema } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

@@ -7,7 +7,7 @@
  * shape (same interface, tried on a claude-vision low-confidence/error
  * result).
  */
-import type { Locale } from "@prayasup/shared";
+import type { Locale } from "@neev/shared";
 import { claudeVisionProvider } from "./claude-vision-provider.js";
 import type { ImageMediaType } from "./storage.js";
 

@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { srsCardResponseSchema } from "@prayasup/shared";
+import { srsCardResponseSchema } from "@neev/shared";
 import { api } from "@/lib/api";
 import { useInvalidateSrs } from "@/hooks/use-srs";
 

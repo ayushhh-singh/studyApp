@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { BookOpen, CheckCircle2, ChevronRight, Layers, PenLine, Sparkles } from "lucide-react";
-import type { DashboardChecklistItem, DashboardContinue, DashboardToday, Locale } from "@prayasup/shared";
+import type { DashboardChecklistItem, DashboardContinue, DashboardToday, Locale } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { cn } from "@/lib/utils";

@@ -28,8 +28,8 @@ export default defineConfig({
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       manifest: {
-        name: 'PrayasUP — UPPSC Exam Prep',
-        short_name: 'PrayasUP',
+        name: 'Neev — UPPSC Exam Prep',
+        short_name: 'Neev',
         description:
           'AI answer-writing evaluation, PYQ practice, and syllabus-mapped study for UPPSC (UP PCS) aspirants.',
         lang: 'en',

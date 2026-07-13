@@ -16,7 +16,7 @@ import type {
   OrderData,
   Plan,
   Subscription,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";

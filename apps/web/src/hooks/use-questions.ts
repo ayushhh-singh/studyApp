@@ -5,7 +5,7 @@ import {
   type ExamCode,
   type Question,
   type QuestionType,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

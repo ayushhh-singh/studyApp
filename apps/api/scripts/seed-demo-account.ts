@@ -69,7 +69,7 @@ import {
   ESSAY_RUBRIC_VERSION,
 } from "../src/services/evaluation/rubric.js";
 import { ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, ESSAY_MAX_MARKS } from "../src/lib/exam-papers.js";
-import type { BilingualText, DimensionScore, Locale, RubricDimensionKey } from "@prayasup/shared";
+import type { BilingualText, DimensionScore, Locale, RubricDimensionKey } from "@neev/shared";
 
 const DEMO_PASSWORD = "Demo1234!";
 const TODAY = istToday();
@@ -120,7 +120,7 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { email: "demo@prayasup.app", reset: false };
+  const args: Args = { email: "demo@neev.app", reset: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--email") args.email = argv[++i] ?? args.email;
     else if (argv[i] === "--reset") args.reset = true;

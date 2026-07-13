@@ -33,7 +33,7 @@ import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
   CurrentAffairsNodeSignificance,
-} from "@prayasup/shared";
+} from "@neev/shared";
 
 const CHUNK_SIZE = 40;
 

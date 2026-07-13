@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
-import type { Locale, MasteryLevel, MasteryMap, WeeklyDigest } from "@prayasup/shared";
+import type { Locale, MasteryLevel, MasteryMap, WeeklyDigest } from "@neev/shared";
 
 const require = createRequire(import.meta.url);
 const font = (spec: string) => readFileSync(require.resolve(spec));
@@ -61,8 +61,8 @@ function el(type: string, style: Record<string, any>, children?: (El | string)[]
 }
 
 const COPY = {
-  en: { title: "This week on PrayasUP", questions: "Questions", accuracy: "Accuracy", answers: "Answers", streak: "Day streak", brand: "PrayasUP · UPPSC prep" },
-  hi: { title: "इस सप्ताह PrayasUP पर", questions: "प्रश्न", accuracy: "सटीकता", answers: "उत्तर", streak: "दिन स्ट्रीक", brand: "PrayasUP · यूपीपीएससी तैयारी" },
+  en: { title: "This week on Neev", questions: "Questions", accuracy: "Accuracy", answers: "Answers", streak: "Day streak", brand: "Neev · UPPSC prep" },
+  hi: { title: "इस सप्ताह नींव पर", questions: "प्रश्न", accuracy: "सटीकता", answers: "उत्तर", streak: "दिन स्ट्रीक", brand: "नींव · यूपीपीएससी तैयारी" },
 } as const;
 
 function stat(value: string, label: string, color: string): El {
@@ -127,8 +127,8 @@ const MASTERY_STYLE: Record<MasteryLevel, { fill: string; solid: string }> = {
 };
 
 const MAP_COPY = {
-  en: { title: "Conquest Map", brand: "PrayasUP · UPPSC prep", ready: "exam-ready" },
-  hi: { title: "कॉन्क्वेस्ट मानचित्र", brand: "PrayasUP · यूपीपीएससी तैयारी", ready: "परीक्षा-तैयार" },
+  en: { title: "Conquest Map", brand: "Neev · UPPSC prep", ready: "exam-ready" },
+  hi: { title: "कॉन्क्वेस्ट मानचित्र", brand: "नींव · यूपीपीएससी तैयारी", ready: "परीक्षा-तैयार" },
 } as const;
 
 interface SquareItem {

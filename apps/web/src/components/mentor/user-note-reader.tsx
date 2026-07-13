@@ -13,7 +13,7 @@ import {
   Trash2,
   Zap,
 } from "lucide-react";
-import type { NoteBody } from "@prayasup/shared";
+import type { NoteBody } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";

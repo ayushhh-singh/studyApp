@@ -1,11 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { dailyQuizArchiveResponseSchema, testDetailResponseSchema } from "@prayasup/shared";
+import { dailyQuizArchiveResponseSchema, testDetailResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
-import { examCutoffsResponseSchema } from "@prayasup/shared";
+import { examCutoffsResponseSchema } from "@neev/shared";
 import { DAILY_ARCHIVE_PAGE_SIZE, ensureTodayQuiz, listDailyQuizzes } from "../services/daily.js";
 import { getTestDetail } from "../services/tests.js";
 import { getCutoffs } from "../services/mocks.js";

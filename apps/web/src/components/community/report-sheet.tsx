@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { ReportReason, ReportTargetType } from "@prayasup/shared";
+import type { ReportReason, ReportTargetType } from "@neev/shared";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { Button } from "@/components/ui/button";
 import { useReportContent } from "@/hooks/use-community";

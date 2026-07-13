@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { reportActionResponseSchema, reportsQueueResponseSchema, type ReportAction, type ReportTargetType } from "@prayasup/shared";
+import { reportActionResponseSchema, reportsQueueResponseSchema, type ReportAction, type ReportTargetType } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

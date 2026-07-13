@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Check, Sparkles, Smartphone, X } from "lucide-react";
-import { paiseToRupeeString, type Plan } from "@prayasup/shared";
+import { paiseToRupeeString, type Plan } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { useProfile } from "@/hooks/use-profile";
@@ -96,7 +96,7 @@ export function Component() {
         orderId: order.order_id,
         amountPaise: order.amount_paise,
         currency: order.currency,
-        name: "PrayasUP",
+        name: "Neev",
         description: pick(locale, plan.name_i18n),
         prefillName: order.prefill_name,
         onSuccess: () => {

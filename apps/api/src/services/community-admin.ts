@@ -6,7 +6,7 @@
  * so it gets its own list/counts/action functions here, mirroring the shape
  * of services/review.ts and services/notes.ts's review-queue halves.
  */
-import type { CommunityAuthor, ReportAction, ReportQueueItem, ReportedContentPreview, ReportTargetType } from "@prayasup/shared";
+import type { CommunityAuthor, ReportAction, ReportQueueItem, ReportedContentPreview, ReportTargetType } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 

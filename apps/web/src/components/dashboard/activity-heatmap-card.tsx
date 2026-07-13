@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { HeatmapDay } from "@prayasup/shared";
+import type { HeatmapDay } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { useActivityHeatmap } from "@/hooks/use-engagement";

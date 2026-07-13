@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { Plus, MessageSquare, Trash2, ChevronLeft, Sparkles, Loader2 } from "lucide-react";
-import type { MentorDepth } from "@prayasup/shared";
+import type { MentorDepth } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Button } from "@/components/ui/button";
 import { MentorChat } from "@/components/mentor/mentor-chat";

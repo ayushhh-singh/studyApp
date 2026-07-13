@@ -1,6 +1,6 @@
 name: Scheduled — Question generation top-up
 
-# Free-tier (₹0 stack) replacement for the `prayasup-qgen-topup` Render Cron
+# Free-tier (₹0 stack) replacement for the `neev-qgen-topup` Render Cron
 # Job in render.yaml (kept there, unused, as the paid upgrade path — see
 # docs/operations.md's "Upgrading to paid" section). This is the one job with
 # real per-run LLM spend, capped by QGEN_BATCH_MAX_USD.
@@ -21,7 +21,7 @@ name: Scheduled — Question generation top-up
 on:
   schedule:
     # 21:30 UTC (previous day) = 03:00 IST — matches render.yaml's
-    # prayasup-qgen-topup job exactly (off-peak, away from ca:run/daily:build).
+    # neev-qgen-topup job exactly (off-peak, away from ca:run/daily:build).
     - cron: "30 21 * * *"
   workflow_dispatch: {}
 

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { ListChecks } from "lucide-react";
-import type { AttemptTopicBreakdownItem, Locale } from "@prayasup/shared";
+import type { AttemptTopicBreakdownItem, Locale } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { scoreBandColor } from "@/lib/score-band";
 

@@ -16,7 +16,7 @@ import {
   type DiscussionAnchorType,
   type ReportContentBody,
   type UpdateDiscussionPostBody,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

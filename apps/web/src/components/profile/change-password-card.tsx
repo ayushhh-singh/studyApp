@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { KeyRound, Loader2 } from "lucide-react";
-import { checkPasswordStrength } from "@prayasup/shared";
+import { checkPasswordStrength } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";

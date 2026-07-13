@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import { ArrowDown, ArrowUp, Ghost, Minus, X } from "lucide-react";
-import type { GhostStart } from "@prayasup/shared";
+import type { GhostStart } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";

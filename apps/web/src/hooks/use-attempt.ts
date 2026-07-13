@@ -6,7 +6,7 @@ import {
   attemptResultResponseSchema,
   attemptSubmitResponseSchema,
   type AttemptStartBody,
-} from "@prayasup/shared";
+} from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 

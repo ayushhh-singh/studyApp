@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { dashboardSummaryResponseSchema } from "@prayasup/shared";
+import { dashboardSummaryResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
