@@ -19,7 +19,7 @@ import type {
   TourSuggestedChapterNode,
   TourUpdateBody,
 } from "@prayasup/shared";
-import { FEATURE_KEYS, GUIDED_TOUR_STOPS } from "@prayasup/shared";
+import { FEATURE_KEYS, GUIDED_TOUR_STOPS, TOUR_SECTION_KEYS } from "@prayasup/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, daysBetween } from "../lib/ist.js";
@@ -72,6 +72,48 @@ function buildStage(keys: TourChecklistItemKey[], touch: TouchMap): TourChecklis
   return { items, completed: items.filter((i) => i.done).length, total: items.length };
 }
 
+/**
+ * sections_seen keys change over time (a coachmark gets renamed or retired —
+ * this session alone dropped "learn"/"practice"/"revision"/"current_affairs"/
+ * "mentor"/"community"/"scoreboard" down to 4 sub-feature keys). An account
+ * that dismissed one under an old key would otherwise carry that key in its
+ * jsonb column forever, and `tourStateResponseSchema`'s strict per-key enum
+ * would reject the WHOLE payload on every read — 500ing /tour permanently
+ * for that account, not just hiding the one stale flag. Confirmed live
+ * against this dev DB: a pre-existing "admin" account already had
+ * `sections_seen: {learn, practice, revision, current_affairs}` from before
+ * this session's key rename, which throws under the new enum unless dropped
+ * here first. Read-time sanitization (not a migration) is deliberate — new
+ * key sets should just keep shrinking old ones out on next read.
+ */
+function sanitizeSectionsSeen(raw: unknown): TourState["sections_seen"] {
+  const out: TourState["sections_seen"] = {};
+  if (!raw || typeof raw !== "object") return out;
+  const validKeys: readonly string[] = TOUR_SECTION_KEYS;
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    if (value === true && validKeys.includes(key)) {
+      (out as Record<string, boolean>)[key] = true;
+    }
+  }
+  return out;
+}
+
+/**
+ * The one place raw jsonb `tour_state` becomes a real, response-schema-safe
+ * `TourState` — used here AND by services/profile.ts, since `profileSchema`
+ * embeds `tourStateSchema` too and `GET/PATCH /profile` (the endpoint
+ * RequireAuth, onboarding, and welcome ALL gate on) would 500 the entire
+ * authenticated app for an affected account otherwise, not just /tour.
+ */
+export function normalizeTourState(raw: unknown): TourState {
+  const partial = (raw ?? {}) as Partial<TourState> & { sections_seen?: unknown };
+  return {
+    ...DEFAULT_TOUR_STATE,
+    ...partial,
+    sections_seen: sanitizeSectionsSeen(partial.sections_seen),
+  };
+}
+
 async function getProfileRow(userId: string): Promise<{ tour_state: TourState; created_at: string }> {
   const { data, error } = await supabase()
     .from("users_profile")
@@ -81,7 +123,7 @@ async function getProfileRow(userId: string): Promise<{ tour_state: TourState; c
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
   if (!data) throw notFound("Profile not found");
   return {
-    tour_state: { ...DEFAULT_TOUR_STATE, ...(data.tour_state as Partial<TourState>) },
+    tour_state: normalizeTourState(data.tour_state),
     created_at: data.created_at as string,
   };
 }

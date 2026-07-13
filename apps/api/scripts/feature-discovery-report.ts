@@ -15,8 +15,9 @@
  *
  *   pnpm feature-discovery:report [--days N]   (N = cohort age in days, default 7)
  */
-import { FEATURE_KEYS, tourStateSchema, type FeatureKey } from "@prayasup/shared";
+import { FEATURE_KEYS, type FeatureKey } from "@prayasup/shared";
 import { supabase } from "../src/lib/supabase.js";
+import { normalizeTourState } from "../src/services/tour.js";
 
 const PAGE_SIZE = 1000;
 
@@ -114,15 +115,15 @@ async function main(): Promise<void> {
 
   printRateTable("Overall", cohortIds, touchedBy);
 
-  // tour_state is unvalidated jsonb — parse it the same permissive way the
-  // API's tour service does (defaults fill in for a profile that predates a
-  // field), so a partial/legacy row never throws this report.
+  // Same normalization the API uses to read this column (services/tour.ts) —
+  // NOT a raw tourStateSchema.parse: a legacy/renamed sections_seen key would
+  // fail that strict parse wholesale and silently miscount a real "tour"/
+  // "skip" choice as "hasn't chosen yet" for any pre-existing account.
   const tookTourIds = new Set<string>();
   const skippedIds = new Set<string>();
   let noChoiceCount = 0;
   for (const p of cohort) {
-    const parsed = tourStateSchema.safeParse(p.tour_state ?? {});
-    const choice = parsed.success ? parsed.data.guided_tour.choice : null;
+    const choice = normalizeTourState(p.tour_state).guided_tour.choice;
     if (choice === "tour") tookTourIds.add(p.id);
     else if (choice === "skip") skippedIds.add(p.id);
     else noChoiceCount++;

@@ -2,6 +2,24 @@ import type { BilingualText, OnboardingBody, Profile, ProfileUpdateBody } from "
 import { supabase } from "../lib/supabase.js";
 import { HttpError, conflict, notFound } from "../lib/http-error.js";
 import { istToday, daysBetween } from "../lib/ist.js";
+import { normalizeTourState } from "./tour.js";
+
+interface ExamInfo {
+  days_to_exam: number | null;
+  next_exam_label_i18n: { hi: string; en: string } | null;
+}
+
+/**
+ * `profileSchema` embeds `tourStateSchema`, so a raw jsonb `tour_state` with
+ * legacy sections_seen keys (a coachmark renamed/retired since — see
+ * normalizeTourState's own comment) would otherwise make `profileResponseSchema.parse`
+ * throw on every GET/PATCH /profile — the endpoint RequireAuth, onboarding,
+ * and the welcome-moment redirect all gate the entire authenticated app on.
+ */
+function toProfile(row: unknown, examInfo: ExamInfo): Profile {
+  const r = row as Record<string, unknown>;
+  return { ...(r as unknown as Profile), ...examInfo, tour_state: normalizeTourState(r.tour_state) };
+}
 
 const PROFILE_COLUMNS =
   "id, display_name, handle, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date, " +
@@ -11,10 +29,7 @@ const PROFILE_COLUMNS =
  * Days until the next scheduled Prelims (from exam_calendar), same lookup
  * pattern as dashboard.ts's getGreeting — null if nothing is scheduled.
  */
-async function getNextExamInfo(): Promise<{
-  days_to_exam: number | null;
-  next_exam_label_i18n: { hi: string; en: string } | null;
-}> {
+async function getNextExamInfo(): Promise<ExamInfo> {
   const today = istToday();
   const { data, error } = await supabase()
     .from("exam_calendar")
@@ -39,7 +54,7 @@ export async function getProfile(userId: string): Promise<Profile> {
   ]);
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
   if (!data) throw notFound("Profile not found");
-  return { ...(data as unknown as Profile), ...examInfo };
+  return toProfile(data, examInfo);
 }
 
 export async function updateProfile(userId: string, patch: ProfileUpdateBody): Promise<Profile> {
@@ -48,7 +63,7 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
     getNextExamInfo(),
   ]);
   if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
-  return { ...(data as unknown as Profile), ...examInfo };
+  return toProfile(data, examInfo);
 }
 
 /**
@@ -79,7 +94,7 @@ export async function completeOnboarding(userId: string, body: OnboardingBody): 
     if (error.code === "23505") throw conflict("That handle is already taken");
     throw new HttpError(500, `onboarding failed: ${error.message}`);
   }
-  return { ...(data as unknown as Profile), ...examInfo };
+  return toProfile(data, examInfo);
 }
 
 /**

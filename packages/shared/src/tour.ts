@@ -33,6 +33,7 @@ export const FEATURE_KEYS = featureKeySchema.options;
  */
 export const tourSectionKeySchema = z.enum(["chapter_study_tabs", "mentor_teach_mode", "peer_review_share", "magazine"]);
 export type TourSectionKey = z.infer<typeof tourSectionKeySchema>;
+export const TOUR_SECTION_KEYS = tourSectionKeySchema.options;
 
 /**
  * The guided tab tour's 9 stops, in navigation order — checked against the
