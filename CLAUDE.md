@@ -114,6 +114,17 @@ analytics, RAG doubt-solving chatbot.
   one-click manual grab.
 - Commit after every working feature. Never commit secrets. Mobile-first:
   verify every screen at 390px.
+- **Portable paths only — never hardcode a machine-specific absolute path**
+  (`/Users/…`, `/home/…`, `C:\Users\…`, `…/Desktop/Code/…`). <!-- portable-paths-allow: documents the forbidden patterns --> Every script
+  resolves filesystem paths from `import.meta.url`/`import.meta.dirname` (reuse
+  `ROOT`/`CONTENT_RAW`/`PARSED_DIR` from `apps/api/src/ingest/_shared.ts` or the
+  `ROOT` in `scripts/fetch-content.ts`), never a hardcoded prefix or an assumed
+  `process.cwd()`, so a script works the same run from repo root, from inside a
+  subpackage, in CI, or in the API Docker image. `pnpm check:paths`
+  (`scripts/check-portable-paths.mjs`) is a CI-enforced standing guard against
+  this; see `docs/operations.md` → "Portability guard". Also: `apps/api`/
+  `packages` import specifiers use a `.js` extension on `.ts` sources — never
+  flip one to `.ts`.
 
 ## Definition of done for any UI session
 Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 1440px, both locales render (language toggle), no console errors.

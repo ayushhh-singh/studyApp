@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "concurrently -n web,api -c blue,green \"pnpm --filter web dev\" \"pnpm --filter api dev\"",
     "build": "pnpm --filter web build && pnpm --filter api build",
+    "check:paths": "node scripts/check-portable-paths.mjs",
     "content:fetch": "tsx scripts/fetch-content.ts",
     "ingest:syllabus": "pnpm --filter api ingest:syllabus",
     "ingest:pyq": "pnpm --filter api ingest:pyq",

@@ -27,6 +27,53 @@
   Don't "fix" this back to `node dist/index.js` without first giving
   `@neev/shared` an actual build step.
 
+## Portability guard — no hardcoded machine-specific paths
+
+**What:** `pnpm check:paths` (`scripts/check-portable-paths.mjs`) scans every
+tracked file and fails if it finds a hardcoded, machine-specific absolute
+filesystem path — `/Users/<name>/…`, `/home/<name>/…`, `C:\Users\…`, or a `…/Desktop/Code/…` scratch prefix. <!-- portable-paths-allow: this line intentionally shows the example patterns the guard forbids -->
+It runs in CI (`.github/workflows/ci.yml`,
+first step, before install so it fails fast) on every PR and push to `main`.
+(A line that intentionally shows an example pattern while documenting the rule
+can suppress the guard by including the token `portable-paths-allow`.)
+
+**Why it's a standing check, not a one-off:** a hardcoded absolute path only
+resolves on the one machine it was typed on. It silently breaks the instant the
+repo is cloned elsewhere, run in CI (ubuntu, a different working directory than
+a laptop), or built into the API Docker image (linux). This is a *class* of
+bug — most often introduced when a script's relative-path resolution breaks
+(e.g. a `cd` that silently failed left the process in an unexpected directory)
+and someone band-aids it with an absolute path instead of diagnosing the real
+cause — so it gets a guard, the same way the 1000-row PostgREST cap and the
+Node-22 requirement got standing fixes.
+
+**The correct pattern (always):** resolve from the module's own location, never
+a hardcoded prefix and never an assumed `process.cwd()`:
+
+```ts
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+const __dirname = dirname(fileURLToPath(import.meta.url)); // or import.meta.dirname
+const ROOT = join(__dirname, "..", ...);                   // repo-relative
+```
+
+Reuse the helpers that already exist rather than re-deriving them:
+`apps/api/src/ingest/_shared.ts` exports `ROOT` / `CONTENT_RAW` / `PARSED_DIR`;
+`scripts/fetch-content.ts` exports its own `ROOT`. Every ingest/notes/CA CLI in
+this repo resolves paths this way and works unchanged whether invoked via
+`pnpm --filter api …` from the repo root, from inside `apps/api`, or from a
+GitHub Actions workflow whose working directory differs from a local machine.
+
+**Related convention the same audit protects:** import specifiers in `apps/api`
+and `packages` use a `.js` extension even though the source is `.ts` (663
+specifiers, verified 0 violations). Never "correct" a specifier to `.ts` — the
+compiled/`tsx`-run output resolves `.js`. A find-and-replace that flips a real
+path fix is exactly how both bugs (hardcoded prefix + `.ts→.js` flip) tend to
+land together.
+
+Run it locally before pushing anything that touches a script or a path:
+`pnpm check:paths`.
+
 ## Free-tier (₹0) deploy — current target
 
 ### Cloudflare Pages (web)

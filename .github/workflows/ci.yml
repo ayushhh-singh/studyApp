@@ -20,6 +20,12 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # Fast, dependency-free guard: fail before install if any committed file
+      # carries a hardcoded machine-specific absolute path (a /Users or /home
+      # home dir, a Windows drive path, etc). See docs/operations.md → "Portability guard".
+      - name: Portability guard (no hardcoded local paths)
+        run: node scripts/check-portable-paths.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

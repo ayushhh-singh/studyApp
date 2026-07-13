@@ -79,6 +79,7 @@ These are still described as open in `CLAUDE.md` but the code says otherwise. Fl
 | D8 | **Render Blueprint `envVarGroups` service-level linking is ambiguous** even in Render's current docs — check the dashboard's proposed-changes preview before approving the Blueprint. | Deploy-Prep follow-up | 🟡 |
 | D9 | **GitHub repo still named `studyApp`** — rename can break CI/CD/remote hookups, so do it as its own deliberate step. | Branding | 🟡 |
 | D10 | **Demo DB account still `demo@prayasup.app`** (old domain, that's data not code). Seed default is now `demo@neev.app`; re-run `pnpm demo:seed` to mint the new-domain account. | Branding | 🟡 |
+| D11 | ~~**Hardcoded machine-specific filesystem paths** could land silently (a `/Users/…` band-aid over a broken relative-path resolution).~~ **RESOLVED 2026-07-13** (portability audit). | Portability audit | ✅ | Full-repo sweep found **0** hardcoded absolute paths and **0** `.ts`-specifier violations in committed code — every script already resolves via `import.meta.url`/`import.meta.dirname` (`ingest/_shared.ts` `ROOT`, `scripts/fetch-content.ts` `ROOT`). Added a standing guard: `pnpm check:paths` (`scripts/check-portable-paths.mjs`), enforced as the first CI step (`.github/workflows/ci.yml`) — fails the build on any committed `/Users/…`, `/home/<name>/…`, `C:\Users\…`, or `…/Desktop/Code/…`. Documented in `docs/operations.md` → "Portability guard" + CLAUDE.md Dev conventions. <!-- portable-paths-allow: row documents the forbidden example patterns --> |
 
 ---
 
