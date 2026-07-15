@@ -419,6 +419,15 @@ verified:
     year: 2021
     paper: prelims_csat
     notes: theexampillar.com mirror of the official "Answer Key for Inviting Objections" per-series Google Drive PDFs (Set A/B/C/D). Series C applied (blind agreement 63% pre-escalation, 96% post). NOTE - dhyeyaias/drishtiias's own "2021" CSAT links were found mislabeled (serve 2023 content); do not reuse them for 2021.
+  - id: uppsc_answerkey_2023_prelims_csat
+    section: answer_key
+    tier: B
+    approved: true
+    url: https://www.dhyeyaias.com/storage/media/9C7QIVBBt591oS3Xq3gEwPtmZQPGERww82UlAxaw.pdf
+    lang: en
+    year: 2023
+    paper: prelims_csat
+    notes: dhyeyaias.com mirror ("Answer Key for Objection"), all 4 booklet series in one PDF. Series C matched the already-applied coaching key answer-for-answer (100/100) — provenance upgrade only, no answer changes.
 
   # ============ UPSC (Civil Services Prelims) — official papers + keys ============
   # exam: upsc. Tier A (official upsc.gov.in). UPSC releases the official answer

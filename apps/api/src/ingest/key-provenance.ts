@@ -21,14 +21,31 @@ export type KeyProvenance = "official_commission" | "coaching_reproduced" | "non
  *   this (paper, year) and used as the key source.
  * coaching_reproduced — the key came from a theexampillar single-series keymap.
  * Anything not listed is 'none' (no key sourced; Mains descriptive has no key).
+ *
+ * CSAT 2019/2020/2021/2023 upgraded from coaching_reproduced (2026-07-15, "CSAT
+ * key sourcing" session — matched-set / series-verified strategy, same method as
+ * the 2021 GS-I booklet-series fix): each year's official multi-series "Key Sheet
+ * of General Studies Paper-II (GS-24)" / "Answer Key for Inviting Objections" PDF
+ * was located (dhyeyaias.com combined-series mirrors for 2019/2020, theexampillar's
+ * per-series Google Drive mirror of the same official document for 2021, dhyeyaias
+ * for 2023), the correct booklet series picked via blind-resolve agreement (2019
+ * Series A 82%→93% post-escalation, 2020 Series A 79%→97%, 2021 Series C 63%→96%,
+ * all far above the ~20-30% chance level of the other 3 series each year — 2023's
+ * official Series C matched the ALREADY-applied coaching key answer-for-answer,
+ * 100/100, confirming it had been correct all along), then a fresh blind-resolve +
+ * escalation run against the corrected key. CSAT 2022 stays coaching_reproduced —
+ * no official key for that year is retrievable from any source this app trusts
+ * (confirmed: absent from dhyeyaias's and drishtiias's per-year listings, absent
+ * from uppsc.up.nic.in's current archive, only a session/objection-window-only
+ * page ever existed for it). See docs/OUTSTANDING.md A4-followups.
  */
 const OFFICIAL_COMMISSION: Record<string, number[]> = {
   PRE_GS1: [2019, 2020, 2021, 2023, 2024],
-  PRE_CSAT: [2019, 2020, 2021, 2024],
+  PRE_CSAT: [2019, 2020, 2021, 2023, 2024],
 };
 const COACHING_REPRODUCED: Record<string, number[]> = {
   PRE_GS1: [2018, 2025],
-  PRE_CSAT: [2022, 2023],
+  PRE_CSAT: [2022],
 };
 
 export function keyProvenanceFor(paperCode: string, year: number | null): KeyProvenance {
