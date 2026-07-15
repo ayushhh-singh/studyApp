@@ -112,9 +112,27 @@ original. English-only sources have no Hindi to read and stay machine-translated
 - Targets: **1** → **accepted 1**. (Source print discrepancy: Hindi option (c)
   prints "CJ 17" vs English "GJ 17"; transcribed verbatim, honesty over guessing.)
 
+## Option-completeness repair — 2026-07-13
+The overlay surfaced (did not cause) 13 pre-existing corrupted rows that it
+safely refused to overlay; repaired them as a follow-up after **visually
+verifying the reconstructed options against the source pages** (q34, q38, q19
+spot-checked pixel-for-pixel):
+- **GS1 2024 q50/q84/q94** — option A's key was stored as `","`; relabeled to `A`
+  (English text was already correct; kept it, added source Hindi).
+- **GS1 2024 q19** — option D's English content had been lost (`","`); restored
+  "Decrease of temperature by 4°C in the Indian Ocean" + Hindi from the read.
+- **GS1 2021 q34/q38/q50/q54/q61/q79/q81/q99/q107** — rows stored only 2–3 of 4
+  options (options dropped at the original 2021 ingest); restored the full 4-option
+  set (English + Hindi) from the vision read.
+Guard: reconstructed from the aligned vision read only where the existing DB
+options matched the read positionally; kept authoritative DB English for options
+that already had real content, restored agent English only for the lost/missing
+ones; `correct_option_key` re-verified valid in the new A/B/C/D keys for all 13.
+All 13 now `hindi_source='source_extracted'`, `meta.option_completeness_repaired=true`.
+
 ## Totals (2026-07-13)
-Across the six processed prelims papers: **607 published MCQ rows
-source-extracted** and re-flagged `hindi_source='source_extracted'`; the
+Across the six processed prelims papers: **620 published MCQ rows
+source-extracted** (607 Hindi-overlay + 13 option-completeness repairs) and re-flagged `hindi_source='source_extracted'`; the
 remainder left `hindi_source='machine_translated'` (illegible spans,
 single-language CSAT language-test sections, agent misreads correctly caught by
 the cross-check, and pre-existing DB corruption). Per-paper: GS1 2024 125/132,
