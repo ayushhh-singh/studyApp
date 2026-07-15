@@ -401,6 +401,15 @@ verified:
     year: 2019
     paper: prelims_csat
     notes: dhyeyaias.com mirror, all 4 booklet series in one PDF. Series A applied (blind agreement 82% pre-escalation, 93% post).
+  - id: uppsc_answerkey_2020_prelims_csat
+    section: answer_key
+    tier: B
+    approved: true
+    url: https://www.dhyeyaias.com/storage/media/lvt8T6OMLQFAnWDvdEsaWVAioM23nSxAnmkNRRLr.pdf
+    lang: en
+    year: 2020
+    paper: prelims_csat
+    notes: dhyeyaias.com mirror, all 4 booklet series in one PDF. Series A applied (blind agreement 79% pre-escalation, 97% post).
 
   # ============ UPSC (Civil Services Prelims) — official papers + keys ============
   # exam: upsc. Tier A (official upsc.gov.in). UPSC releases the official answer
