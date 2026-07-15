@@ -88,8 +88,18 @@ interface TargetRow {
 // Similarity (bigram Dice on normalized text) — tolerant of minor OCR-ish
 // transcription differences while still catching a genuinely different string.
 // ---------------------------------------------------------------------------
+// Fold notation that differs only by encoding so the English cross-check on
+// quant/geometry options (e.g. "2x³" vs "2x3", "120°" vs "120º") isn't a false
+// mismatch. Superscript/subscript digits → ASCII; degree/ordinal marks dropped
+// by the \p{L}\p{N} filter below (º is a letter, so map it away explicitly).
+const SUPERSUB: Record<string, string> = {
+  "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9",
+  "₀": "0", "₁": "1", "₂": "2", "₃": "3", "₄": "4", "₅": "5", "₆": "6", "₇": "7", "₈": "8", "₉": "9",
+  "º": "", "°": "",
+};
 function norm(s: string | undefined | null): string {
   return (s ?? "")
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉º°]/g, (c) => SUPERSUB[c] ?? c)
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/[^\p{L}\p{N} ]/gu, "")

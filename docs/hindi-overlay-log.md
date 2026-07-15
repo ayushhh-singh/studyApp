@@ -84,3 +84,39 @@ original. English-only sources have no Hindi to read and stay machine-translated
     Options C/D were dropped at the original 2021 ingest; the overlay correctly
     refuses to map 4 read options onto a truncated row. Flagged for a separate
     option-completeness repair (see docs/OUTSTANDING.md).
+
+### PRE_CSAT 2024 — 2026-07-13
+- Source: `content-raw/pyq_prelims/uppsc_prelims_2024_csat.pdf` (Drishti). **Mixed
+  layout** (verified page-by-page): a Hindi-language section (Hindi-only, both
+  columns), an English-language section (English-only), and a bilingual
+  aptitude/reasoning/quant section (two-column, English-left/Hindi-right).
+- Read: 4 subagents; the prompt marks single-language questions (no bilingual
+  pair) so they are excluded from the cross-checked overlay.
+- Targets: **99** → **accepted 52** (the bilingual section), double-read 15.
+- **Left machine-translated: 47**
+  - q1–45 — single-language sections (Hindi-only language test q1–25;
+    English-only language test q26–45). No parallel-language column, so the
+    per-option English cross-check that guards key alignment can't run — left
+    flagged by design (their Hindi may be authentic but needs a different,
+    content-matched pass; see docs/OUTSTANDING.md).
+  - q48, q66 — geometry questions where the agent folded a "[diagram: …]"
+    description into the stem; left rather than store an agent annotation.
+- Tool improvement this run: `norm()` now folds superscript/subscript digits and
+  degree/ordinal marks (e.g. "2x³" ≡ "2x3", "120°" ≡ "120º") so quant options
+  aren't false-rejected — rescued 2 questions.
+
+### PRE_CSAT 2022 — 2026-07-13
+- Source: `content-raw/pyq_prelims/uppcs prelims csat 2022.pdf` (Drishti). Only
+  **1** published MCQ was machine-translated (q53, a reasoning odd-one-out in the
+  bilingual section).
+- Targets: **1** → **accepted 1**. (Source print discrepancy: Hindi option (c)
+  prints "CJ 17" vs English "GJ 17"; transcribed verbatim, honesty over guessing.)
+
+## Totals (2026-07-13)
+Across the six processed prelims papers: **507 published MCQ rows
+source-extracted** and re-flagged `hindi_source='source_extracted'`; the
+remainder left `hindi_source='machine_translated'` (illegible spans,
+single-language CSAT language-test sections, agent misreads correctly caught by
+the cross-check, and pre-existing DB corruption). Per-paper: GS1 2024 125/132,
+GS1 2019 147/150, GS1 2020 150/150, GS1 2021 132/144, CSAT 2024 52/99,
+CSAT 2022 1/1.
