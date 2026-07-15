@@ -16,6 +16,7 @@
     "ingest:resolve": "tsx --env-file-if-exists=.env src/ingest/resolve.ts",
     "ingest:hindi-overlay": "tsx --env-file-if-exists=.env src/ingest/hindi-overlay.ts",
     "ingest:regate": "tsx --env-file-if-exists=.env src/ingest/regate.ts",
+    "ingest:backfill-marks": "tsx --env-file-if-exists=.env src/ingest/backfill-marks.ts",
     "ingest:explain": "tsx --env-file-if-exists=.env src/ingest/explain.ts",
     "ingest:assemble": "tsx --env-file-if-exists=.env src/ingest/agent-assemble.ts",
     "ingest:align-key": "tsx --env-file-if-exists=.env src/ingest/align-key.ts",

@@ -24,6 +24,7 @@
  */
 import { supabase } from "../lib/supabase.js";
 import { UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
+import { PRELIMS_MARKING } from "../lib/exam-papers.js";
 import { paperByCode, report } from "./_shared.js";
 
 interface QRow {
@@ -37,15 +38,8 @@ interface QRow {
   exam_code: string | null;
 }
 
-// Real UPPSC Prelims marking, verified via web search against multiple
-// independent sources (cross-checked, not from memory): GS-I is 150
-// questions summing to 200 marks (1.33/correct, -0.33/wrong — one-third);
-// CSAT is 100 questions summing to 200 marks (2/correct, -0.66/wrong — also
-// one-third, just of a whole-number question mark). Both papers run 2 hours.
-const PRELIMS_MARKING: Record<string, { marksPerQuestion: number; negativeMarking: number }> = {
-  PRE_GS1: { marksPerQuestion: 1.33, negativeMarking: -0.33 },
-  PRE_CSAT: { marksPerQuestion: 2, negativeMarking: -0.66 },
-};
+// Real UPPSC Prelims marking now lives in ONE place — lib/exam-papers.ts — so the
+// load-time stamp (pyq-load), the test builder (here) and the backfill can't drift.
 
 function durationFor(stage: string): number {
   return stage === "mains" ? 180 : 120; // Mains: 3h. Both Prelims papers: 2h.

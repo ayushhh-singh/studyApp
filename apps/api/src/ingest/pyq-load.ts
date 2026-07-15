@@ -19,6 +19,7 @@ import { refreshNodeWeightage } from "../lib/weightage.js";
 import { listParsed, parseArgs, questionPublishable, report, type ExamCode, type SourceKind } from "./_shared.js";
 import { gateMcq, keyProvenanceFor, type BlindStatus, type KeyProvenance } from "./key-provenance.js";
 import { raiseKeyDisputeFlag } from "./key-dispute-flag.js";
+import { prelimsMcqMarks } from "../lib/exam-papers.js";
 
 interface ParsedQuestion {
   external_id: string;
@@ -178,7 +179,10 @@ async function loadFile(
       correct_option_key: q.correct_option_key,
       explanation_i18n: q.explanation_i18n,
       difficulty: q.difficulty,
-      marks: q.marks,
+      // A prelims MCQ with no parsed marks defaults to the real UPPSC per-question value
+      // (GS-I 1.33, CSAT 2). Without this the row loads marks=null, which grades as 0 —
+      // a null on BOTH questions.marks and test_questions.marks silently scores 0/0.
+      marks: q.marks ?? prelimsMcqMarks(q.paper_code, q.type),
       word_limit: q.word_limit,
       key_provenance: provenance,
       is_published: isPublished,
