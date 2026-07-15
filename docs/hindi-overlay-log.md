@@ -47,3 +47,15 @@ original. English-only sources have no Hindi to read and stay machine-translated
   - q50, q84, q94 — **pre-existing DB corruption**: option key stored as `","`.
   - q19 — **pre-existing DB corruption**: option D English is `","` (content lost
     at the original 2024 ingest).
+
+### PRE_GS1 2019 — 2026-07-13
+- Source: `content-raw/pyq_prelims/uppcs prelims gs1 2019.pdf` (Drishti two-column
+  Hindi/English bilingual; verified).
+- Read: 6 overlapping vision-read subagents (≤~30 Q each), 200 DPI.
+- Targets: **150** → **accepted 147**, double-read verified 30.
+- Integrity: 0 drift, correct_option_key valid on all.
+- **Left machine-translated: 3** — all AGENT vision misreads correctly caught by
+  the English/code cross-check (not DB corruption):
+  - q38 — agent misread a match-code digit (D-4 read as D-1).
+  - q46 — agent misread option C "Wheat" as "When".
+  - q79 — agent misread option C "Sochi" as "Sachi".
