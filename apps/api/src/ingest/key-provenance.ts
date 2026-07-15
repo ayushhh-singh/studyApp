@@ -94,8 +94,12 @@ export interface McqGateResult {
  *      WITHOUT requiring blind-resolve agreement. An official commission key IS the
  *      ground truth; requiring an unreliable independent solve (esp. on CSAT) to
  *      corroborate it was the bug this fixes. Blind still runs as a NON-BLOCKING
- *      safety net: a 'flagged' disagreement sets keyDispute (→ Review Queue) but
- *      never holds the publish.
+ *      safety net: a 'flagged' disagreement OR an 'error' (the safety net simply
+ *      never got a verdict — a batch parse failure, a timed-out escalation) sets
+ *      keyDispute (→ Review Queue) but never holds the publish. 'error' is treated
+ *      the same as 'flagged' here deliberately: silently treating "we don't know"
+ *      as equivalent to "confirmed" would be exactly the kind of silent swallow
+ *      this safety net exists to prevent.
  *
  *  (B) everything else — coaching_reproduced, OR official-source WITHOUT a verified
  *      key (e.g. a stripped misaligned key), OR none — keeps the blind-resolve-
@@ -110,7 +114,8 @@ export function gateMcq(i: McqGateInput): McqGateResult {
 
   // (A) Official-commission verified key → authoritative.
   if (i.provenance === "official_commission" && i.keyVerified) {
-    return { reviewState: "approved", isPublished: true, keyDispute: i.blindStatus === "flagged" };
+    const disputed = i.blindStatus === "flagged" || i.blindStatus === "error";
+    return { reviewState: "approved", isPublished: true, keyDispute: disputed };
   }
 
   // (B) Blind-resolve-required gate (coaching / unverified-official / none).
