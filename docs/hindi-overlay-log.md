@@ -59,3 +59,10 @@ original. English-only sources have no Hindi to read and stay machine-translated
   - q38 — agent misread a match-code digit (D-4 read as D-1).
   - q46 — agent misread option C "Wheat" as "When".
   - q79 — agent misread option C "Sochi" as "Sachi".
+
+### PRE_GS1 2020 — 2026-07-13
+- Source: `content-raw/pyq_prelims/uppcs prelims gs1 2020.pdf` (Drishti two-column
+  bilingual).
+- Read: 6 overlapping vision-read subagents, 200 DPI.
+- Targets: **150** → **accepted 150** (100%), double-read verified 28.
+- Integrity: 0 drift, correct_option_key valid on all. 0 left machine-translated.
