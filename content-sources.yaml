@@ -410,6 +410,15 @@ verified:
     year: 2020
     paper: prelims_csat
     notes: dhyeyaias.com mirror, all 4 booklet series in one PDF. Series A applied (blind agreement 79% pre-escalation, 97% post).
+  - id: uppsc_answerkey_2021_prelims_csat
+    section: answer_key
+    tier: B
+    approved: true
+    url: https://theexampillar.com/uppsc-pre-exam-paper-ii-csat-24-october-2021-answer-key/
+    lang: en
+    year: 2021
+    paper: prelims_csat
+    notes: theexampillar.com mirror of the official "Answer Key for Inviting Objections" per-series Google Drive PDFs (Set A/B/C/D). Series C applied (blind agreement 63% pre-escalation, 96% post). NOTE - dhyeyaias/drishtiias's own "2021" CSAT links were found mislabeled (serve 2023 content); do not reuse them for 2021.
 
   # ============ UPSC (Civil Services Prelims) — official papers + keys ============
   # exam: upsc. Tier A (official upsc.gov.in). UPSC releases the official answer

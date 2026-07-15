@@ -24,11 +24,11 @@ export type KeyProvenance = "official_commission" | "coaching_reproduced" | "non
  */
 const OFFICIAL_COMMISSION: Record<string, number[]> = {
   PRE_GS1: [2019, 2020, 2021, 2023, 2024],
-  PRE_CSAT: [2019, 2020, 2024],
+  PRE_CSAT: [2019, 2020, 2021, 2024],
 };
 const COACHING_REPRODUCED: Record<string, number[]> = {
   PRE_GS1: [2018, 2025],
-  PRE_CSAT: [2021, 2022, 2023],
+  PRE_CSAT: [2022, 2023],
 };
 
 export function keyProvenanceFor(paperCode: string, year: number | null): KeyProvenance {
