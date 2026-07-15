@@ -113,7 +113,7 @@ original. English-only sources have no Hindi to read and stay machine-translated
   prints "CJ 17" vs English "GJ 17"; transcribed verbatim, honesty over guessing.)
 
 ## Totals (2026-07-13)
-Across the six processed prelims papers: **507 published MCQ rows
+Across the six processed prelims papers: **607 published MCQ rows
 source-extracted** and re-flagged `hindi_source='source_extracted'`; the
 remainder left `hindi_source='machine_translated'` (illegible spans,
 single-language CSAT language-test sections, agent misreads correctly caught by
