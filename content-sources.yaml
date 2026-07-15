@@ -384,6 +384,23 @@ verified:
     year: 2024
     paper: prelims_csat
     notes: Non-gov (CareerPower). Paper + answer key combined.
+  # CSAT key-provenance upgrade (2026-07-15, "CSAT key sourcing" session). Each PDF
+  # is a genuine official UPPSC commission document ("Key Sheet of General Studies
+  # Paper-II (GS-24)" / "Answer Key for Inviting Objections") republished by a
+  # coaching-site mirror — same official-content/non-gov-hosting pattern as the
+  # 2019-2021/2023 GS-I keys already grandfathered above. approved: true per the
+  # explicit user directive commissioning this exact upgrade (search for + apply a
+  # matched official key per CSAT year). Correct booklet series picked via
+  # blind-resolve agreement, not the series letter alone (see key-provenance.ts).
+  - id: uppsc_answerkey_2019_prelims_csat
+    section: answer_key
+    tier: B
+    approved: true
+    url: https://www.dhyeyaias.com/storage/media/U78onSwqrdW3wTyOsJDb1Y8nS2NKKKCanUoRbJ38.pdf
+    lang: en
+    year: 2019
+    paper: prelims_csat
+    notes: dhyeyaias.com mirror, all 4 booklet series in one PDF. Series A applied (blind agreement 82% pre-escalation, 93% post).
 
   # ============ UPSC (Civil Services Prelims) — official papers + keys ============
   # exam: upsc. Tier A (official upsc.gov.in). UPSC releases the official answer
