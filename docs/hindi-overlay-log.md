@@ -66,3 +66,21 @@ original. English-only sources have no Hindi to read and stay machine-translated
 - Read: 6 overlapping vision-read subagents, 200 DPI.
 - Targets: **150** → **accepted 150** (100%), double-read verified 28.
 - Integrity: 0 drift, correct_option_key valid on all. 0 left machine-translated.
+
+### PRE_GS1 2021 — 2026-07-13
+- Source: `content-raw/pyq_prelims/uppcs prelims gs1 2021.pdf` (Drishti two-column
+  bilingual). (Live target count had grown to 144 by run time — a concurrent
+  re-gate published more 2021 rows; the tool loads live targets, so it processed
+  all 144.)
+- Read: 5 overlapping vision-read subagents, 200 DPI.
+- Targets: **144** → **accepted 132**, double-read verified 26.
+- Integrity: 0 drift, correct_option_key valid on all.
+- **Left machine-translated: 12**
+  - q103, q105 — Hindi illegible on the page (honesty).
+  - q15 — agent folded the matched-list items into the stem (stem-structure
+    mismatch vs the shorter DB stem); left to avoid stem drift.
+  - q34, q38, q50, q54, q61, q79, q81, q99, q107 — **pre-existing DB data bug:
+    the row stores only 2–3 options (A,B or A,B,C) while the printed paper has 4.**
+    Options C/D were dropped at the original 2021 ingest; the overlay correctly
+    refuses to map 4 read options onto a truncated row. Flagged for a separate
+    option-completeness repair (see docs/OUTSTANDING.md).
