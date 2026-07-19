@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   adminStatusResponseSchema,
+  caHighConfidenceCountResponseSchema,
   reviewActionResponseSchema,
   reviewBulkApproveBodySchema,
   reviewCountsResponseSchema,
@@ -37,6 +38,8 @@ import { currentUserId } from "../lib/user-context.js";
 import {
   approveQuestion,
   bulkApprove,
+  bulkApproveCaHighConfidence,
+  caHighConfidenceCount,
   editQuestion,
   listReviewQueue,
   rejectQuestion,
@@ -117,6 +120,24 @@ adminRouter.post(
   asyncHandler(async (req, res) => {
     const { ids } = parse(reviewBulkApproveBodySchema, req.body);
     res.json(reviewActionResponseSchema.parse({ data: await bulkApprove(ids), error: null }));
+  }),
+);
+
+// Current Affairs high-confidence bulk approve: unlike the page-scoped bulk
+// approve above (max 100 ids the client already has loaded), this acts on the
+// ENTIRE needs_review CA backlog server-side — the count endpoint lets the
+// Review Queue's CA tab show the number before the admin commits to it.
+adminRouter.get(
+  "/admin/review/current-affairs/high-confidence-count",
+  asyncHandler(async (_req, res) => {
+    res.json(caHighConfidenceCountResponseSchema.parse({ data: { count: await caHighConfidenceCount() }, error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/review/current-affairs/bulk-approve-high-confidence",
+  asyncHandler(async (_req, res) => {
+    res.json(reviewActionResponseSchema.parse({ data: await bulkApproveCaHighConfidence(), error: null }));
   }),
 );
 

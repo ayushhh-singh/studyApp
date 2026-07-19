@@ -1,6 +1,7 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminStatusResponseSchema,
+  caHighConfidenceCountResponseSchema,
   reviewActionResponseSchema,
   reviewCountsResponseSchema,
   reviewQueueResponseSchema,
@@ -58,5 +59,25 @@ export function useReviewEdit() {
 export function useReviewBulkApprove() {
   return useMutation({
     mutationFn: (ids: string[]) => api.post("/api/v1/admin/review/bulk-approve", reviewActionResponseSchema, { ids }),
+  });
+}
+
+/** How many CA questions across the WHOLE needs_review backlog (not just the current page) are currently high-confidence. */
+export function useCaHighConfidenceCount(enabled: boolean) {
+  return useQuery({
+    queryKey: queryKeys.caHighConfidenceCount(),
+    queryFn: () => api.get("/api/v1/admin/review/current-affairs/high-confidence-count", caHighConfidenceCountResponseSchema),
+    enabled,
+  });
+}
+
+/** Approve every high-confidence CA question across the whole backlog in one action. */
+export function useCaBulkApproveHighConfidence() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post("/api/v1/admin/review/current-affairs/bulk-approve-high-confidence", reviewActionResponseSchema),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.caHighConfidenceCount() });
+    },
   });
 }

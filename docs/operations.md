@@ -227,8 +227,12 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
 Every background job that `render.yaml` runs as a Render Cron Job has an
 equivalent GitHub Actions scheduled workflow under `.github/workflows/`:
 `ca-run.yml`, `daily-build.yml`, `qgen-topup.yml`, `nightly-settle.yml`,
-`notifications.yml` — plus a new `backup.yml` with no Render equivalent (see
-"Weekly encrypted DB backup" below). Each workflow: checks out the repo,
+`notifications.yml` — plus two with no Render equivalent: `backup.yml` (see
+"Weekly encrypted DB backup" below) and `ca-verify-mcqs.yml` (blind-verifies
+needs_review current-affairs MCQs so the Review Queue's Current Affairs tab
+can bulk-approve high-confidence ones instead of one-by-one review — see
+`ca/verify-mcqs.ts`'s own header comment for why this runs out-of-band from
+`ca-run` rather than inline during generation). Each workflow: checks out the repo,
 sets up pnpm + Node 22 (with pnpm's dependency cache), runs
 `pnpm install --frozen-lockfile --filter api...` (installs only `apps/api`
 and its workspace deps — `@neev/shared` — not `apps/web`'s much heavier
@@ -246,11 +250,12 @@ paused after 60 days with zero repository activity** — any push/commit
 resets that clock. If a job silently stops firing, check the repo's Actions
 tab for a "workflow disabled" banner before assuming something else broke.
 
-**`qgen-topup` is not a quick job** — it submits a real Anthropic Message
-Batch and polls for it to finish (`src/lib/anthropic.ts`'s `runBatch`), which
-this codebase's own comment notes "take[s] minutes, not seconds" in the
-normal case but which Anthropic's SLA allows up to ~24h in the worst case;
-its workflow's `timeout-minutes: 90` is deliberately generous, not tight.
+**`qgen-topup` and `ca-verify-mcqs` are not quick jobs** — both submit real
+Anthropic Message Batches and poll for them to finish (`src/lib/anthropic.ts`'s
+`runBatch`), which this codebase's own comment notes "take[s] minutes, not
+seconds" in the normal case but which Anthropic's SLA allows up to ~24h in
+the worst case; both workflows' `timeout-minutes: 90` is deliberately
+generous, not tight.
 
 **GitHub Actions minutes aren't unlimited on a private repo** — unlike
 Render Cron Jobs (a flat plan cost), GitHub Free private repos get a monthly
@@ -267,11 +272,12 @@ CI/cron compute is unlimited too.
 
 | Secret | Used by |
 |---|---|
-| `SUPABASE_URL` | all five job workflows |
-| `SUPABASE_SERVICE_ROLE_KEY` | all five job workflows |
-| `ANTHROPIC_API_KEY` | `ca-run`, `qgen-topup` |
+| `SUPABASE_URL` | all six job workflows except `backup` (which uses `SUPABASE_DB_URL` below) |
+| `SUPABASE_SERVICE_ROLE_KEY` | all six job workflows except `backup` |
+| `ANTHROPIC_API_KEY` | `ca-run`, `qgen-topup`, `ca-verify-mcqs` |
 | `OPENAI_API_KEY` | `ca-run`, `qgen-topup` (embeddings, for dedup/RAG) |
 | `QGEN_BATCH_MAX_USD` | `qgen-topup` (optional — falls back to `5` if unset) |
+| `CA_VERIFY_MCQS_MAX_USD` | `ca-verify-mcqs` (optional — falls back to `0.5` if unset) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | `notifications` |
 | `SUPABASE_DB_URL` | `backup` only — see below, this must be the **Session pooler** connection string, NOT the direct `db.<ref>.supabase.co` host |
 | `BACKUP_PASSPHRASE` | `backup` only |

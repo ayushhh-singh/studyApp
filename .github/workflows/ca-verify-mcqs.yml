@@ -1,0 +1,69 @@
+name: Scheduled — Current affairs MCQ confidence check
+
+# Blind-verifies every needs_review current-affairs MCQ whose generation_meta
+# is still null (ca:run deliberately never sets it inline — see the comment
+# on ca/pipeline.ts's insertMcqsForItem — to avoid adding sequential LLM
+# calls to that already timeout-sensitive job) via ca:verify-mcqs
+# (src/ca/verify-mcqs.ts). Populates generation_meta.verify_result so the
+# Review Queue's Current Affairs tab can show a "bulk approve N
+# high-confidence" action instead of requiring one-by-one manual review of
+# the whole backlog. Never approves/publishes anything itself — that action
+# is a separate, human-triggered step in the Review Queue UI.
+#
+# GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
+# normal) and are auto-disabled after 60 days of repo inactivity — any
+# push/commit resets that clock.
+#
+# TIMEOUT NOTE: ca:verify-mcqs submits one Anthropic Message Batch PER CHUNK
+# (40 questions/chunk) and polls each to completion before starting the next
+# — the same runBatch mechanism qgen-topup.yml uses, with the identical
+# generous timeout for the identical reason (Anthropic's batch SLA is "ends
+# within 24h"; real batches at this app's size complete in low minutes, but
+# an unusually slow Anthropic day should fail loudly on the Actions tab
+# rather than silently eat the full 6h GitHub allows).
+on:
+  schedule:
+    # 22:15 UTC daily ≈ 03:45 IST — off-peak, clear of ca-run's :00/:06/:12/:18
+    # ticks, qgen-topup's 21:30 UTC slot, and daily-build's, and well ahead of
+    # ca-assemble's Monday 00:30 UTC run so freshly-checked questions are
+    # available for an admin to approve before that week's sets are built.
+    - cron: "15 22 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ca-verify-mcqs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run ca:verify-mcqs (submits + polls Anthropic Message Batches — see the timeout note above)
+        run: pnpm --filter api ca:verify-mcqs --run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Falls back to a small daily default if the repo secret is unset —
+          # real measured cost is ~$0.0003/question, so this comfortably
+          # covers routine daily volume from ca:run (a few hundred at most)
+          # with headroom to also chip away at any existing backlog.
+          CA_VERIFY_MCQS_MAX_USD: ${{ secrets.CA_VERIFY_MCQS_MAX_USD || '0.5' }}

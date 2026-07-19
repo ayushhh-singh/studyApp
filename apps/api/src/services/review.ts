@@ -7,6 +7,7 @@
  * passes (the DB trigger from 0005/0017 blocks publishing an incomplete row, so
  * is_published is derived from the stored publish_gate_ok generated column).
  */
+import { CA_BULK_APPROVE_BATCH_LIMIT, isHighConfidenceQuestion } from "@neev/shared";
 import type {
   BilingualText,
   GenerationMeta,
@@ -278,4 +279,62 @@ export async function bulkApprove(ids: string[]): Promise<ReviewActionResult> {
     }
   }
   return { id: null, review_state: "approved", is_published: published > 0, approved, published, skipped };
+}
+
+const CA_HIGH_CONFIDENCE_PAGE_SIZE = 1000;
+
+interface HighConfidenceCandidateRow {
+  id: string;
+  type: ReviewQuestion["type"];
+  publish_gate_ok: boolean;
+  generation_meta: GenerationMeta | null;
+}
+
+/**
+ * needs_review CA questions that meet isHighConfidenceQuestion, across the
+ * whole backlog (not just the current Review Queue page). Paginated via
+ * .range() so a backlog past PostgREST's 1000-row default cap is never
+ * silently truncated. Backs both the "how many are ready" count (no limit —
+ * the admin should see the true total) and the actual bulk-approve action
+ * (limit set — see CA_BULK_APPROVE_BATCH_LIMIT) — one query shape either way,
+ * so the count shown before clicking never drifts from what a click acts on.
+ */
+async function caHighConfidenceIds(limit?: number): Promise<string[]> {
+  const ids: string[] = [];
+  let from = 0;
+  for (;;) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select("id, type, publish_gate_ok, generation_meta")
+      .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+      .eq("review_state", "needs_review")
+      .range(from, from + CA_HIGH_CONFIDENCE_PAGE_SIZE - 1);
+    if (error) throw new HttpError(500, `CA high-confidence lookup failed: ${error.message}`);
+    for (const row of (data ?? []) as HighConfidenceCandidateRow[]) {
+      if (isHighConfidenceQuestion(row)) {
+        ids.push(row.id);
+        if (limit !== undefined && ids.length >= limit) return ids;
+      }
+    }
+    if (!data || data.length < CA_HIGH_CONFIDENCE_PAGE_SIZE) break;
+    from += CA_HIGH_CONFIDENCE_PAGE_SIZE;
+  }
+  return ids;
+}
+
+/** How many CA questions in the whole needs_review backlog are currently high-confidence (read-only, for the Review Queue's CA tab to show before acting). */
+export async function caHighConfidenceCount(): Promise<number> {
+  return (await caHighConfidenceIds()).length;
+}
+
+/**
+ * Approve up to CA_BULK_APPROVE_BATCH_LIMIT high-confidence CA questions
+ * across the whole backlog (not just the current page) in one action. A
+ * backlog deeper than the limit just needs another click — the count (and
+ * the UI button's own label) reflects whatever's left after this call.
+ */
+export async function bulkApproveCaHighConfidence(): Promise<ReviewActionResult> {
+  const ids = await caHighConfidenceIds(CA_BULK_APPROVE_BATCH_LIMIT);
+  if (ids.length === 0) return { id: null, review_state: "approved", is_published: false, approved: 0, published: 0, skipped: 0 };
+  return bulkApprove(ids);
 }

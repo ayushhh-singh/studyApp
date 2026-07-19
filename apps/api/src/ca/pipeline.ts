@@ -154,6 +154,15 @@ async function insertMcqsForItem(opts: {
   const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts });
   if (mcqs.length === 0) return [];
 
+  // No inline blind-verify here (deliberately): ca:run is already close to
+  // this GitHub Actions job's timeout budget (see ca-run.yml's own comment —
+  // it was hard-cancelled mid-run at the previous 15m limit before being
+  // raised to 40m), so adding more sequential per-item LLM calls to this hot
+  // path risks starving later sources again. generation_meta stays null on
+  // insert; the confidence check runs OUT-OF-BAND on its own cron
+  // (ca:verify-mcqs, via the cheaper Message Batches API) and picks up every
+  // CA MCQ with generation_meta = null, old backlog and freshly generated
+  // alike — see ca/verify-mcqs.ts.
   const rows = mcqs.map((q) => ({
     type: "mcq" as const,
     stage: "prelims" as const,

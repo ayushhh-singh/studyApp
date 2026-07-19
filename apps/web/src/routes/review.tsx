@@ -2,11 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
-import { ShieldCheck, Check, X, Pencil, ChevronLeft, ChevronRight, Inbox, Lock } from "lucide-react";
+import { ShieldCheck, Check, X, Pencil, ChevronLeft, ChevronRight, Inbox, Lock, Sparkles } from "lucide-react";
 import {
+  CA_BULK_APPROVE_BATCH_LIMIT,
+  isHighConfidenceQuestion,
   reviewTabSchema,
   type ReviewEditBody,
-  type ReviewQuestion,
   type ReviewTab,
 } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -22,6 +23,8 @@ import { QuestionReportsReviewPanel } from "@/components/review/question-reports
 import { MagazineReviewPanel } from "@/components/review/magazine-review-panel";
 import {
   useAdminStatus,
+  useCaBulkApproveHighConfidence,
+  useCaHighConfidenceCount,
   useReviewApprove,
   useReviewBulkApprove,
   useReviewCounts,
@@ -45,13 +48,6 @@ const TABS: ReviewTab[] = [
   "magazine",
 ];
 
-/** A generated item is "high-confidence" (bulk-approvable) when the blind verify agreed and no factual flags were raised. */
-function isHighConfidence(q: ReviewQuestion): boolean {
-  const v = q.generation_meta?.verify_result;
-  const flags = q.generation_meta?.critic?.factual_red_flags?.length ?? 0;
-  return q.publish_gate_ok && flags === 0 && (q.type !== "mcq" || v?.matches_key === true);
-}
-
 export function Component() {
   const { t } = useTranslation();
   const { data: admin, isLoading: adminLoading } = useAdminStatus();
@@ -70,6 +66,9 @@ export function Component() {
   const isReportsTab = tab === "reports";
   const isQuestionReportsTab = tab === "question_reports";
   const isMagazineTab = tab === "magazine";
+  const isCurrentAffairsTab = tab === "current_affairs";
+  const caHighConfidence = useCaHighConfidenceCount(adminMode && isCurrentAffairsTab);
+  const caBulkAll = useCaBulkApproveHighConfidence();
   const queue = useReviewQueue(tab, page, adminMode && !isNotesTab && !isReportsTab && !isQuestionReportsTab && !isMagazineTab);
   const items = useMemo(() => queue.data?.items ?? [], [queue.data]);
   const totalPages = queue.data?.pagination.total_pages ?? 1;
@@ -78,7 +77,11 @@ export function Component() {
   const reject = useReviewReject();
   const edit = useReviewEdit();
   const bulk = useReviewBulkApprove();
-  const pending = approve.isPending || reject.isPending || edit.isPending || bulk.isPending;
+  // caBulkAll can act on hundreds of rows sequentially (a whole-backlog
+  // approve, not just the current page) and takes correspondingly longer —
+  // folded into the same `pending` guard so a per-card approve/reject can't
+  // race a row the bulk action is mid-way through touching.
+  const pending = approve.isPending || reject.isPending || edit.isPending || bulk.isPending || caBulkAll.isPending;
 
   const current = items[Math.min(index, Math.max(0, items.length - 1))];
 
@@ -132,9 +135,17 @@ export function Component() {
   }
 
   function onBulkApprove() {
-    const ids = items.filter(isHighConfidence).map((q) => q.id);
+    const ids = items.filter(isHighConfidenceQuestion).map((q) => q.id);
     if (ids.length === 0) return;
     bulk.mutate(ids, { onSuccess: refresh });
+  }
+
+  // Unlike onBulkApprove above (the current page's up-to-10 items), this acts
+  // on the ENTIRE needs_review current-affairs backlog server-side — the
+  // count comes from useCaHighConfidenceCount, not `items`.
+  function onCaBulkApproveAll() {
+    if (caBulkAll.isPending) return;
+    caBulkAll.mutate(undefined, { onSuccess: refresh });
   }
 
   // Keyboard: j/k navigate, a approve, e edit, r reject (disabled while editing or typing in a field).
@@ -188,7 +199,14 @@ export function Component() {
     );
   }
 
-  const highConfidenceCount = items.filter(isHighConfidence).length;
+  const highConfidenceCount = items.filter(isHighConfidenceQuestion).length;
+  const caTotalCount = caHighConfidence.data?.count ?? 0;
+  // A click only approves up to CA_BULK_APPROVE_BATCH_LIMIT (the backend
+  // bounds a single request so a deep backlog can't risk a platform request
+  // timeout) — show that honestly rather than a button promising more than
+  // one click delivers; the count naturally drops after each click.
+  const caButtonCount = Math.min(caTotalCount, CA_BULK_APPROVE_BATCH_LIMIT);
+  const caHasMoreThanBatch = caTotalCount > CA_BULK_APPROVE_BATCH_LIMIT;
 
   return (
     <div className="flex flex-col gap-6">
@@ -236,6 +254,34 @@ export function Component() {
           );
         })}
       </div>
+
+      {isCurrentAffairsTab && caTotalCount > 0 && (
+        <SectionCard className="border-tulsi/30 bg-tulsi/5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-start gap-2.5">
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-tulsi" />
+              <div>
+                <p className="text-sm font-medium">{t("Review.caHighConfidenceTitle", { n: caTotalCount })}</p>
+                <p className="text-xs text-muted-foreground">{t("Review.caHighConfidenceDescription")}</p>
+                {caHasMoreThanBatch && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("Review.caBulkApproveBatchHint", { batch: CA_BULK_APPROVE_BATCH_LIMIT })}
+                  </p>
+                )}
+              </div>
+            </div>
+            <Button
+              type="button"
+              onClick={onCaBulkApproveAll}
+              disabled={caBulkAll.isPending}
+              className="bg-tulsi text-white hover:bg-tulsi/90"
+            >
+              <Check className="size-4" />
+              {caBulkAll.isPending ? t("Review.caBulkApproveAllPending") : t("Review.caBulkApproveAll", { n: caButtonCount })}
+            </Button>
+          </div>
+        </SectionCard>
+      )}
 
       {isNotesTab ? (
         <NotesReviewPanel />

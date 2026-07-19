@@ -39,7 +39,8 @@
     "demo:seed": "pnpm --filter api demo:seed",
     "ca:assemble": "pnpm --filter api ca:assemble",
     "ca:backfill": "pnpm --filter api ca:backfill",
-    "ca:deepdive": "pnpm --filter api ca:deepdive"
+    "ca:deepdive": "pnpm --filter api ca:deepdive",
+    "ca:verify-mcqs": "pnpm --filter api ca:verify-mcqs"
   },
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",

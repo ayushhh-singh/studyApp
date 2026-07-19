@@ -6,6 +6,15 @@ import { difficultySchema, questionOptionSchema, questionSourceSchema, questionT
 export const reviewStateSchema = z.enum(["draft", "needs_review", "approved", "rejected"]);
 export type ReviewState = z.infer<typeof reviewStateSchema>;
 
+/**
+ * Per-click cap on the Current Affairs "bulk approve high-confidence" action
+ * — a whole-backlog approve loops one fetch+update per row server-side, so
+ * it's bounded to avoid a platform request timeout on a deep backlog.
+ * Shared so the UI's button label can be honest about it (a backlog bigger
+ * than this needs more than one click) instead of drifting from the backend.
+ */
+export const CA_BULK_APPROVE_BATCH_LIMIT = 250;
+
 /** The blind-verify outcome recorded per generated MCQ. */
 export const verifyResultSchema = z.object({
   chosen_key: z.string().nullable(),
@@ -105,6 +114,24 @@ export const reviewQuestionSchema = z.object({
 export type ReviewQuestion = z.infer<typeof reviewQuestionSchema>;
 
 /**
+ * A generated item is "high-confidence" (bulk-approvable without per-item
+ * human review) when the bilingual publish gate already passes, the critic
+ * raised no factual red flags, and — for an MCQ — the blind verify agreed
+ * with the stored answer key. The ONE place this predicate lives, so the
+ * Review Queue UI (client-side, scoped to the current page) and any
+ * server-side bulk-approve action (scoped to a whole tab's backlog) can never
+ * disagree about what counts as high-confidence.
+ */
+export function isHighConfidenceQuestion(q: {
+  type: ReviewQuestion["type"];
+  publish_gate_ok: boolean;
+  generation_meta: GenerationMeta | null;
+}): boolean {
+  const flags = q.generation_meta?.critic?.factual_red_flags?.length ?? 0;
+  return q.publish_gate_ok && flags === 0 && (q.type !== "mcq" || q.generation_meta?.verify_result?.matches_key === true);
+}
+
+/**
  * The four Review Queue tabs. `machine_translated` = content flagged
  * meta.machine_translated (PYQ Hindi regenerated from English); `current_affairs`
  * = the ca:run pool. `generated_mcq`/`generated_descriptive` = qgen output.
@@ -186,6 +213,13 @@ export type ReviewActionResult = z.infer<typeof reviewActionResultSchema>;
 
 export const reviewActionResponseSchema = apiEnvelopeSchema(reviewActionResultSchema);
 export type ReviewActionResponse = z.infer<typeof reviewActionResultSchema>;
+
+/** GET /admin/review/current-affairs/high-confidence-count — how many CA questions in the whole needs_review backlog are currently bulk-approvable. */
+export const caHighConfidenceCountSchema = z.object({ count: z.number().int() });
+export type CaHighConfidenceCount = z.infer<typeof caHighConfidenceCountSchema>;
+
+export const caHighConfidenceCountResponseSchema = apiEnvelopeSchema(caHighConfidenceCountSchema);
+export type CaHighConfidenceCountResponse = z.infer<typeof caHighConfidenceCountResponseSchema>;
 
 /** GET /admin/status — whether ADMIN_MODE is enabled server-side (drives the UI gate). */
 export const adminStatusSchema = z.object({ admin_mode: z.boolean() });

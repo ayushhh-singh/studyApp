@@ -426,6 +426,11 @@ export async function generateMcqs(opts: {
   return out.questions;
 }
 
+// The blind-verify confidence check for a generated CA MCQ (same mechanism as
+// qgen's Stage C — qgen/prompts.ts's buildVerifyParams/parseVerify) runs
+// OUT-OF-BAND on its own cron (ca:verify-mcqs, Message Batches API), not
+// inline here — see the comment on ca/pipeline.ts's insertMcqsForItem for why.
+
 // ---------------------------------------------------------------------------
 // Mains descriptive question (sonnet) — ONE per mains-3 item, grounded on the
 // item's own mains_brief. Runs through the shared qgen critic before insert.

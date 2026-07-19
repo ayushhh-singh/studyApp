@@ -13,6 +13,18 @@
  * inserts CA questions as review-gated (needs_review), and a human approves them
  * in the Review Queue's CA / descriptive tabs before they enter a weekly set.
  * Either set is null until there's approved supply.
+ *
+ * CUTOFF BASIS (investigated, deliberately NOT changed): the pool is filtered
+ * by the question's `created_at`, not by when it was approved. This was
+ * investigated after a hypothesis that a late approval could silently exclude
+ * a freshly-approved-but-old-generated item — live data showed that mechanism
+ * doesn't actually occur (approval lag was consistently under a day, never
+ * close to `days`); the real failure mode is that review happens in
+ * infrequent bursts, so the approved pool can go stale between bursts.
+ * Switching the basis to an approval timestamp would make that WORSE (it
+ * would let genuinely old news back into "this week's" quiz whenever review
+ * lags), so instead: if the pool at `days` is too thin, widen the window
+ * once rather than redefining what "recent" means.
  */
 import type { BilingualText, TestSummary } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
@@ -23,6 +35,11 @@ import { getTestDetail } from "../services/tests.js";
 
 const PRELIMS_MAX = 20;
 const MAINS_MAX = 5;
+
+/** Below this many approved questions at the normal cutoff, fall back to a wider window rather than ship a thin/empty quiz. */
+const MIN_POOL: Record<"mcq" | "descriptive", number> = { mcq: 10, descriptive: 3 };
+/** The wider fallback window, only used when the normal `days` pool is too thin. */
+const FALLBACK_DAYS = 14;
 
 /** Monotonic IST-week number (same convention as the daily answer set). */
 export function istWeekNumber(date: string = istToday()): number {
@@ -71,7 +88,16 @@ async function assemble(spec: AssembleSpec, days: number): Promise<string | null
   const existing = await findTestIdBySlug(spec.slug);
   if (existing) return existing;
 
-  const pool = await approvedCaQuestionIds(spec.type, days);
+  let pool = await approvedCaQuestionIds(spec.type, days);
+  let usedDays = days;
+  const minPool = MIN_POOL[spec.type];
+  if (pool.length < minPool && days < FALLBACK_DAYS) {
+    const widerPool = await approvedCaQuestionIds(spec.type, FALLBACK_DAYS);
+    if (widerPool.length > pool.length) {
+      pool = widerPool;
+      usedDays = FALLBACK_DAYS;
+    }
+  }
   if (pool.length === 0) return null;
 
   const selected = shuffled(pool).slice(0, spec.max);
@@ -87,7 +113,7 @@ async function assemble(spec: AssembleSpec, days: number): Promise<string | null
       duration_minutes: spec.durationMinutes,
       total_marks: totalMarks || null,
       is_published: true,
-      meta: { source: spec.metaSource, days },
+      meta: { source: spec.metaSource, days: usedDays, requested_days: days, widened: usedDays !== days },
     })
     .select("id")
     .single();
