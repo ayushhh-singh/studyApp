@@ -124,9 +124,13 @@ analytics, RAG doubt-solving chatbot.
   `process.cwd()`, so a script works the same run from repo root, from inside a
   subpackage, in CI, or in the API Docker image. `pnpm check:paths`
   (`scripts/check-portable-paths.mjs`) is a CI-enforced standing guard against
-  this; see `docs/operations.md` → "Portability guard". Also: `apps/api`/
-  `packages` import specifiers use a `.js` extension on `.ts` sources — never
-  flip one to `.ts`.
+  this — it ALSO fails on a hardcoded known-stale domain (`prayasup.app`,
+  `neev.app`) or a bare Cloudflare Pages auto-domain (`*.pages.dev`); read a
+  domain from `ALLOWED_ORIGINS`/`ALLOWED_ORIGIN_SUFFIXES`/`VITE_SITE_URL`
+  config instead of hardcoding one (the current production domain is
+  `neevstudy.com`, see the Branding note above). See `docs/operations.md` →
+  "Portability guard". Also: `apps/api`/`packages` import specifiers use a
+  `.js` extension on `.ts` sources — never flip one to `.ts`.
 
 ## Definition of done for any UI session
 Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 1440px, both locales render (language toggle), no console errors.
