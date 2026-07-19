@@ -224,16 +224,27 @@ export interface EnrichParamsOpts {
   linkedNodes: SyllabusCandidate[];
 }
 
+/**
+ * Cap on how many linked nodes get a node_significance line. triage.ts's
+ * normalizeTriage already slices syllabus_node_ids to 3, so in practice every
+ * caller already passes ≤3 nodes — this is a belt-and-suspenders bound at the
+ * prompt-building layer itself, so a richly-linked item's worst-case output
+ * size (and truncation risk) can never grow just because some future caller
+ * stops pre-slicing upstream.
+ */
+const MAX_NODE_SIGNIFICANCE_NODES = 3;
+
 /** The StructuredParams for an enrichment call — shared by the sync path and the batch backfill. */
 export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
+  const linkedNodes = opts.linkedNodes.slice(0, MAX_NODE_SIGNIFICANCE_NODES);
   const lives = [
     opts.hasPrelimsLife ? "PRELIMS (fill prelims_facts + possible_questions.prelims_i18n)" : null,
     opts.hasMainsLife ? "MAINS (fill the full mains_brief + possible_questions.mains_i18n)" : null,
   ]
     .filter(Boolean)
     .join(" and ");
-  const nodeLines = opts.linkedNodes.length
-    ? opts.linkedNodes.map((n) => `${n.id}: ${n.title}`).join("\n")
+  const nodeLines = linkedNodes.length
+    ? linkedNodes.map((n) => `${n.id}: ${n.title}`).join("\n")
     : "(none)";
 
   return {

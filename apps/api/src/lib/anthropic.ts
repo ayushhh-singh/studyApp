@@ -12,6 +12,42 @@ import { logger } from "./logger.js";
 
 let client: Anthropic | null = null;
 
+/**
+ * Raised by structuredJson when a response hits stop_reason==="max_tokens"
+ * before it could complete — i.e. the JSON was cut off mid-string rather than
+ * genuinely refused or empty. Thrown BEFORE the JSON.parse attempt so callers
+ * (and logs) get a clear, attributable error instead of a cryptic
+ * "Unterminated string in JSON at position N" from a JSON.parse on a
+ * truncated fragment.
+ */
+export class TruncatedResponseError extends Error {
+  readonly purpose?: string;
+  readonly model: ModelId;
+  readonly requestedMaxTokens: number;
+
+  constructor(opts: { purpose?: string; model: ModelId; requestedMaxTokens: number }) {
+    super(
+      `structuredJson response truncated at max_tokens=${opts.requestedMaxTokens} ` +
+        `for model=${opts.model}${opts.purpose ? ` purpose=${opts.purpose}` : ""} — ` +
+        `the call's default maxTokens is too low for this input`,
+    );
+    this.name = "TruncatedResponseError";
+    this.purpose = opts.purpose;
+    this.model = opts.model;
+    this.requestedMaxTokens = opts.requestedMaxTokens;
+  }
+}
+
+/**
+ * Real output-token ceiling per model (see the claude-api skill's Models API
+ * `max_tokens` field) — the retry in structuredJson never asks for more than
+ * this regardless of how far the 1.5-2x bump would otherwise go.
+ */
+const MODEL_MAX_OUTPUT_TOKENS: Record<ModelId, number> = {
+  "claude-sonnet-5": 128_000,
+  "claude-haiku-4-5": 64_000,
+};
+
 /** Usage/cost for a single Anthropic call, surfaced to callers via `onUsage`. */
 export interface LlmUsage {
   model: ModelId;
@@ -157,6 +193,16 @@ function messageText(message: Anthropic.Message): string {
  * `content` is a full user-message content array so callers can mix text with
  * document/image blocks (e.g. a PDF for vision extraction). Pass `purpose`
  * (and `userId` for user-triggered calls) to log tokens + cost to llm_calls.
+ *
+ * On stop_reason==="max_tokens" (a truncated response — this is checked
+ * BEFORE the JSON.parse attempt, since parsing a cut-off fragment throws a
+ * cryptic "Unterminated string" error that gives no hint it was a token-limit
+ * issue), retries ONCE with maxTokens raised ~1.75x, capped at the model's
+ * real output ceiling (MODEL_MAX_OUTPUT_TOKENS). If the retry also truncates,
+ * throws TruncatedResponseError rather than looping forever — that's a signal
+ * this call's default maxTokens is genuinely too low for its typical input,
+ * not a one-off fluke, and both attempts' token counts are logged so it's
+ * visible in cost:report.
  */
 export async function structuredJson<T>(opts: StructuredParams & {
   purpose?: string;
@@ -165,34 +211,57 @@ export async function structuredJson<T>(opts: StructuredParams & {
   /** Abort the in-flight request (e.g. the SSE client disconnected). */
   signal?: AbortSignal;
 }): Promise<T> {
-  const stream = anthropic().messages.stream(
-    structuredParams(opts) as Anthropic.MessageStreamParams,
-    opts.signal ? { signal: opts.signal } : undefined,
-  );
+  let attemptMaxTokens = opts.maxTokens ?? 32000;
 
-  const message = await stream.finalMessage();
-  emitUsage(opts.model, message, opts.onUsage);
-  if (opts.purpose) {
-    await recordLlmCall({
-      model: opts.model,
-      purpose: opts.purpose,
-      userId: opts.userId,
-      inputTokens: message.usage.input_tokens,
-      outputTokens: message.usage.output_tokens,
-      cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
-      cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
-    });
-  }
-  if (message.stop_reason === "refusal") {
-    throw new Error(
-      `Model refused (${message.stop_details?.category ?? "unknown"})`,
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const stream = anthropic().messages.stream(
+      structuredParams({ ...opts, maxTokens: attemptMaxTokens }) as Anthropic.MessageStreamParams,
+      opts.signal ? { signal: opts.signal } : undefined,
     );
+
+    const message = await stream.finalMessage();
+    emitUsage(opts.model, message, opts.onUsage);
+    if (opts.purpose) {
+      await recordLlmCall({
+        model: opts.model,
+        purpose: opts.purpose,
+        userId: opts.userId,
+        inputTokens: message.usage.input_tokens,
+        outputTokens: message.usage.output_tokens,
+        cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+        cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
+      });
+    }
+    if (message.stop_reason === "refusal") {
+      throw new Error(
+        `Model refused (${message.stop_details?.category ?? "unknown"})`,
+      );
+    }
+    if (message.stop_reason === "max_tokens") {
+      const ceiling = MODEL_MAX_OUTPUT_TOKENS[opts.model] ?? attemptMaxTokens;
+      const retryMaxTokens = Math.min(Math.round(attemptMaxTokens * 1.75), ceiling);
+      if (attempt === 0 && retryMaxTokens > attemptMaxTokens) {
+        logger.warn(
+          { purpose: opts.purpose, model: opts.model, maxTokens: attemptMaxTokens, retryMaxTokens },
+          "structuredJson truncated at max_tokens; retrying once with a higher ceiling",
+        );
+        attemptMaxTokens = retryMaxTokens;
+        continue;
+      }
+      logger.warn(
+        { purpose: opts.purpose, model: opts.model, maxTokens: attemptMaxTokens },
+        "structuredJson truncated at max_tokens on the retry too; giving up",
+      );
+      throw new TruncatedResponseError({ purpose: opts.purpose, model: opts.model, requestedMaxTokens: attemptMaxTokens });
+    }
+    const text = messageText(message);
+    if (!text.trim()) {
+      throw new Error(`Empty response (stop_reason=${message.stop_reason})`);
+    }
+    return JSON.parse(text) as T;
   }
-  const text = messageText(message);
-  if (!text.trim()) {
-    throw new Error(`Empty response (stop_reason=${message.stop_reason})`);
-  }
-  return JSON.parse(text) as T;
+  // Unreachable — the loop above always returns or throws — but keeps TS happy.
+  throw new TruncatedResponseError({ purpose: opts.purpose, model: opts.model, requestedMaxTokens: attemptMaxTokens });
 }
 
 // ---------------------------------------------------------------------------

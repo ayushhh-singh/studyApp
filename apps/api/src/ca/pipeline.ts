@@ -118,6 +118,8 @@ export interface PipelineResult {
   skippedOld: number;
   skippedNoDate: number;
   cappedTotal: number;
+  /** Items that survived the hard gate but threw somewhere in triage/enrich/persist — logged and skipped, never fatal to the run. Left unarchived so a re-run retries them (content_hash isn't recorded on failure). */
+  enrichFailed: number;
   costUsd: number;
   sourceFailures: { source: string; error: string }[];
 }
@@ -266,6 +268,7 @@ export async function runPipeline(
     skippedOld: 0,
     skippedNoDate: 0,
     cappedTotal: 0,
+    enrichFailed: 0,
     costUsd: 0,
     sourceFailures: [],
   };
@@ -327,180 +330,195 @@ export async function runPipeline(
       const snippet = (item.contentSnippet ?? item.content ?? "").slice(0, 1200);
       const dateStr = istDateString(pubDate);
 
-      // --- 1. Triage --------------------------------------------------------
-      const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates, onUsage });
-      seenHashes.add(hash); // never re-triage this link again, kept or archived
-      takenFromSource++;
+      // The whole triage→enrich→persist sequence for ONE item is isolated
+      // here: any failure (a truncated LLM response, a transient network
+      // error, an unexpected schema mismatch) is caught, logged, and counted
+      // in result.enrichFailed rather than aborting the rest of the run. The
+      // item's content_hash is only added to seenHashes on a successful
+      // triage (below), and it's never persisted to current_affairs_items on
+      // failure, so a failed item is naturally retried on the next run
+      // rather than being silently dropped forever.
+      try {
+        // --- 1. Triage --------------------------------------------------------
+        const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates, onUsage });
+        seenHashes.add(hash); // never re-triage this link again, kept or archived
+        takenFromSource++;
 
-      const bestScore = Math.max(triage.prelims_relevance, triage.mains_relevance);
-      const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
-      const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
+        const bestScore = Math.max(triage.prelims_relevance, triage.mains_relevance);
+        const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
+        const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
 
-      // --- 2. Hard gate -----------------------------------------------------
-      if (bestScore < RELEVANCE_GATE) {
-        const { error: archiveError } = await supabase()
+        // --- 2. Hard gate -----------------------------------------------------
+        if (bestScore < RELEVANCE_GATE) {
+          const { error: archiveError } = await supabase()
+            .from("current_affairs_items")
+            .insert({
+              date: dateStr,
+              status: "archived",
+              category: triage.category,
+              is_up_specific: triage.is_up_specific,
+              prelims_relevance: triage.prelims_relevance,
+              mains_relevance: triage.mains_relevance,
+              gs_papers: triage.gs_papers,
+              title_i18n: { hi: "", en: title },
+              syllabus_node_ids: triage.syllabus_node_ids,
+              mcq_question_ids: [],
+              content_hash: hash,
+              source_id: source.id,
+              source_urls: [link],
+            });
+          if (archiveError) {
+            // 23505 = unique_violation on content_hash. loadRecentHashes() only
+            // looks back 60 days by the ITEM's own article date, but the
+            // content_hash unique index has no such time bound — a source that
+            // bumps an old article's pubDate (a republish/edit) makes it look
+            // "new" (passes the freshness gate on its fresh pubDate) even
+            // though its permanent content_hash row is already there from
+            // months ago. Not a real duplicate LLM call to worry about below
+            // (we already paid for triage before finding this out) — just
+            // don't miscount it as a fresh archive.
+            if (archiveError.code === "23505") {
+              result.skippedDuplicate++;
+              log(`[${source.id}] already known (republished) — "${title.slice(0, 60)}"`);
+            } else {
+              log(`[${source.id}] ARCHIVE INSERT FAILED for "${title.slice(0, 60)}": ${archiveError.message}`);
+            }
+            continue;
+          }
+          result.archived++;
+          log(
+            `[${source.id}] ARCHIVED (P${triage.prelims_relevance}/M${triage.mains_relevance}) "${title.slice(0, 64)}" — ${triage.prelims_reason} | ${triage.mains_reason}`,
+          );
+          continue;
+        }
+
+        // --- 3. Enrich (only the active lives) --------------------------------
+        const linkedNodes = triage.syllabus_node_ids
+          .map((id) => candidateById.get(id))
+          .filter((n): n is SyllabusCandidate => !!n);
+        const enrich = await enrichItem({
+          title,
+          snippet,
+          category: triage.category,
+          hasPrelimsLife: hasPrelims,
+          hasMainsLife: hasMains,
+          linkedNodes,
+          onUsage,
+        });
+
+        const prelimsFacts: CurrentAffairsFact[] | null =
+          hasPrelims && enrich.prelims_facts.length > 0 ? enrich.prelims_facts : null;
+        const mainsBrief: CurrentAffairsMainsBrief | null =
+          hasMains && enrich.mains_brief.why_in_news_i18n.en.trim() ? enrich.mains_brief : null;
+        const possibleQuestions: CurrentAffairsPossibleQuestions = {
+          prelims_i18n: hasPrelims ? nullIfEmpty(enrich.possible_questions.prelims_i18n) : null,
+          mains_i18n: hasMains ? nullIfEmpty(enrich.possible_questions.mains_i18n) : null,
+        };
+        const nodeSignificance = buildNodeSignificance(enrich, hasPrelims, hasMains);
+
+        // --- 4. Publish gate + insert -----------------------------------------
+        const isPublished = i18nComplete(enrich.title_i18n) && i18nComplete(enrich.summary_i18n);
+        const status = isPublished ? "published" : "draft";
+
+        const { data: row, error: insertError } = await supabase()
           .from("current_affairs_items")
           .insert({
             date: dateStr,
-            status: "archived",
+            status,
             category: triage.category,
             is_up_specific: triage.is_up_specific,
             prelims_relevance: triage.prelims_relevance,
             mains_relevance: triage.mains_relevance,
             gs_papers: triage.gs_papers,
-            title_i18n: { hi: "", en: title },
+            title_i18n: enrich.title_i18n,
+            summary_i18n: enrich.summary_i18n,
+            prelims_facts: prelimsFacts,
+            mains_brief: mainsBrief,
+            possible_questions: possibleQuestions,
+            node_significance: nodeSignificance,
+            source_urls: [link],
             syllabus_node_ids: triage.syllabus_node_ids,
             mcq_question_ids: [],
             content_hash: hash,
             source_id: source.id,
-            source_urls: [link],
-          });
-        if (archiveError) {
-          // 23505 = unique_violation on content_hash. loadRecentHashes() only
-          // looks back 60 days by the ITEM's own article date, but the
-          // content_hash unique index has no such time bound — a source that
-          // bumps an old article's pubDate (a republish/edit) makes it look
-          // "new" (passes the freshness gate on its fresh pubDate) even
-          // though its permanent content_hash row is already there from
-          // months ago. Not a real duplicate LLM call to worry about below
-          // (we already paid for triage before finding this out) — just
-          // don't miscount it as a fresh archive.
-          if (archiveError.code === "23505") {
+          })
+          .select("id")
+          .single();
+        if (insertError) {
+          // See the archive-path comment above: 23505 here is the same
+          // republished-article/content_hash situation, just discovered after
+          // we'd already paid for the (more expensive) enrich call too.
+          if (insertError.code === "23505") {
             result.skippedDuplicate++;
             log(`[${source.id}] already known (republished) — "${title.slice(0, 60)}"`);
           } else {
-            log(`[${source.id}] ARCHIVE INSERT FAILED for "${title.slice(0, 60)}": ${archiveError.message}`);
+            log(`[${source.id}] INSERT FAILED for "${title.slice(0, 60)}": ${insertError.message}`);
           }
           continue;
         }
-        result.archived++;
-        log(
-          `[${source.id}] ARCHIVED (P${triage.prelims_relevance}/M${triage.mains_relevance}) "${title.slice(0, 64)}" — ${triage.prelims_reason} | ${triage.mains_reason}`,
-        );
-        continue;
-      }
 
-      // --- 3. Enrich (only the active lives) --------------------------------
-      const linkedNodes = triage.syllabus_node_ids
-        .map((id) => candidateById.get(id))
-        .filter((n): n is SyllabusCandidate => !!n);
-      const enrich = await enrichItem({
-        title,
-        snippet,
-        category: triage.category,
-        hasPrelimsLife: hasPrelims,
-        hasMainsLife: hasMains,
-        linkedNodes,
-        onUsage,
-      });
+        const itemId = row.id as string;
+        result.processed++;
+        if (isPublished) result.published++;
+        else result.draft++;
+        if (hasPrelims) result.prelimsLife++;
+        if (hasMains) result.mainsLife++;
+        if (hasPrelims && hasMains) result.dualLife++;
 
-      const prelimsFacts: CurrentAffairsFact[] | null =
-        hasPrelims && enrich.prelims_facts.length > 0 ? enrich.prelims_facts : null;
-      const mainsBrief: CurrentAffairsMainsBrief | null =
-        hasMains && enrich.mains_brief.why_in_news_i18n.en.trim() ? enrich.mains_brief : null;
-      const possibleQuestions: CurrentAffairsPossibleQuestions = {
-        prelims_i18n: hasPrelims ? nullIfEmpty(enrich.possible_questions.prelims_i18n) : null,
-        mains_i18n: hasMains ? nullIfEmpty(enrich.possible_questions.mains_i18n) : null,
-      };
-      const nodeSignificance = buildNodeSignificance(enrich, hasPrelims, hasMains);
-
-      // --- 4. Publish gate + insert -----------------------------------------
-      const isPublished = i18nComplete(enrich.title_i18n) && i18nComplete(enrich.summary_i18n);
-      const status = isPublished ? "published" : "draft";
-
-      const { data: row, error: insertError } = await supabase()
-        .from("current_affairs_items")
-        .insert({
-          date: dateStr,
-          status,
-          category: triage.category,
-          is_up_specific: triage.is_up_specific,
-          prelims_relevance: triage.prelims_relevance,
-          mains_relevance: triage.mains_relevance,
-          gs_papers: triage.gs_papers,
-          title_i18n: enrich.title_i18n,
-          summary_i18n: enrich.summary_i18n,
-          prelims_facts: prelimsFacts,
-          mains_brief: mainsBrief,
-          possible_questions: possibleQuestions,
-          node_significance: nodeSignificance,
-          source_urls: [link],
-          syllabus_node_ids: triage.syllabus_node_ids,
-          mcq_question_ids: [],
-          content_hash: hash,
-          source_id: source.id,
-        })
-        .select("id")
-        .single();
-      if (insertError) {
-        // See the archive-path comment above: 23505 here is the same
-        // republished-article/content_hash situation, just discovered after
-        // we'd already paid for the (more expensive) enrich call too.
-        if (insertError.code === "23505") {
-          result.skippedDuplicate++;
-          log(`[${source.id}] already known (republished) — "${title.slice(0, 60)}"`);
-        } else {
-          log(`[${source.id}] INSERT FAILED for "${title.slice(0, 60)}": ${insertError.message}`);
+        if (isPublished) {
+          embedTasks.push({ itemId, locale: "hi", text: `${enrich.title_i18n.hi}. ${enrich.summary_i18n.hi}` });
+          embedTasks.push({ itemId, locale: "en", text: `${enrich.title_i18n.en}. ${enrich.summary_i18n.en}` });
         }
-        continue;
-      }
 
-      const itemId = row.id as string;
-      result.processed++;
-      if (isPublished) result.published++;
-      else result.draft++;
-      if (hasPrelims) result.prelimsLife++;
-      if (hasMains) result.mainsLife++;
-      if (hasPrelims && hasMains) result.dualLife++;
+        // --- 5. Dual quiz generation ------------------------------------------
+        const nodeId = triage.syllabus_node_ids[0] ?? null;
 
-      if (isPublished) {
-        embedTasks.push({ itemId, locale: "hi", text: `${enrich.title_i18n.hi}. ${enrich.summary_i18n.hi}` });
-        embedTasks.push({ itemId, locale: "en", text: `${enrich.title_i18n.en}. ${enrich.summary_i18n.en}` });
-      }
-
-      // --- 5. Dual quiz generation ------------------------------------------
-      const nodeId = triage.syllabus_node_ids[0] ?? null;
-
-      // Prelims MCQs — a real factual nugget (prelims_relevance >= 2), published.
-      if (hasPrelims && isPublished && prelimsFacts) {
-        try {
-          const mcqIds = await insertMcqsForItem({
-            syllabusNodeId: nodeId,
-            title: enrich.title_i18n.en,
-            facts: prelimsFacts.map((f) => f.fact_i18n.en),
-            onUsage,
-          });
-          if (mcqIds.length > 0) {
-            await supabase().from("current_affairs_items").update({ mcq_question_ids: mcqIds }).eq("id", itemId);
-            result.mcqsGenerated += mcqIds.length;
+        // Prelims MCQs — a real factual nugget (prelims_relevance >= 2), published.
+        if (hasPrelims && isPublished && prelimsFacts) {
+          try {
+            const mcqIds = await insertMcqsForItem({
+              syllabusNodeId: nodeId,
+              title: enrich.title_i18n.en,
+              facts: prelimsFacts.map((f) => f.fact_i18n.en),
+              onUsage,
+            });
+            if (mcqIds.length > 0) {
+              await supabase().from("current_affairs_items").update({ mcq_question_ids: mcqIds }).eq("id", itemId);
+              result.mcqsGenerated += mcqIds.length;
+            }
+          } catch (err) {
+            log(`[${source.id}] MCQ generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
           }
-        } catch (err) {
-          log(`[${source.id}] MCQ generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
         }
-      }
 
-      // Mains descriptive question — only the richest issues (mains_relevance === 3).
-      let mainsQId: string | null = null;
-      if (triage.mains_relevance === 3 && isPublished && mainsBrief) {
-        try {
-          mainsQId = await insertMainsQuestionForItem({
-            itemId,
-            syllabusNodeId: nodeId,
-            title: enrich.title_i18n.en,
-            brief: mainsBrief,
-            onUsage,
-          });
-          if (mainsQId) result.mainsQuestionsGenerated++;
-        } catch (err) {
-          log(`[${source.id}] Mains question generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
+        // Mains descriptive question — only the richest issues (mains_relevance === 3).
+        let mainsQId: string | null = null;
+        if (triage.mains_relevance === 3 && isPublished && mainsBrief) {
+          try {
+            mainsQId = await insertMainsQuestionForItem({
+              itemId,
+              syllabusNodeId: nodeId,
+              title: enrich.title_i18n.en,
+              brief: mainsBrief,
+              onUsage,
+            });
+            if (mainsQId) result.mainsQuestionsGenerated++;
+          } catch (err) {
+            log(`[${source.id}] Mains question generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
+          }
         }
-      }
 
-      log(
-        `[${source.id}] KEPT (P${triage.prelims_relevance}/M${triage.mains_relevance}) status=${status} ` +
-          `lives=${[hasPrelims ? "prelims" : null, hasMains ? "mains" : null].filter(Boolean).join("+") || "none"} ` +
-          `mains_q=${mainsQId ? "yes" : "no"} "${enrich.title_i18n.en.slice(0, 56)}"`,
-      );
+        log(
+          `[${source.id}] KEPT (P${triage.prelims_relevance}/M${triage.mains_relevance}) status=${status} ` +
+            `lives=${[hasPrelims ? "prelims" : null, hasMains ? "mains" : null].filter(Boolean).join("+") || "none"} ` +
+            `mains_q=${mainsQId ? "yes" : "no"} "${enrich.title_i18n.en.slice(0, 56)}"`,
+        );
+      } catch (err) {
+        result.enrichFailed++;
+        const message = err instanceof Error ? err.message : String(err);
+        log(`[${source.id}] ITEM FAILED, skipping (left for retry next run) — "${title.slice(0, 64)}": ${message}`);
+        continue;
+      }
     }
   }
 
