@@ -103,6 +103,18 @@ These are still described as open in `CLAUDE.md` but the code says otherwise. Fl
 
 ---
 
+## 7. Monetization — decisions & status  *(recorded 2026-07-19)*
+
+**Pricing & 7-day Pro trial: DONE.** Migration `0075_trial_and_pricing.sql` + `services/entitlements.ts` + billing UI. Verified end-to-end against the cloud DB (fresh signup → `plan='pro'` + 7-day expiry + `has_used_trial=true`; trial 2-eval/day cap → "resets at midnight" 402; IST-day boundary excludes yesterday's evals; lapsed trial lazy-downgrades to free with the 3-lifetime floor intact; a paid `subscriptions.status='active'` user is `isOnTrial=false` on full 60/mo + 100/day caps).
+
+- **Plan ladder** (transparent per-month discount toward yearly): monthly ₹399 · quarterly ₹999 (≈₹333/mo) · half-yearly ₹1,799 (≈₹300/mo) · yearly ₹2,499 (≈₹208/mo, flagged best-value). *Note:* monthly was raised ₹299→₹399 and yearly ₹1,499→₹2,499 vs the old `0057` seed — confirmed with the user before applying (the brief's "monthly stays ₹399" was inaccurate; it was ₹299).
+- **Trial reuses existing state, no parallel machine:** `handle_new_user()` grants the trial; the EXISTING `getPlanFor` lazy-downgrade handles lapse; trial-vs-paid is read-time (`isOnTrial` = `pro` + expiry + no active subscription). Only new column: `has_used_trial` (anti-replay). Existing users deliberately NOT retro-granted a trial.
+- **Abuse signal (manual-review only, never auto-blocks):** `trial_starts` (coarse salted IP hash, never raw) + `pnpm trial-abuse:report`. False positives (shared hostel/CGNAT IPs) are worse than the abuse at this scale — nothing auto-restricts.
+
+**⚑ OPEN STRATEGIC DECISION (recorded so it isn't silently revisited):** pricing psychology is **transparent single pricing**, deliberately chosen over **discount-theater** (fake "was ₹4,999, now ₹2,499" strikethroughs / countdown-timer urgency). The ladder shows the honest effective ₹/month instead. This was a deliberate call — reopen only with explicit discussion, not by quietly adding strikethrough MRPs later.
+
+---
+
 ## Suggested sequencing (recommendation only — human decides)
 
 1. **Before any real launch (🔴):** D7 + V2 (run the launch checklist), B1 (rotate founder password). These gate `v1.0.0`.

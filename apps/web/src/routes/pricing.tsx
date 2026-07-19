@@ -15,7 +15,7 @@ import { BrandMark } from "@/components/marketing/brand-mark";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
-import { billingCopy as c, pick } from "@/lib/billing-copy";
+import { billingCopy as c, pick, planPeriodLabel, planMonths } from "@/lib/billing-copy";
 
 type Status = "idle" | "starting" | "activating" | "done" | "error";
 
@@ -193,11 +193,15 @@ export function Component() {
       {message && <p className="text-center text-sm text-muted-foreground">{message}</p>}
 
       {/* Plan cards */}
-      <div className="grid gap-4 sm:grid-cols-2">
-        {plans.isLoading && [0, 1].map((i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {plans.isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
         {plans.data?.plans.map((plan) => {
           const highlight = plan.is_intro; // yearly = best value
-          const per = plan.interval === "year" ? c.perYear : c.perMonth;
+          const per = planPeriodLabel(plan);
+          const months = planMonths(plan);
+          // Transparent per-month effective price on the multi-month tiers — the
+          // whole point of the ladder, shown plainly rather than implied.
+          const effPerMonth = months > 1 ? Math.round(plan.price_paise / months) : null;
           const busy = status === "starting" && activePlan === plan.code;
           return (
             <div
@@ -216,9 +220,17 @@ export function Component() {
                 <h3 className="text-base font-semibold">{pick(locale, plan.name_i18n)}</h3>
                 <p className="text-sm text-muted-foreground">{pick(locale, plan.description_i18n)}</p>
               </div>
-              <div className="flex items-end gap-1">
-                <span className="text-4xl font-[800] tabular-nums tracking-tight">₹{paiseToRupeeString(plan.price_paise)}</span>
-                <span className="pb-1 text-sm text-muted-foreground">{pick(locale, per)}</span>
+              <div>
+                <div className="flex items-end gap-1">
+                  <span className="text-4xl font-[800] tabular-nums tracking-tight">₹{paiseToRupeeString(plan.price_paise)}</span>
+                  <span className="pb-1 text-sm text-muted-foreground">{pick(locale, per)}</span>
+                </div>
+                {effPerMonth !== null && (
+                  <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+                    ≈ ₹{paiseToRupeeString(effPerMonth)}
+                    {pick(locale, c.perMonthShort)}
+                  </p>
+                )}
               </div>
               {plan.is_intro && (
                 <span className="w-fit rounded-full bg-marigold/15 px-2 py-0.5 text-xs font-medium text-marigold-foreground">

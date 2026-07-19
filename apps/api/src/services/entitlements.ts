@@ -37,6 +37,15 @@ export const LIMITS = {
     evaluations: 60,
     mentorPerDay: 100,
   },
+  trial: {
+    /**
+     * The 7-day Pro trial gets full Pro FEATURES (OCR, mocks, drills, all notes)
+     * but tighter DAILY caps on the two expensive AI surfaces — enough to feel
+     * the product, not enough to burn a month of Pro cost in a week.
+     */
+    evaluationsPerDay: 2,
+    mentorPerDay: 15,
+  },
 } as const;
 
 /** A 402 the UI reads as "show the upgrade paywall for `feature`". */
@@ -80,6 +89,39 @@ export async function getPlanFor(userId: string): Promise<{ plan: UserPlan; expi
 }
 
 // ---------------------------------------------------------------------------
+// Trial detection — a trial user and a paid Pro user both have plan='pro'.
+// ---------------------------------------------------------------------------
+/** True iff the user has an ACTIVE (paid, webhook-created) subscription row. */
+async function hasActiveSubscription(userId: string): Promise<boolean> {
+  const { count, error } = await supabase()
+    .from("subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("status", "active");
+  if (error) throw new HttpError(500, `subscription check failed: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
+export interface TrialContext {
+  plan: UserPlan;
+  expiresAt: string | null;
+  /** On the 7-day Pro trial: plan='pro' + an expiry + NO active paid subscription. */
+  isOnTrial: boolean;
+}
+
+/**
+ * The user's plan plus whether their Pro is a trial vs a paid subscription. A
+ * lapsed trial has already been downgraded to 'free' by getPlanFor (same lazy
+ * path as a lapsed paid Pro), so it never resolves as a trial here. The
+ * subscription check runs only when plan='pro' (short-circuited for free).
+ */
+export async function getTrialContext(userId: string): Promise<TrialContext> {
+  const { plan, expiresAt } = await getPlanFor(userId);
+  const isOnTrial = plan === "pro" && !!expiresAt && !(await hasActiveSubscription(userId));
+  return { plan, expiresAt, isOnTrial };
+}
+
+// ---------------------------------------------------------------------------
 // Evaluation credits
 // ---------------------------------------------------------------------------
 function monthStartUtc(): string {
@@ -99,44 +141,62 @@ function monthStartUtc(): string {
  *     a credit and could loop for unlimited free evaluations.
  * A 'failed' handwritten submission with NO typed_text failed at the OCR stage
  * (before any evaluation) and correctly does NOT consume an evaluation credit.
- * An abandoned draft ('pending'/'ocr_done') never counts. Free = lifetime;
- * Pro = current IST calendar month.
+ * An abandoned draft ('pending'/'ocr_done') never counts. `since` bounds the
+ * window: unset = lifetime (free floor), month start (paid Pro), or IST-day
+ * start (trial's per-day cap).
  */
-async function countEvaluations(userId: string, plan: UserPlan): Promise<number> {
+async function countEvaluations(userId: string, since?: string): Promise<number> {
   let q = supabase()
     .from("answer_submissions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
     .or("status.in.(evaluating,complete),and(status.eq.failed,typed_text.not.is.null)");
-  if (plan === "pro") q = q.gte("created_at", monthStartUtc());
+  if (since) q = q.gte("created_at", since);
   const { count, error } = await q;
   if (error) throw new HttpError(500, `evaluation count failed: ${error.message}`);
   return count ?? 0;
 }
 
-export async function getEvaluationQuota(userId: string): Promise<Quota & { plan: UserPlan }> {
-  const { plan } = await getPlanFor(userId);
-  const limit = plan === "pro" ? LIMITS.pro.evaluations : LIMITS.free.evaluations;
-  const used = await countEvaluations(userId, plan);
-  return {
-    plan,
-    used,
-    limit,
-    remaining: Math.max(0, limit - used),
-    period: plan === "pro" ? "month" : "lifetime",
-  };
+export async function getEvaluationQuota(
+  userId: string,
+): Promise<Quota & { plan: UserPlan; isOnTrial: boolean }> {
+  const { plan, isOnTrial } = await getTrialContext(userId);
+  let limit: number;
+  let period: Quota["period"];
+  let since: string | undefined;
+  if (isOnTrial) {
+    // Trial: a firm per-IST-day cap (not the paid monthly fair-use pool).
+    limit = LIMITS.trial.evaluationsPerDay;
+    period = "day";
+    since = istDayRangeUtc(istToday()).startUtc;
+  } else if (plan === "pro") {
+    limit = LIMITS.pro.evaluations;
+    period = "month";
+    since = monthStartUtc();
+  } else {
+    limit = LIMITS.free.evaluations;
+    period = "lifetime";
+    since = undefined;
+  }
+  const used = await countEvaluations(userId, since);
+  return { plan, isOnTrial, used, limit, remaining: Math.max(0, limit - used), period };
 }
 
 /** Throw a 402 paywall if the user has no evaluation credit left. */
 export async function assertEvaluationCredit(userId: string): Promise<void> {
   const q = await getEvaluationQuota(userId);
   if (q.remaining <= 0) {
-    throw paywall(
-      "evaluation",
-      q.plan === "pro"
-        ? `You've reached the fair-use cap of ${q.limit} evaluations this month.`
-        : `You've used all ${q.limit} free evaluations. Upgrade to Pro for more.`,
-    );
+    let message: string;
+    if (q.isOnTrial) {
+      // Distinct from the free "upgrade" and the paid "next month" messages:
+      // a trial user already HAS Pro features — theirs resets at midnight.
+      message = `You've used both of today's trial evaluations. They reset at midnight IST — or go Pro for more.`;
+    } else if (q.plan === "pro") {
+      message = `You've reached the fair-use cap of ${q.limit} evaluations this month.`;
+    } else {
+      message = `You've used all ${q.limit} free evaluations. Upgrade to Pro for more.`;
+    }
+    throw paywall("evaluation", message);
   }
 }
 
@@ -144,8 +204,12 @@ export async function assertEvaluationCredit(userId: string): Promise<void> {
 // Mentor daily limit
 // ---------------------------------------------------------------------------
 export async function getMentorQuota(userId: string): Promise<Quota & { plan: UserPlan }> {
-  const { plan } = await getPlanFor(userId);
-  const limit = plan === "pro" ? LIMITS.pro.mentorPerDay : LIMITS.free.mentorPerDay;
+  const { plan, isOnTrial } = await getTrialContext(userId);
+  const limit = isOnTrial
+    ? LIMITS.trial.mentorPerDay
+    : plan === "pro"
+      ? LIMITS.pro.mentorPerDay
+      : LIMITS.free.mentorPerDay;
   const { startUtc } = istDayRangeUtc(istToday());
   // Sum meta.quota_cost (default 1) rather than count rows, so an in-depth
   // teacher lesson correctly costs 2 messages. Bounded by the day's cap, so
@@ -260,12 +324,13 @@ export async function canReadFullNote(userId: string, nodeId: string): Promise<b
 // Full snapshot for the UI (GET /entitlements)
 // ---------------------------------------------------------------------------
 export async function getEntitlements(userId: string): Promise<Entitlements> {
-  const { plan, expiresAt } = await getPlanFor(userId);
+  const { plan, expiresAt, isOnTrial } = await getTrialContext(userId);
   const isPro = plan === "pro";
   const [evaluations, mentor] = await Promise.all([getEvaluationQuota(userId), getMentorQuota(userId)]);
   return {
     plan,
     plan_expires_at: expiresAt,
+    is_on_trial: isOnTrial,
     evaluations: { used: evaluations.used, limit: evaluations.limit, remaining: evaluations.remaining, period: evaluations.period },
     mentor_messages: { used: mentor.used, limit: mentor.limit, remaining: mentor.remaining, period: mentor.period },
     features: {

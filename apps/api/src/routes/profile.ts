@@ -1,4 +1,4 @@
-import { Router } from "express";
+import { Router, type Request } from "express";
 import {
   onboardingBodySchema,
   profileAnalyticsResponseSchema,
@@ -11,6 +11,14 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
 import { completeOnboarding, exportUserData, getProfile, updateProfile } from "../services/profile.js";
 import { getProfileAnalytics } from "../services/profile-analytics.js";
+import { recordTrialStart } from "../services/trial.js";
+
+/** Best-effort client IP for the coarse trial-abuse signal (first XFF hop, else socket). */
+function clientIp(req: Request): string | null {
+  const xff = req.headers["x-forwarded-for"];
+  if (typeof xff === "string" && xff.length) return xff.split(",")[0]!.trim();
+  return req.ip ?? null;
+}
 
 export const profileRouter = Router();
 profileRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
@@ -36,7 +44,12 @@ profileRouter.post(
   "/profile/onboarding",
   asyncHandler(async (req, res) => {
     const body = parse(onboardingBodySchema, req.body);
-    const profile = await completeOnboarding(currentUserId(), body);
+    const userId = currentUserId();
+    const profile = await completeOnboarding(userId, body);
+    // Every new sign-up reaches the app through onboarding (RequireAuth gates
+    // on it), and every new sign-up carries a trial — so this is the reliable
+    // one-shot point to log the coarse trial-start IP signal. Fire-and-forget.
+    void recordTrialStart(userId, clientIp(req));
     res.json(profileResponseSchema.parse({ data: profile, error: null }));
   }),
 );

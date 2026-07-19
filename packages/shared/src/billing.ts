@@ -68,6 +68,12 @@ export type Quota = z.infer<typeof quotaSchema>;
 export const entitlementsSchema = z.object({
   plan: userPlanSchema,
   plan_expires_at: z.string().nullable(),
+  /**
+   * On the 7-day Pro free trial: plan is 'pro' (full features) but with tighter
+   * daily caps and no paid subscription behind it. The UI reads this to show a
+   * trial countdown and the "resets tomorrow" (not "upgrade") eval messaging.
+   */
+  is_on_trial: z.boolean(),
   evaluations: quotaSchema,
   mentor_messages: quotaSchema,
   /** Boolean feature flags (Pro-only surfaces). */

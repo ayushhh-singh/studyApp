@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Compass, Flame, Languages, MapPinned, PenSquare } from "lucide-react";
+import { ArrowRight, Compass, Flame, Languages, MapPinned, PenSquare, Sparkles } from "lucide-react";
 import { GUIDED_TOUR_STOPS, type WelcomeTourChoice } from "@neev/shared";
+import { billingCopy, pick } from "@/lib/billing-copy";
 import { useProfile } from "@/hooks/use-profile";
 import { useUpdateTourState } from "@/hooks/use-tour";
 import { useLocale } from "@/hooks/use-locale";
@@ -87,6 +88,9 @@ export function Component() {
               <MapPinned className="size-4" aria-hidden /> {t("Welcome.choiceSkip")}
             </Button>
           </div>
+          <p className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+            <Sparkles className="size-3.5" aria-hidden /> {pick(locale, billingCopy.trialWelcomeShort)}
+          </p>
         </div>
       </div>
     );

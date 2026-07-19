@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { FreezePips } from "@/components/ui-x/freeze-pips";
 import { ExamCountdownChip } from "./exam-countdown-chip";
+import { TrialCountdownChip } from "./trial-countdown-chip";
 
 export function GreetingHeader({ greeting }: { greeting: DashboardGreeting }) {
   const { t } = useTranslation();
@@ -20,6 +21,7 @@ export function GreetingHeader({ greeting }: { greeting: DashboardGreeting }) {
         description={t("Dashboard.description")}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            <TrialCountdownChip />
             <StreakFlame count={greeting.streak_count} animate={greeting.streak_incremented_today} />
             <FreezePips count={greeting.streak_freezes} />
             <ExamCountdownChip exam={greeting.next_exam} />

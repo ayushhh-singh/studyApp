@@ -3,6 +3,7 @@ import { Sparkles, Check } from "lucide-react";
 import { useLocale } from "@/hooks/use-locale";
 import { usePaywallStore, type PaywallFeature } from "@/stores/paywall-store";
 import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
+import { useEntitlements } from "@/hooks/use-billing";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { Button } from "@/components/ui/button";
 import { billingCopy as c, pick } from "@/lib/billing-copy";
@@ -43,8 +44,24 @@ export function PaywallModal() {
   // Only the eval paywall needs the gains data — fetch lazily, only when shown.
   const analytics = useProfileAnalytics({ enabled: open && feature === "evaluation" });
   const avgGain = analytics.data?.improvement_proof.avg_delta_pct ?? null;
+  // The eval paywall means three different things depending on plan state, and
+  // each wants different copy + CTA (see #6): a free user should upgrade; a
+  // trial user's daily cap resets tomorrow (upgrade for more); a PAID Pro who
+  // hit the monthly fair-use cap can't "upgrade" out of it — it just resets.
+  const entitlements = useEntitlements({ enabled: open && feature === "evaluation" });
+  const ent = entitlements.data;
+  const evalState: "free" | "trial" | "proCap" | null =
+    feature !== "evaluation" ? null : ent?.is_on_trial ? "trial" : ent?.plan === "pro" ? "proCap" : "free";
 
-  const cp = featureCopy(feature);
+  // A paid Pro at the monthly cap has nothing to upgrade to — drop the sales CTA.
+  const hideUpgrade = evalState === "proCap";
+
+  const cp =
+    evalState === "trial"
+      ? { title: c.paywallEvalTrialTitle, body: c.paywallEvalTrialBody }
+      : evalState === "proCap"
+        ? { title: c.paywallEvalProCapTitle, body: c.paywallEvalProCapBody }
+        : featureCopy(feature);
   const goPricing = () => {
     close();
     navigate(`/${locale}/pricing`);
@@ -63,7 +80,7 @@ export function PaywallModal() {
           </div>
         </div>
 
-        {feature === "evaluation" && avgGain !== null && avgGain > 0 && (
+        {feature === "evaluation" && !hideUpgrade && avgGain !== null && avgGain > 0 && (
           <div className="rounded-xl border border-tulsi/30 bg-tulsi/10 p-4">
             <p className="text-xs font-medium uppercase tracking-wide text-tulsi-foreground">
               {pick(locale, c.yourGains)}
@@ -76,22 +93,33 @@ export function PaywallModal() {
           </div>
         )}
 
-        <ul className="grid gap-2">
-          {PRO_BULLETS.map((b, i) => (
-            <li key={i} className="flex items-center gap-2 text-sm">
-              <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
-              <span>{pick(locale, b)}</span>
-            </li>
-          ))}
-        </ul>
+        {!hideUpgrade && (
+          <ul className="grid gap-2">
+            {PRO_BULLETS.map((b, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm">
+                <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
+                <span>{pick(locale, b)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
 
         <div className="flex flex-col gap-2 sm:flex-row-reverse">
-          <Button size="lg" className="w-full sm:flex-1" onClick={goPricing}>
-            {pick(locale, c.upgradeToPro)}
-          </Button>
-          <Button size="lg" variant="ghost" className="w-full sm:w-auto" onClick={close}>
-            {pick(locale, c.maybeLater)}
-          </Button>
+          {hideUpgrade ? (
+            // Paid Pro at the monthly cap: nothing to sell, just acknowledge.
+            <Button size="lg" className="w-full" onClick={close}>
+              {pick(locale, c.gotIt)}
+            </Button>
+          ) : (
+            <>
+              <Button size="lg" className="w-full sm:flex-1" onClick={goPricing}>
+                {pick(locale, c.upgradeToPro)}
+              </Button>
+              <Button size="lg" variant="ghost" className="w-full sm:w-auto" onClick={close}>
+                {pick(locale, c.maybeLater)}
+              </Button>
+            </>
+          )}
         </div>
       </SheetContent>
     </Sheet>

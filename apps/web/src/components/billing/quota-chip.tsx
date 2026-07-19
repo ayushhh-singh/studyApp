@@ -15,15 +15,19 @@ export function EvaluationQuotaChip({ className }: { className?: string }) {
   const openPaywall = usePaywallStore((s) => s.openPaywall);
   if (!data) return null;
 
-  const isPro = data.plan === "pro";
+  // A trial user is plan==='pro' but has a real, tighter daily cap — show the
+  // count, never "Unlimited". Only a PAID Pro is truly unlimited-ish here.
+  const unlimited = data.plan === "pro" && !data.is_on_trial;
   const remaining = data.evaluations.remaining;
-  const empty = !isPro && remaining <= 0;
+  const empty = !unlimited && remaining <= 0;
+  const perDay = data.evaluations.period === "day";
+  const leftLabel = perDay
+    ? pick(locale, c.evalsLeftToday)
+    : pick(locale, remaining === 1 ? c.evalLeftOne : c.evalsLeft);
 
-  const label = isPro
-    ? pick(locale, c.unlimited)
-    : `${remaining} ${pick(locale, remaining === 1 ? c.evalLeftOne : c.evalsLeft)}`;
+  const label = unlimited ? pick(locale, c.unlimited) : `${remaining} ${leftLabel}`;
 
-  const tone = isPro
+  const tone = unlimited
     ? "border-primary/30 bg-primary/10 text-primary"
     : empty
       ? "border-coral/40 bg-coral/10 text-coral-foreground"

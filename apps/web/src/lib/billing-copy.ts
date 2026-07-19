@@ -1,4 +1,4 @@
-import type { Locale } from "@neev/shared";
+import type { Locale, Plan } from "@neev/shared";
 
 /**
  * Billing UI copy kept self-contained here (not in messages/*.json) so the
@@ -7,6 +7,17 @@ import type { Locale } from "@neev/shared";
  */
 type T = { en: string; hi: string };
 export const pick = (locale: Locale, t: T): string => (locale === "hi" ? t.hi : t.en);
+
+/** Whole days remaining until an ISO expiry (clamped at 0). */
+export function daysUntil(iso: string | null): number {
+  if (!iso) return 0;
+  return Math.max(0, Math.ceil((new Date(iso).getTime() - Date.now()) / (24 * 3600 * 1000)));
+}
+
+/** Total months a plan covers (yearly → 12·N, else the month interval_count). */
+export function planMonths(plan: Plan): number {
+  return plan.interval === "year" ? 12 * plan.interval_count : plan.interval_count;
+}
 
 export const billingCopy = {
   pricingTitle: { en: "Go Pro", hi: "प्रो बनें" } as T,
@@ -21,6 +32,9 @@ export const billingCopy = {
   } as T,
   perYear: { en: "/year", hi: "/वर्ष" } as T,
   perMonth: { en: "/month", hi: "/माह" } as T,
+  per3Months: { en: "/3 months", hi: "/3 माह" } as T,
+  per6Months: { en: "/6 months", hi: "/6 माह" } as T,
+  perMonthShort: { en: "/mo", hi: "/माह" } as T,
   bestValue: { en: "Best value", hi: "सर्वोत्तम मूल्य" } as T,
   introPrice: { en: "Launch price", hi: "लॉन्च मूल्य" } as T,
   choosePlan: { en: "Choose this plan", hi: "यह प्लान चुनें" } as T,
@@ -94,9 +108,42 @@ export const billingCopy = {
   gainsAvg: { en: "On answers you rewrote, your score improved by", hi: "जिन उत्तरों को आपने दोबारा लिखा, उनका स्कोर बढ़ा" } as T,
   onAverage: { en: "on average", hi: "औसतन" } as T,
 
+  // Trial (7-day full-Pro free trial)
+  trialBadge: { en: "Free trial", hi: "मुफ़्त ट्रायल" } as T,
+  trialActive: { en: "Pro trial active", hi: "प्रो ट्रायल सक्रिय" } as T,
+  trialDaysLeft: { en: "days of Pro left", hi: "दिन की प्रो शेष" } as T,
+  trialDayLeftOne: { en: "day of Pro left", hi: "दिन की प्रो शेष" } as T,
+  trialLastDay: { en: "Last day of your Pro trial", hi: "आपके प्रो ट्रायल का अंतिम दिन" } as T,
+  trialEnded: { en: "Your Pro trial has ended", hi: "आपका प्रो ट्रायल समाप्त हो गया" } as T,
+  trialKeepPro: { en: "Keep Pro", hi: "प्रो जारी रखें" } as T,
+  // Honest onboarding assurance — no card is collected, so NO auto-charge wording.
+  trialWelcome: {
+    en: "You've got 7 days of full Pro access — free, no card needed. It quietly turns into the Free plan after that.",
+    hi: "आपको 7 दिन की संपूर्ण प्रो एक्सेस मिली है — मुफ़्त, बिना कार्ड। इसके बाद यह चुपचाप मुफ़्त प्लान में बदल जाती है।",
+  } as T,
+  trialWelcomeShort: {
+    en: "7 days of full Pro, free — no card needed.",
+    hi: "7 दिन की संपूर्ण प्रो, मुफ़्त — बिना कार्ड।",
+  } as T,
+
+  // Paywall — trial user hitting the tighter DAILY eval cap (distinct from free/paid).
+  paywallEvalTrialTitle: { en: "That's today's 2 trial evaluations", hi: "आज के 2 ट्रायल मूल्यांकन पूरे हुए" } as T,
+  paywallEvalTrialBody: {
+    en: "Your 7-day Pro trial includes 2 detailed evaluations a day — they reset at midnight. Go Pro for up to 60 a month, plus everything else.",
+    hi: "आपके 7-दिन प्रो ट्रायल में रोज़ 2 विस्तृत मूल्यांकन शामिल हैं — ये आधी रात रीसेट होते हैं। 60/माह तक और बाकी सब कुछ के लिए प्रो लें।",
+  } as T,
+  // Paywall — a PAID Pro user hitting the monthly fair-use cap (no upgrade CTA).
+  paywallEvalProCapTitle: { en: "You've hit this month's fair-use cap", hi: "इस माह की उचित-उपयोग सीमा पूरी हुई" } as T,
+  paywallEvalProCapBody: {
+    en: "You've used all 60 evaluations included this month. Your allowance resets at the start of next month.",
+    hi: "इस माह के सभी 60 मूल्यांकन उपयोग हो गए। आपकी सीमा अगले माह की शुरुआत में रीसेट होगी।",
+  } as T,
+  gotIt: { en: "Got it", hi: "समझ गए" } as T,
+
   // Quota chip / notes lock
   evalsLeft: { en: "evaluations left", hi: "मूल्यांकन शेष" } as T,
   evalLeftOne: { en: "evaluation left", hi: "मूल्यांकन शेष" } as T,
+  evalsLeftToday: { en: "left today", hi: "आज शेष" } as T,
   unlimited: { en: "Unlimited", hi: "असीमित" } as T,
   lockedNoteHeading: { en: "Unlock the full note", hi: "पूरा नोट अनलॉक करें" } as T,
   mentorLimitTitle: { en: "Daily mentor limit reached", hi: "दैनिक मेंटर सीमा पूरी हुई" } as T,
@@ -105,3 +152,11 @@ export const billingCopy = {
     hi: "कल फिर आएँ, या 100 संदेश/दिन के लिए प्रो में अपग्रेड करें।",
   } as T,
 };
+
+/** The price suffix for a plan's billing period (/month, /3 months, /6 months, /year). */
+export function planPeriodLabel(plan: Plan): T {
+  if (plan.interval === "year") return billingCopy.perYear;
+  if (plan.interval_count === 3) return billingCopy.per3Months;
+  if (plan.interval_count === 6) return billingCopy.per6Months;
+  return billingCopy.perMonth;
+}

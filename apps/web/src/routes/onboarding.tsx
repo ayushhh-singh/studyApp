@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BrandMark } from "@/components/marketing/brand-mark";
 import { FullScreenLoader, ProfileLoadError } from "@/routes/require-auth";
+import { billingCopy, pick } from "@/lib/billing-copy";
 import { cn } from "@/lib/utils";
 
 const CURRENT_YEAR = 2026;
@@ -252,6 +253,13 @@ export function Component() {
                   </span>
                 </span>
               </label>
+            </div>
+          ) : null}
+
+          {step === TOTAL_STEPS ? (
+            <div className="mt-5 flex items-start gap-2.5 rounded-xl border border-primary/25 bg-primary/5 px-3.5 py-3">
+              <Sparkles className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden />
+              <p className="text-xs leading-relaxed text-muted-foreground">{pick(locale, billingCopy.trialWelcome)}</p>
             </div>
           ) : null}
 
