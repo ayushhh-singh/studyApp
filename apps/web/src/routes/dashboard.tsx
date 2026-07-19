@@ -5,6 +5,7 @@ import { GreetingHeader } from "@/components/dashboard/greeting-header";
 import { GuidedTodayCard } from "@/components/dashboard/guided-today-card";
 import { ContinueCard } from "@/components/dashboard/continue-card";
 import { TodayCard } from "@/components/dashboard/today-card";
+import { StudyPlanCard } from "@/components/dashboard/study-plan-card";
 import { useLocale } from "@/hooks/use-locale";
 import { PerformanceCard } from "@/components/dashboard/performance-card";
 import { WeaknessCard } from "@/components/dashboard/weakness-card";
@@ -66,6 +67,8 @@ export function Component() {
         <ContinueCard data={data.continue} />
         <TodayCard data={data.today} />
       </div>
+
+      <StudyPlanCard />
 
       <WeeklyDigestCard />
 

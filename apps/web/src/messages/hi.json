@@ -576,6 +576,7 @@
     "seedWrongAnswersEmpty": "अभी तक कोई गलत उत्तर नहीं — पहले कुछ अभ्यास प्रश्न हल करें।",
     "seedNoteFactsResult": "पढ़े गए नोट्स से {{count}} कार्ड जोड़े गए।",
     "seedNoteFactsEmpty": "अभी तक कोई नोट नहीं पढ़ा गया — पहले किसी विषय का नोट्स टैब खोलें।",
+    "quickAddLabel": "त्वरित जोड़ें",
     "reviewTab": "समीक्षा",
     "manageTab": "प्रबंधन",
     "startReview": "समीक्षा शुरू करें ({{count}} देय)",

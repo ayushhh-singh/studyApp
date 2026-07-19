@@ -576,6 +576,7 @@
     "seedWrongAnswersEmpty": "No wrong answers yet — attempt some practice questions first.",
     "seedNoteFactsResult": "Added {{count}} card(s) from notes you've read.",
     "seedNoteFactsEmpty": "No read notes yet — open a topic's Notes tab first.",
+    "quickAddLabel": "Quick add",
     "reviewTab": "Review",
     "manageTab": "Manage",
     "startReview": "Start review ({{count}} due)",

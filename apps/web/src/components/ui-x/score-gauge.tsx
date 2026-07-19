@@ -30,7 +30,10 @@ function bandColorForValue(value: number) {
  * The Rubric Dial — this app's signature score treatment (see
  * .claude/skills/frontend-design/SKILL.md). A graduated 180deg gauge with a
  * coral -> marigold -> tulsi band, read like an exam-hall meter rather than
- * a generic progress ring.
+ * a generic progress ring: the band is a fixed, always-fully-visible scale
+ * (like a speedometer's colored zones), and a single needle marks the
+ * current value on it — never a second value-arc stacked on top of the
+ * band, which used to read as two overlapping charts.
  */
 export function ScoreGauge({
   value,
@@ -59,7 +62,7 @@ export function ScoreGauge({
             key={band.from}
             d={describeArc(CX, CY, R, band.from, band.to)}
             stroke={band.color}
-            strokeOpacity={0.22}
+            strokeOpacity={0.85}
             strokeWidth={14}
             strokeLinecap="round"
             fill="none"
@@ -76,20 +79,12 @@ export function ScoreGauge({
               y1={inner.y}
               x2={outer.x}
               y2={outer.y}
-              stroke="var(--border)"
+              stroke="var(--card)"
+              strokeOpacity={0.6}
               strokeWidth={2}
             />
           );
         })}
-        {value !== null && (
-          <path
-            d={describeArc(CX, CY, R, 0, clamped)}
-            stroke={activeColor}
-            strokeWidth={14}
-            strokeLinecap="round"
-            fill="none"
-          />
-        )}
         {value !== null && (
           <circle cx={needle.x} cy={needle.y} r={7} fill={activeColor} stroke="var(--card)" strokeWidth={2.5} />
         )}

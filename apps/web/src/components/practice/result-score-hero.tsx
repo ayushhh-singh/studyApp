@@ -4,6 +4,7 @@ import type { AttemptResultDetail } from "@neev/shared";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { StatCard } from "@/components/ui-x/stat-card";
 import { formatSeconds } from "@/lib/format-duration";
+import { formatScoreValue } from "@/lib/format-score";
 
 export function ResultScoreHero({ result }: { result: AttemptResultDetail }) {
   const { t } = useTranslation();
@@ -14,8 +15,8 @@ export function ResultScoreHero({ result }: { result: AttemptResultDetail }) {
       <div className="flex flex-col items-center gap-2 sm:shrink-0">
         <ScoreGauge value={result.score_pct} label={t("Practice.resultsScoreLabel")} />
         <span className="font-display text-lg tabular-nums text-muted-foreground">
-          {attempt.score ?? 0}
-          <span className="text-sm">/{attempt.total ?? 0}</span>
+          {formatScoreValue(attempt.score ?? 0)}
+          <span className="text-sm">/{formatScoreValue(attempt.total ?? 0)}</span>
         </span>
       </div>
 

@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { useCreateSrsCard, useDeleteSrsCard, useSrsCards, useUpdateSrsCard } from "@/hooks/use-srs";
 import { useLocale } from "@/hooks/use-locale";
 import { CardForm } from "./card-form";
+import { SeedButtons } from "./seed-buttons";
 
 const INPUT_CLASS =
   "min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -141,6 +142,11 @@ export function ManageCardList() {
           <Plus className="size-4" aria-hidden />
           {t("Revision.newCard")}
         </Button>
+      </div>
+
+      <div className="flex flex-col items-center gap-2 rounded-lg border border-dashed border-border p-3">
+        <span className="text-xs font-medium text-muted-foreground">{t("Revision.quickAddLabel")}</span>
+        <SeedButtons />
       </div>
 
       {creating && (

@@ -8,7 +8,6 @@ import { StrengthWeaknessCard } from "@/components/profile/strength-weakness-car
 import { WritingProgressCard } from "@/components/profile/writing-progress-card";
 import { ImprovementProofCard } from "@/components/profile/improvement-proof-card";
 import { MicroDrillsCard } from "@/components/profile/micro-drills-card";
-import { StudyPlanCard } from "@/components/profile/study-plan-card";
 import { MyRanksCard } from "@/components/profile/my-ranks-card";
 import { SettingsCard } from "@/components/profile/settings-card";
 import { ChangePasswordCard } from "@/components/profile/change-password-card";
@@ -59,8 +58,6 @@ export function Component() {
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.growthSectionTitle")}</h2>
 
       <MicroDrillsCard />
-
-      <StudyPlanCard />
 
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.settingsSectionTitle")}</h2>
 

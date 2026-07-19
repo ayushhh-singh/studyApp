@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { Clock, ListChecks, Award } from "lucide-react";
 import type { TestSummary, Locale } from "@neev/shared";
 import { scoreBandColor } from "@/lib/score-band";
+import { formatScoreValue } from "@/lib/format-score";
 
 export function TestCard({
   test,
@@ -38,14 +39,19 @@ export function TestCard({
             {t("Practice.minutes", { count: test.duration_minutes })}
           </span>
         )}
-        {test.total_marks != null && <span>{t("Practice.marks", { count: test.total_marks })}</span>}
+        {test.total_marks != null && (
+          <span>{t("Practice.marks", { count: Number(formatScoreValue(test.total_marks)) })}</span>
+        )}
         {bestPct !== null && (
           <span
             className="flex items-center gap-1 font-semibold tabular-nums"
             style={{ color: scoreBandColor(bestPct) }}
           >
             <Award className="size-3.5" aria-hidden />
-            {t("Practice.bestScore", { score: test.best_score, total: test.total_marks })}
+            {t("Practice.bestScore", {
+              score: formatScoreValue(test.best_score ?? 0),
+              total: formatScoreValue(test.total_marks ?? 0),
+            })}
           </span>
         )}
       </div>
