@@ -68,8 +68,6 @@ export function Component() {
         <TodayCard data={data.today} />
       </div>
 
-      <StudyPlanCard />
-
       <WeeklyDigestCard />
 
       <MagazineLinkCard />
@@ -82,6 +80,8 @@ export function Component() {
       </div>
 
       <AnswerSpotlightCard data={data.answer_spotlight} />
+
+      <StudyPlanCard />
     </div>
   );
 }
