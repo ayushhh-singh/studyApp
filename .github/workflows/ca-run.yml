@@ -40,7 +40,10 @@ jobs:
     # later in CA_SOURCES than wherever the clock ran out were silently
     # starved every single run. 40 gives real headroom without risking a
     # genuinely-stuck run burning the whole budget unnoticed.
-    timeout-minutes: 40
+    # +10 on top of that for the ca:embed step below — normally seconds (a
+    # no-op when there's no gap), but a large backlog batch under a loaded
+    # HNSW index has been observed taking several minutes with retries.
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
 
@@ -62,4 +65,26 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      # ca:run's own inline embed step only LOGS a failure and never retries
+      # (see pipeline.ts) — this closes any item that slipped through that
+      # silent path, plus anything approved via the Review Queue since the
+      # last run. --missing-only is cheap: it's a no-op unless there's a
+      # real gap. See CLAUDE.md's "Embeddings MUST stay in sync" rule.
+      # `if: !cancelled()` — ca:run processes items one at a time (a single
+      # item's failure is already caught and skipped inside the pipeline, see
+      # its "ITEM FAILED, skipping" log), so a partial/crashed ca:run can
+      # still have committed several published items before failing. Without
+      # this, the default GitHub Actions behavior (stop at the first failed
+      # step) would skip this backfill entirely on any ca:run hiccup, leaving
+      # whatever DID get published sitting un-embedded until the next
+      # scheduled run picks it up. Runs unless the workflow itself was
+      # explicitly cancelled (not just "the previous step failed").
+      - name: Run ca:embed (backfill any item ca:run's inline embed missed)
+        if: ${{ !cancelled() }}
+        run: pnpm --filter api ca:embed
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}

@@ -10,11 +10,17 @@
  * flattened NoteBody. Stale chunks for a re-embedded note are deleted first so a
  * shrunk chapter never leaves orphan chunks behind.
  *
- *   pnpm notes:embed [--limit N] [--node <uuid>]
+ *   pnpm notes:embed [--limit N] [--node <uuid>] [--missing-only]
+ *
+ * --missing-only embeds ONLY published notes currently missing any embedding
+ * (per embed-coverage.ts's source of truth) — cheap on a normal run (usually
+ * 0), and what the nightly safety-net cron uses so re-embedding all ~280+
+ * chapters every night isn't the default cost.
  */
 import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
 import { hasChapter, type NoteBody, type StudyContent } from "@neev/shared";
+import { computeEmbedCoverage } from "../ingest/embed-coverage.js";
 
 type Locale = "hi" | "en";
 const LOCALES: Locale[] = ["hi", "en"];
@@ -102,9 +108,10 @@ export interface EmbedNotesResult {
  * silent failures with no visible stderr, verified this way in Session 28's
  * post-rollout audit) and needlessly slow (a fresh Supabase/OpenAI client per call).
  */
-export async function embedNotes(opts: { nodeId?: string; limit?: number } = {}): Promise<EmbedNotesResult> {
+export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; limit?: number } = {}): Promise<EmbedNotesResult> {
   let q = supabase().from("notes").select("id, content_i18n, study_content_i18n").eq("status", "published");
   if (opts.nodeId) q = q.eq("syllabus_node_id", opts.nodeId);
+  if (opts.noteIds) q = q.in("id", opts.noteIds); // note.id === embeddings.source_id (see embed-coverage.ts)
   const { data, error } = await q;
   if (error) throw new Error(`fetch notes: ${error.message}`);
 
@@ -159,9 +166,22 @@ async function main(): Promise<void> {
   const limit = limIdx >= 0 ? Number(args[limIdx + 1]) : undefined;
   const nodeIdx = args.indexOf("--node");
   const nodeId = nodeIdx >= 0 ? args[nodeIdx + 1] : undefined;
+  const missingOnly = args.includes("--missing-only");
 
-  console.log(`notes:embed  (provider: ${embeddings().id}, ${embeddings().dimensions}d)`);
-  const result = await embedNotes({ nodeId, limit });
+  console.log(`notes:embed  (provider: ${embeddings().id}, ${embeddings().dimensions}d)${missingOnly ? "  [missing-only]" : ""}`);
+
+  let noteIds: string[] | undefined;
+  if (missingOnly) {
+    const coverage = await computeEmbedCoverage();
+    noteIds = coverage.find((c) => c.source_type === "note")?.missing ?? [];
+    console.log(`  published notes missing an embedding: ${noteIds.length}`);
+    if (noteIds.length === 0) {
+      console.log("nothing to embed.");
+      return;
+    }
+  }
+
+  const result = await embedNotes({ nodeId, noteIds, limit });
   if (result.noteCount === 0) {
     console.log("nothing to embed (no published notes match).");
     return;

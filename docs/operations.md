@@ -232,7 +232,12 @@ equivalent GitHub Actions scheduled workflow under `.github/workflows/`:
 needs_review current-affairs MCQs so the Review Queue's Current Affairs tab
 can bulk-approve high-confidence ones instead of one-by-one review — see
 `ca/verify-mcqs.ts`'s own header comment for why this runs out-of-band from
-`ca-run` rather than inline during generation). Each workflow: checks out the repo,
+`ca-run` rather than inline during generation). Two of these also carry an
+embedding-coverage step beyond their headline job (see "Embedding coverage"
+above): `ca-run.yml` runs `ca:embed` right after `ca:run`, and
+`nightly-settle.yml` runs `ingest:embed --missing-only` + `ca:embed` +
+`notes:embed --missing-only` after `nightly:settle` — both `--missing-only` by
+default, so a normal run costs a few seconds, not a full re-embed. Each workflow: checks out the repo,
 sets up pnpm + Node 22 (with pnpm's dependency cache), runs
 `pnpm install --frozen-lockfile --filter api...` (installs only `apps/api`
 and its workspace deps — `@neev/shared` — not `apps/web`'s much heavier
@@ -275,7 +280,7 @@ CI/cron compute is unlimited too.
 | `SUPABASE_URL` | all six job workflows except `backup` (which uses `SUPABASE_DB_URL` below) |
 | `SUPABASE_SERVICE_ROLE_KEY` | all six job workflows except `backup` |
 | `ANTHROPIC_API_KEY` | `ca-run`, `qgen-topup`, `ca-verify-mcqs` |
-| `OPENAI_API_KEY` | `ca-run`, `qgen-topup` (embeddings, for dedup/RAG) |
+| `OPENAI_API_KEY` | `ca-run` (embeddings, for dedup/RAG, and its post-run `ca:embed` step), `qgen-topup`, **`nightly-settle`** (its embedding-coverage safety-net steps — no NEW secret to add, same key already used elsewhere) |
 | `QGEN_BATCH_MAX_USD` | `qgen-topup` (optional — falls back to `5` if unset) |
 | `CA_VERIFY_MCQS_MAX_USD` | `ca-verify-mcqs` (optional — falls back to `0.5` if unset) |
 | `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | `notifications` |
@@ -464,28 +469,47 @@ worth paying for headroom:
     official-answer-key PYQs, whose stored key is ground truth — those are
     surfaced but never auto-hidden. Cost-capped (`--max-usd`, default 12) and
     resumable. Both write the `question_quality` numbers the cost report reads.
-- **Embedding coverage** (RAG grounding): `pnpm --filter api ingest:embed:verify`
-  — per source_type, eligible published content vs. what's actually in the
-  `embeddings` store, flagging **missing** (eligible but un-embedded → the mentor
-  can't ground on it) and **orphan** (embedded but source deleted/un-published →
-  stale). **HARD RULE (also in CLAUDE.md Dev conventions):** any session that
-  publishes or edits question/syllabus text (a PYQ load, the CSAT/answer-key gate,
-  a `resolve`+reload, the Hindi overlay, an `is_published` flip) MUST end with
-  `pnpm ingest:embed` before it's considered done. To close a gap without a full
-  re-embed (which churns the HNSW index enough to trip `statement_timeout`), use
-  the low-churn convergent `pnpm ingest:embed --missing-only`. Clear
-  source-deleted orphans with `pnpm ingest:embed:verify --purge-orphans`. The
-  same coverage delta is printed at the end of `cost:report`, so a forgotten
-  re-embed surfaces as a metric. (Notes: `pnpm notes:embed`.)
-- **Current-affairs embedding backfill**: `pnpm ca:embed` — `ca:run` embeds each
-  item inline at publish, but that embed only LOGS a failure (no retry) and older
-  items predate the step, so published CA items silently accumulate with no
-  embedding (~40% coverage observed before this backfill existed). Run `ca:embed`
-  after every `ca:run` (and weekly as a catch-up) so new current affairs are
-  actually reachable by the mentor's doubt grounding. Default embeds only the
-  missing items (durable/convergent — safe to re-run if it's interrupted);
-  `--all` refreshes every published item after a bulk edit. Its coverage shows in
-  `ingest:embed:verify` / `cost:report` under `current_affairs`.
+- **Embedding coverage** (RAG grounding) — **now backstopped by cron, not
+  memory alone**: `ca-run.yml` runs `ca:embed` (missing-only) right after every
+  `ca:run`, and `nightly-settle.yml` runs `ingest:embed --missing-only` +
+  `ca:embed` + `notes:embed --missing-only` every night at 00:05 IST — so any
+  gap (from a Review Queue approval, a forgotten manual step, `ca:run`'s own
+  inline embed silently failing on one item) is closed within at most ~24h
+  automatically, at near-zero cost (each is a coverage check first, real work
+  only when something's actually missing — a normal night is a few seconds).
+  These `--missing-only` runs never delete anything and never touch content
+  that's already embedded, so they're cheap by construction, unlike the plain
+  `pnpm ingest:embed` below.
+  Still, **any session that publishes or edits question/syllabus text** (a PYQ
+  load, the CSAT/answer-key gate, a `resolve`+reload, the Hindi overlay, an
+  `is_published` flip) **should still end with `pnpm ingest:embed --missing-only`
+  itself** — the nightly cron bounds max staleness, it isn't a reason to leave a
+  known gap open for hours until the next run. Check with
+  `pnpm --filter api ingest:embed:verify` — per source_type, eligible published
+  content vs. what's actually in the `embeddings` store, flagging **missing**
+  (eligible but un-embedded → the mentor can't ground on it) and **orphan**
+  (embedded but source deleted/un-published → stale, `--purge-orphans` clears
+  these). The same coverage delta is printed at the end of `cost:report`.
+  **`pnpm ingest:embed` with NO flags is a different, costlier operation** —
+  it deletes and re-embeds EVERY eligible source, even unchanged ones. It's
+  needed only when already-published TEXT changes (e.g. the Hindi overlay
+  rewriting existing question stems) — missing-only can't catch that, since the
+  stale embedding still exists, just no longer matches the new text. The
+  OpenAI embedding cost itself is trivial (`text-embedding-3-small` is
+  $0.02/1M tokens — a full re-embed of the whole bank is well under $1); the
+  real cost is DB/index churn (re-inserting thousands of rows into the
+  HNSW-indexed `embeddings` table can trip Postgres `statement_timeout`
+  under sustained load — the reason `--missing-only` exists and why this
+  full-clear mode is deliberately NOT in any cron job). If you do need it,
+  prefer scoping it (`--only syllabus`/`--only question`) over a bare full run.
+- **Current-affairs embedding**: `pnpm ca:embed` (missing-only by default,
+  `--all` to force-refresh every published item after a bulk edit, `--limit N`)
+  embeds `${title}. ${summary}` per locale — byte-identical to what `ca:run`'s
+  own inline embed does at publish time, which is why this exists at all: that
+  inline step only LOGS a failure (no retry), so `ca:embed` is both the
+  post-`ca:run` catch-up (wired into `ca-run.yml`) and the general safety net
+  (wired into `nightly-settle.yml`). Its coverage shows in `ingest:embed:verify`
+  / `cost:report` under `current_affairs`.
 - **Evaluation prompt tuning**: `pnpm --filter api eval:answers --runs 3` —
   gates on ranking (good > mediocre > off-topic) and repeatability (≤5% of
   full marks). Re-run after any prompt change in `src/services/evaluation/`.

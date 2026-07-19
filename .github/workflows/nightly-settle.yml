@@ -5,7 +5,9 @@ name: Scheduled — Nightly settle
 # docs/operations.md's "Upgrading to paid" section). Runs
 # `pnpm nightly:settle` (streak settle + Perfect Day + mastery recompute +
 # mentor insights — bundled because src/daily/scheduler.ts's dev equivalent
-# already groups them; see scripts/nightly-settle.ts).
+# already groups them; see scripts/nightly-settle.ts), then a nightly
+# embedding-coverage safety net (see the step comment below) for the mentor's
+# RAG grounding.
 #
 # GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
 # normal) and are auto-disabled after 60 days of repo inactivity — any
@@ -27,7 +29,11 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 for nightly:settle itself + headroom for the embed-coverage safety
+    # net below (normally seconds/no-op; a real gap — e.g. a Review Queue
+    # approval batch, or a manual ingest session that forgot to embed — can
+    # take several minutes under a loaded HNSW index).
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -43,13 +49,63 @@ jobs:
       - name: Install dependencies (api + its workspace deps only)
         run: pnpm install --frozen-lockfile --filter api...
 
-      # No ANTHROPIC_API_KEY needed — src/services/mentor-insights.ts's own
-      # docstring: "Everything is templated from real profile signals — no
-      # LLM call, so it's free and never hallucinates." Confirmed by grepping
-      # every file this job's chain touches (streak, daily-stats, mastery,
-      # mentor-insights, learner-profile) for anthropic/openai imports: none.
+      # No ANTHROPIC_API_KEY needed for nightly:settle itself —
+      # src/services/mentor-insights.ts's own docstring: "Everything is
+      # templated from real profile signals — no LLM call, so it's free and
+      # never hallucinates." Confirmed by grepping every file this job's
+      # chain touches (streak, daily-stats, mastery, mentor-insights,
+      # learner-profile) for anthropic/openai imports: none. (OPENAI_API_KEY
+      # IS needed further down, for the embedding safety-net steps — those
+      # call the OpenAI embeddings provider, never Claude.)
       - name: Run nightly:settle
         run: pnpm --filter api nightly:settle
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # --- Embedding-coverage safety net -----------------------------------
+      # Nightly catch-all for the mentor's RAG grounding, since publishing/
+      # editing content happens through several paths this repo doesn't run
+      # on a schedule: an admin approving a batch in the Review Queue,
+      # ca:run's own inline embed silently failing on one item (its error
+      # path only logs, no retry), or a manual bulk-ingest session (PYQ load,
+      # answer-key regate, Hindi overlay) that forgot the CLAUDE.md rule to
+      # end with `ingest:embed`. Each command below is --missing-only: a
+      # cheap coverage check first, real work ONLY when something's actually
+      # missing — so a normal night costs a few seconds, not a full re-embed.
+      # See CLAUDE.md's "Embeddings MUST stay in sync with published content"
+      # rule and `pnpm ingest:embed:verify` for the on-demand version of this
+      # same check.
+      #
+      # Each of the 3 steps below carries `if: !cancelled()` DELIBERATELY:
+      # these three checks are independent of each other (a syllabus/question
+      # gap has nothing to do with a current-affairs gap) and independent of
+      # nightly:settle above. Without this, GitHub Actions' default behavior
+      # (stop at the first failed step) means ONE transient failure — say,
+      # `ingest:embed` hitting a statement_timeout — would silently skip the
+      # other two checks for the whole night, even though they're checking
+      # completely unrelated content. Runs unless the workflow itself was
+      # explicitly cancelled (not just "an earlier step failed").
+      - name: Embedding coverage safety net (questions/syllabus)
+        if: ${{ !cancelled() }}
+        run: pnpm --filter api ingest:embed --missing-only
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Embedding coverage safety net (current affairs)
+        if: ${{ !cancelled() }}
+        run: pnpm --filter api ca:embed
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Embedding coverage safety net (notes)
+        if: ${{ !cancelled() }}
+        run: pnpm --filter api notes:embed --missing-only
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
