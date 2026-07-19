@@ -137,7 +137,7 @@ export function CurrentAffairsDetailSheet({
       <SheetContent
         side="right"
         title={item ? item.title_i18n[locale] : ""}
-        className="w-full overflow-y-auto sm:w-[460px]"
+        className="w-full overflow-y-auto sm:w-[460px] lg:w-[50vw] lg:max-w-[760px] lg:p-6"
       >
         {isLoading ? (
           <div className="flex flex-col gap-3">
