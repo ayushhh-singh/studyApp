@@ -9,6 +9,7 @@ import { scoreBandColor } from "@/lib/score-band";
 import { useDailyAnswerSet } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { formatScoreValue } from "@/lib/format-score";
 
 /** Short bilingual-ish paper label; falls back to the raw code. */
 function paperLabel(code: string, t: (k: string, o?: Record<string, unknown>) => string): string {
@@ -59,7 +60,10 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
           >
             <CheckCircle2 className="size-3.5" aria-hidden />
             {item.overall_score != null && item.max_score != null
-              ? t("Answers.dailySetScore", { score: item.overall_score, total: item.max_score })
+              ? t("Answers.dailySetScore", {
+                  score: formatScoreValue(item.overall_score),
+                  total: formatScoreValue(item.max_score),
+                })
               : t("Answers.dailySetEvaluated")}
           </span>
         ) : (

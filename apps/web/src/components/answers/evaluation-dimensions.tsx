@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import type { DimensionScoreEvent } from "@neev/shared";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
+import { formatScoreValue } from "@/lib/format-score";
 
 export function EvaluationDimensions({ dimensions }: { dimensions: DimensionScoreEvent[] }) {
   const { t } = useTranslation();
@@ -18,7 +19,11 @@ export function EvaluationDimensions({ dimensions }: { dimensions: DimensionScor
           transition={{ delay: reduceMotion ? 0 : i * 0.12, duration: 0.35 }}
           className="flex flex-col items-center gap-2 rounded-xl border border-border bg-card p-4 text-center"
         >
-          <ScoreGauge value={(d.score / 10) * 100} label={`${t(DIMENSION_LABEL_KEYS[d.key])} · ${d.score}/10`} size={132} />
+          <ScoreGauge
+            value={(d.score / 10) * 100}
+            label={`${t(DIMENSION_LABEL_KEYS[d.key])} · ${formatScoreValue(d.score)}/10`}
+            size={132}
+          />
           <p className="text-xs text-muted-foreground">{d.justification}</p>
         </motion.div>
       ))}

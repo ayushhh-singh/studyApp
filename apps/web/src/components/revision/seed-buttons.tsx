@@ -31,7 +31,6 @@ export function SeedButtons() {
       <div className="flex flex-wrap justify-center gap-2">
         <Button
           variant="outline"
-          size="sm"
           onClick={() => handleSeed(seedWrong, "Revision.seedWrongAnswersResult", "Revision.seedWrongAnswersEmpty")}
           disabled={seedWrong.isPending}
         >
@@ -39,7 +38,6 @@ export function SeedButtons() {
         </Button>
         <Button
           variant="outline"
-          size="sm"
           onClick={() => handleSeed(seedNotes, "Revision.seedNoteFactsResult", "Revision.seedNoteFactsEmpty")}
           disabled={seedNotes.isPending}
         >

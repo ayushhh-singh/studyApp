@@ -11,6 +11,7 @@ import { useDrillStream } from "@/hooks/use-drill-stream";
 import { useDrillSessionStore } from "@/stores/drill-session-store";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { formatScoreValue } from "@/lib/format-score";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "MicroDrill.title" };
@@ -169,7 +170,8 @@ export function Component() {
             {finalSession.items.map((item, i) => (
               <div key={item.question_id} className="flex flex-col gap-1 rounded-lg border border-border bg-card p-3">
                 <span className="text-xs font-medium text-muted-foreground">
-                  {t("MicroDrill.itemLabel", { index: i + 1 })} · {item.score !== null ? `${item.score}/10` : "—"}
+                  {t("MicroDrill.itemLabel", { index: i + 1 })} ·{" "}
+                  {item.score !== null ? `${formatScoreValue(item.score)}/10` : "—"}
                 </span>
                 {item.justification_i18n && (
                   <p className="text-sm" lang={locale}>

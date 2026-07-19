@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { useAttempts } from "@/hooks/use-attempt";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
+import { formatScoreValue } from "@/lib/format-score";
 
 export function AttemptHistoryList() {
   const { t } = useTranslation();
@@ -56,7 +57,7 @@ export function AttemptHistoryList() {
                   {item.paper_code && <span>{item.paper_code}</span>}
                   {pct !== null && (
                     <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(pct) }}>
-                      {item.score}/{item.total}
+                      {formatScoreValue(item.score ?? 0)}/{formatScoreValue(item.total ?? 0)}
                     </span>
                   )}
                 </div>

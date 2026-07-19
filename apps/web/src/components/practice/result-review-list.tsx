@@ -10,6 +10,7 @@ import { useAddQuestionToRevision } from "@/hooks/use-add-to-revision";
 import { useExplainQuestion } from "@/hooks/use-explain-question";
 import { formatSeconds } from "@/lib/format-duration";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { formatScoreValue } from "@/lib/format-score";
 import { cn } from "@/lib/utils";
 
 function ExplanationBlock({
@@ -170,7 +171,7 @@ function ReviewItem({
           </span>
         )}
         <span className="text-muted-foreground">
-          {t("Practice.resultsMarksAwarded", { marks: item.marks_awarded })}
+          {t("Practice.resultsMarksAwarded", { marks: formatScoreValue(item.marks_awarded) })}
         </span>
         {item.time_spent_seconds !== null && (
           <span className="text-muted-foreground">{formatSeconds(item.time_spent_seconds)}</span>

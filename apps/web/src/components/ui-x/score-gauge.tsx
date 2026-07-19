@@ -62,7 +62,7 @@ export function ScoreGauge({
             key={band.from}
             d={describeArc(CX, CY, R, band.from, band.to)}
             stroke={band.color}
-            strokeOpacity={0.85}
+            strokeOpacity={value === null ? 0.25 : 0.85}
             strokeWidth={14}
             strokeLinecap="round"
             fill="none"

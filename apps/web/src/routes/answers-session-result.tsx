@@ -12,6 +12,7 @@ import { useAnswerSessionResult } from "@/hooks/use-answer-sessions";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { formatScoreValue } from "@/lib/format-score";
 
 export const handle = { titleKey: "Nav.answers" };
 
@@ -63,7 +64,7 @@ export function Component() {
           </span>
           {pct !== null && (
             <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(pct) }}>
-              {result.total_score}/{result.total_max_score}
+              {formatScoreValue(result.total_score ?? 0)}/{formatScoreValue(result.total_max_score ?? 0)}
             </span>
           )}
         </div>
@@ -91,7 +92,7 @@ export function Component() {
                       className="font-semibold tabular-nums"
                       style={{ color: scoreBandColor(((s.overall_score ?? 0) / (s.max_score || 1)) * 100) }}
                     >
-                      {s.overall_score}/{s.max_score}
+                      {formatScoreValue(s.overall_score ?? 0)}/{formatScoreValue(s.max_score ?? 0)}
                     </span>
                   )}
                 </div>

@@ -12,6 +12,7 @@ import { useSubmissions } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { formatScoreValue } from "@/lib/format-score";
 
 export function SubmissionHistoryList() {
   const { t } = useTranslation();
@@ -52,7 +53,7 @@ export function SubmissionHistoryList() {
                     <SubmissionStatusChip status={item.status} />
                     {pct !== null && (
                       <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(pct) }}>
-                        {item.overall_score}/{item.max_score}
+                        {formatScoreValue(item.overall_score ?? 0)}/{formatScoreValue(item.max_score ?? 0)}
                       </span>
                     )}
                   </div>

@@ -4,6 +4,7 @@ import { AlertTriangle, Clock, ListChecks, X } from "lucide-react";
 import type { Locale, TestDetail } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
+import { formatScoreValue } from "@/lib/format-score";
 
 export function TestInstructions({
   test,
@@ -50,7 +51,9 @@ export function TestInstructions({
               {t("Practice.minutes", { count: test.duration_minutes })}
             </span>
           )}
-          {test.total_marks != null && <span>{t("Practice.marks", { count: test.total_marks })}</span>}
+          {test.total_marks != null && (
+            <span>{t("Practice.marks", { count: Number(formatScoreValue(test.total_marks)) })}</span>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 rounded-xl border border-border bg-card p-5 shadow-sm">
@@ -64,7 +67,7 @@ export function TestInstructions({
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
                 {test.marking_scheme.note ??
                   t("Practice.instructionNegativeMarking", {
-                    pct: Math.abs(test.marking_scheme.negative_marking * 100),
+                    pct: Number(formatScoreValue(Math.abs(test.marking_scheme.negative_marking * 100))),
                   })}
               </li>
             ) : (
