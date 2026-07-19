@@ -1,7 +1,22 @@
 /**
  * Daily-quiz assembler. `buildDailyQuiz` composes ONE daily_quiz test for a
- * given IST date + user, mixing four slices (generated-on-weak-topics, spaced
- * PYQs, this week's current-affairs MCQs, random coverage) per DAILY_QUIZ_CONFIG.
+ * given IST date, mixing four slices (generated-on-weak-topics, spaced PYQs,
+ * this week's current-affairs MCQs, random coverage) per DAILY_QUIZ_CONFIG.
+ *
+ * This is a single SHARED test, not a per-user one — `services/scoreboard.ts`
+ * ranks every user's attempt on it against each other via
+ * `daily_quiz_board_entries`, which only makes sense if everyone took the
+ * same set of questions. So "weak topics"/"recently seen" below are
+ * platform-wide signals (aggregated across all graded attempts / all past
+ * daily quizzes), never any one individual's — there is no single "the user"
+ * for a quiz everyone takes. (This function previously took a `userId` and
+ * personalized to it; `daily/run.ts`'s nightly job called it once per
+ * onboarded user, so each night's build silently overwrote the previous
+ * user's build for the very same `tests` row until only the last-processed
+ * user's personalization survived — wasteful and, since the "generated"
+ * slice draws from a small pool filtered to one user's own weak nodes, a real
+ * cause of the same handful of questions recurring night after night for
+ * everyone. See docs/OUTSTANDING.md.)
  *
  * Every pool query goes through the centralized question-visibility helper
  * (never an inline is_published filter): the generated/pyq/random slices use
@@ -18,8 +33,7 @@
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
-import { getGradedAnswers } from "../lib/graded-answers.js";
-import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import {
   DAILY_QUIZ_CONFIG,
   SLICE_FILL_ORDER,
@@ -60,11 +74,23 @@ function shuffle<T>(items: T[]): T[] {
 
 const MCQ_COLUMNS = "id, marks";
 
-/** Leaf topics the user answers below `threshold` accuracy on, weakest first. */
-async function weakNodeIds(userId: string, threshold: number): Promise<string[]> {
-  const graded = await getGradedAnswers(userId);
+/**
+ * Leaf topics the platform as a whole answers below `threshold` accuracy on,
+ * weakest first — aggregated across every user's graded attempts, not any
+ * one individual's (see the module doc comment: this is a shared quiz).
+ * Paginated (selectAll) since attempt_answers is unbounded and PostgREST caps
+ * a single select at 1000 rows.
+ */
+async function globalWeakNodeIds(threshold: number): Promise<string[]> {
+  const rows = await selectAll<{ is_correct: boolean | null; questions: { syllabus_node_id: string | null } | null }>(
+    () =>
+      supabase()
+        .from("attempt_answers")
+        .select("is_correct, questions!inner(syllabus_node_id)")
+        .not("is_correct", "is", null),
+  );
   const byNode = new Map<string, { correct: number; total: number }>();
-  for (const row of graded) {
+  for (const row of rows) {
     const nodeId = row.questions?.syllabus_node_id;
     if (!nodeId) continue;
     const b = byNode.get(nodeId) ?? { correct: 0, total: 0 };
@@ -78,22 +104,25 @@ async function weakNodeIds(userId: string, threshold: number): Promise<string[]>
     .map(([id]) => id);
 }
 
-/** Question ids the user has answered within `days` — the spaced-reuse skip set. */
-async function recentlySeenQuestionIds(userId: string, days: number): Promise<Set<string>> {
-  const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
-  const { data: attempts, error: aErr } = await supabase()
-    .from("attempts")
+/**
+ * Question ids used in a daily quiz within the last `days` days — the
+ * spaced-reuse skip set. Platform-wide (which past daily_quiz test rows
+ * included which questions), not any one user's answer history, since this
+ * is what actually determines whether a question would look "repeated" to
+ * everyone taking the shared quiz.
+ */
+async function recentlyUsedInDailyQuiz(days: number): Promise<Set<string>> {
+  const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const { data: tests, error: tErr } = await supabase()
+    .from("tests")
     .select("id")
-    .eq("user_id", userId)
-    .gte("started_at", cutoff);
-  if (aErr) throw new Error(`recent attempts lookup failed: ${aErr.message}`);
-  const attemptIds = (attempts ?? []).map((r) => r.id as string);
-  if (attemptIds.length === 0) return new Set();
-  const { data, error } = await supabase()
-    .from("attempt_answers")
-    .select("question_id")
-    .in("attempt_id", attemptIds);
-  if (error) throw new Error(`recent answers lookup failed: ${error.message}`);
+    .eq("kind", "daily_quiz")
+    .gte("scheduled_date", cutoff);
+  if (tErr) throw new Error(`recent daily quizzes lookup failed: ${tErr.message}`);
+  const testIds = (tests ?? []).map((r) => r.id as string);
+  if (testIds.length === 0) return new Set();
+  const { data, error } = await supabase().from("test_questions").select("question_id").in("test_id", testIds);
+  if (error) throw new Error(`recent daily quiz questions lookup failed: ${error.message}`);
   return new Set((data ?? []).map((r) => r.question_id as string));
 }
 
@@ -236,7 +265,6 @@ async function setMembership(testId: string, items: PoolItem[]): Promise<PoolIte
 }
 
 export interface BuildDailyQuizOptions {
-  userId: string;
   date: string;
   size?: number;
   config?: DailyQuizConfig;
@@ -247,10 +275,10 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   const cfg = opts.config ?? DAILY_QUIZ_CONFIG;
   const log = opts.log ?? (() => {});
   const size = clampSize(opts.size ?? cfg.defaultSize, cfg);
-  const { userId, date } = opts;
+  const { date } = opts;
 
-  const weak = await weakNodeIds(userId, cfg.weakAccuracyThreshold);
-  const seen = await recentlySeenQuestionIds(userId, cfg.pyqRecencyDays);
+  const weak = await globalWeakNodeIds(cfg.weakAccuracyThreshold);
+  const seen = await recentlyUsedInDailyQuiz(cfg.pyqRecencyDays);
   const [gen, pyq, ca, rand] = await Promise.all([
     generatedPool(weak),
     pyqPool(seen),
@@ -319,7 +347,6 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
     meta: {
       source: "daily_quiz",
       date,
-      user_id: userId,
       marking_scheme: cfg.markingScheme,
       slice_breakdown: breakdown,
       shortfalls,

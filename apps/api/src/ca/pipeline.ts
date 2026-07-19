@@ -338,7 +338,7 @@ export async function runPipeline(
 
       // --- 2. Hard gate -----------------------------------------------------
       if (bestScore < RELEVANCE_GATE) {
-        await supabase()
+        const { error: archiveError } = await supabase()
           .from("current_affairs_items")
           .insert({
             date: dateStr,
@@ -355,6 +355,24 @@ export async function runPipeline(
             source_id: source.id,
             source_urls: [link],
           });
+        if (archiveError) {
+          // 23505 = unique_violation on content_hash. loadRecentHashes() only
+          // looks back 60 days by the ITEM's own article date, but the
+          // content_hash unique index has no such time bound — a source that
+          // bumps an old article's pubDate (a republish/edit) makes it look
+          // "new" (passes the freshness gate on its fresh pubDate) even
+          // though its permanent content_hash row is already there from
+          // months ago. Not a real duplicate LLM call to worry about below
+          // (we already paid for triage before finding this out) — just
+          // don't miscount it as a fresh archive.
+          if (archiveError.code === "23505") {
+            result.skippedDuplicate++;
+            log(`[${source.id}] already known (republished) — "${title.slice(0, 60)}"`);
+          } else {
+            log(`[${source.id}] ARCHIVE INSERT FAILED for "${title.slice(0, 60)}": ${archiveError.message}`);
+          }
+          continue;
+        }
         result.archived++;
         log(
           `[${source.id}] ARCHIVED (P${triage.prelims_relevance}/M${triage.mains_relevance}) "${title.slice(0, 64)}" — ${triage.prelims_reason} | ${triage.mains_reason}`,
@@ -415,7 +433,15 @@ export async function runPipeline(
         .select("id")
         .single();
       if (insertError) {
-        log(`[${source.id}] INSERT FAILED for "${title.slice(0, 60)}": ${insertError.message}`);
+        // See the archive-path comment above: 23505 here is the same
+        // republished-article/content_hash situation, just discovered after
+        // we'd already paid for the (more expensive) enrich call too.
+        if (insertError.code === "23505") {
+          result.skippedDuplicate++;
+          log(`[${source.id}] already known (republished) — "${title.slice(0, 60)}"`);
+        } else {
+          log(`[${source.id}] INSERT FAILED for "${title.slice(0, 60)}": ${insertError.message}`);
+        }
         continue;
       }
 

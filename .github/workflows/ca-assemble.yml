@@ -1,0 +1,55 @@
+name: Scheduled — Current affairs weekly assembly
+
+# Builds (or returns the existing) IST-week's two current-affairs sittings —
+# the CA Prelims Quiz and CA Mains Set shown on the Current Affairs page's
+# "This week's practice" card (components/current-affairs/quiz-button.tsx).
+# `pnpm ca:assemble` (apps/api/src/ca/assemble-run.ts) is pure DB reads/writes
+# over already-approved CA questions — no LLM calls, so this is cheap and fast
+# unlike ca-run.yml.
+#
+# This did not previously exist: only the dev-only node-cron scheduler
+# (src/ca/scheduler.ts, alive only while a local `pnpm dev` API process is
+# running) ever called assembleWeeklySets() on a schedule, so in production
+# the weekly sets were never assembled at all unless someone ran
+# `pnpm ca:assemble` by hand — which is exactly why the CA page could show
+# "No prelims quiz yet this week" indefinitely even once there was approved
+# supply. See ca-run.yml for the GitHub Actions schedule caveats (best-effort
+# timing, auto-disabled after 60 days of repo inactivity).
+on:
+  schedule:
+    # Monday 00:30 UTC = Monday 06:00 IST — after the weekend's items are
+    # triaged and (ideally) reviewed, matching the dev scheduler's cadence.
+    - cron: "30 0 * * 1"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ca-assemble
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run ca:assemble
+        run: pnpm --filter api ca:assemble
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}

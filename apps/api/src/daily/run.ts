@@ -23,23 +23,35 @@ export interface DailyBuildOptions {
 export async function runDailyBuild(opts: DailyBuildOptions = {}): Promise<void> {
   const date = opts.date ?? istToday();
   const log = opts.log ?? ((m: string) => logger.info(`daily: ${m}`));
-  const userIds = opts.userId ? [opts.userId] : await listAllUserIds();
 
+  // The daily quiz is ONE shared test — services/scoreboard.ts ranks every
+  // user's attempt on it against everyone else's via
+  // daily_quiz_board_entries, which only makes sense if they all took the
+  // same set of questions. Build it once, not once per user: it used to run
+  // inside the per-user loop below, so every user's build silently
+  // overwrote the previous user's membership for the same `tests` row —
+  // only whichever user happened to be processed last that night actually
+  // determined what everyone saw (and, since the "generated" slice used to
+  // draw from a pool filtered to one user's own weak nodes, a real cause of
+  // the same handful of questions recurring night after night for
+  // everyone). See daily/quiz.ts's doc comment.
+  log(`building daily quiz for ${date}`);
+  const quiz = await buildDailyQuiz({ date, size: opts.size, log });
+  if (!quiz) log("daily quiz: skipped (no questions available)");
+
+  const userIds = opts.userId ? [opts.userId] : await listAllUserIds();
   if (userIds.length === 0) {
-    log("no onboarded users — nothing to build");
+    log("no onboarded users — skipping the per-user daily answer set check");
     return;
   }
 
   for (const userId of userIds) {
-    log(`building daily content for ${date} (user ${userId})`);
-    const quiz = await buildDailyQuiz({ userId, date, size: opts.size, log });
-    if (!quiz) log("daily quiz: skipped (no questions available)");
-
-    // The answer set is computed deterministically on demand (no storage) —
-    // verify and log today's composition so the run surfaces any supply gap.
+    // The answer set (unlike the quiz) is genuinely per-user and computed
+    // deterministically on demand (no storage) — verify and log today's
+    // composition so the run surfaces any supply gap.
     const answerSet = await getDailyAnswerSet(userId, date);
     log(
-      `daily answer set: ${answerSet.items.length} question(s) — ` +
+      `daily answer set (user ${userId}): ${answerSet.items.length} question(s) — ` +
         answerSet.items.map((i) => `${i.paper_code}(${i.kind})`).join(" "),
     );
   }

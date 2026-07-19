@@ -83,8 +83,7 @@ async function pickRun(userId: string, pool: PoolQuestion[]): Promise<PoolQuesti
   // GS-I" pool alone is 500+ questions, and adding `.in("question_id", ...)`
   // with that many UUIDs blows past a practical request-size limit and the
   // fetch itself fails outright (not even a graceful DB error). Matches the
-  // shape of daily/quiz.ts's recentlySeenQuestionIds, which filters the same
-  // way for the same reason.
+  // shape daily/quiz.ts's pool-membership filters use, for the same reason.
   const poolIdSet = new Set(pool.map((q) => q.id));
   const cutoff = new Date(Date.now() - RECENCY_DAYS * 24 * 3600 * 1000).toISOString();
 

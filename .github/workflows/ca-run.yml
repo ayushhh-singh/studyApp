@@ -31,7 +31,16 @@ concurrency:
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Was 15 — too tight in practice. Every candidate item (kept AND
+    # archived) costs a sequential triage LLM call, and every kept item adds
+    # an enrich call plus MCQ/mains-question generation; with max-per-source
+    # x 6 sources that can be 100+ sequential Claude/OpenAI round trips in
+    # one run. GitHub was hard-cancelling the job mid-run at 15m (confirmed
+    # live: a run showed "cancelled ... in 15m 15s"), meaning any sources
+    # later in CA_SOURCES than wherever the clock ran out were silently
+    # starved every single run. 40 gives real headroom without risking a
+    # genuinely-stuck run burning the whole budget unnoticed.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 

@@ -96,7 +96,7 @@ export function NoteArticle({
   return (
     <article className="min-w-0 flex-1">
       {/* mobile section chips */}
-      <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+      <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1 lg:hidden">
         {visible.map((s) => (
           <a
             key={s.key}

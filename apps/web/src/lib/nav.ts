@@ -28,7 +28,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: NavItem[] = [
   { id: "dashboard", to: "dashboard", labelKey: "Nav.dashboard", icon: LayoutDashboard, mobilePrimary: true },
-  { id: "learn", to: "learn", labelKey: "Nav.learn", icon: BookOpen },
+  { id: "learn", to: "learn", labelKey: "Nav.learn", icon: BookOpen, mobilePrimary: true },
   {
     id: "answers",
     to: "answers",
@@ -42,14 +42,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },
   { id: "my-notes", to: "my-notes", labelKey: "Nav.myNotes", icon: StickyNote },
-  // mobilePrimary (not "learn"): Revision is one of the dashboard's own
-  // 4 daily-habit checklist items (Daily Quiz / Write Answers / Clear
-  // Revision / Continue Reading) — burying it in the mobile "More" sheet
-  // while Learn (a browse/reference activity) held a primary tab was a
-  // mismatch between what the app treats as core daily habit and what's
-  // one thumb-tap away. Desktop sidebar is unaffected (visibleNav() below
-  // ignores this flag and always shows every item).
-  { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain, mobilePrimary: true },
+  { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain },
   { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
   // The tour's permanent discovery surface — deliberately a real nav item
   // (not buried in Settings) so it's trivially findable on demand at any time.

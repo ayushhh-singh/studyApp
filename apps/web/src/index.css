@@ -162,6 +162,18 @@
   letter-spacing: -0.02em;
 }
 
+/* For horizontally-scrollable pill/tab strips: keeps the strip
+   swipe/drag-scrollable but hides the native scrollbar track, which reads as
+   a thick, out-of-place bar under a row of rounded pills rather than a
+   normal page scrollbar. */
+@utility scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

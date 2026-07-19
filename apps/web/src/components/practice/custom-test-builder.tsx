@@ -107,7 +107,12 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
         </select>
       </label>
 
-      <fieldset className="flex flex-col gap-1.5 text-sm font-medium" disabled={!paperCode}>
+      {/* min-w-0: <fieldset> has a browser-default intrinsic min-width (min-content)
+          that flexbox's normal shrink/stretch rules don't override on their own —
+          without this it refuses to shrink below its longest topic label's natural
+          width, pushing the whole card past the viewport at 390px regardless of the
+          child span's own min-w-0/truncate below. */}
+      <fieldset className="flex min-w-0 flex-col gap-1.5 text-sm font-medium" disabled={!paperCode}>
         <legend className="mb-0.5">
           {t("Practice.customTopics")}
           {selectedNodes.length > 0 && (

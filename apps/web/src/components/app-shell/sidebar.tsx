@@ -15,7 +15,13 @@ export function Sidebar() {
   return (
     <nav
       aria-label={t("Nav.sectionsLabel")}
-      className="hidden w-60 shrink-0 flex-col gap-1 border-r border-sidebar-border bg-sidebar p-3 md:flex"
+      // sticky top-0 h-svh: the app shell (app-shell.tsx) has no height cap of
+      // its own, so the page/body is what scrolls — without this the sidebar
+      // was just a plain flex child that scrolled away with the rest of the
+      // page instead of staying pinned like TopBar. overflow-y-auto is a
+      // safety valve if the nav item list itself (plus admin-only items) ever
+      // exceeds a short viewport's height.
+      className="hidden w-60 shrink-0 flex-col gap-1 overflow-y-auto border-r border-sidebar-border bg-sidebar p-3 md:sticky md:top-0 md:flex md:h-svh"
     >
       <div className="flex items-center gap-2 px-2 py-3">
         {/* BrandMark always renders "Neev" in Latin — matches landing/auth/

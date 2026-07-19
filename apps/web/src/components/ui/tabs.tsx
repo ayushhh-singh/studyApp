@@ -11,7 +11,10 @@ function TabsList({ className, ...props }: ComponentProps<typeof TabsPrimitive.L
         // overflow-x-auto: with many tabs (e.g. Practice's 5) the whitespace-nowrap
         // triggers can't shrink below their text width, so let the list scroll
         // horizontally instead of overflowing the page at 390px. No-op for 2-3 tabs.
-        "inline-flex h-10 w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1 text-muted-foreground",
+        // scrollbar-hide: the native scrollbar this creates renders as a thick bar
+        // under a row of rounded pills — still scrollable (swipe/drag/shift+wheel),
+        // just without the visible track.
+        "inline-flex h-10 w-full items-center gap-1 overflow-x-auto scrollbar-hide rounded-lg bg-muted p-1 text-muted-foreground",
         className,
       )}
       {...props}

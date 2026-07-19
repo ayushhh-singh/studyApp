@@ -117,7 +117,7 @@ export function Component() {
 
       <SectionCard title={t("CurrentAffairs.latest")}>
         {/* Exam-lens tabs */}
-        <div className="flex w-full items-center gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+        <div className="flex w-full items-center gap-1 overflow-x-auto scrollbar-hide rounded-lg bg-muted p-1">
           {LENSES.map((l) => (
             <button
               key={l}

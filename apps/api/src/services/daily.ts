@@ -67,10 +67,12 @@ export async function listDailyQuizzes(
 
 /**
  * Ensure today's daily quiz exists, building it on demand if the scheduled job
- * hasn't produced it yet (dev self-heal). Returns the test id, or null if there
+ * hasn't produced it yet (self-heal). It's one shared test for every user
+ * (see daily/quiz.ts's doc comment — the scoreboard ranks everyone against
+ * it), so this doesn't take a userId. Returns the test id, or null if there
  * were no questions to build from at all.
  */
-export async function ensureTodayQuiz(userId: string): Promise<string | null> {
+export async function ensureTodayQuiz(): Promise<string | null> {
   const today = istToday();
   const { data: existing, error } = await supabase()
     .from("tests")
@@ -81,6 +83,6 @@ export async function ensureTodayQuiz(userId: string): Promise<string | null> {
   if (error) throw new HttpError(500, `daily quiz lookup failed: ${error.message}`);
   if (existing) return existing.id as string;
 
-  const built = await buildDailyQuiz({ userId, date: today });
+  const built = await buildDailyQuiz({ date: today });
   return built?.test_id ?? null;
 }

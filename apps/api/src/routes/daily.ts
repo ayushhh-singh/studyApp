@@ -4,7 +4,6 @@ import { dailyQuizArchiveResponseSchema, testDetailResponseSchema } from "@neev/
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
-import { currentUserId } from "../lib/user-context.js";
 import { examCutoffsResponseSchema } from "@neev/shared";
 import { DAILY_ARCHIVE_PAGE_SIZE, ensureTodayQuiz, listDailyQuizzes } from "../services/daily.js";
 import { getTestDetail } from "../services/tests.js";
@@ -42,7 +41,7 @@ dailyRouter.get(
 dailyRouter.post(
   "/daily-quiz/today",
   asyncHandler(async (_req, res) => {
-    const testId = await ensureTodayQuiz(currentUserId());
+    const testId = await ensureTodayQuiz();
     if (!testId) {
       // No questions available to build from — a valid, graceful empty result.
       res.json({ data: null, error: null });
