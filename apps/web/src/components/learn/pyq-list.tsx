@@ -119,6 +119,7 @@ export function PyqList({
   onPageChange,
   exam,
   highlightId,
+  pyqIds,
 }: {
   nodeId: string;
   locale: Locale;
@@ -132,13 +133,22 @@ export function PyqList({
    * server-side), so rather than build fragile page-jump logic, the cited
    * question is fetched independently and always shown first, ring-highlighted
    * and auto-scrolled to — regardless of which page of the normal list it'd
-   * otherwise fall on, or whether it's on the current page at all.
+   * otherwise fall on, or whether it's on the current page at all. Unused in
+   * `pyqIds`-scoped mode, since the highlighted question is already part of
+   * that (small, unpaginated) set.
    */
   highlightId?: string;
+  /**
+   * Scope the list to exactly these ids (a study-chapter section's cited
+   * PYQs, from `?ids=`) instead of the whole node's paginated bank —
+   * unpaginated, no "referenced question" duplicate section.
+   */
+  pyqIds?: string[];
 }) {
   const { t } = useTranslation();
-  const { data, isLoading } = useQuestions({ node: nodeId, page, exam });
-  const { data: highlightedQuestion } = useQuestion(highlightId);
+  const scoped = !!pyqIds && pyqIds.length > 0;
+  const { data, isLoading } = useQuestions(scoped ? { ids: pyqIds } : { node: nodeId, page, exam });
+  const { data: highlightedQuestion } = useQuestion(scoped ? undefined : highlightId);
 
   if (isLoading || !data) {
     return (
@@ -165,8 +175,9 @@ export function PyqList({
   return (
     <div className="flex flex-col gap-4">
       {/* Referenced question — shown once, above the normal list, when it
-          isn't already on the currently-displayed page. */}
-      {highlightedQuestion && !onCurrentPage && (
+          isn't already on the currently-displayed page. Not needed in scoped
+          mode: the highlighted question is already inside `data.items`. */}
+      {!scoped && highlightedQuestion && !onCurrentPage && (
         <div className="flex flex-col gap-2">
           <h3 className="text-xs font-semibold tracking-wide text-primary uppercase">
             {t("Learn.referencedQuestion")}
@@ -193,7 +204,7 @@ export function PyqList({
           </ul>
         </div>
       ))}
-      {data.pagination.total_pages > 1 && (
+      {!scoped && data.pagination.total_pages > 1 && (
         <div className="flex items-center justify-between gap-2">
           <Button
             type="button"

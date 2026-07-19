@@ -28,7 +28,21 @@ export function MermaidDiagram({ source, caption }: { source: string; caption?: 
           fontFamily: "inherit",
         });
         const id = `mmd-${counter++}`;
-        const { svg } = await mermaid.render(id, source.trim());
+        if (!ref.current) return;
+        // Passing our own container is load-bearing, not cosmetic: with no
+        // container, mermaid.render() builds (and, on a parse error, LEAVES
+        // BEHIND) its scratch DOM directly under document.body — outside
+        // React's tree entirely. On a genuine parse failure mermaid doesn't
+        // reject; it draws its own "Syntax error in text" bomb-icon SVG into
+        // that scratch node and only THEN throws, so the orphaned error
+        // graphic never gets cleaned up and sits, permanently visible, at
+        // the bottom of the page — surviving even a client-side route
+        // change to a totally different chapter, since React never owned
+        // that node. Rendering into our own ref means the same failure still
+        // draws that graphic, but INSIDE a node React unmounts the instant
+        // `error` flips true (the ternary below swaps it out for the <pre>
+        // fallback), so nothing is ever left orphaned in document.body.
+        const { svg } = await mermaid.render(id, source.trim(), ref.current);
         if (!cancelled && ref.current) ref.current.innerHTML = svg;
       } catch {
         if (!cancelled) setError(true);

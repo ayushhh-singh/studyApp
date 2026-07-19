@@ -40,6 +40,7 @@ export const queryKeys = {
     year?: number;
     exam?: ExamCode;
     page?: number;
+    ids?: string;
   }) =>
     [
       "questions",
@@ -49,6 +50,7 @@ export const queryKeys = {
       filters?.year ?? "all",
       filters?.exam ?? "all",
       filters?.page ?? 1,
+      filters?.ids ?? "none",
     ] as const,
   questionsAll: (filters?: { type?: QuestionType; paper?: string; node?: string; year?: number; exam?: ExamCode }) =>
     [

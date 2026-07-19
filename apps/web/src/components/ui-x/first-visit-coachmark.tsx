@@ -1,8 +1,11 @@
 import { useState, type RefObject } from "react";
+import { useLocation } from "react-router";
 import type { TourSectionKey } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { SpotlightFrame, useSpotlightRect } from "@/components/ui-x/spotlight";
+import { useLocale } from "@/hooks/use-locale";
 import { useTourState, useUpdateTourState } from "@/hooks/use-tour";
+import { GUIDED_TOUR_STOPS, guidedTourStopPath } from "@/lib/guided-tour";
 
 const MAX_MESSAGE_CHARS = 140;
 
@@ -35,6 +38,8 @@ export function FirstVisitCoachmark({
 }: FirstVisitCoachmarkProps) {
   const tourQuery = useTourState();
   const updateTour = useUpdateTourState();
+  const locale = useLocale();
+  const location = useLocation();
   const [dismissedLocally, setDismissedLocally] = useState(false);
 
   if (import.meta.env.DEV && message.length > MAX_MESSAGE_CHARS) {
@@ -42,7 +47,16 @@ export function FirstVisitCoachmark({
   }
 
   const alreadySeen = tourQuery.data?.tour_state.sections_seen[sectionKey] === true;
-  const shouldShow = !!tourQuery.data && !alreadySeen && !dismissedLocally;
+  // The guided tab tour (GuidedTourCoachmark, mounted globally) takes
+  // priority over a local sub-feature coachmark on the same page — both are
+  // full-viewport spotlight overlays, and showing two at once would either
+  // visually collide or (worse) let one's full-screen click-capturing div
+  // sit on top of the other's dismiss button, making it look unresponsive.
+  const guidedTour = tourQuery.data?.tour_state.guided_tour;
+  const guidedTourOnThisRoute =
+    guidedTour?.status === "in_progress" &&
+    location.pathname === guidedTourStopPath(GUIDED_TOUR_STOPS[guidedTour.step_index ?? 0], locale);
+  const shouldShow = !!tourQuery.data && !alreadySeen && !dismissedLocally && !guidedTourOnThisRoute;
 
   const rect = useSpotlightRect(() => targetRef.current, shouldShow);
 

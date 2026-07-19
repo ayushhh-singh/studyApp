@@ -22,11 +22,13 @@ import type {
   ChapterSection,
   Locale,
   NoteDetail,
+  Question,
 } from "@neev/shared";
 import { ChapterMarkdown } from "@/components/ui-x/chapter-markdown";
 import { MermaidDiagram } from "@/components/ui-x/mermaid-diagram";
 import { Button } from "@/components/ui/button";
 import { useAddNoteBlock } from "@/hooks/use-notes";
+import { useQuestions } from "@/hooks/use-questions";
 import { useRecordEvent } from "@/hooks/use-record-event";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { cn } from "@/lib/utils";
@@ -103,14 +105,45 @@ function markdownSnippet(md: string): string {
   return plain.length > 240 ? `${plain.slice(0, 240).trimEnd()}…` : plain;
 }
 
-/** Small deep-link chip into the node's PYQs tab (bank stems aren't loaded in the chapter). */
-function PyqChip({ to, label }: { to: string; label: string }) {
+/** Every pyq id a section references, from its own list plus any pyq_inline boxes — deduped. */
+function sectionAllPyqIds(s: ChapterSection): string[] {
+  const ids = new Set<string>(s.pyq_ids);
+  for (const b of s.boxes) {
+    if (b.kind === "pyq_inline") b.pyq_ids.forEach((id) => ids.add(id));
+  }
+  return [...ids];
+}
+
+/** A short, distinguishing chip label — year + a truncated stem preview, not a bare "PYQ". */
+function pyqChipLabel(question: Question | undefined, locale: Locale, fallback: string): string {
+  if (!question) return fallback;
+  const stem = (question.stem_i18n[locale] ?? "").replace(/\s+/g, " ").trim();
+  if (!stem) return fallback;
+  const preview = stem.length > 46 ? `${stem.slice(0, 46).trimEnd()}…` : stem;
+  return question.year ? `${question.year} · ${preview}` : preview;
+}
+
+/** Deep-link chip into this section's scoped PYQ view, highlighting the one it represents. */
+function PyqChip({
+  sectionPyqLink,
+  id,
+  question,
+  locale,
+  fallback,
+}: {
+  sectionPyqLink: string;
+  id: string;
+  question: Question | undefined;
+  locale: Locale;
+  fallback: string;
+}) {
   return (
     <Link
-      to={to}
-      className="inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/[0.06] px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
+      to={`${sectionPyqLink}&qid=${id}`}
+      className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-primary/25 bg-primary/[0.06] px-2.5 py-1 text-xs font-medium text-primary transition-colors hover:bg-primary/15"
     >
-      <BookMarked className="size-3.5" aria-hidden /> {label}
+      <BookMarked className="size-3.5 shrink-0" aria-hidden />
+      <span className="truncate">{pyqChipLabel(question, locale, fallback)}</span>
     </Link>
   );
 }
@@ -119,12 +152,16 @@ function ChapterBoxView({
   box,
   locale,
   sources,
-  pyqLink,
+  sectionPyqLink,
+  questionsById,
+  pyqFallback,
 }: {
   box: ChapterBox;
   locale: Locale;
   sources: NoteDetail["sources"];
-  pyqLink: string;
+  sectionPyqLink: string;
+  questionsById: Map<string, Question>;
+  pyqFallback: string;
 }) {
   const c = COPY[locale];
   const meta = BOX_META[box.kind];
@@ -137,7 +174,14 @@ function ChapterBoxView({
       {box.kind === "pyq_inline" ? (
         <div className="flex flex-wrap gap-2">
           {box.pyq_ids.map((id) => (
-            <PyqChip key={id} to={pyqLink} label={c.pyq} />
+            <PyqChip
+              key={id}
+              sectionPyqLink={sectionPyqLink}
+              id={id}
+              question={questionsById.get(id)}
+              locale={locale}
+              fallback={pyqFallback}
+            />
           ))}
         </div>
       ) : (
@@ -174,8 +218,22 @@ export function ChapterView({
   const [activeId, setActiveId] = useState<string | null>(sections[0]?.id ?? null);
   const firedRef = useRef<Set<string>>(new Set());
 
-  const pyqLink = `/${locale}/learn/${paperCode}/${nodeId}?tab=pyqs`;
   const caLink = `/${locale}/learn/${paperCode}/${nodeId}?tab=ca`;
+
+  // Every PYQ this chapter cites, fetched ONCE in a single request (not one
+  // per chip) so chip labels can show a real distinguishing preview instead
+  // of a generic "PYQ" repeated for every question.
+  const allPyqIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const s of sections) sectionAllPyqIds(s).forEach((id) => ids.add(id));
+    return [...ids];
+  }, [sections]);
+  const { data: pyqData } = useQuestions(allPyqIds.length > 0 ? { ids: allPyqIds } : { ids: [] });
+  const questionsById = useMemo(() => {
+    const map = new Map<string, Question>();
+    for (const q of pyqData?.items ?? []) map.set(q.id, q);
+    return map;
+  }, [pyqData]);
 
   // TOC built from the sections themselves so anchor ids always align.
   const toc = useMemo(
@@ -302,7 +360,7 @@ export function ChapterView({
 
         <article className="min-w-0 flex-1">
           {/* mobile section chips */}
-          <div className="mb-4 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+          <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1 lg:hidden">
             {toc.map((s) => (
               <a
                 key={s.id}
@@ -317,6 +375,21 @@ export function ChapterView({
           <div className="flex flex-col gap-9">
             {sections.map((s, index) => {
               const sectionAdded = added.has(s.id);
+              // All of this section's own cited PYQs (own list + any
+              // pyq_inline boxes), so both the "Practice" button and every
+              // chip on this section deep-link into a view scoped to just
+              // these questions — not the whole node's paginated bank.
+              const sectionIds = sectionAllPyqIds(s);
+              const sectionPyqLink =
+                sectionIds.length > 0
+                  ? `/${locale}/learn/${paperCode}/${nodeId}?tab=pyqs&ids=${sectionIds.join(",")}`
+                  : "";
+              // Ids already shown via a pyq_inline box shouldn't render again
+              // as a second, unlabeled chip row right below it.
+              const boxPyqIds = new Set(
+                s.boxes.flatMap((b) => (b.kind === "pyq_inline" ? b.pyq_ids : [])),
+              );
+              const looseIds = s.pyq_ids.filter((id) => !boxPyqIds.has(id));
               return (
                 <section key={s.id} id={`chapter-${s.id}`} className="scroll-mt-20">
                   <h2 className="mb-3 text-lg font-semibold text-foreground" lang={locale}>
@@ -356,26 +429,41 @@ export function ChapterView({
                           box={box}
                           locale={locale}
                           sources={note.sources}
-                          pyqLink={pyqLink}
+                          sectionPyqLink={sectionPyqLink}
+                          questionsById={questionsById}
+                          pyqFallback={c.pyq}
                         />
                       ))}
                     </div>
                   )}
 
-                  {/* Inline PYQ chips for section-level references */}
-                  {s.pyq_ids.length > 0 && (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {s.pyq_ids.map((id) => (
-                        <PyqChip key={id} to={pyqLink} label={c.pyq} />
-                      ))}
+                  {/* Inline PYQ chips for section-level references not
+                      already shown in a pyq_inline box above. */}
+                  {looseIds.length > 0 && (
+                    <div className="mt-3 flex flex-col gap-1.5">
+                      <p className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-primary">
+                        <BookMarked className="size-3.5" aria-hidden /> {c.boxLabels.pyq_inline}
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {looseIds.map((id) => (
+                          <PyqChip
+                            key={id}
+                            sectionPyqLink={sectionPyqLink}
+                            id={id}
+                            question={questionsById.get(id)}
+                            locale={locale}
+                            fallback={c.pyq}
+                          />
+                        ))}
+                      </div>
                     </div>
                   )}
 
                   {/* Section action row */}
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {s.pyq_ids.length > 0 && (
+                    {sectionIds.length > 0 && (
                       <Button asChild size="sm" variant="outline">
-                        <Link to={pyqLink}>
+                        <Link to={sectionPyqLink}>
                           <ListChecks className="size-4" aria-hidden /> {c.practicePyqs}
                         </Link>
                       </Button>

@@ -16,9 +16,34 @@ function istDayNumber(): number {
 const QUESTION_COLUMNS =
   "id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, correct_option_key, explanation_i18n, difficulty, word_limit, marks";
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function listQuestions(
   filters: QuestionsQuery,
 ): Promise<{ items: Question[]; total: number }> {
+  // `ids` is a standalone scoped fetch (a chapter section's own cited PYQs) —
+  // it overrides every other filter/pagination rather than composing with
+  // them, since the caller already knows exactly which rows it wants.
+  if (filters.ids) {
+    // Non-UUID entries are silently dropped rather than left to blow up the
+    // query with a Postgres "invalid input syntax for type uuid" 500 — a
+    // malformed id here is a client mistake, not something worth erroring on.
+    const idList = [
+      ...new Set(filters.ids.split(",").map((s) => s.trim()).filter((s) => UUID_RE.test(s))),
+    ].slice(0, 50);
+    if (idList.length === 0) return { items: [], total: 0 };
+    const { data, error } = await supabase()
+      .from("questions")
+      .select(QUESTION_COLUMNS)
+      .in("id", idList)
+      .or(questionVisibilityOrFilter("catalog"))
+      .order("year", { ascending: false })
+      .order("id", { ascending: true });
+    if (error) throw new HttpError(500, `questions query failed: ${error.message}`);
+    const items = (data ?? []) as unknown as Question[];
+    return { items, total: items.length };
+  }
+
   let query = supabase()
     .from("questions")
     .select(QUESTION_COLUMNS, { count: "exact" })

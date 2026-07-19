@@ -39,6 +39,10 @@ export function Component() {
   const page = Number(searchParams.get("page") ?? "1") || 1;
   // A mentor citation deep link into a specific PYQ — see pyq-list.tsx.
   const qid = searchParams.get("qid") ?? undefined;
+  // A study-chapter section's "these specific PYQs" deep link — see
+  // chapter-view.tsx and pyq-list.tsx's `pyqIds`-scoped mode.
+  const idsParam = searchParams.get("ids");
+  const pyqIds = idsParam ? idsParam.split(",").filter(Boolean) : undefined;
   const tabParam = searchParams.get("tab");
   const tab = tabParam === "pyqs" || tabParam === "ca" || tabParam === "discussion" ? tabParam : "notes";
 
@@ -219,7 +223,28 @@ export function Component() {
 
         <TabsContent value="pyqs">
           <SectionCard title={t("Learn.pyqsTitle")}>
-            <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} highlightId={qid} />
+            <div className="flex flex-col gap-3">
+              {pyqIds && pyqIds.length > 0 && (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/20 bg-primary/[0.04] px-3 py-2 text-sm">
+                  <span className="text-primary">{t("Learn.scopedPyqsNotice", { count: pyqIds.length })}</span>
+                  <Link
+                    to={`/${locale}/learn/${paperCode}/${nodeId}?tab=pyqs`}
+                    className="font-medium text-primary underline underline-offset-2"
+                  >
+                    {t("Learn.viewAllPyqs")}
+                  </Link>
+                </div>
+              )}
+              <PyqList
+                nodeId={nodeId}
+                locale={locale}
+                page={page}
+                onPageChange={setPage}
+                exam={exam}
+                highlightId={qid}
+                pyqIds={pyqIds}
+              />
+            </div>
           </SectionCard>
         </TabsContent>
 

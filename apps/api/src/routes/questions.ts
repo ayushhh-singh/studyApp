@@ -14,20 +14,18 @@ questionsRouter.get(
   asyncHandler(async (req, res) => {
     const query = parse(questionsQuerySchema, req.query);
     const { items, total } = await listQuestions(query);
-    res.json(
-      questionsResponseSchema.parse({
-        data: {
-          items,
-          pagination: {
-            page: query.page,
-            page_size: QUESTIONS_PAGE_SIZE,
-            total,
-            total_pages: Math.max(1, Math.ceil(total / QUESTIONS_PAGE_SIZE)),
-          },
-        },
-        error: null,
-      }),
-    );
+    // The `ids` mode returns everything in one unpaginated response, so its
+    // pagination metadata always describes "one page holding it all" rather
+    // than dividing by the normal fixed page size.
+    const pagination = query.ids
+      ? { page: 1, page_size: Math.max(total, 1), total, total_pages: 1 }
+      : {
+          page: query.page,
+          page_size: QUESTIONS_PAGE_SIZE,
+          total,
+          total_pages: Math.max(1, Math.ceil(total / QUESTIONS_PAGE_SIZE)),
+        };
+    res.json(questionsResponseSchema.parse({ data: { items, pagination }, error: null }));
   }),
 );
 

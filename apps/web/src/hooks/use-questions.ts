@@ -16,10 +16,25 @@ export function useQuestions(filters?: {
   year?: number;
   exam?: ExamCode;
   page?: number;
+  /** Fetch exactly these question ids (unpaginated) instead of a filtered/paged list. */
+  ids?: string[];
 }) {
+  const idsParam = filters?.ids?.length ? filters.ids.join(",") : undefined;
   return useQuery({
-    queryKey: queryKeys.questions(filters),
-    queryFn: () => api.get("/api/v1/questions", questionsResponseSchema, filters),
+    queryKey: queryKeys.questions({ ...filters, ids: idsParam }),
+    queryFn: () =>
+      api.get("/api/v1/questions", questionsResponseSchema, {
+        type: filters?.type,
+        paper: filters?.paper,
+        node: filters?.node,
+        year: filters?.year,
+        exam: filters?.exam,
+        page: filters?.page,
+        ids: idsParam,
+      }),
+    // When `ids` is passed but empty, there's nothing to fetch — don't fall
+    // through to an unfiltered "everything" query.
+    enabled: !filters?.ids || filters.ids.length > 0,
     staleTime: 5 * 60_000,
   });
 }

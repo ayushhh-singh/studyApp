@@ -42,14 +42,31 @@ export function useSpotlightRect(getTarget: () => HTMLElement | null, active: bo
     // track a smooth-scrolling target frame-by-frame. A short-lived
     // MutationObserver also catches a target that mounts a beat after this
     // effect runs (e.g. a route whose anchor renders behind a data fetch).
-    window.addEventListener("resize", measure);
-    window.addEventListener("scroll", measure, true);
-    const observer = new MutationObserver(measure);
+    // rAF-coalesced rather than firing `measure` synchronously per event: a
+    // page with continuously-mutating content (e.g. a streaming SSE answer
+    // re-rendering its markdown on every delta) can otherwise fire dozens of
+    // synchronous re-measures per second, repositioning the tooltip out from
+    // under the user's cursor between when they aim and when they click —
+    // confirmed as the likely cause of an "I can't click the dismiss button"
+    // report on the mentor teach-mode coachmark, which sits right next to a
+    // live-streaming answer.
+    let rafId: number | null = null;
+    function scheduleMeasure() {
+      if (rafId !== null) return;
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
+        measure();
+      });
+    }
+    window.addEventListener("resize", scheduleMeasure);
+    window.addEventListener("scroll", scheduleMeasure, true);
+    const observer = new MutationObserver(scheduleMeasure);
     observer.observe(document.body, { childList: true, subtree: true });
     return () => {
-      window.removeEventListener("resize", measure);
-      window.removeEventListener("scroll", measure, true);
+      window.removeEventListener("resize", scheduleMeasure);
+      window.removeEventListener("scroll", scheduleMeasure, true);
       observer.disconnect();
+      if (rafId !== null) cancelAnimationFrame(rafId);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
@@ -91,8 +108,19 @@ export function SpotlightFrame({ rect, placement = "bottom", ariaLabel, children
 
   return createPortal(
     <AnimatePresence>
+      {/*
+        pointer-events-none on the full-viewport wrapper is load-bearing: a
+        previous version left this (and the ring below) capturing clicks
+        across the ENTIRE page, not just the visibly-dimmed area — confirmed
+        live (Playwright) as the actual cause of an "I can't click a totally
+        unrelated button elsewhere on the page while a coachmark is up"
+        report, not just "can't click the coachmark's own dismiss button".
+        Only the tooltip card re-enables pointer-events, and the ring stays
+        inert so a user can still click straight through to the real
+        highlighted element without the coachmark trapping them.
+      */}
       <motion.div
-        className="fixed inset-0 z-[60]"
+        className="pointer-events-none fixed inset-0 z-[60]"
         role="dialog"
         aria-label={ariaLabel}
         initial={reduceMotion ? undefined : { opacity: 0 }}
@@ -113,7 +141,7 @@ export function SpotlightFrame({ rect, placement = "bottom", ariaLabel, children
           }}
         />
         <div
-          className="absolute rounded-xl border border-border bg-card p-3 shadow-lg"
+          className="pointer-events-auto absolute rounded-xl border border-border bg-card p-3 shadow-lg"
           style={{
             width: SPOTLIGHT_TOOLTIP_MAX_WIDTH,
             left: tooltipLeft,

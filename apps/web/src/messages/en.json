@@ -175,7 +175,10 @@
     "mastery_gold": "Gold",
     "mastery_exam_ready": "Exam-ready",
     "addToRevisionFailed": "Couldn't add to revision. Please try again.",
-    "referencedQuestion": "Referenced question"
+    "referencedQuestion": "Referenced question",
+    "scopedPyqsNotice_one": "Showing {{count}} PYQ cited in this section.",
+    "scopedPyqsNotice_other": "Showing {{count}} PYQs cited in this section.",
+    "viewAllPyqs": "View all PYQs for this topic"
   },
   "Practice": {
     "title": "Practice",

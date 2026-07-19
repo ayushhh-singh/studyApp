@@ -53,6 +53,13 @@ export const questionsQuerySchema = z.object({
   /** Filter by source exam. Omit for "All exams"; pass "uppsc" for "UPPSC only". */
   exam: examCodeSchema.optional(),
   page: z.coerce.number().int().min(1).default(1),
+  /**
+   * Comma-separated question ids — fetches exactly this set (unpaginated,
+   * capped at 50), ignoring every other filter/page. Used to scope a study
+   * chapter section's "these specific PYQs" links to just their own cited
+   * questions instead of the whole node's paginated bank.
+   */
+  ids: z.string().optional(),
 });
 export type QuestionsQuery = z.infer<typeof questionsQuerySchema>;
 
