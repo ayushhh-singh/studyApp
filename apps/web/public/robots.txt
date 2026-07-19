@@ -3,4 +3,4 @@ Allow: /en
 Allow: /hi
 Disallow: /
 
-Sitemap: https://neev.app/sitemap.xml
+Sitemap: https://neevstudy.com/sitemap.xml

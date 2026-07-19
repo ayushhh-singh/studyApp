@@ -3,12 +3,12 @@ import { Helmet } from "react-helmet-async";
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@/lib/locale";
 
 /**
- * No production domain exists yet (per CLAUDE.md) — VITE_SITE_URL lets a real
- * deploy override this; every dev/preview build falls back to a placeholder
- * so canonical/OG URLs are at least well-formed rather than pointing at
- * localhost in a shared build artifact.
+ * VITE_SITE_URL lets a real deploy override this; every dev/preview build
+ * without it set falls back to the production domain so canonical/OG URLs
+ * are at least well-formed rather than pointing at localhost in a shared
+ * build artifact.
  */
-const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://neev.app").replace(/\/$/, "");
+const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://neevstudy.com").replace(/\/$/, "");
 
 /**
  * Only meant for genuinely public, unauthenticated routes (landing, pricing)

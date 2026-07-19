@@ -52,7 +52,7 @@ const port = process.env.PORT ?? 4000;
 // ALLOWED_ORIGIN_SUFFIXES additionally allows-by-suffix so a different
 // origin on every build isn't locked out without hand-maintaining an exact
 // list. For Cloudflare Pages this MUST be scoped to your own project, e.g.
-// ".<project-name>.pages.dev" — a bare ".pages.dev" would trust every
+// ".<project-name>.pages.dev" — a bare ".pages.dev" would trust every  // portable-paths-allow: placeholder example, not a real domain
 // Cloudflare Pages project anyone on the internet creates, since project
 // names aren't namespaced to your account. (".vercel.app" has the same
 // caveat if still on the paid Vercel path.) localhost:3000 is only

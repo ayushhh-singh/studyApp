@@ -27,15 +27,34 @@
   Don't "fix" this back to `node dist/index.js` without first giving
   `@neev/shared` an actual build step.
 
-## Portability guard — no hardcoded machine-specific paths
+## Portability guard — no hardcoded machine-specific paths or stale domains
 
 **What:** `pnpm check:paths` (`scripts/check-portable-paths.mjs`) scans every
 tracked file and fails if it finds a hardcoded, machine-specific absolute
 filesystem path — `/Users/<name>/…`, `/home/<name>/…`, `C:\Users\…`, or a `…/Desktop/Code/…` scratch prefix. <!-- portable-paths-allow: this line intentionally shows the example patterns the guard forbids -->
-It runs in CI (`.github/workflows/ci.yml`,
-first step, before install so it fails fast) on every PR and push to `main`.
-(A line that intentionally shows an example pattern while documenting the rule
-can suppress the guard by including the token `portable-paths-allow`.)
+It also fails on a hardcoded reference to a known-stale production domain
+(`prayasup.app`, `neev.app`) or any Cloudflare Pages auto-domain <!-- portable-paths-allow: documents the forbidden example domains -->
+(`*.pages.dev`) — see "Domain checks" below. Both checks run in CI <!-- portable-paths-allow: documents the forbidden example domains -->
+(`.github/workflows/ci.yml`, first step, before install so it fails fast) on
+every PR and push to `main`. (A line that intentionally shows an example
+pattern while documenting the rule can suppress the guard by including the
+token `portable-paths-allow`.)
+
+**Domain checks (added after the Domain-portability sweep session):** the
+original brand rename swept the repo for `prayasup` case-insensitive, which
+does NOT match `prayas.pages.dev` as a substring (missing the "up") — a <!-- portable-paths-allow: documents the forbidden example domains -->
+hardcoded reference to a retired Cloudflare Pages preview domain survived
+undetected until a later sweep found it. The production domain has since
+moved twice (`prayasup.app` → `neev.app` → `neevstudy.com`, see CLAUDE.md's <!-- portable-paths-allow: documents the forbidden example domains -->
+Branding note), so rather than fix this one string, the guard now checks
+every *known*-stale domain by name, plus the whole `*.pages.dev` shape <!-- portable-paths-allow: documents the forbidden example domains -->
+generically (a bare Cloudflare Pages auto-domain should never be a literal in
+source — it belongs in `ALLOWED_ORIGINS`/`ALLOWED_ORIGIN_SUFFIXES`/
+`VITE_SITE_URL` env config instead, so a future domain change is a config
+edit, not a repo-wide grep). `CLAUDE.md` and `docs/OUTSTANDING.md` are
+exempted from the domain checks only (still fully scanned for paths) — both
+are permanent changelogs that are supposed to keep old domain names as a
+factual record of what was renamed when.
 
 **Why it's a standing check, not a one-off:** a hardcoded absolute path only
 resolves on the one machine it was typed on. It silently breaks the instant the
@@ -122,7 +141,7 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
   Cloudflare's own asset-server directory-index behavior, not something
   `_redirects` controls, and it means `PageSeo`'s canonical/hreflang tags
   (`apps/web/src/components/seo/page-seo.tsx`), which declare the
-  **no-trailing-slash** form (e.g. `https://neev.app/en`), point at a URL
+  **no-trailing-slash** form (e.g. `https://neevstudy.com/en`), point at a URL
   that itself redirects to a different URL. Most crawlers handle a
   redirect-to-canonical chain fine, but it's not byte-identical — a real,
   minor SEO wrinkle, not fixed here (fixing it means either always emitting a
@@ -178,8 +197,8 @@ Ran `pnpm --filter web build && pnpm --filter web prerender`, then
   `_SECRET`/`_WEBHOOK_SECRET`, `VAPID_PUBLIC_KEY`/`_PRIVATE_KEY`/`_SUBJECT`,
   optionally `SENTRY_DSN`, plus `ALLOWED_ORIGINS` (your Pages domain) and,
   if you want Cloudflare Pages' per-branch preview deploys to also work
-  against this API, `ALLOWED_ORIGIN_SUFFIXES=.<project-name>.pages.dev` —
-  **scoped to your own project name, NOT the bare `.pages.dev`**, since
+  against this API, `ALLOWED_ORIGIN_SUFFIXES=.<project-name>.pages.dev` — <!-- portable-paths-allow: placeholder example, not a real domain -->
+  **scoped to your own project name, NOT the bare `.pages.dev`**, since <!-- portable-paths-allow: placeholder example, not a real domain -->
   Cloudflare Pages project names aren't namespaced per account and a bare
   suffix would trust every Pages project anyone else creates too (see
   `apps/api/src/index.ts`'s CORS setup, unchanged from the paid path). Set

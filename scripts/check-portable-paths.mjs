@@ -1,6 +1,7 @@
 /**
  * Portability guard — fails if any tracked file contains a hardcoded,
- * machine-specific absolute filesystem path.
+ * machine-specific absolute filesystem path, OR a hardcoded, known-stale
+ * production domain / Cloudflare Pages auto-domain.
  *
  * WHY THIS EXISTS
  * ---------------
@@ -23,9 +24,23 @@
  *   - apps/api/src/ingest/_shared.ts  → ROOT / CONTENT_RAW / PARSED_DIR
  *   - scripts/fetch-content.ts        → ROOT
  *
+ * DOMAIN CHECKS (added after the Domain-portability sweep session)
+ * ------------------------------------------------------------------
+ * A prior rename swept the repo for "prayasup" case-insensitive, which does
+ * NOT match "prayas.pages.dev" as a substring (missing the "up") — a
+ * hardcoded reference to a retired Cloudflare Pages preview domain survived
+ * undetected. The domain has since moved again (`prayasup.app` → `neev.app`
+ * → `neevstudy.com`, see CLAUDE.md's Branding note), so this guard checks
+ * every KNOWN-stale domain by name, plus the whole `*.pages.dev` shape
+ * generically — a bare Cloudflare Pages auto-domain should never be a
+ * literal in source; it belongs in `ALLOWED_ORIGINS`/`VITE_SITE_URL` env
+ * config instead. A genuinely explanatory doc example (e.g.
+ * "<project-name>.pages.dev") gets the same `portable-paths-allow` escape
+ * hatch as a path example — see below.
+ *
  * USAGE
  *   node scripts/check-portable-paths.mjs      (also: pnpm check:paths)
- *   Exit 0 = clean, exit 1 = at least one offending path found (prints them).
+ *   Exit 0 = clean, exit 1 = at least one offending path/domain found (prints them).
  *
  * This script is intentionally dependency-free (plain node, no build step) so
  * it runs identically in CI, a pre-push hook, and on any dev machine.
@@ -37,11 +52,12 @@ import { join } from "node:path";
 
 const ROOT = fileURLToPath(new URL("..", import.meta.url));
 
-// Offending patterns. Each is anchored tightly enough to avoid false positives
-// on ordinary code — e.g. a template literal like `Options:\n${x}` must NOT
-// trip the Windows-drive rule, so that rule anchors on real top-level Windows
-// folder names, never a bare `:\`.
-const PATTERNS = [
+// Offending path patterns. Each is anchored tightly enough to avoid false
+// positives on ordinary code — e.g. a template literal like `Options:\n${x}`
+// must NOT trip the Windows-drive rule, so that rule anchors on real
+// top-level Windows folder names, never a bare `:\`. Scanned in every
+// tracked file (no per-file exemptions beyond SKIP_FILES/SKIP_EXT below).
+const PATH_PATTERNS = [
   {
     re: /\/Users\/[A-Za-z0-9._-]+/,
     label: "macOS home path (/Users/<name>/…)",
@@ -60,6 +76,33 @@ const PATTERNS = [
   },
 ];
 
+// Offending domain patterns — a hardcoded reference to a retired production
+// domain or a Cloudflare Pages auto-domain. NOT scanned in HISTORICAL_DOCS
+// (below): CLAUDE.md's session log and docs/OUTSTANDING.md are explicit,
+// permanent changelogs that are supposed to keep old domain names as a
+// factual record (see CLAUDE.md's own "Deliberately left as-is
+// (historical/technical, not live branding)" note) — every other tracked
+// file must be current.
+const DOMAIN_PATTERNS = [
+  {
+    re: /\bprayasup\.app\b/i,
+    label: "stale domain (prayasup.app — superseded, see CLAUDE.md Branding)",
+  },
+  {
+    re: /\bneev\.app\b/i,
+    label: "stale domain (neev.app — superseded by neevstudy.com)",
+  },
+  {
+    re: /\bprayas\.pages\.dev\b/i,
+    label: "stale domain (prayas.pages.dev — retired Cloudflare Pages preview domain)",
+  },
+  {
+    re: /(?:[a-z0-9-]+\.)*pages\.dev\b/i,
+    label:
+      "Cloudflare Pages auto-domain (*.pages.dev) — read from ALLOWED_ORIGINS/ALLOWED_ORIGIN_SUFFIXES config, don't hardcode a project's preview domain",
+  },
+];
+
 // Files that legitimately may not be scanned:
 //  - this guard itself (its source contains the patterns, as regex literals)
 //  - the lockfile (generated, huge, only ever registry URLs)
@@ -67,6 +110,10 @@ const SKIP_FILES = new Set([
   "scripts/check-portable-paths.mjs",
   "pnpm-lock.yaml",
 ]);
+
+// Historical changelogs exempted from DOMAIN_PATTERNS only (still fully
+// scanned against PATH_PATTERNS) — see the DOMAIN_PATTERNS comment above.
+const HISTORICAL_DOCS = new Set(["CLAUDE.md", "docs/OUTSTANDING.md"]);
 
 // Binary / non-source extensions we never scan.
 const SKIP_EXT =
@@ -96,13 +143,17 @@ for (const file of trackedFiles()) {
   // Skip anything that looks binary (has a NUL byte).
   if (text.includes("\0")) continue;
 
+  const patterns = HISTORICAL_DOCS.has(file)
+    ? PATH_PATTERNS
+    : [...PATH_PATTERNS, ...DOMAIN_PATTERNS];
+
   const lines = text.split("\n");
   for (let i = 0; i < lines.length; i++) {
     // Escape hatch for docs/comments that legitimately SHOW an example
     // pattern while explaining the rule (a linter can't reference its own
     // forbidden tokens). Add `portable-paths-allow` on the line to suppress.
     if (lines[i].includes("portable-paths-allow")) continue;
-    for (const { re, label } of PATTERNS) {
+    for (const { re, label } of patterns) {
       const m = re.exec(lines[i]);
       if (m) {
         offenders.push({ file, line: i + 1, label, match: m[0], text: lines[i].trim() });
@@ -113,10 +164,12 @@ for (const file of trackedFiles()) {
 
 if (offenders.length > 0) {
   console.error(
-    `\n✖ Portability guard: found ${offenders.length} hardcoded machine-specific path(s).\n` +
-      `  These only work on one machine and break in CI / Docker / a fresh clone.\n` +
-      `  Resolve paths from import.meta.url (or reuse ROOT in ingest/_shared.ts /\n` +
-      `  scripts/fetch-content.ts) instead. See docs/operations.md → "Portability guard".\n`,
+    `\n✖ Portability guard: found ${offenders.length} hardcoded machine-specific path(s)/stale domain(s).\n` +
+      `  Paths only work on one machine and break in CI / Docker / a fresh clone —\n` +
+      `  resolve them from import.meta.url (or reuse ROOT in ingest/_shared.ts /\n` +
+      `  scripts/fetch-content.ts) instead. Domains must come from config\n` +
+      `  (ALLOWED_ORIGINS / VITE_SITE_URL), never a literal, so the next domain\n` +
+      `  change doesn't repeat this. See docs/operations.md → "Portability guard".\n`,
   );
   for (const o of offenders) {
     console.error(`  ${o.file}:${o.line}  [${o.label}]`);
@@ -127,7 +180,7 @@ if (offenders.length > 0) {
 }
 
 console.log(
-  `✓ Portability guard: no hardcoded machine-specific paths in ${
+  `✓ Portability guard: no hardcoded machine-specific paths or stale domains in ${
     trackedFiles().length
   } tracked files.`,
 );

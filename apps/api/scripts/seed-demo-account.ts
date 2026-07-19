@@ -120,7 +120,7 @@ interface Args {
 }
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { email: "demo@neev.app", reset: false };
+  const args: Args = { email: "demo@neevstudy.com", reset: false };
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--email") args.email = argv[++i] ?? args.email;
     else if (argv[i] === "--reset") args.reset = true;
