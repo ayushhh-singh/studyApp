@@ -66,12 +66,15 @@ export function Component() {
                 </button>
               ))}
             </div>
-            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-              <Link to={authHref}>{t("Landing.signIn")}</Link>
-            </Button>
-            <Button asChild size="sm">
-              <Link to={primaryHref}>{session ? t("Landing.goToApp") : t("Landing.startFree")}</Link>
-            </Button>
+            {session ? (
+              <Button asChild size="sm">
+                <Link to={primaryHref}>{t("Landing.goToApp")}</Link>
+              </Button>
+            ) : (
+              <Button asChild size="sm">
+                <Link to={authHref}>{t("Landing.signIn")}</Link>
+              </Button>
+            )}
           </div>
         </div>
       </header>
