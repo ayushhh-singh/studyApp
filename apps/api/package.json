@@ -30,6 +30,7 @@
     "audit:consistency": "tsx --env-file-if-exists=.env src/audit/consistency-run.ts",
     "audit:resolve": "tsx --env-file-if-exists=.env src/audit/resolve-run.ts",
     "ca:run": "tsx --env-file-if-exists=.env src/ca/run.ts",
+    "ca:embed": "tsx --env-file-if-exists=.env src/ca/embed-backfill.ts",
     "ca:compile": "tsx --env-file-if-exists=.env src/ca/compile.ts",
     "daily:build": "tsx --env-file-if-exists=.env src/daily/run.ts",
     "mocks:build": "tsx --env-file-if-exists=.env src/mocks/build.ts",

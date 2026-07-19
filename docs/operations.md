@@ -476,8 +476,16 @@ worth paying for headroom:
   the low-churn convergent `pnpm ingest:embed --missing-only`. Clear
   source-deleted orphans with `pnpm ingest:embed:verify --purge-orphans`. The
   same coverage delta is printed at the end of `cost:report`, so a forgotten
-  re-embed surfaces as a metric. (Notes: `pnpm notes:embed`; CA: re-embeds on
-  the next `ca:run`.)
+  re-embed surfaces as a metric. (Notes: `pnpm notes:embed`.)
+- **Current-affairs embedding backfill**: `pnpm ca:embed` — `ca:run` embeds each
+  item inline at publish, but that embed only LOGS a failure (no retry) and older
+  items predate the step, so published CA items silently accumulate with no
+  embedding (~40% coverage observed before this backfill existed). Run `ca:embed`
+  after every `ca:run` (and weekly as a catch-up) so new current affairs are
+  actually reachable by the mentor's doubt grounding. Default embeds only the
+  missing items (durable/convergent — safe to re-run if it's interrupted);
+  `--all` refreshes every published item after a bulk edit. Its coverage shows in
+  `ingest:embed:verify` / `cost:report` under `current_affairs`.
 - **Evaluation prompt tuning**: `pnpm --filter api eval:answers --runs 3` —
   gates on ranking (good > mediocre > off-topic) and repeatability (≤5% of
   full marks). Re-run after any prompt change in `src/services/evaluation/`.

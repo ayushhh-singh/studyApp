@@ -119,7 +119,11 @@ analytics, RAG doubt-solving chatbot.
   eligible vs embedded, missing/orphan; `--purge-orphans` clears source-deleted
   orphans a re-embed can't reach). The same coverage delta is surfaced in
   `pnpm cost:report` so a forgotten re-embed shows up as a visible metric, not a
-  silent gap. Notes have their own `pnpm notes:embed`; CA re-embeds on `ca:run`.
+  silent gap. Notes have their own `pnpm notes:embed`; current-affairs have
+  `pnpm ca:embed` (a backfill/safety-net — `ca:run` embeds each item inline at
+  publish, but its embed error path only logs+continues, so run `ca:embed` after
+  `ca:run`/weekly to catch any item whose inline embed silently failed). Every
+  embed writer shares one statement-timeout-hardened upsert (`lib/embed-upsert.ts`).
 - API: Express routes under /api/v1/*, zod-validated inputs, {data,error}
   envelope. SSE endpoints under /api/v1/stream/*.
 - Routing: app pages under /:locale/*; route modules lazy; anything shareable

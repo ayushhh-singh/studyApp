@@ -27,7 +27,7 @@ export const REMEDY: Record<EmbedSourceType, string> = {
   syllabus: "pnpm ingest:embed",
   question: "pnpm ingest:embed",
   note: "pnpm notes:embed",
-  current_affairs: "re-embeds on the next `pnpm ca:run`",
+  current_affairs: "pnpm ca:embed",
 };
 
 /** Types `ingest:embed` itself manages — the set `ingest:embed:verify --strict` gates on. */
