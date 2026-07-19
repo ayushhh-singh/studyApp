@@ -225,6 +225,26 @@ async function setupProfile(userId: string): Promise<void> {
     })
     .eq("id", userId);
   if (error) throw new Error(`profile setup failed: ${error.message}`);
+
+  // Model a real PAID Pro subscriber (not the signup trial): an active
+  // subscription with started_at set. Without this, the demo's plan='pro' +
+  // future expiry + has_used_trial (from the signup trigger) would be read as a
+  // 365-day *trial* by entitlements.getTrialContext, capping it at 2 evals/day.
+  // --reset wipes subscriptions first, so this never duplicates.
+  const now = new Date().toISOString();
+  const { error: subErr } = await supabase()
+    .from("subscriptions")
+    .insert({
+      user_id: userId,
+      plan_code: "pro_yearly",
+      status: "active",
+      amount_paise: 249900,
+      currency: "INR",
+      current_period_start: now,
+      current_period_end: planExpiresAt,
+      started_at: now,
+    });
+  if (subErr) throw new Error(`demo subscription setup failed: ${subErr.message}`);
 }
 
 // ---------------------------------------------------------------------------

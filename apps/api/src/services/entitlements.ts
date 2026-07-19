@@ -59,21 +59,26 @@ export function paywall(feature: string, message: string): HttpError {
 interface PlanRow {
   plan: UserPlan;
   plan_expires_at: string | null;
+  has_used_trial: boolean;
 }
 
 /**
  * The user's effective plan. If they're marked 'pro' but plan_expires_at has
  * passed, we treat them as free AND flip the row (best-effort) so the downgrade
- * is durable without a cron.
+ * is durable without a cron. `hasUsedTrial` distinguishes a signup-trial grant
+ * from a manual/admin Pro grant (see getTrialContext).
  */
-export async function getPlanFor(userId: string): Promise<{ plan: UserPlan; expiresAt: string | null }> {
+export async function getPlanFor(
+  userId: string,
+): Promise<{ plan: UserPlan; expiresAt: string | null; hasUsedTrial: boolean }> {
   const { data, error } = await supabase()
     .from("users_profile")
-    .select("plan, plan_expires_at")
+    .select("plan, plan_expires_at, has_used_trial")
     .eq("id", userId)
     .maybeSingle();
   if (error) throw new HttpError(500, `plan lookup failed: ${error.message}`);
-  const row = (data as PlanRow | null) ?? { plan: "free", plan_expires_at: null };
+  const row = (data as PlanRow | null) ?? { plan: "free", plan_expires_at: null, has_used_trial: false };
+  const hasUsedTrial = row.has_used_trial;
 
   if (row.plan === "pro" && row.plan_expires_at && new Date(row.plan_expires_at) <= new Date()) {
     // Lapsed — downgrade lazily.
@@ -83,21 +88,28 @@ export async function getPlanFor(userId: string): Promise<{ plan: UserPlan; expi
       .eq("id", userId)
       .eq("plan", "pro");
     if (dErr) logger.warn({ err: dErr, userId }, "lazy plan downgrade failed");
-    return { plan: "free", expiresAt: row.plan_expires_at };
+    return { plan: "free", expiresAt: row.plan_expires_at, hasUsedTrial };
   }
-  return { plan: row.plan, expiresAt: row.plan_expires_at };
+  return { plan: row.plan, expiresAt: row.plan_expires_at, hasUsedTrial };
 }
 
 // ---------------------------------------------------------------------------
 // Trial detection — a trial user and a paid Pro user both have plan='pro'.
 // ---------------------------------------------------------------------------
-/** True iff the user has an ACTIVE (paid, webhook-created) subscription row. */
-async function hasActiveSubscription(userId: string): Promise<boolean> {
+/**
+ * True iff the user has EVER had a paid (activated) subscription. `started_at`
+ * is set only by the webhook's activate()/that a renewal descends from — never
+ * on a 'created' (checkout opened, unpaid) or 'failed' row. This is what tells
+ * a paid Pro apart from a trial, and crucially it stays true for a paid user
+ * who CANCELLED auto-renew but is still inside their period (status='cancelled',
+ * plan still 'pro') — they must keep full Pro limits, not drop to the trial cap.
+ */
+async function hasPaidSubscription(userId: string): Promise<boolean> {
   const { count, error } = await supabase()
     .from("subscriptions")
     .select("id", { count: "exact", head: true })
     .eq("user_id", userId)
-    .eq("status", "active");
+    .not("started_at", "is", null);
   if (error) throw new HttpError(500, `subscription check failed: ${error.message}`);
   return (count ?? 0) > 0;
 }
@@ -105,19 +117,23 @@ async function hasActiveSubscription(userId: string): Promise<boolean> {
 export interface TrialContext {
   plan: UserPlan;
   expiresAt: string | null;
-  /** On the 7-day Pro trial: plan='pro' + an expiry + NO active paid subscription. */
+  /** On the 7-day signup trial: plan='pro', an expiry, the trial flag, and never paid. */
   isOnTrial: boolean;
 }
 
 /**
- * The user's plan plus whether their Pro is a trial vs a paid subscription. A
- * lapsed trial has already been downgraded to 'free' by getPlanFor (same lazy
- * path as a lapsed paid Pro), so it never resolves as a trial here. The
- * subscription check runs only when plan='pro' (short-circuited for free).
+ * The user's plan plus whether their Pro is a signup trial vs a paid/manual Pro.
+ * isOnTrial requires ALL of: effective plan 'pro', an expiry, has_used_trial
+ * (so a manual/admin Pro grant — which leaves the flag false — is never treated
+ * as a trial), and no paid subscription ever (so a cancelled-but-in-period paid
+ * user, and a converted trial→paid user, both keep full Pro limits). A lapsed
+ * trial is already 'free' from getPlanFor, so it never resolves as a trial. The
+ * subscription check runs only when the first three hold (short-circuited).
  */
 export async function getTrialContext(userId: string): Promise<TrialContext> {
-  const { plan, expiresAt } = await getPlanFor(userId);
-  const isOnTrial = plan === "pro" && !!expiresAt && !(await hasActiveSubscription(userId));
+  const { plan, expiresAt, hasUsedTrial } = await getPlanFor(userId);
+  const looksLikeTrial = plan === "pro" && !!expiresAt && hasUsedTrial;
+  const isOnTrial = looksLikeTrial && !(await hasPaidSubscription(userId));
   return { plan, expiresAt, isOnTrial };
 }
 
