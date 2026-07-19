@@ -105,6 +105,21 @@ analytics, RAG doubt-solving chatbot.
   once to fold pre-auth dev data into your real account.
 - Bilingual content: JSONB {"hi","en"} columns named *_i18n. Publish gate =
   both languages present.
+- **Embeddings MUST stay in sync with published content — HARD RULE.** Any
+  session that PUBLISHES or EDITS question/syllabus text (a PYQ ingest/load, the
+  CSAT/answer-key gate `ingest:regate`, a `resolve`+reload, the Hindi overlay,
+  any `is_published` flip) MUST end with `pnpm ingest:embed` before it's
+  "done" — otherwise the new/edited rows are RAG-invisible (the mentor can't
+  ground on them) and stale chunks linger. `ingest:embed` clears each
+  re-embedded source's old chunks first (no shrink-orphans) and has a
+  `--missing-only` low-churn mode (`pnpm ingest:embed --missing-only`, inserts
+  only, durable/convergent on re-run — prefer it when only closing a coverage
+  gap, since a full re-embed churns the HNSW index hard enough to trip Postgres
+  `statement_timeout`). VERIFY with `pnpm ingest:embed:verify` (per source_type:
+  eligible vs embedded, missing/orphan; `--purge-orphans` clears source-deleted
+  orphans a re-embed can't reach). The same coverage delta is surfaced in
+  `pnpm cost:report` so a forgotten re-embed shows up as a visible metric, not a
+  silent gap. Notes have their own `pnpm notes:embed`; CA re-embeds on `ca:run`.
 - API: Express routes under /api/v1/*, zod-validated inputs, {data,error}
   envelope. SSE endpoints under /api/v1/stream/*.
 - Routing: app pages under /:locale/*; route modules lazy; anything shareable

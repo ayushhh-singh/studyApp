@@ -9,6 +9,7 @@
  */
 import { MODEL_PRICING, costFromPriceSet, type ModelId } from "../src/lib/models.js";
 import { supabase } from "../src/lib/supabase.js";
+import { computeEmbedCoverage, hasCoverageGap, INGEST_EMBED_TYPES, REMEDY } from "../src/ingest/embed-coverage.js";
 
 /** Message Batches API discount — batch rows carry meta.batch=true and are priced at 0.5x. */
 const BATCH_DISCOUNT = 0.5;
@@ -418,6 +419,36 @@ async function main(): Promise<void> {
   }
 
   await reportQuestionQuality();
+  await reportEmbeddingCoverage();
+}
+
+/**
+ * Embedding coverage — a forgotten re-embed (after publishing/editing questions,
+ * a bulk ingest, an answer-key fix, or a Hindi overlay) leaves eligible content
+ * with NO embedding, so the mentor RAG can't ground on it. Surfaced here so that
+ * silent gap shows up as a visible metric, not a mystery. Full detail + how to
+ * fix: `pnpm ingest:embed:verify`.
+ */
+async function reportEmbeddingCoverage(): Promise<void> {
+  console.log("\n" + "=".repeat(100));
+  console.log("Embedding coverage (RAG grounding)");
+  console.log("=".repeat(100));
+  try {
+    const coverage = await computeEmbedCoverage();
+    for (const c of coverage) {
+      const covered = c.eligible - c.missing.length;
+      const cov = c.eligible === 0 ? "  n/a" : `${((100 * covered) / c.eligible).toFixed(1)}%`;
+      const flags = [c.missing.length ? `${c.missing.length} MISSING → ${REMEDY[c.source_type]}` : "", c.orphan.length ? `${c.orphan.length} orphan` : ""]
+        .filter(Boolean)
+        .join(", ");
+      console.log(`  ${c.source_type.padEnd(16)} ${cov.padStart(6)} coverage  (${covered}/${c.eligible})${flags ? `  — ${flags}` : ""}`);
+    }
+    if (hasCoverageGap(coverage, INGEST_EMBED_TYPES)) {
+      console.log("\n⚠️  syllabus/question embedding gap — run `pnpm ingest:embed`; see `pnpm ingest:embed:verify`.");
+    }
+  } catch (err) {
+    console.log(`(embedding coverage unavailable: ${err instanceof Error ? err.message : String(err)})`);
+  }
 }
 
 main().catch((err) => {

@@ -14,6 +14,7 @@
     "ingest:regate": "pnpm --filter api ingest:regate",
     "ingest:tests": "pnpm --filter api ingest:tests",
     "ingest:embed": "pnpm --filter api ingest:embed",
+    "ingest:embed:verify": "pnpm --filter api ingest:embed:verify",
     "ingest:verify": "pnpm --filter api ingest:verify",
     "eval:answers": "pnpm --filter api eval:answers",
     "cost:report": "pnpm --filter api cost:report",

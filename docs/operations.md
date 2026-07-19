@@ -458,6 +458,20 @@ worth paying for headroom:
     official-answer-key PYQs, whose stored key is ground truth — those are
     surfaced but never auto-hidden. Cost-capped (`--max-usd`, default 12) and
     resumable. Both write the `question_quality` numbers the cost report reads.
+- **Embedding coverage** (RAG grounding): `pnpm --filter api ingest:embed:verify`
+  — per source_type, eligible published content vs. what's actually in the
+  `embeddings` store, flagging **missing** (eligible but un-embedded → the mentor
+  can't ground on it) and **orphan** (embedded but source deleted/un-published →
+  stale). **HARD RULE (also in CLAUDE.md Dev conventions):** any session that
+  publishes or edits question/syllabus text (a PYQ load, the CSAT/answer-key gate,
+  a `resolve`+reload, the Hindi overlay, an `is_published` flip) MUST end with
+  `pnpm ingest:embed` before it's considered done. To close a gap without a full
+  re-embed (which churns the HNSW index enough to trip `statement_timeout`), use
+  the low-churn convergent `pnpm ingest:embed --missing-only`. Clear
+  source-deleted orphans with `pnpm ingest:embed:verify --purge-orphans`. The
+  same coverage delta is printed at the end of `cost:report`, so a forgotten
+  re-embed surfaces as a metric. (Notes: `pnpm notes:embed`; CA: re-embeds on
+  the next `ca:run`.)
 - **Evaluation prompt tuning**: `pnpm --filter api eval:answers --runs 3` —
   gates on ranking (good > mediocre > off-topic) and repeatability (≤5% of
   full marks). Re-run after any prompt change in `src/services/evaluation/`.
