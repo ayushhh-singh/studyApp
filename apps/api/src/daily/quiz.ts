@@ -34,6 +34,7 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { roundMarks } from "../lib/marks.js";
 import {
   DAILY_QUIZ_CONFIG,
   SLICE_FILL_ORDER,
@@ -360,7 +361,7 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   }
 
   const finalItems = shuffle([...chosen.values()]);
-  const totalMarks = finalItems.reduce((s, it) => s + (it.marks ?? 0), 0);
+  const totalMarks = roundMarks(finalItems.reduce((s, it) => s + (it.marks ?? 0), 0));
   const d = formatDateBilingual(date);
   const slug = `daily:${date}`;
 
@@ -388,7 +389,7 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   // attempt's own diagnostics (informational only — a losing racer's numbers
   // describing its own discarded selection is a minor, accepted inaccuracy).
   const persisted = await setMembership(testId, finalItems);
-  const persistedMarks = persisted.reduce((s, it) => s + (it.marks ?? 0), 0);
+  const persistedMarks = roundMarks(persisted.reduce((s, it) => s + (it.marks ?? 0), 0));
 
   // upsertDailyQuizTest already wrote this build's OWN totalMarks/duration
   // onto the tests row above — fine when this call won the setMembership

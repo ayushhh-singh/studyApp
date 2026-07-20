@@ -23,6 +23,7 @@
  * Idempotent: tests keyed on slug; a test's membership is rebuilt each run.
  */
 import { supabase } from "../lib/supabase.js";
+import { roundMarks } from "../lib/marks.js";
 import { UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { PRELIMS_MARKING } from "../lib/exam-papers.js";
 import { paperByCode, report } from "./_shared.js";
@@ -155,7 +156,7 @@ async function main(): Promise<void> {
     const stage = qs[0].stage;
     const isPrelims = stage === "prelims";
     const prelimsMarking = PRELIMS_MARKING[paperCode];
-    const totalMarks = qs.reduce((s, q) => s + (q.marks ?? prelimsMarking?.marksPerQuestion ?? 0), 0) || null;
+    const totalMarks = roundMarks(qs.reduce((s, q) => s + (q.marks ?? prelimsMarking?.marksPerQuestion ?? 0), 0)) || null;
     const slug = `pyq:${paperCode}:${year}`;
     const title = {
       en: `UPPSC ${paper.title.en} — ${year}`,

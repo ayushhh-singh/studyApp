@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
 import { questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
+import { roundMarks } from "../lib/marks.js";
 
 const MCQ_MARKS = 2;
 
@@ -221,7 +222,7 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
     const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
     for (let s = 1; s <= numSets; s++) {
       const sample = balancedSample(available, cfg.count);
-      const totalMarks = sample.reduce((sum, q) => sum + q.marks, 0);
+      const totalMarks = roundMarks(sample.reduce((sum, q) => sum + q.marks, 0));
       const testId = await upsertMockTest({
         slug: `mock:${cfg.paperCode}:${s}`,
         paperCode: cfg.paperCode,
@@ -334,7 +335,7 @@ export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildRes
     const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / MAINS_MOCK_COUNT)));
     for (let s = 1; s <= numSets; s++) {
       const sample = balancedSample(available, MAINS_MOCK_COUNT);
-      const totalMarks = sample.reduce((sum, q) => sum + q.marks, 0);
+      const totalMarks = roundMarks(sample.reduce((sum, q) => sum + q.marks, 0));
       await upsertMainsMockTest({ slug: `mock:${paperCode}:${s}`, paperCode, index: s, totalMarks, sample });
       log(`built mock:${paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks`);
     }

@@ -28,6 +28,7 @@
  */
 import type { BilingualText, TestSummary } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { roundMarks } from "../lib/marks.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { daysBetween, istToday } from "../lib/ist.js";
@@ -101,7 +102,7 @@ async function assemble(spec: AssembleSpec, days: number): Promise<string | null
   if (pool.length === 0) return null;
 
   const selected = shuffled(pool).slice(0, spec.max);
-  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+  const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
     .from("tests")

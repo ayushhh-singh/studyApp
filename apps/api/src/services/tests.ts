@@ -8,6 +8,7 @@ import type {
   TestSummary,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { roundMarks } from "../lib/marks.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { currentUserId } from "../lib/user-context.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
@@ -301,7 +302,7 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     throw badRequest("No published MCQ PYQs are mapped to these topics (and difficulty) yet");
 
   const selected = shuffled(available).slice(0, body.count);
-  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+  const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
     .from("tests")
@@ -369,7 +370,7 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
   if (available.length === 0) throw badRequest("No published descriptive PYQs are mapped to these topics yet");
 
   const selected = shuffled(available).slice(0, count);
-  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+  const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
     .from("tests")
@@ -505,7 +506,7 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
     selected = [...selected, ...leftover.slice(0, targetSize - selected.length)];
   }
   selected = shuffled(selected);
-  const totalMarks = selected.reduce((sum, q) => sum + (q.marks ?? 0), 0);
+  const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
     .from("tests")
