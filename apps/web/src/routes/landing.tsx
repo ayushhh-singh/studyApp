@@ -1,11 +1,10 @@
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, PenLine, Target, BookOpen, BarChart3, Check, Sparkles } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
-import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
-import { BrandMark } from "@/components/marketing/brand-mark";
+import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
 import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
@@ -17,18 +16,9 @@ const FEATURE_ICONS = [PenLine, Target, BookOpen, BarChart3] as const;
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const location = useLocation();
-  const navigate = useNavigate();
   const { session } = useAuth();
 
-  const authHref = `/${locale}/auth`;
-  const primaryHref = session ? `/${locale}/dashboard` : authHref;
-
-  function setLocale(next: Locale) {
-    if (next === locale) return;
-    localStorage.setItem(LOCALE_STORAGE_KEY, next);
-    navigate(switchLocale(location.pathname, location.search, next, location.hash));
-  }
+  const primaryHref = session ? `/${locale}/dashboard` : `/${locale}/auth`;
 
   const features = [0, 1, 2, 3].map((i) => ({
     Icon: FEATURE_ICONS[i],
@@ -46,39 +36,7 @@ export function Component() {
         title={`${t("Landing.brand")} — ${locale === "hi" ? t("Landing.heroTitleHi") : t("Landing.heroTitleEn")}`}
         description={t("Landing.heroSub")}
       />
-      {/* Nav */}
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <BrandMark />
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
-              {SUPPORTED_LOCALES.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLocale(l)}
-                  aria-pressed={l === locale}
-                  className={cn(
-                    "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            {session ? (
-              <Button asChild size="sm">
-                <Link to={primaryHref}>{t("Landing.goToApp")}</Link>
-              </Button>
-            ) : (
-              <Button asChild size="sm">
-                <Link to={authHref}>{t("Landing.signIn")}</Link>
-              </Button>
-            )}
-          </div>
-        </div>
-      </header>
+      <MarketingHeader maxWidthClass="max-w-6xl" />
 
       {/* Hero */}
       <section className="relative overflow-hidden">

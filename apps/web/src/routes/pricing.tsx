@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router";
+import { useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { Check, Sparkles, Smartphone, X } from "lucide-react";
 import { paiseToRupeeString, type Plan } from "@neev/shared";
@@ -11,10 +11,9 @@ import { openRazorpayCheckout } from "@/lib/razorpay-checkout";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { PageSeo } from "@/components/seo/page-seo";
-import { BrandMark } from "@/components/marketing/brand-mark";
+import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
 import { Skeleton } from "@/components/ui-x/skeleton";
-import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 import { billingCopy as c, pick, planPeriodLabel, planMonths } from "@/lib/billing-copy";
 
@@ -28,7 +27,6 @@ export const handle = { titleI18n: { en: "Go Pro", hi: "प्रो बने�
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const location = useLocation();
   const navigate = useNavigate();
   const { session } = useAuth();
   const plans = usePlans();
@@ -47,12 +45,6 @@ export function Component() {
 
   const isPro = !!session && subscription.data?.entitlements.plan === "pro";
   const proUntil = subscription.data?.entitlements.plan_expires_at ?? null;
-
-  function setLocale(next: Locale) {
-    if (next === locale) return;
-    localStorage.setItem(LOCALE_STORAGE_KEY, next);
-    navigate(switchLocale(location.pathname, location.search, next, location.hash));
-  }
 
   // While confirming a fresh payment, poll the subscription until the webhook
   // flips the plan to Pro (the webhook is the source of truth, not checkout.js).
@@ -124,36 +116,7 @@ export function Component() {
         description={pick(locale, c.pricingSubtitle)}
       />
 
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link to={`/${locale}`} aria-label={t("Landing.brand")}>
-            <BrandMark />
-          </Link>
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
-              {SUPPORTED_LOCALES.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLocale(l)}
-                  aria-pressed={l === locale}
-                  className={cn(
-                    "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <Button asChild size="sm">
-              <Link to={session ? `/${locale}/dashboard` : `/${locale}/auth`}>
-                {session ? t("Landing.goToApp") : t("Landing.signIn")}
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <MarketingHeader maxWidthClass="max-w-4xl" />
 
       <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-8 pb-16 sm:px-6">
         <PageHeader title={pick(locale, c.pricingTitle)} description={pick(locale, c.pricingSubtitle)} />

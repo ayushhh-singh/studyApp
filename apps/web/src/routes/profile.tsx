@@ -12,6 +12,7 @@ import { MyRanksCard } from "@/components/profile/my-ranks-card";
 import { SettingsCard } from "@/components/profile/settings-card";
 import { ChangePasswordCard } from "@/components/profile/change-password-card";
 import { PushNotificationsCard } from "@/components/profile/push-notifications-card";
+import { HelpAboutCard } from "@/components/profile/help-about-card";
 import { PlanBanner } from "@/components/billing/plan-banner";
 import { useProfile } from "@/hooks/use-profile";
 import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
@@ -30,6 +31,10 @@ export function Component() {
       <ProfileCard profile={profile} isLoading={profileLoading} />
 
       <PlanBanner />
+
+      <h2 className="text-lg font-bold tracking-tight">{t("Profile.helpSectionTitle")}</h2>
+
+      <HelpAboutCard />
 
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.analyticsSectionTitle")}</h2>
 

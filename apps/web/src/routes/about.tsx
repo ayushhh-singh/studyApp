@@ -1,33 +1,29 @@
-import { Link, useLocation, useNavigate } from "react-router";
+import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, PenLine, BookOpen, MessagesSquare, Newspaper, Trophy, Sparkles, ShieldCheck, Flag } from "lucide-react";
+import { ArrowRight, PenLine, BookOpen, MessagesSquare, Newspaper, Trophy, Sparkles, ShieldCheck, KeyRound, ScanSearch, UserCheck, Flag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
-import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
-import { BrandMark } from "@/components/marketing/brand-mark";
+import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer, SUPPORT_EMAIL } from "@/components/marketing/footer";
 import { PageSeo } from "@/components/seo/page-seo";
-import { cn } from "@/lib/utils";
 
 const PILLAR_ICONS = [BookOpen, Sparkles, MessagesSquare, Newspaper, Trophy, ShieldCheck] as const;
+const ACCURACY_ICONS = [KeyRound, ScanSearch, UserCheck, Flag] as const;
 
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const location = useLocation();
-  const navigate = useNavigate();
   const { session } = useAuth();
 
-  const authHref = `/${locale}/auth`;
-  const primaryHref = session ? `/${locale}/dashboard` : authHref;
+  const primaryHref = session ? `/${locale}/dashboard` : `/${locale}/auth`;
 
-  function setLocale(next: Locale) {
-    if (next === locale) return;
-    localStorage.setItem(LOCALE_STORAGE_KEY, next);
-    navigate(switchLocale(location.pathname, location.search, next, location.hash));
-  }
-
+  const stats = [1, 2, 3].map((i) => ({ num: t(`About.stat${i}Num`), label: t(`About.stat${i}Label`) }));
+  const accuracy = [1, 2, 3, 4].map((i) => ({
+    Icon: ACCURACY_ICONS[i - 1],
+    title: t(`About.accuracy${i}Title`),
+    body: t(`About.accuracy${i}Body`),
+  }));
   const pillars = [1, 2, 3, 4, 5, 6].map((i) => ({
     Icon: PILLAR_ICONS[i - 1],
     title: t(`About.pillar${i}Title`),
@@ -36,57 +32,58 @@ export function Component() {
 
   return (
     <div className="min-h-svh bg-background">
-      <PageSeo locale={locale} path="/about" title={`${t("About.title")} — ${t("Landing.brand")}`} description={t("About.subtitle")} />
+      <PageSeo locale={locale} path="/about" title={t("About.metaTitle")} description={t("About.leadSubtitle")} />
 
-      <header className="sticky top-0 z-30 border-b border-border/60 bg-background/90 backdrop-blur">
-        <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
-          <Link to={`/${locale}`} aria-label={t("Landing.brand")}>
-            <BrandMark />
-          </Link>
-          <div className="flex items-center gap-1.5 sm:gap-3">
-            <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
-              {SUPPORTED_LOCALES.map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={() => setLocale(l)}
-                  aria-pressed={l === locale}
-                  className={cn(
-                    "min-h-8 rounded-full px-2.5 text-xs font-semibold uppercase transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                    l === locale ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  {l}
-                </button>
-              ))}
-            </div>
-            <Button asChild size="sm">
-              <Link to={session ? `/${locale}/dashboard` : `/${locale}/auth`}>
-                {session ? t("Landing.goToApp") : t("Landing.signIn")}
-              </Link>
-            </Button>
-          </div>
-        </div>
-      </header>
+      <MarketingHeader maxWidthClass="max-w-4xl" />
 
-      {/* Hero */}
+      {/* Hero — one concrete lead sentence + who it's for */}
       <section className="border-b border-border/60">
         <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-20">
-          <h1 className="text-balance text-3xl font-extrabold leading-tight tracking-tight sm:text-4xl">{t("About.title")}</h1>
-          <p className="mt-4 text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">{t("About.subtitle")}</p>
+          <h1 className="text-balance text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
+            {t("About.leadTitle")}
+          </h1>
+          <p className="mt-4 text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+            {t("About.leadSubtitle")}
+          </p>
         </div>
       </section>
 
-      {/* Who it's for */}
+      {/* Stats band — concrete proof, up front */}
       <section className="border-b border-border/60 bg-muted/30">
+        <div className="mx-auto grid max-w-4xl gap-4 px-4 py-10 sm:grid-cols-3 sm:px-6">
+          {stats.map((s) => (
+            <div key={s.label} className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-5">
+              <span className="text-4xl font-extrabold tabular-nums tracking-tight text-primary">{s.num}</span>
+              <span className="text-sm leading-relaxed text-muted-foreground">{s.label}</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* Accuracy — the differentiator, leads the feature story */}
+      <section className="border-b border-border/60">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-          <h2 className="text-2xl font-bold tracking-tight">{t("About.whoTitle")}</h2>
-          <p className="mt-3 text-base leading-relaxed text-muted-foreground">{t("About.whoBody")}</p>
+          <span className="inline-flex size-11 items-center justify-center rounded-xl bg-tulsi/15 text-tulsi-foreground">
+            <ShieldCheck className="size-5" aria-hidden />
+          </span>
+          <h2 className="mt-4 text-2xl font-bold tracking-tight">{t("About.accuracyTitle")}</h2>
+          <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("About.accuracyIntro")}</p>
+          <div className="mt-8 grid gap-5 sm:grid-cols-2">
+            {accuracy.map((a) => (
+              <div key={a.title} className="rounded-2xl border border-border bg-card p-5">
+                <span className="flex size-9 items-center justify-center rounded-lg bg-tulsi/15 text-tulsi-foreground">
+                  <a.Icon className="size-4.5" aria-hidden />
+                </span>
+                <h3 className="mt-3 text-sm font-semibold">{a.title}</h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">{a.body}</p>
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
       {/* Flagship */}
-      <section className="border-b border-border/60">
+      <section className="border-b border-border/60 bg-muted/30">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
           <span className="inline-flex size-11 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <PenLine className="size-5" aria-hidden />
@@ -100,8 +97,8 @@ export function Component() {
         </div>
       </section>
 
-      {/* Pillars */}
-      <section className="border-b border-border/60 bg-muted/30">
+      {/* Everything else — pillars */}
+      <section className="border-b border-border/60">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
           <h2 className="text-2xl font-bold tracking-tight">{t("About.pillarsTitle")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t("About.pillarsSub")}</p>
@@ -117,25 +114,6 @@ export function Component() {
                 </div>
               </div>
             ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Trust / accuracy */}
-      <section className="border-b border-border/60">
-        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-          <span className="inline-flex size-11 items-center justify-center rounded-xl bg-tulsi/15 text-tulsi-foreground">
-            <ShieldCheck className="size-5" aria-hidden />
-          </span>
-          <h2 className="mt-4 text-2xl font-bold tracking-tight">{t("About.trustTitle")}</h2>
-          <div className="mt-4 space-y-4 text-base leading-relaxed text-muted-foreground">
-            <p>{t("About.trustBody1")}</p>
-            <p>{t("About.trustBody2")}</p>
-            <p>{t("About.trustBody3")}</p>
-            <p className="flex items-start gap-2">
-              <Flag className="mt-1 size-4 shrink-0 text-coral" aria-hidden />
-              <span>{t("About.trustBody4")}</span>
-            </p>
           </div>
         </div>
       </section>
