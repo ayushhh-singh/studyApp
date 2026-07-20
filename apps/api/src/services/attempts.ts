@@ -18,6 +18,7 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { DEFAULT_MCQ_MARKS } from "../lib/marks.js";
 import { assertMockTests } from "./entitlements.js";
 import { recordDailyQuizResult } from "./scoreboard.js";
 import { touchFeature } from "../lib/feature-touch.js";
@@ -182,7 +183,17 @@ export async function startAttempt(
     }[];
     questionIds = rows.map((r) => r.question_id);
     for (const r of rows) {
-      marksById.set(r.question_id, r.marks ?? r.questions?.marks ?? 0);
+      // Resolve from the LIVE question marks first, then the frozen
+      // test_questions snapshot, then a non-zero default. A test's per-question
+      // marks are never deliberately different from the question's own — every
+      // builder just snapshots `question.marks` (with a fallback) — so the live
+      // value is authoritative. Preferring it means a marks correction/backfill
+      // that lands AFTER a test was assembled is picked up on the next attempt,
+      // and a stale/zero frozen snapshot (e.g. a daily quiz built when a
+      // question briefly had null marks → frozen 0) can never mis-score. NOTE:
+      // `??` only falls back on null, so the OLD order (`r.marks ?? live`) let a
+      // frozen 0 win over a real live mark — the daily-quiz 25.3/-0.77 bug.
+      marksById.set(r.question_id, r.questions?.marks ?? r.marks ?? DEFAULT_MCQ_MARKS);
     }
   } else {
     questionIds = [...new Set(body.question_ids!)];

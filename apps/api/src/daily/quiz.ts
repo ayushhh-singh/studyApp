@@ -34,7 +34,7 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
-import { roundMarks } from "../lib/marks.js";
+import { DEFAULT_MCQ_MARKS, roundMarks } from "../lib/marks.js";
 import {
   DAILY_QUIZ_CONFIG,
   SLICE_FILL_ORDER,
@@ -155,7 +155,7 @@ async function generatedPool(weakNodes: string[], seen: Set<string>): Promise<Po
   const onWeak = rows.filter((r) => r.syllabus_node_id && weak.has(r.syllabus_node_id));
   const rest = rows.filter((r) => !(r.syllabus_node_id && weak.has(r.syllabus_node_id)));
   // Weak-topic questions first (the point of this slice), then the rest as depth.
-  return [...shuffle(onWeak), ...shuffle(rest)].map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
+  return [...shuffle(onWeak), ...shuffle(rest)].map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
 async function pyqPool(seen: Set<string>): Promise<PoolItem[]> {
@@ -171,7 +171,7 @@ async function pyqPool(seen: Set<string>): Promise<PoolItem[]> {
       .order("id", { ascending: true }),
   );
   const rows = data.filter((r) => !seen.has(r.id));
-  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
+  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
 async function currentAffairsPool(days: number): Promise<PoolItem[]> {
@@ -197,7 +197,7 @@ async function currentAffairsPool(days: number): Promise<PoolItem[]> {
     if (error) throw new Error(`current affairs question lookup failed: ${error.message}`);
     rows.push(...((data ?? []) as { id: string; marks: number | null }[]));
   }
-  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
+  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
 /** Every catalog-visible MCQ — the random-coverage slice AND the backfill reservoir. */
@@ -214,7 +214,7 @@ async function randomPool(): Promise<PoolItem[]> {
       .or(questionVisibilityOrFilter("catalog"))
       .order("id", { ascending: true }),
   );
-  return shuffle(data).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
+  return shuffle(data).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
 async function upsertDailyQuizTest(input: {

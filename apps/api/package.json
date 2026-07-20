@@ -34,6 +34,7 @@
     "ca:compile": "tsx --env-file-if-exists=.env src/ca/compile.ts",
     "daily:build": "tsx --env-file-if-exists=.env src/daily/run.ts",
     "mocks:build": "tsx --env-file-if-exists=.env src/mocks/build.ts",
+    "tests:resync-marks": "tsx --env-file-if-exists=.env scripts/resync-test-marks.ts",
     "mocks:build:mains": "tsx --env-file-if-exists=.env src/mocks/build-mains.ts",
     "mastery:build": "tsx --env-file-if-exists=.env src/mastery/cli.ts",
     "qgen": "tsx --env-file-if-exists=.env src/qgen/cli.ts",

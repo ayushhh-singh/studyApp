@@ -10,3 +10,14 @@
 export function roundMarks(n: number): number {
   return Math.round(n * 100) / 100;
 }
+
+/**
+ * Fallback marks for an MCQ whose own `marks` is somehow null. Every question
+ * SHOULD carry real marks (UPPSC GS-I 1.33/q, CSAT & generated & CA 2/q), so
+ * this is a safety net, not a normal path — but it must be NON-ZERO: a 0-mark
+ * MCQ is a dead question (a correct answer earns nothing, a wrong one is never
+ * penalized). Matches mocks' existing default. A daily-quiz pool that defaulted
+ * a missing mark to 0 (rather than this) is exactly what froze 8 dead questions
+ * into an old quiz and scored it 25.3/-0.77.
+ */
+export const DEFAULT_MCQ_MARKS = 2;

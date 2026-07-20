@@ -26,6 +26,7 @@
     "ca:compile": "pnpm --filter api ca:compile",
     "daily:build": "pnpm --filter api daily:build",
     "mocks:build": "pnpm --filter api mocks:build",
+    "tests:resync-marks": "pnpm --filter api tests:resync-marks",
     "mocks:build:mains": "pnpm --filter api mocks:build:mains",
     "mastery:build": "pnpm --filter api mastery:build",
     "qgen": "pnpm --filter api qgen",
