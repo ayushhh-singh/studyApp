@@ -87,7 +87,17 @@ export function AnswerSessionPlayer({
 
   async function handleSubmitAnswer() {
     setUploadError(null);
-    const shared = { question_id: question.id, language: displayLocale, answer_session_id: session.id };
+    const shared = {
+      question_id: question.id,
+      language: displayLocale,
+      answer_session_id: session.id,
+      // Carry THIS test's per-question marks (a mains mock re-weights each
+      // question to the real paper's 8/12 pattern) so the evaluation scores out
+      // of the same number the paper shows. Only when it's a valid positive
+      // integer the submission schema accepts; otherwise the evaluator falls
+      // back to the question's own marks.
+      ...(Number.isInteger(question.marks) && (question.marks ?? 0) > 0 ? { marks: question.marks as number } : {}),
+    };
     const onSuccess = (result: { id: string; status: AnswerSessionSubmission["status"] }) => {
       clearDraft(draftKey);
       setSubmissions((prev) => ({

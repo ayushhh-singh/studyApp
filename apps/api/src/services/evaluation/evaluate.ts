@@ -348,7 +348,12 @@ async function resolveQuestionContext(submission: SubmissionRow): Promise<{
       questionText,
       syllabusNodeId: (q.syllabus_node_id as string | null) ?? null,
       wordLimit: (q.word_limit as number | null) ?? (isEssay ? ESSAY_WORD_LIMIT : DEFAULT_WORD_LIMIT),
-      maxScore: (q.marks as number | null) ?? (isEssay ? ESSAY_MAX_MARKS : DEFAULT_MAX_SCORE),
+      // A test may re-weight a catalogued question's marks for THIS test (a mains
+      // mock re-weights every question to the real paper's 8/12 pattern so it
+      // totals exactly 200); that override rides on the session submission's
+      // meta.marks. Prefer it, then the question's own marks, then the default —
+      // so the answer is scored out of the same number the paper displays.
+      maxScore: (submission.meta?.marks as number | null) ?? (q.marks as number | null) ?? (isEssay ? ESSAY_MAX_MARKS : DEFAULT_MAX_SCORE),
       rubricVersion: isEssay ? ESSAY_RUBRIC_VERSION : RUBRIC_VERSION,
     };
   }

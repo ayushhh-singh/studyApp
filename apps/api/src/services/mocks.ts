@@ -255,13 +255,15 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
 const MAINS_GS_PAPER_CODES = ["MAINS_GS1", "MAINS_GS2", "MAINS_GS3", "MAINS_GS4", "MAINS_GS5", "MAINS_GS6"];
 const MAINS_MOCK_COUNT = 20;
 const MAINS_MOCK_DURATION_MINUTES = 180;
-// The real paper's max (verified: 20Q/200 marks per GS paper) — distinct
-// from a sample's own totalMarks (real per-question marks vary, so a
-// balanced sample rarely sums to exactly 200; official_max_marks must stay
-// the fixed reference figure the result page compares against, same
-// separation the Prelims mock config already makes between
-// officialMaxMarks and a sample's raw totalMarks).
 const MAINS_MOCK_OFFICIAL_MAX_MARKS = 200;
+// The real post-reform UPPSC Mains GS paper's exact per-question marks: 10
+// questions × 8 + 10 × 12 = 200 (verified IDENTICAL across every GS1-6 paper,
+// 2023-2025). A mock is a synthetic full-paper simulation, so it mirrors that
+// fixed distribution — each sampled PYQ is RE-WEIGHTED to 8 or 12 (its own real
+// marks, which vary, are ignored for the mock) so every set totals exactly 200
+// like the actual paper. This override rides on test_questions.marks and, via
+// the session submission's meta.marks, into the evaluation's max score.
+const MAINS_MOCK_MARKS_PATTERN = [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12];
 
 async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[]> {
   const [rows, topByNode] = await Promise.all([
@@ -335,9 +337,14 @@ export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildRes
     const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / MAINS_MOCK_COUNT)));
     for (let s = 1; s <= numSets; s++) {
       const sample = balancedSample(available, MAINS_MOCK_COUNT);
-      const totalMarks = roundMarks(sample.reduce((sum, q) => sum + q.marks, 0));
-      await upsertMainsMockTest({ slug: `mock:${paperCode}:${s}`, paperCode, index: s, totalMarks, sample });
-      log(`built mock:${paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks`);
+      // Re-weight each sampled question to the real 8/12 paper pattern (shuffled
+      // so the 8s and 12s are mixed, like the actual paper), so the set is
+      // exactly 20 questions / 200 marks regardless of the PYQs' own marks.
+      const pattern = shuffle(MAINS_MOCK_MARKS_PATTERN);
+      const weighted = sample.map((q, i) => ({ ...q, marks: pattern[i] ?? 8 }));
+      const totalMarks = weighted.reduce((sum, q) => sum + q.marks, 0);
+      await upsertMainsMockTest({ slug: `mock:${paperCode}:${s}`, paperCode, index: s, totalMarks, sample: weighted });
+      log(`built mock:${paperCode}:${s} — ${weighted.length} questions, ${totalMarks} marks`);
     }
     results.push({ paper_code: paperCode, built: numSets, skipped: false });
   }
