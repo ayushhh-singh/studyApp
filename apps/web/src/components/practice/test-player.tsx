@@ -96,6 +96,22 @@ export function TestPlayer({
     return map;
   });
   const [marked, setMarked] = useState<Set<string>>(() => loadMarked(attemptId));
+  // "Visited" tracks the NTA-style distinction between "not visited" and
+  // "visited, not answered" — two different signals a real exam palette
+  // shows separately. Seeded from any resumed answer/time-spent record (a
+  // question can be visited-but-unanswered from a previous session), plus
+  // the first question shown on mount; every subsequent navigation adds to
+  // it via the effect below rather than inside goTo() alone, since the
+  // instant-feedback auto-advance path (selectOption's setTimeout) changes
+  // currentIndex directly without going through goTo().
+  const [visited, setVisited] = useState<Set<string>>(() => {
+    const seed = new Set<string>();
+    for (const a of initialAnswers) {
+      if (a.chosen_option_key || (a.time_spent_seconds ?? 0) > 0) seed.add(a.question_id);
+    }
+    if (test.questions[0]) seed.add(test.questions[0].id);
+    return seed;
+  });
   const [submitOpen, setSubmitOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -239,18 +255,30 @@ export function TestPlayer({
     onComboBest?.(best);
   }, [best, onComboBest]);
 
+  // Runs on every currentIndex change regardless of HOW it changed (goTo,
+  // the autoAdvance setTimeout in selectOption, or the initial mount) — a
+  // single source of truth for "has the student ever laid eyes on this
+  // question" rather than duplicating the add-to-set call at each call site.
+  useEffect(() => {
+    setVisited((prev) => (prev.has(question.id) ? prev : new Set(prev).add(question.id)));
+  }, [question.id]);
+
   // Answered and marked are independent, not mutually exclusive — a real
   // usage pattern is answering a question and ALSO marking it to double
   // check later. The old if/else chain let "marked" win outright, silently
   // dropping the "answered" signal (palette color, Check icon, and
-  // aria-label) the moment a question was also marked.
+  // aria-label) the moment a question was also marked. "Visited, not
+  // answered" vs "not visited" is the fifth NTA-standard state — a marked
+  // question is always visited by definition, so it never needs its own
+  // visited check.
   const statuses: QuestionStatus[] = test.questions.map((q) => {
     const isAnswered = !!answers[q.id]?.chosen_option_key;
     const isMarked = marked.has(q.id);
     if (isAnswered && isMarked) return "answered_marked";
     if (isMarked) return "marked";
     if (isAnswered) return "answered";
-    return "unanswered";
+    if (visited.has(q.id)) return "visited_not_answered";
+    return "not_visited";
   });
   const unansweredCount = test.questions.filter((q) => !answers[q.id]?.chosen_option_key).length;
 
@@ -258,6 +286,22 @@ export function TestPlayer({
 
   const paletteEl = (
     <QuestionPalette count={test.questions.length} currentIndex={currentIndex} statuses={statuses} onSelect={goTo} />
+  );
+
+  // Submit deliberately lives BELOW the full palette grid, not beside "Next"
+  // in the main action row — real exam CBTs treat submission as a rare,
+  // high-consequence action that shouldn't be one accidental tap away from
+  // routine navigation. Requiring the student to open the palette (mobile:
+  // the bottom sheet) and see/scroll past every question's status first is
+  // an extra deliberate step on top of the existing "N unanswered" confirm
+  // dialog, not a replacement for it.
+  const paletteWithSubmit = (
+    <div className="flex flex-col gap-4">
+      {paletteEl}
+      <Button type="button" variant="secondary" size="lg" onClick={() => setSubmitOpen(true)} className="w-full">
+        {t("Practice.submitTest")}
+      </Button>
+    </div>
   );
 
   return (
@@ -396,15 +440,6 @@ export function TestPlayer({
               <Flag aria-hidden />
               {marked.has(question.id) ? t("Practice.unmark") : t("Practice.mark")}
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => goTo(currentIndex + 1)}
-              disabled={currentIndex === test.questions.length - 1}
-            >
-              {t("Practice.next")}
-              <ChevronRight aria-hidden />
-            </Button>
             <Sheet open={paletteOpen} onOpenChange={setPaletteOpen}>
               <SheetTrigger asChild>
                 <Button type="button" variant="outline" className="lg:hidden">
@@ -413,16 +448,28 @@ export function TestPlayer({
                 </Button>
               </SheetTrigger>
               <SheetContent side="bottom" title={t("Practice.palette")}>
-                {paletteEl}
+                {paletteWithSubmit}
               </SheetContent>
             </Sheet>
-            <Button type="button" onClick={() => setSubmitOpen(true)} className="ms-auto">
-              {t("Practice.submitTest")}
+            {/* Next is the highest-frequency action during a real attempt, so it
+                takes the easily-reachable primary-button position that Submit
+                used to occupy (far end of the row, filled/primary styling) —
+                Submit itself moved below the palette (see paletteWithSubmit). */}
+            <Button
+              type="button"
+              onClick={() => goTo(currentIndex + 1)}
+              disabled={currentIndex === test.questions.length - 1}
+              className="ms-auto"
+            >
+              {t("Practice.next")}
+              <ChevronRight aria-hidden />
             </Button>
           </div>
         </div>
 
-        <aside className="hidden w-64 shrink-0 overflow-y-auto border-s border-border p-4 lg:block">{paletteEl}</aside>
+        <aside className="hidden w-64 shrink-0 overflow-y-auto border-s border-border p-4 lg:block">
+          {paletteWithSubmit}
+        </aside>
       </div>
 
       <SubmitConfirmDialog

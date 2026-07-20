@@ -36,6 +36,8 @@
     --color-tulsi-foreground: var(--tulsi-foreground);
     --color-coral: var(--coral);
     --color-coral-foreground: var(--coral-foreground);
+    --color-violet: var(--violet);
+    --color-violet-foreground: var(--violet-foreground);
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
     --color-chart-3: var(--chart-3);
@@ -86,11 +88,13 @@
     --tulsi-foreground: #06603F;
     --coral: #F43F5E;
     --coral-foreground: #9F1239;
+    --violet: #7C3AED;
+    --violet-foreground: #4C1D95;
     --chart-1: var(--coral);
     --chart-2: var(--marigold);
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
-    --chart-5: #7C3AED;
+    --chart-5: var(--violet);
     --sidebar: #EEF2F9;
     --sidebar-foreground: #0F172A;
     --sidebar-primary: #2563EB;
@@ -126,11 +130,13 @@
     --tulsi-foreground: #A7F3D0;
     --coral: #FB7185;
     --coral-foreground: #FECDD3;
+    --violet: #A78BFA;
+    --violet-foreground: #DDD6FE;
     --chart-1: var(--coral);
     --chart-2: var(--marigold);
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
-    --chart-5: #A78BFA;
+    --chart-5: var(--violet);
     --sidebar: #0F1728;
     --sidebar-foreground: #F1F5F9;
     --sidebar-primary: #60A5FA;
