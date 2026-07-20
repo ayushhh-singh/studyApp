@@ -126,16 +126,30 @@ async function recentlyUsedInDailyQuiz(days: number): Promise<Set<string>> {
   return new Set((data ?? []).map((r) => r.question_id as string));
 }
 
-/** Generated MCQs on the user's weak topics first, then any generated MCQ. Published + approved only. */
-async function generatedPool(weakNodes: string[]): Promise<PoolItem[]> {
-  const { data, error } = await supabase()
-    .from("questions")
-    .select("id, marks, syllabus_node_id")
-    .eq("type", "mcq")
-    .eq("source", "generated")
-    .or(questionVisibilityOrFilter("catalog"));
-  if (error) throw new Error(`generated pool lookup failed: ${error.message}`);
-  const rows = (data ?? []) as { id: string; marks: number | null; syllabus_node_id: string | null }[];
+/**
+ * Generated MCQs on weak topics first, then any generated MCQ. Published +
+ * approved only, and — like `pyqPool` — excluding any generated MCQ used in a
+ * recent daily quiz (`seen`), so the same generated questions don't recur every
+ * few days. Exclusion is applied before the weak/rest split, so a short weak
+ * pool degrades into "rest" generated (and ultimately the backfill reservoir)
+ * rather than re-serving a recently-seen weak question.
+ */
+async function generatedPool(weakNodes: string[], seen: Set<string>): Promise<PoolItem[]> {
+  // Paginate (selectAll + stable order), same as pyqPool: generated MCQs now
+  // exceed 1000, and a single select silently truncates to the first 1000
+  // (PostgREST cap) — so the last ~255 generated questions were never eligible
+  // for this slice and the quiz skewed to early ids. That truncation is a second
+  // cause of the same felt repetition this recency fix targets.
+  const data = await selectAll<{ id: string; marks: number | null; syllabus_node_id: string | null }>(() =>
+    supabase()
+      .from("questions")
+      .select("id, marks, syllabus_node_id")
+      .eq("type", "mcq")
+      .eq("source", "generated")
+      .or(questionVisibilityOrFilter("catalog"))
+      .order("id", { ascending: true }),
+  );
+  const rows = data.filter((r) => !seen.has(r.id));
   const weak = new Set(weakNodes);
   const onWeak = rows.filter((r) => r.syllabus_node_id && weak.has(r.syllabus_node_id));
   const rest = rows.filter((r) => !(r.syllabus_node_id && weak.has(r.syllabus_node_id)));
@@ -187,13 +201,19 @@ async function currentAffairsPool(days: number): Promise<PoolItem[]> {
 
 /** Every catalog-visible MCQ — the random-coverage slice AND the backfill reservoir. */
 async function randomPool(): Promise<PoolItem[]> {
-  const { data, error } = await supabase()
-    .from("questions")
-    .select(MCQ_COLUMNS)
-    .eq("type", "mcq")
-    .or(questionVisibilityOrFilter("catalog"));
-  if (error) throw new Error(`random pool lookup failed: ${error.message}`);
-  return shuffle((data ?? []) as { id: string; marks: number | null }[]).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
+  // Paginate: the full catalog MCQ set (2000+) exceeds the 1000-row cap, and this
+  // pool is BOTH the random slice and the backfill reservoir — so a single select
+  // silently shrank both to the first 1000 ids. Stable order for complete
+  // pagination; shuffled below.
+  const data = await selectAll<{ id: string; marks: number | null }>(() =>
+    supabase()
+      .from("questions")
+      .select(MCQ_COLUMNS)
+      .eq("type", "mcq")
+      .or(questionVisibilityOrFilter("catalog"))
+      .order("id", { ascending: true }),
+  );
+  return shuffle(data).map((r) => ({ id: r.id, marks: r.marks ?? 0 }));
 }
 
 async function upsertDailyQuizTest(input: {
@@ -278,9 +298,15 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   const { date } = opts;
 
   const weak = await globalWeakNodeIds(cfg.weakAccuracyThreshold);
+  // `recentlyUsedInDailyQuiz` returns every question (any slice) used in recent
+  // daily quizzes; the pyq and generated slices each skip that set over their own
+  // window. Reuse the one query when the windows match (the default) rather than
+  // hitting the DB twice for the same result.
   const seen = await recentlyUsedInDailyQuiz(cfg.pyqRecencyDays);
+  const genSeen =
+    cfg.generatedRecencyDays === cfg.pyqRecencyDays ? seen : await recentlyUsedInDailyQuiz(cfg.generatedRecencyDays);
   const [gen, pyq, ca, rand] = await Promise.all([
-    generatedPool(weak),
+    generatedPool(weak, genSeen),
     pyqPool(seen),
     currentAffairsPool(cfg.currentAffairsDays),
     randomPool(),
@@ -288,7 +314,7 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   const pools: Record<QuizSlice, PoolItem[]> = { generated: gen, pyq, current_affairs: ca, random: rand };
   log(
     `pools: generated=${gen.length} pyq=${pyq.length} current_affairs=${ca.length} random=${rand.length} ` +
-      `(weak topics=${weak.length}, recently-seen=${seen.size})`,
+      `(weak topics=${weak.length}, recently-seen pyq=${seen.size} generated=${genSeen.size})`,
   );
 
   const targets = sliceTargets(size, cfg.ratios);

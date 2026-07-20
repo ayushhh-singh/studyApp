@@ -23,6 +23,15 @@ export interface DailyQuizConfig {
   ratios: Record<QuizSlice, number>;
   /** A PYQ answered within this many days is "seen recently" and skipped by the pyq slice. */
   pyqRecencyDays: number;
+  /**
+   * A generated MCQ used in a daily quiz within this many days is skipped by the
+   * generated slice — the same anti-repetition rule the pyq slice already applies
+   * (previously the generated slice had NO recency exclusion, so its small
+   * weak-topic pool recycled every few days: the felt repetition). Defaults to
+   * the same window as pyq; kept as its own knob since the generated pool is
+   * smaller and may want a different spacing than real PYQs.
+   */
+  generatedRecencyDays: number;
   /** Current-affairs items dated within this many days feed the CA slice. */
   currentAffairsDays: number;
   /** A leaf topic with graded accuracy below this is "weak" and targeted by the generated slice. */
@@ -42,6 +51,7 @@ export const DAILY_QUIZ_CONFIG: DailyQuizConfig = {
     random: 0.1,
   },
   pyqRecencyDays: 14,
+  generatedRecencyDays: 14,
   currentAffairsDays: 7,
   weakAccuracyThreshold: 0.6,
   markingScheme: {
