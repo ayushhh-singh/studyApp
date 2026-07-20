@@ -6,6 +6,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { Footer } from "@/components/marketing/footer";
 import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { PageSeo } from "@/components/seo/page-seo";
@@ -238,12 +239,7 @@ export function Component() {
         </div>
       </section>
 
-      <footer className="border-t border-border/60">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground sm:flex-row sm:px-6">
-          <BrandMark />
-          <p>{t("Landing.footer")}</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

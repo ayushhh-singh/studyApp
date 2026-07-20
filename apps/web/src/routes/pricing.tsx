@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { PageSeo } from "@/components/seo/page-seo";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { Footer } from "@/components/marketing/footer";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
@@ -254,6 +255,8 @@ export function Component() {
       {/* Free vs Pro comparison */}
       <ComparisonTable locale={locale} />
       </div>
+
+      <Footer />
     </div>
   );
 }

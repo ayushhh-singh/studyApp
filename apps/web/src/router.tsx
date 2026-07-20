@@ -35,6 +35,10 @@ export const router = createBrowserRouter([
       // Public marketing page — pricing must be reachable signed-out (and is
       // reviewed as such by Razorpay's live-mode approval).
       { path: "pricing", lazy: () => import("@/routes/pricing") },
+      // Public marketing pages — trust/accuracy story and support surfaces,
+      // reachable signed-out from the landing/app-shell footer.
+      { path: "about", lazy: () => import("@/routes/about") },
+      { path: "faq", lazy: () => import("@/routes/faq") },
       // Everything below requires a signed-in session (RequireAuth also gates
       // the onboarding wizard: unfinished onboarding is redirected to it).
       {

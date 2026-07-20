@@ -7,10 +7,11 @@
  * markup wholesale. That's fine: crawlers that don't run JS get the
  * snapshot, everyone else gets the identical page moments later.
  *
- * Two public routes today: /:locale (the landing page) and /:locale/pricing
- * (moved out of requireAuth so it's reachable signed-out — see router.tsx and
- * CLAUDE.md's TODO history). Every other route stays behind requireAuth and
- * has no reason to be indexed or snapshotted.
+ * Public routes today: /:locale (the landing page), /:locale/pricing (moved
+ * out of requireAuth so it's reachable signed-out — see router.tsx and
+ * CLAUDE.md's TODO history), and /:locale/about + /:locale/faq (the trust/
+ * accuracy story and support surfaces). Every other route stays behind
+ * requireAuth and has no reason to be indexed or snapshotted.
  *
  * Run via `pnpm --filter web prerender` AFTER `pnpm --filter web build` —
  * kept as a separate step (not chained into the default `build` script) so
@@ -23,7 +24,7 @@ import path from "node:path";
 
 const DIST = path.resolve(import.meta.dirname, "..", "dist");
 const PORT = 4321;
-const ROUTES = ["/en", "/hi", "/en/pricing", "/hi/pricing"];
+const ROUTES = ["/en", "/hi", "/en/pricing", "/hi/pricing", "/en/about", "/hi/about", "/en/faq", "/hi/faq"];
 
 const MIME = {
   ".js": "text/javascript",
