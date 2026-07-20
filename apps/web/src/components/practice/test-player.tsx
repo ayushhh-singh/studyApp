@@ -298,7 +298,10 @@ export function TestPlayer({
   const paletteWithSubmit = (
     <div className="flex flex-col gap-4">
       {paletteEl}
-      <Button type="button" variant="secondary" size="lg" onClick={() => setSubmitOpen(true)} className="w-full">
+      {/* Prominence now comes from full-strength primary styling, same weight
+          as Next — the deliberateness is entirely in the POSITION (behind the
+          palette, a scroll/tap away), not in a deliberately faint button. */}
+      <Button type="button" size="lg" onClick={() => setSubmitOpen(true)} className="w-full">
         {t("Practice.submitTest")}
       </Button>
     </div>
