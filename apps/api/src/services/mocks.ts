@@ -17,13 +17,24 @@ import { questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-vis
 
 const MCQ_MARKS = 2;
 
+/**
+ * Shared hard ceiling on distinct mock sets per paper (was per-paper fixed caps:
+ * prelims 3/1, mains 2). The actual set count is supply-driven —
+ * min(MOCK_MAX_SETS, floor(available / count)) — so as the bank grows the count
+ * grows toward this ceiling on the monthly rebuild, instead of freezing at a
+ * hardcoded number. Mock sets sample independently (overlap across sets is
+ * acceptable per product framing), so this is a variety/UX ceiling, not a
+ * uniqueness limit; 6 keeps the Practice → Mock Tests list substantial but
+ * manageable. Today's supply supports 4–9 sets per paper.
+ */
+export const MOCK_MAX_SETS = 6;
+
 interface MockPaperConfig {
   paperCode: string;
   count: number;
   officialMaxMarks: number;
   durationMinutes: number;
   qualifyingPct?: number; // CSAT is qualifying-only
-  maxSets: number;
   // Real UPPSC Prelims negative marking (verified via web search, matches
   // ingest/tests.ts's PRELIMS_MARKING): GS-I -0.33 (one-third of 1.33/correct),
   // CSAT -0.66 (one-third of 2/correct) — NOT the same value, since a mock's
@@ -34,14 +45,13 @@ interface MockPaperConfig {
 }
 
 const MOCK_PAPERS: MockPaperConfig[] = [
-  { paperCode: "PRE_GS1", count: 150, officialMaxMarks: 200, durationMinutes: 120, maxSets: 3, negativeMarking: -0.33 },
+  { paperCode: "PRE_GS1", count: 150, officialMaxMarks: 200, durationMinutes: 120, negativeMarking: -0.33 },
   {
     paperCode: "PRE_CSAT",
     count: 100,
     officialMaxMarks: 200,
     durationMinutes: 120,
     qualifyingPct: 33,
-    maxSets: 1,
     negativeMarking: -0.66,
   },
 ];
@@ -207,8 +217,8 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
       results.push({ paper_code: cfg.paperCode, built: 0, skipped: true });
       continue;
     }
-    // As many distinct sets as supply allows, capped by maxSets.
-    const numSets = Math.min(cfg.maxSets, Math.max(1, Math.floor(available.length / cfg.count)));
+    // As many distinct sets as supply allows, capped by the shared ceiling.
+    const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
     for (let s = 1; s <= numSets; s++) {
       const sample = balancedSample(available, cfg.count);
       const totalMarks = sample.reduce((sum, q) => sum + q.marks, 0);
@@ -244,7 +254,6 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
 const MAINS_GS_PAPER_CODES = ["MAINS_GS1", "MAINS_GS2", "MAINS_GS3", "MAINS_GS4", "MAINS_GS5", "MAINS_GS6"];
 const MAINS_MOCK_COUNT = 20;
 const MAINS_MOCK_DURATION_MINUTES = 180;
-const MAINS_MOCK_MAX_SETS = 2;
 // The real paper's max (verified: 20Q/200 marks per GS paper) — distinct
 // from a sample's own totalMarks (real per-question marks vary, so a
 // balanced sample rarely sums to exactly 200; official_max_marks must stay
@@ -322,7 +331,7 @@ export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildRes
       results.push({ paper_code: paperCode, built: 0, skipped: true });
       continue;
     }
-    const numSets = Math.min(MAINS_MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / MAINS_MOCK_COUNT)));
+    const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / MAINS_MOCK_COUNT)));
     for (let s = 1; s <= numSets; s++) {
       const sample = balancedSample(available, MAINS_MOCK_COUNT);
       const totalMarks = sample.reduce((sum, q) => sum + q.marks, 0);

@@ -1,0 +1,62 @@
+name: Scheduled — Rebuild mock test series
+
+# Rebuilds the full-length UPPSC-pattern mock papers (Prelims GS-I/CSAT +
+# Mains GS1-6) from the current published+approved bank. Unlike the daily
+# quiz, mocks don't need daily freshness — but the set count is supply-driven
+# (min(MOCK_MAX_SETS, floor(available/count))), so a MONTHLY rebuild lets the
+# number of mocks grow toward the ceiling as the bank grows, instead of
+# freezing at whatever the last manual run produced. No LLM spend — this only
+# assembles existing questions into tests (pure DB work).
+#
+# GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is
+# normal) and are auto-disabled after 60 days of repo inactivity — any
+# push/commit resets that clock. Use workflow_dispatch to run on demand.
+on:
+  schedule:
+    # 20:30 UTC on the 1st of each month = 02:00 IST on the 2nd — off-peak,
+    # away from the nightly ca:run/daily:build/qgen:topup jobs.
+    - cron: "30 20 1 * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  # A rebuild does delete-then-insert of each mock's membership; don't let two
+  # runs race over the same tests rows.
+  group: mocks-build
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Rebuild Prelims mocks
+        run: pnpm --filter api mocks:build
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+      # Runs even if the Prelims step failed — the two builders are independent
+      # (different papers), so a Prelims hiccup shouldn't skip the Mains rebuild.
+      - name: Rebuild Mains mocks
+        if: ${{ !cancelled() }}
+        run: pnpm --filter api mocks:build:mains
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
