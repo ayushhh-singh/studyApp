@@ -7,6 +7,7 @@ import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TestCard } from "@/components/practice/test-card";
 import { MainsCustomTestBuilder } from "@/components/answers/mains-custom-test-builder";
+import { MockTestsPanel } from "@/components/practice/mock-paper-tabs";
 import { useTests } from "@/hooks/use-tests";
 import { useLocale } from "@/hooks/use-locale";
 
@@ -93,7 +94,7 @@ export function AnswerTestTabs() {
           <MainsTestList kind="sectional" />
         </TabsContent>
         <TabsContent value="mock">
-          <MainsTestList kind="mock" />
+          <MockTestsPanel stage="mains" hrefFor={(test) => `/${locale}/answers/session/${test.id}`} />
         </TabsContent>
         <TabsContent value="custom">
           <div className="flex flex-col gap-4">

@@ -14,6 +14,7 @@ import { PyqList } from "@/components/learn/pyq-list";
 import { TestCard } from "@/components/practice/test-card";
 import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
+import { MockTestsPanel } from "@/components/practice/mock-paper-tabs";
 import { AttemptHistoryList } from "@/components/practice/attempt-history-list";
 import { useTests } from "@/hooks/use-tests";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
@@ -262,7 +263,7 @@ export function Component() {
         </TabsContent>
         <TabsContent value="mock">
           <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription")}>
-            <TestListPanel kind="mock" />
+            <MockTestsPanel stage="prelims" />
           </SectionCard>
         </TabsContent>
         <TabsContent value="timeattack">
