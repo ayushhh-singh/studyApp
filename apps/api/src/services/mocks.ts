@@ -243,27 +243,50 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
 }
 
 // ---------------------------------------------------------------------------
-// Mains mocks — same balanced-sampling approach, descriptive questions.
-// Verified pattern (web search): each GS paper is 20 questions / 200 marks /
-// 3 hours, no negative marking. Scoped to the six GS papers (III-VIII, the
-// "backbone" of Mains per every source found) — Essay/General Hindi have a
-// structurally different pattern (topic CHOICES, not a fixed question set)
-// that a round-robin balanced mock doesn't model well, so they're left to the
-// existing yearly/sectional/custom modes instead.
+// Mains mocks — same balanced-sampling approach, descriptive questions, no
+// negative marking, 3 hours. Each paper has its own fixed structure (verified
+// against the real papers): GS1-6 = 20 questions / 200 marks (10×8 + 10×12);
+// Essay = 3 written essays × 50 = 150 (the paper offers section-choice among 9
+// topics, but a linear session models the 3 actually written); General Hindi =
+// 8 questions / 150 (4×10 + 1×20 + 3×30). Each is captured in MAINS_MOCK_CONFIGS.
 // ---------------------------------------------------------------------------
 
-const MAINS_GS_PAPER_CODES = ["MAINS_GS1", "MAINS_GS2", "MAINS_GS3", "MAINS_GS4", "MAINS_GS5", "MAINS_GS6"];
-const MAINS_MOCK_COUNT = 20;
 const MAINS_MOCK_DURATION_MINUTES = 180;
-const MAINS_MOCK_OFFICIAL_MAX_MARKS = 200;
-// The real post-reform UPPSC Mains GS paper's exact per-question marks: 10
-// questions × 8 + 10 × 12 = 200 (verified IDENTICAL across every GS1-6 paper,
-// 2023-2025). A mock is a synthetic full-paper simulation, so it mirrors that
-// fixed distribution — each sampled PYQ is RE-WEIGHTED to 8 or 12 (its own real
-// marks, which vary, are ignored for the mock) so every set totals exactly 200
-// like the actual paper. This override rides on test_questions.marks and, via
-// the session submission's meta.marks, into the evaluation's max score.
-const MAINS_MOCK_MARKS_PATTERN = [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12];
+
+interface MainsMockConfig {
+  paperCode: string;
+  /** Number of questions per set. */
+  count: number;
+  /** The real paper's exact per-question marks (length === count, sum === the paper max). A sampled PYQ is RE-WEIGHTED to this pattern so every set matches the actual paper, regardless of the PYQs' own marks. Rides on test_questions.marks → the session's meta.marks → the evaluation max score. */
+  marksPattern: number[];
+  /** Paper name for the mock title. */
+  title: { en: string; hi: string };
+}
+
+// Post-reform UPPSC Mains GS paper: 10 questions × 8 + 10 × 12 = 200 (verified
+// identical across every GS1-6 paper, 2023-2025).
+const MAINS_GS_MARKS = [8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12];
+
+const MAINS_MOCK_CONFIGS: MainsMockConfig[] = [
+  ...["1", "2", "3", "4", "5", "6"].map((n) => ({
+    paperCode: `MAINS_GS${n}`,
+    count: 20,
+    marksPattern: MAINS_GS_MARKS,
+    title: { en: `GS-${n}`, hi: `जीएस-${n}` },
+  })),
+  // Essay: the paper presents 9 topics with section-choice, but a candidate
+  // WRITES 3 essays × 50 = 150 marks — a linear session can't model "pick 1 of 3
+  // per section", so the mock is those 3 written essays (sampled across sections).
+  { paperCode: "MAINS_ESSAY", count: 3, marksPattern: [50, 50, 50], title: { en: "Essay", hi: "निबंध" } },
+  // General Hindi: 8 questions / 150 marks — the consistent 2022-25 pattern
+  // (4×10 + 1×20 + 3×30).
+  {
+    paperCode: "MAINS_GH",
+    count: 8,
+    marksPattern: [10, 10, 10, 10, 20, 30, 30, 30],
+    title: { en: "General Hindi", hi: "सामान्य हिन्दी" },
+  },
+];
 
 async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[]> {
   const [rows, topByNode] = await Promise.all([
@@ -291,17 +314,18 @@ async function upsertMainsMockTest(input: {
   paperCode: string;
   index: number;
   totalMarks: number;
+  officialMax: number;
+  title: { en: string; hi: string };
   sample: AvailQ[];
 }): Promise<string> {
-  const paperNum = input.paperCode.replace("MAINS_GS", "");
   const { data, error } = await supabase()
     .from("tests")
     .upsert(
       {
         slug: input.slug,
         title_i18n: {
-          en: `UPPSC Mains GS-${paperNum} — Mock Test ${input.index}`,
-          hi: `यूपीपीएससी मुख्य जीएस-${paperNum} — मॉक टेस्ट ${input.index}`,
+          en: `UPPSC Mains ${input.title.en} — Mock Test ${input.index}`,
+          hi: `यूपीपीएससी मुख्य ${input.title.hi} — मॉक टेस्ट ${input.index}`,
         },
         kind: "mock",
         paper_code: input.paperCode,
@@ -311,7 +335,7 @@ async function upsertMainsMockTest(input: {
         meta: {
           source: "mock",
           mock_index: input.index,
-          official_max_marks: MAINS_MOCK_OFFICIAL_MAX_MARKS,
+          official_max_marks: input.officialMax,
           marking_scheme: { type: "descriptive", negative_marking: 0 },
         },
       },
@@ -327,26 +351,35 @@ async function upsertMainsMockTest(input: {
 
 export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildResult[]> {
   const results: MockBuildResult[] = [];
-  for (const paperCode of MAINS_GS_PAPER_CODES) {
-    const available = await availableDescriptiveQuestions(paperCode);
-    if (available.length < MAINS_MOCK_COUNT) {
-      log(`${paperCode}: only ${available.length}/${MAINS_MOCK_COUNT} published descriptive PYQs — skipping`);
-      results.push({ paper_code: paperCode, built: 0, skipped: true });
+  for (const cfg of MAINS_MOCK_CONFIGS) {
+    const officialMax = cfg.marksPattern.reduce((s, m) => s + m, 0);
+    const available = await availableDescriptiveQuestions(cfg.paperCode);
+    if (available.length < cfg.count) {
+      log(`${cfg.paperCode}: only ${available.length}/${cfg.count} published descriptive PYQs — skipping`);
+      results.push({ paper_code: cfg.paperCode, built: 0, skipped: true });
       continue;
     }
-    const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / MAINS_MOCK_COUNT)));
+    const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
     for (let s = 1; s <= numSets; s++) {
-      const sample = balancedSample(available, MAINS_MOCK_COUNT);
-      // Re-weight each sampled question to the real 8/12 paper pattern (shuffled
-      // so the 8s and 12s are mixed, like the actual paper), so the set is
-      // exactly 20 questions / 200 marks regardless of the PYQs' own marks.
-      const pattern = shuffle(MAINS_MOCK_MARKS_PATTERN);
-      const weighted = sample.map((q, i) => ({ ...q, marks: pattern[i] ?? 8 }));
+      const sample = balancedSample(available, cfg.count);
+      // Re-weight each sampled question to the real paper's marks pattern
+      // (shuffled so the values are mixed, like the actual paper), so every set
+      // matches the paper's exact structure regardless of the PYQs' own marks.
+      const pattern = shuffle(cfg.marksPattern);
+      const weighted = sample.map((q, i) => ({ ...q, marks: pattern[i] ?? cfg.marksPattern[0] }));
       const totalMarks = weighted.reduce((sum, q) => sum + q.marks, 0);
-      await upsertMainsMockTest({ slug: `mock:${paperCode}:${s}`, paperCode, index: s, totalMarks, sample: weighted });
-      log(`built mock:${paperCode}:${s} — ${weighted.length} questions, ${totalMarks} marks`);
+      await upsertMainsMockTest({
+        slug: `mock:${cfg.paperCode}:${s}`,
+        paperCode: cfg.paperCode,
+        index: s,
+        totalMarks,
+        officialMax,
+        title: cfg.title,
+        sample: weighted,
+      });
+      log(`built mock:${cfg.paperCode}:${s} — ${weighted.length} questions, ${totalMarks} marks`);
     }
-    results.push({ paper_code: paperCode, built: numSets, skipped: false });
+    results.push({ paper_code: cfg.paperCode, built: numSets, skipped: false });
   }
   return results;
 }

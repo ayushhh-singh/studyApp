@@ -19,6 +19,8 @@ const PAPER_ORDER = [
   "MAINS_GS4",
   "MAINS_GS5",
   "MAINS_GS6",
+  "MAINS_ESSAY",
+  "MAINS_GH",
 ];
 
 /**
@@ -29,6 +31,8 @@ const PAPER_ORDER = [
 function paperLabel(code: string | null): string {
   if (code === "PRE_GS1") return "GS-I";
   if (code === "PRE_CSAT") return "CSAT";
+  if (code === "MAINS_ESSAY") return "Essay";
+  if (code === "MAINS_GH") return "Hindi";
   const m = code?.match(/^MAINS_GS(\d)$/);
   if (m) return `GS${m[1]}`;
   return code ?? "—";
