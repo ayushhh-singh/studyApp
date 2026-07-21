@@ -1,5 +1,9 @@
-import { useEffect } from "react";
-import { Helmet } from "react-helmet-async";
+import { useEffect, type ComponentType, type PropsWithChildren } from "react";
+import { Helmet as HelmetBase } from "react-helmet-async";
+
+// react-helmet-async's React-18 class-component types don't satisfy React 19's
+// JSX component type (works fine at runtime); cast to a children-only component.
+const Helmet = HelmetBase as unknown as ComponentType<PropsWithChildren>;
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@/lib/locale";
 
 /**

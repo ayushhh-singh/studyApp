@@ -1,8 +1,13 @@
-import { StrictMode } from "react";
+import { StrictMode, type ComponentType, type PropsWithChildren } from "react";
 import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "react-router";
-import { HelmetProvider } from "react-helmet-async";
+import { HelmetProvider as HelmetProviderBase } from "react-helmet-async";
+
+// react-helmet-async ships React-18 class-component types that don't satisfy
+// React 19's stricter JSX component type (it works fine at runtime). Cast to a
+// plain children-only component so it type-checks under React 19.
+const HelmetProvider = HelmetProviderBase as unknown as ComponentType<PropsWithChildren>;
 import "@fontsource-variable/inter";
 // Devanagari-only subset files (not the generic 400.css/etc, which bundle
 // every script Noto Sans Devanagari ships — latin, Devanagari, and more, each

@@ -1,4 +1,4 @@
-import { NavLink } from "react-router";
+import { NavLink, type NavLinkRenderProps } from "react-router";
 import { useTranslation } from "react-i18next";
 import { visibleNav } from "@/lib/nav";
 import { useLocale } from "@/hooks/use-locale";
@@ -34,7 +34,7 @@ export function Sidebar() {
           <NavLink
             key={item.id}
             to={`/${locale}/${item.to}`}
-            className={({ isActive }) =>
+            className={({ isActive }: NavLinkRenderProps) =>
               cn(
                 "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
                 isActive &&

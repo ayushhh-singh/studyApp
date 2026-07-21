@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, useLocation } from "react-router";
+import { NavLink, useLocation, type NavLinkRenderProps } from "react-router";
 import { useTranslation } from "react-i18next";
 import { MoreHorizontal } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
@@ -53,7 +53,7 @@ export function BottomTabBar() {
             key={item.id}
             to={`/${locale}/${item.to}`}
             aria-label={dueCount > 0 ? `${t(item.labelKey)} — ${t("Dashboard.guidedSrsDue", { n: dueCount })}` : undefined}
-            className={({ isActive }) =>
+            className={({ isActive }: NavLinkRenderProps) =>
               cn(
                 "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
                 isActive && (item.flagship ? "text-marigold" : "text-primary"),
@@ -88,7 +88,7 @@ export function BottomTabBar() {
                 key={item.id}
                 to={`/${locale}/${item.to}`}
                 onClick={() => setMoreOpen(false)}
-                className={({ isActive }) =>
+                className={({ isActive }: NavLinkRenderProps) =>
                   cn(
                     "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-foreground/80 hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     isActive && "bg-accent text-accent-foreground",
