@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import {
+  difficultySchema,
   examCodeSchema,
   papersResponseSchema,
   paperTreeResponseSchema,
@@ -49,7 +50,8 @@ syllabusRouter.get(
   asyncHandler(async (req, res) => {
     const { code } = parse(z.object({ code: z.string().min(1) }), req.params);
     const { exam } = parse(examFilterQuerySchema, req.query);
-    const tree = await getPaperTree(currentUserId(), code, exam);
+    const { difficulty } = parse(z.object({ difficulty: difficultySchema.optional() }), req.query);
+    const tree = await getPaperTree(currentUserId(), code, exam, difficulty);
     res.json(paperTreeResponseSchema.parse({ data: tree, error: null }));
   }),
 );

@@ -32,11 +32,11 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const [nodeIds, setNodeIds] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [exam, setExam] = useState<ExamCode | undefined>(undefined);
-  // Scope the tree fetch by the same exam filter used at creation time —
-  // otherwise own_pyq_count (and which topics even appear) reflects "all
-  // exams" while a single-exam pick could deliver fewer questions than shown,
-  // or an empty set for a topic that only has PYQs from a different exam.
-  const { data: tree } = usePaperTree(paperCode || undefined, exam);
+  // Scope the tree fetch by the SAME exam + difficulty filters used at creation
+  // time — otherwise the per-node counts (and the cap derived from them) reflect
+  // "all exams / all difficulties" while a narrower pick could deliver fewer
+  // questions than the cap promised.
+  const { data: tree } = usePaperTree(paperCode || undefined, exam, difficulty || undefined);
   const [count, setCount] = useState(20);
   const createTest = useCreateCustomTest();
 

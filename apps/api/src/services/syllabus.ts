@@ -1,5 +1,6 @@
 import type {
   BilingualText,
+  Difficulty,
   ExamCode,
   ExamStage,
   NodeWeightage,
@@ -191,6 +192,10 @@ export async function getPaperTree(
   userId: string,
   paperCode: string,
   exam?: ExamCode,
+  // Narrows the per-node PYQ/generated counts to one difficulty, mirroring the
+  // custom-set builder's own difficulty filter so the cap it derives matches what
+  // a set would actually deliver. Omitted (learn page) = all difficulties.
+  difficulty?: Difficulty,
 ): Promise<SyllabusNodeWithStats> {
   let pyqQuery = supabase()
     .from("questions")
@@ -199,6 +204,7 @@ export async function getPaperTree(
     .eq("is_published", true)
     .eq("review_state", "approved");
   if (exam) pyqQuery = pyqQuery.eq("exam_code", exam);
+  if (difficulty) pyqQuery = pyqQuery.eq("difficulty", difficulty);
 
   const [treeResult, questionsResult, graded, weightage] = await Promise.all([
     supabase()
@@ -239,15 +245,20 @@ export async function getPaperTree(
   // only (CA never maps to mains nodes); paginated since one node can hold 1000+.
   if (paperCode.startsWith("PRE_")) {
     const caNodeIds = rows.map((r) => r.id);
-    const caRows = await selectAll<{ syllabus_node_id: string | null }>(() =>
-      supabase()
+    const caRows = await selectAll<{ syllabus_node_id: string | null }>(() => {
+      let q = supabase()
         .from("questions")
         .select("syllabus_node_id")
         .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
         .eq("type", "mcq")
         .in("syllabus_node_id", caNodeIds)
-        .order("id", { ascending: true }),
-    );
+        .order("id", { ascending: true });
+      // Mirror the custom builder's own exam/difficulty filters so the counted
+      // cap matches what the pool would actually deliver.
+      if (exam) q = q.eq("exam_code", exam);
+      if (difficulty) q = q.eq("difficulty", difficulty);
+      return q;
+    });
     for (const r of caRows) {
       if (!r.syllabus_node_id) continue;
       ownGeneratedCount.set(r.syllabus_node_id, (ownGeneratedCount.get(r.syllabus_node_id) ?? 0) + 1);

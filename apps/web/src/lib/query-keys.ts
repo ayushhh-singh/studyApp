@@ -1,10 +1,10 @@
-import type { ExamCode, ExamStage, QuestionType } from "@neev/shared";
+import type { Difficulty, ExamCode, ExamStage, QuestionType } from "@neev/shared";
 
 export const queryKeys = {
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,
   paperSummaries: () => ["syllabus", "papers"] as const,
-  paperTree: (paperCode: string, exam?: ExamCode) =>
-    ["syllabus", "papers", paperCode, "tree", exam ?? "all"] as const,
+  paperTree: (paperCode: string, exam?: ExamCode, difficulty?: Difficulty) =>
+    ["syllabus", "papers", paperCode, "tree", exam ?? "all", difficulty ?? "all"] as const,
   paperTrends: (paperCode: string, exam?: ExamCode) =>
     ["syllabus", "papers", paperCode, "trends", exam ?? "all"] as const,
   syllabusNode: (nodeId: string, exam?: ExamCode) => ["syllabus", "nodes", nodeId, exam ?? "all"] as const,
