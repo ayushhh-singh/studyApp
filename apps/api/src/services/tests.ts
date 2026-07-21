@@ -275,10 +275,12 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   const orderedNodes = await resolveOrderedNodes(body.node_ids);
 
   // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
-  // descriptive PYQs too (Mains topics), which the player can't run. "catalog"
-  // scope (not "test"): a syllabus node's own topic-practice set must never
-  // pull in the current-affairs pool's always-unpublished MCQs, even though
-  // ca:run does map them to a syllabus_node_id.
+  // descriptive PYQs too (Mains topics), which the player can't run. "test" scope
+  // (not "catalog"): current-affairs MCQs are prelims-format and now mapped to the
+  // prelims "Current Events" topic (see ca/prelims-node.ts), so a topic set on
+  // that node SHOULD be able to draw on the abundant CA pool — the test scope's
+  // exception is exactly what admits those always-unpublished MCQs. PYQ-first
+  // ordering below keeps real PYQs ahead of any CA/generated fill.
   // Subtree-aware so "Practice this topic" works on a chapter (non-leaf) node,
   // whose MCQ PYQs live on its leaf sub-topics; a leaf resolves to just [node].
   // Multiple topics union their subtrees and dedupe by question id (two
@@ -290,7 +292,7 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     .select("id, marks, source")
     .in("syllabus_node_id", subtreeIds)
     .eq("type", "mcq")
-    .or(questionVisibilityOrFilter("catalog"));
+    .or(questionVisibilityOrFilter("test"));
   if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);
   // Omitting `exam` mixes every exam mapped to the topic (the default); passing
   // one narrows the set to a single exam's PYQs.

@@ -35,6 +35,7 @@ import type {
   CurrentAffairsPossibleQuestions,
 } from "@neev/shared";
 import { CA_SOURCES } from "./sources.js";
+import { getPrelimsCurrentAffairsNodeId } from "./prelims-node.js";
 import {
   enrichItem,
   generateMainsQuestion,
@@ -486,7 +487,11 @@ export async function runPipeline(
         if (hasPrelims && isPublished && prelimsFacts) {
           try {
             const mcqIds = await insertMcqsForItem({
-              syllabusNodeId: nodeId,
+              // CA MCQs are prelims-format and belong in prelims practice — map
+              // them to the prelims "Current Events" topic, not the item's mains
+              // classification node (`nodeId`, which stays the item's own mapping
+              // for the magazine/mains brief). See ca/prelims-node.ts.
+              syllabusNodeId: await getPrelimsCurrentAffairsNodeId(),
               title: enrich.title_i18n.en,
               facts: prelimsFacts.map((f) => f.fact_i18n.en),
               onUsage,

@@ -23,6 +23,7 @@
     "audit:resolve": "pnpm --filter api audit:resolve",
     "ca:run": "pnpm --filter api ca:run",
     "ca:embed": "pnpm --filter api ca:embed",
+    "ca:remap-prelims": "pnpm --filter api ca:remap-prelims",
     "ca:compile": "pnpm --filter api ca:compile",
     "daily:build": "pnpm --filter api daily:build",
     "mocks:build": "pnpm --filter api mocks:build",

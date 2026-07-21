@@ -11,6 +11,8 @@ import type {
   TrendNode,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
@@ -227,6 +229,29 @@ export async function getPaperTree(
     if (!nodeId) continue;
     const target = row.source === "generated" ? ownGeneratedCount : ownPyqCount;
     target.set(nodeId, (target.get(nodeId) ?? 0) + 1);
+  }
+
+  // Current-affairs MCQs are prelims-format and now mapped to the prelims
+  // "Current Events" topic (see ca/prelims-node.ts). They carry
+  // paper_code=CURRENT_AFFAIRS, so the paper query above never counts them —
+  // but a topic set admits them via the test scope. Fold them into the generated
+  // top-up supply so the custom builder's cap reflects the real pool. Prelims
+  // only (CA never maps to mains nodes); paginated since one node can hold 1000+.
+  if (paperCode.startsWith("PRE_")) {
+    const caNodeIds = rows.map((r) => r.id);
+    const caRows = await selectAll<{ syllabus_node_id: string | null }>(() =>
+      supabase()
+        .from("questions")
+        .select("syllabus_node_id")
+        .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+        .eq("type", "mcq")
+        .in("syllabus_node_id", caNodeIds)
+        .order("id", { ascending: true }),
+    );
+    for (const r of caRows) {
+      if (!r.syllabus_node_id) continue;
+      ownGeneratedCount.set(r.syllabus_node_id, (ownGeneratedCount.get(r.syllabus_node_id) ?? 0) + 1);
+    }
   }
 
   const ownStats = new Map<string, { correct: number; total: number }>();
