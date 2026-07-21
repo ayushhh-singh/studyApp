@@ -46,8 +46,10 @@ export interface SyllabusNodeWithStats {
   order_index: number;
   depth: number;
   path: string;
-  /** PYQs mapped exactly to this node (not descendants) — matches the /questions?node= filter 1:1. */
+  /** PYQs (source='pyq') mapped exactly to this node (not descendants) — matches the /questions?node= filter 1:1. */
   own_pyq_count: number;
+  /** AI-generated questions (source='generated') mapped exactly to this node — the top-up supply a custom set can add beyond the PYQs. */
+  own_generated_count: number;
   /** PYQs mapped to this node OR any descendant — always >= own_pyq_count. */
   pyq_count: number;
   accuracy_pct: number | null;
@@ -68,6 +70,7 @@ export const syllabusNodeWithStatsSchema: z.ZodType<SyllabusNodeWithStats> = z.l
     depth: z.number().int(),
     path: z.string(),
     own_pyq_count: z.number().int(),
+    own_generated_count: z.number().int(),
     pyq_count: z.number().int(),
     accuracy_pct: z.number().nullable(),
     answered_count: z.number().int(),

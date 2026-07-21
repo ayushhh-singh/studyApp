@@ -45,14 +45,22 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   // so the picker must reflect that count or it over-promises what a parent
   // topic's row can actually deliver.
   const flatNodes = useMemo(
-    () => (tree ? flatten(tree.children).filter((f) => f.node.own_pyq_count > 0) : []),
+    () => (tree ? flatten(tree.children).filter((f) => f.node.own_pyq_count > 0 || f.node.own_generated_count > 0) : []),
     [tree],
   );
   const selectedNodes = useMemo(
     () => flatNodes.filter((f) => nodeIds.includes(f.node.id)),
     [flatNodes, nodeIds],
   );
-  const maxCount = Math.max(1, Math.min(100, selectedNodes.reduce((sum, f) => sum + f.node.own_pyq_count, 0) || 100));
+  // PYQs fill first; AI-generated top up beyond them. The cap is PYQs + generated,
+  // so a user can build a set larger than the PYQs alone (real questions still
+  // come first in the actual set — see createCustomTestFromNode).
+  const selectedPyq = useMemo(() => selectedNodes.reduce((sum, f) => sum + f.node.own_pyq_count, 0), [selectedNodes]);
+  const selectedGen = useMemo(
+    () => selectedNodes.reduce((sum, f) => sum + f.node.own_generated_count, 0),
+    [selectedNodes],
+  );
+  const maxCount = Math.max(1, Math.min(100, selectedPyq + selectedGen || 100));
 
   function toggleNode(id: string) {
     setNodeIds((prev) => (prev.includes(id) ? prev.filter((n) => n !== id) : [...prev, id]));
@@ -138,7 +146,11 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
                   onChange={() => toggleNode(node.id)}
                 />
                 <span className="min-w-0 flex-1 truncate">
-                  {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.own_pyq_count })})
+                  {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.own_pyq_count })}
+                  {node.own_generated_count > 0 && (
+                    <span className="text-marigold"> · {t("Practice.customTopicAi", { count: node.own_generated_count })}</span>
+                  )}
+                  )
                 </span>
               </label>
             ))
@@ -173,6 +185,18 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
           />
         </label>
       </div>
+
+      {selectedNodes.length > 0 && (
+        <p className="-mt-1 text-xs text-muted-foreground">
+          {count > selectedPyq ? (
+            <span className="font-medium text-marigold">
+              {t("Practice.customFillMix", { pyq: selectedPyq, ai: count - selectedPyq })}
+            </span>
+          ) : (
+            t("Practice.customFillPyq", { count })
+          )}
+        </p>
+      )}
 
       <Button type="button" onClick={handleSubmit} disabled={nodeIds.length === 0 || createTest.isPending} className="self-start">
         {createTest.isPending ? t("Practice.customCreating") : t("Practice.customCreate")}

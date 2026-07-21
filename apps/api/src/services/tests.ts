@@ -287,7 +287,7 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   const subtreeIds = [...new Set(subtreeIdSets.flat())];
   let questionsQuery = supabase()
     .from("questions")
-    .select("id, marks")
+    .select("id, marks, source")
     .in("syllabus_node_id", subtreeIds)
     .eq("type", "mcq")
     .or(questionVisibilityOrFilter("catalog"));
@@ -297,11 +297,18 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   if (body.exam) questionsQuery = questionsQuery.eq("exam_code", body.exam);
   const { data: questionRows, error: questionsError } = await questionsQuery;
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
-  const available = (questionRows ?? []) as { id: string; marks: number | null }[];
+  const available = (questionRows ?? []) as { id: string; marks: number | null; source: string | null }[];
   if (available.length === 0)
-    throw badRequest("No published MCQ PYQs are mapped to these topics (and difficulty) yet");
+    throw badRequest("No published MCQ questions are mapped to these topics (and difficulty) yet");
 
-  const selected = shuffled(available).slice(0, body.count);
+  // PYQ-first: real past questions always fill the set first; AI-generated
+  // questions top up ONLY beyond the available PYQs. So a count within the PYQ
+  // supply is pure PYQs, and the generated bank is used solely to let a user
+  // build a larger set than the PYQs alone allow.
+  const selected = [
+    ...shuffled(available.filter((q) => q.source === "pyq")),
+    ...shuffled(available.filter((q) => q.source !== "pyq")),
+  ].slice(0, body.count);
   const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
@@ -353,7 +360,7 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
   const subtreeIds = [...new Set(subtreeIdSets.flat())];
   const { data: questionRows, error: questionsError } = await supabase()
     .from("questions")
-    .select("id, marks")
+    .select("id, marks, source")
     .in("syllabus_node_id", subtreeIds)
     .eq("type", "descriptive")
     // Same rationale as ingest/tests.ts's pyq_full/sectional builders and
@@ -366,10 +373,14 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
     .eq("exam_code", UPPSC_EXAM_CODE)
     .or(questionVisibilityOrFilter("catalog"));
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
-  const available = (questionRows ?? []) as { id: string; marks: number | null }[];
-  if (available.length === 0) throw badRequest("No published descriptive PYQs are mapped to these topics yet");
+  const available = (questionRows ?? []) as { id: string; marks: number | null; source: string | null }[];
+  if (available.length === 0) throw badRequest("No published descriptive questions are mapped to these topics yet");
 
-  const selected = shuffled(available).slice(0, count);
+  // PYQ-first (same as the MCQ builder): real past questions fill first, AI-generated only beyond them.
+  const selected = [
+    ...shuffled(available.filter((q) => q.source === "pyq")),
+    ...shuffled(available.filter((q) => q.source !== "pyq")),
+  ].slice(0, count);
   const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()

@@ -192,7 +192,7 @@ export async function getPaperTree(
 ): Promise<SyllabusNodeWithStats> {
   let pyqQuery = supabase()
     .from("questions")
-    .select("syllabus_node_id")
+    .select("syllabus_node_id, source")
     .eq("paper_code", paperCode)
     .eq("is_published", true)
     .eq("review_state", "approved");
@@ -216,11 +216,17 @@ export async function getPaperTree(
   const [root] = buildTree(rows);
   if (!root) throw notFound("Paper not found");
 
+  // Split own-node counts by source: PYQs (real past questions) vs AI-generated
+  // (the top-up supply a custom set can add beyond the PYQs). own_pyq_count is
+  // now genuinely PYQ-only (it previously conflated generated in, which mislabelled
+  // the "N PYQs" the learn/custom UIs show).
   const ownPyqCount = new Map<string, number>();
+  const ownGeneratedCount = new Map<string, number>();
   for (const row of questionsResult.data ?? []) {
     const nodeId = row.syllabus_node_id as string | null;
     if (!nodeId) continue;
-    ownPyqCount.set(nodeId, (ownPyqCount.get(nodeId) ?? 0) + 1);
+    const target = row.source === "generated" ? ownGeneratedCount : ownPyqCount;
+    target.set(nodeId, (target.get(nodeId) ?? 0) + 1);
   }
 
   const ownStats = new Map<string, { correct: number; total: number }>();
@@ -266,6 +272,7 @@ export async function getPaperTree(
         depth: node.depth,
         path: node.path,
         own_pyq_count: ownPyqCount.get(node.id) ?? 0,
+        own_generated_count: ownGeneratedCount.get(node.id) ?? 0,
         pyq_count: pyq,
         accuracy_pct: total > 0 ? round2((correct / total) * 100) : null,
         answered_count: total,
