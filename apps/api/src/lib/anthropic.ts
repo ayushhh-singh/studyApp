@@ -293,77 +293,124 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Submit all requests as one Message Batch, poll to completion, and collect
- * results keyed by custom_id. Each succeeded result's usage is logged to
- * llm_calls at the batch (0.5x) rate and surfaced via `onUsage`.
+ * Per-custom_id attribution for a batch's llm_calls rows.
  *
- * Poll cadence is coarse (batches take minutes, not seconds); this is only ever
- * called from the nightly top-up job, never a request handler.
+ * `fetchBatchResults` takes this instead of the original BatchRequest objects
+ * because a submit-now/collect-later caller (see submitBatch) no longer holds
+ * them — by collection time the only record of what was sent may be a DB row
+ * written by an earlier process, so attribution has to travel separately from
+ * the request params.
  */
-export async function runBatch(
-  requests: BatchRequest[],
-  opts: {
-    pollMs?: number;
-    /** Called after each poll with the batch's request_counts, for CLI progress. */
-    onPoll?: (counts: { processing: number; succeeded: number; errored: number; canceled: number; expired: number }) => void;
-    onUsage?: (usage: LlmUsage) => void;
-  } = {},
-): Promise<Map<string, BatchItemResult>> {
-  const out = new Map<string, BatchItemResult>();
-  if (requests.length === 0) return out;
+export interface BatchRequestMeta {
+  model: ModelId;
+  purpose: string;
+  userId?: string;
+}
 
-  const byId = new Map(requests.map((r) => [r.customId, r]));
+/** A batch's processing status plus its per-outcome request counts. */
+export interface BatchStatus {
+  ended: boolean;
+  counts: { processing: number; succeeded: number; errored: number; canceled: number; expired: number };
+}
+
+/**
+ * Create a Message Batch and return its Anthropic batch id. Does NOT poll.
+ *
+ * WHY this exists separately from runBatch: the CA pipeline submits triage
+ * work in one process (an `ca:run` invocation) and collects it in a LATER one
+ * (a subsequent run, minutes-to-hours after), persisting the batch id in
+ * between. A blocking submit+poll+collect helper cannot express that, because
+ * nothing may hold the process open while the batch cooks.
+ */
+export async function submitBatch(requests: BatchRequest[]): Promise<string> {
   const batch = await anthropic().messages.batches.create({
     requests: requests.map((r) => ({ custom_id: r.customId, params: r.params })),
   });
+  return batch.id;
+}
 
-  const pollMs = opts.pollMs ?? 15_000;
-  // Anthropic guarantees a batch ends within 24h; cap polling well past that so
-  // a stuck/never-terminal status fails the (unattended) nightly job loudly
-  // instead of looping forever.
-  const maxPolls = Math.ceil((26 * 60 * 60 * 1000) / pollMs);
-  let status = batch.processing_status;
-  let polls = 0;
-  while (status !== "ended") {
-    if (++polls > maxPolls) {
-      throw new Error(`Batch ${batch.id} did not end after ${polls} polls (~26h); aborting.`);
-    }
-    await sleep(pollMs);
-    const fresh = await anthropic().messages.batches.retrieve(batch.id);
-    status = fresh.processing_status;
-    opts.onPoll?.(fresh.request_counts);
-  }
+/**
+ * ONE non-blocking status retrieve. Returns the terminal flag plus the
+ * request_counts a CLI progress line wants — `batchEnded` is the thin
+ * boolean-only wrapper over this, and runBatch's poll loop uses the counts.
+ */
+export async function retrieveBatchStatus(batchId: string): Promise<BatchStatus> {
+  const fresh = await anthropic().messages.batches.retrieve(batchId);
+  return { ended: fresh.processing_status === "ended", counts: fresh.request_counts };
+}
 
-  const results = await anthropic().messages.batches.results(batch.id);
+/**
+ * ONE non-blocking status check: has this batch finished processing?
+ *
+ * WHY: a collect-later caller polls on ITS OWN cadence (e.g. once per cron
+ * tick) rather than sitting in a sleep loop, so it needs a single cheap
+ * "is it done yet?" primitive with no blocking behaviour of its own.
+ */
+export async function batchEnded(batchId: string): Promise<boolean> {
+  return (await retrieveBatchStatus(batchId)).ended;
+}
+
+/**
+ * Fetch results for an ENDED batch, log each succeeded request's usage to
+ * llm_calls at the batch (0.5x) rate, and return results keyed by custom_id.
+ *
+ * WHY the `meta` map rather than the BatchRequest objects: a caller that
+ * submitted in an earlier process (see submitBatch) cannot produce them again
+ * — it only has whatever it persisted. `meta` carries the minimum needed for
+ * an accurate llm_calls row: { model, purpose, userId? } per custom_id. A
+ * custom_id missing from `meta` still yields a result entry, but is NOT
+ * billed — see the comment at the recordLlmCall below for why that matters.
+ *
+ * This is the ONE place batch result semantics live — runBatch is implemented
+ * on top of it, so usage/cost logging has exactly one code path.
+ */
+export async function fetchBatchResults(
+  batchId: string,
+  meta: Map<string, BatchRequestMeta>,
+  opts: { onUsage?: (usage: LlmUsage) => void } = {},
+): Promise<Map<string, BatchItemResult>> {
+  const out = new Map<string, BatchItemResult>();
+  const results = await anthropic().messages.batches.results(batchId);
   for await (const entry of results) {
-    const req = byId.get(entry.custom_id);
+    const info = meta.get(entry.custom_id);
     if (entry.result.type === "succeeded") {
       const message = entry.result.message;
+      const model = info?.model ?? MODELS.haiku;
+      const inputTokens = message.usage.input_tokens;
+      const outputTokens = message.usage.output_tokens;
+      const cacheReadTokens = message.usage.cache_read_input_tokens ?? 0;
+      const cacheWriteTokens = message.usage.cache_creation_input_tokens ?? 0;
       const usage: LlmUsage = {
-        model: (req?.params.model as ModelId) ?? MODELS.haiku,
-        inputTokens: message.usage.input_tokens,
-        outputTokens: message.usage.output_tokens,
-        cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
-        cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
+        model,
+        inputTokens,
+        outputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
         costUsd:
-          estimateCostUsd(
-            (req?.params.model as ModelId) ?? MODELS.haiku,
-            message.usage.input_tokens,
-            message.usage.output_tokens,
-            message.usage.cache_read_input_tokens ?? 0,
-            message.usage.cache_creation_input_tokens ?? 0,
-          ) * BATCH_DISCOUNT,
+          estimateCostUsd(model, inputTokens, outputTokens, cacheReadTokens, cacheWriteTokens) *
+          BATCH_DISCOUNT,
       };
-      opts.onUsage?.(usage);
-      if (req) {
+      // BILLING IS GATED ON `info` ON PURPOSE — do not "simplify" this to an
+      // unconditional record with an "unknown" fallback. A batch's results
+      // stream replays EVERY request in it, but a submit-now/collect-later
+      // caller may be re-collecting after a partial pass and pass a `meta`
+      // covering only the rows still outstanding (ca/pipeline.ts's collector
+      // does exactly this, keyed off `status='pending'`). Recording the
+      // already-settled entries again would write duplicate llm_calls rows and
+      // re-add their cost to the run's total — inflating cost:report for spend
+      // that happened once. An entry with no `meta` is still RETURNED, just
+      // never re-billed. runBatch always supplies a complete map, so its
+      // behaviour is unchanged.
+      if (info) {
+        opts.onUsage?.(usage);
         await recordLlmCall({
-          model: usage.model,
-          purpose: req.purpose,
-          userId: req.userId,
-          inputTokens: usage.inputTokens,
-          outputTokens: usage.outputTokens,
-          cacheReadTokens: usage.cacheReadTokens,
-          cacheWriteTokens: usage.cacheWriteTokens,
+          model,
+          purpose: info.purpose,
+          userId: info.userId,
+          inputTokens,
+          outputTokens,
+          cacheReadTokens,
+          cacheWriteTokens,
           batch: true,
         });
       }
@@ -384,6 +431,58 @@ export async function runBatch(
     }
   }
   return out;
+}
+
+/**
+ * Submit all requests as one Message Batch, poll to completion, and collect
+ * results keyed by custom_id. Each succeeded result's usage is logged to
+ * llm_calls at the batch (0.5x) rate and surfaced via `onUsage`.
+ *
+ * Poll cadence is coarse (batches take minutes, not seconds); this is only ever
+ * called from an offline/CLI job, never a request handler. It is now a thin
+ * composition of submitBatch → retrieveBatchStatus → fetchBatchResults, so the
+ * blocking and the submit-now/collect-later callers share one implementation.
+ */
+export async function runBatch(
+  requests: BatchRequest[],
+  opts: {
+    pollMs?: number;
+    /** Called after each poll with the batch's request_counts, for CLI progress. */
+    onPoll?: (counts: { processing: number; succeeded: number; errored: number; canceled: number; expired: number }) => void;
+    onUsage?: (usage: LlmUsage) => void;
+  } = {},
+): Promise<Map<string, BatchItemResult>> {
+  if (requests.length === 0) return new Map<string, BatchItemResult>();
+
+  const meta = new Map<string, BatchRequestMeta>(
+    requests.map((r) => [
+      r.customId,
+      { model: r.params.model as ModelId, purpose: r.purpose, userId: r.userId },
+    ]),
+  );
+  const batchId = await submitBatch(requests);
+
+  const pollMs = opts.pollMs ?? 15_000;
+  // Anthropic guarantees a batch ends within 24h; cap polling well past that so
+  // a stuck/never-terminal status fails the (unattended) nightly job loudly
+  // instead of looping forever.
+  const maxPolls = Math.ceil((26 * 60 * 60 * 1000) / pollMs);
+  // A freshly created batch is never already "ended", so starting from false
+  // and sleeping before the first retrieve matches the previous behaviour
+  // exactly (which read processing_status off the create response).
+  let ended = false;
+  let polls = 0;
+  while (!ended) {
+    if (++polls > maxPolls) {
+      throw new Error(`Batch ${batchId} did not end after ${polls} polls (~26h); aborting.`);
+    }
+    await sleep(pollMs);
+    const status = await retrieveBatchStatus(batchId);
+    ended = status.ended;
+    opts.onPoll?.(status.counts);
+  }
+
+  return fetchBatchResults(batchId, meta, { onUsage: opts.onUsage });
 }
 
 /**

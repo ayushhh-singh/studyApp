@@ -19,6 +19,10 @@ const WEEKLY_ASSEMBLE_SCHEDULE = "0 6 * * 1";
 const IST_TZ = "Asia/Kolkata";
 
 export function startDevCaScheduler(): void {
+  // Same 6h cadence as before; it just inherits the pipeline's default batch
+  // mode now. Each tick COLLECTS the previous tick's triage batch (running the
+  // full downstream for those items) and SUBMITS a new one without waiting, so
+  // a fresh item goes live within roughly one cadence at half the triage cost.
   cron.schedule(DEV_SCHEDULE, () => {
     logger.info("ca: scheduled pipeline run starting");
     runPipeline({ days: 3, maxPerSource: 15, maxTotal: 40 }, (msg) => logger.info(`ca: ${msg}`))

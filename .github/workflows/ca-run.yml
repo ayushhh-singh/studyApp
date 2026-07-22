@@ -43,6 +43,15 @@ jobs:
     # +10 on top of that for the ca:embed step below — normally seconds (a
     # no-op when there's no gap), but a large backlog batch under a loaded
     # HNSW index has been observed taking several minutes with retries.
+    #
+    # Since 2026-07-23 ca:run defaults to submit-now/collect-later triage
+    # (Message Batches API, 50% off — see ca/pipeline.ts), so per-run wall time
+    # should DROP: the biggest block of sequential calls (one triage per
+    # candidate item, kept AND archived) is off the critical path entirely. A
+    # run now does at most one collect (enrich + quiz generation for the
+    # PREVIOUS run's batch) plus one non-blocking submit. The generous timeout
+    # is deliberately left as-is — it is headroom, not a target, and the collect
+    # phase is still the sequential enrich/MCQ/mains-question work it always was.
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
