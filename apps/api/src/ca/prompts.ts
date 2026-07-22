@@ -16,6 +16,31 @@
  * model split); the single descriptive-question generation runs on sonnet.
  * ToS: the RSS title/snippet is only ever CONTEXT — every persisted string is a
  * fresh own-words paraphrase, never copied source text (enforced in the prompt).
+ *
+ * NO PROMPT CACHING HERE — DELIBERATE, MEASURED, DO NOT "FIX" (2026-07-22).
+ * These are the highest-frequency LLM calls in the codebase (one per RSS item
+ * per ca:run), so caching them looks like the obvious win. It isn't:
+ *  - enrich (709 tok total), generateMcqs (~100 tok system) and
+ *    generateMainsQuestion (~300 tok system) are ALL far below their models'
+ *    minimum cacheable prefix — claude-haiku-4-5 needs 4096 tokens before
+ *    anything caches at all, sonnet >=1024. Marking a `cache: true` segment
+ *    here compiles and ships but caches NOTHING; it only risks paying the
+ *    1.25x cache-write premium. Verified with messages.count_tokens.
+ *  - triage is 9235 tok, but 8646 of that (94%) is the ~260-node candidate
+ *    list; the per-item text is ~90 tok. The list IS invariant per run, but
+ *    caching is a prefix match, so it can only be cached by hoisting it ahead
+ *    of the item text (into `system`). That layout was built and A/B'd against
+ *    this one on 30 real feed items, 3 arms (old/old control + new) to
+ *    separate the change from haiku's substantial run-to-run nondeterminism.
+ *    Caching worked (98.9% of input served as cache_read), but output quality
+ *    regressed ~3x beyond the control's noise on every metric, all downward:
+ *    items surviving the relevance gate 14 base / 12 control / 8 new, and
+ *    mapped syllabus nodes 37 / 33 / 25. Losing ~a third of kept CA items to
+ *    save ~$0.80 on a ~$1 run is a bad trade, so the ordering below (item
+ *    text FIRST, candidate list adjacent to it) is load-bearing for quality.
+ * If you revisit this, re-run that 3-arm control design — a plain before/after
+ * diff cannot distinguish a real regression from haiku's baseline noise here
+ * (old-vs-old agreed on only 9/30 items).
  */
 import { MODELS, structuredJson, type LlmUsage, type StructuredParams } from "../lib/anthropic.js";
 import type {
