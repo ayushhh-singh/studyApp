@@ -22,7 +22,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
-import { MODELS, structuredJson, translate } from "../lib/anthropic.js";
+import { MODELS, structuredJson, translateBatch } from "../lib/anthropic.js";
 import { embedQuery, retrieveContext } from "./mentor/retrieval.js";
 
 const EMPTY_BODY: NoteBody = {
@@ -338,17 +338,29 @@ export async function translateUserNote(userId: string, id: string): Promise<Use
   const to = otherLocale(from);
   const src = note.content_i18n[from];
 
-  const translateOne = (text: string) => (text.trim() ? translate(text, to, "UPPSC study note") : Promise.resolve(""));
-  const translateList = (items: string[]) => Promise.all(items.map((i) => translateOne(i)));
+  // ONE batched call for every field this note needs translated, instead of
+  // one haiku round-trip per field (mirrors translateAndCacheEvaluation /
+  // ingest/pyq.ts's collectHindiJobs pattern). Jobs carry an explicit key so
+  // results are mapped back by key, not by array position.
+  const jobs: { key: string; text: string }[] = [
+    { key: "overview", text: src.overview },
+    ...src.mnemonics.map((m, i) => ({ key: `mnemonic:${i}`, text: m })),
+    ...src.quick_revision.map((q, i) => ({ key: `quick_revision:${i}`, text: q })),
+    ...src.key_facts.map((f, i) => ({ key: `fact:${i}`, text: f.fact })),
+    ...note.srs_candidates.map((c, i) => ({ key: `card_front:${i}`, text: c.front_i18n[from] })),
+    ...note.srs_candidates.map((c, i) => ({ key: `card_back:${i}`, text: c.back_i18n[from] })),
+  ];
+  const translated = jobs.length
+    ? await translateBatch(jobs.map((j) => j.text), to, "UPPSC study note", { purpose: "user_note_translate", userId })
+    : [];
+  const byKey = new Map(jobs.map((j, i) => [j.key, translated[i] ?? ""]));
 
-  const [overview, mnemonics, quickRevision, factTexts, cardFronts, cardBacks] = await Promise.all([
-    translateOne(src.overview),
-    translateList(src.mnemonics),
-    translateList(src.quick_revision),
-    translateList(src.key_facts.map((f) => f.fact)),
-    translateList(note.srs_candidates.map((c) => c.front_i18n[from])),
-    translateList(note.srs_candidates.map((c) => c.back_i18n[from])),
-  ]);
+  const overview = byKey.get("overview") ?? "";
+  const mnemonics = src.mnemonics.map((_, i) => byKey.get(`mnemonic:${i}`) ?? "");
+  const quickRevision = src.quick_revision.map((_, i) => byKey.get(`quick_revision:${i}`) ?? "");
+  const factTexts = src.key_facts.map((_, i) => byKey.get(`fact:${i}`) ?? "");
+  const cardFronts = note.srs_candidates.map((_, i) => byKey.get(`card_front:${i}`) ?? "");
+  const cardBacks = note.srs_candidates.map((_, i) => byKey.get(`card_back:${i}`) ?? "");
 
   const translatedBody: NoteBody = {
     overview,

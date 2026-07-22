@@ -10,13 +10,14 @@
  *   5. FACT AUDIT— classify every decisive fact against context; escalate the
  *                  unverified ones with web_search (Session-27 pattern). Unresolved
  *                  flags block publish (services/notes.ts).
- *   6. TRANSLATE — English → Hindi per section (haiku), machine_translated flagged.
+ *   6. TRANSLATE — English → Hindi, one batched haiku call for the whole chapter
+ *                  (translateBatch), machine_translated flagged.
  *
  * Section authoring is English-only; the translate pass fills Hindi. Cost is
  * aggregated across every call and capped per chapter (NOTES_CHAPTER_MAX_USD).
  */
 import type { LlmUsage } from "../lib/anthropic.js";
-import { structuredJson, webResearch, translate, MODELS } from "../lib/anthropic.js";
+import { structuredJson, webResearch, translateBatch, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
 import { loadNodeWeightage, lastAskedYear } from "../lib/weightage.js";
@@ -312,29 +313,48 @@ export async function generateChapterForNode(
   const flagged = auditedFacts.filter((f) => f.status !== "verified").length;
   log(`        ${auditedFacts.length} decisive fact(s), ${flagged} needing review`);
 
-  // 6 — TRANSLATE (English → Hindi, per section)
+  // 6 — TRANSLATE (English → Hindi), ONE batched call for the whole chapter
+  // instead of one haiku round-trip per field — see translateAndCacheEvaluation
+  // / ingest/pyq.ts's collectHindiJobs for the same pattern. Jobs carry an
+  // explicit key so results are mapped back by key, not by array position.
   log("  [6/6] translating to Hindi…");
-  const tr = async (en: string): Promise<string> => (en.trim() ? await translate(en, "hi", "UPPSC study material") : "");
-  const overviewHi = await tr(outline.overview_en);
+  const jobs: { key: string; text: string }[] = [{ key: "overview", text: outline.overview_en }];
+  for (const s of rawSections) {
+    jobs.push({ key: `${s.id}:heading`, text: s.heading_en });
+    jobs.push({ key: `${s.id}:body`, text: s.raw.body_md });
+    s.raw.boxes.forEach((b, bi) => jobs.push({ key: `${s.id}:box:${bi}`, text: b.content_md }));
+    if (s.raw.diagram && s.raw.diagram.kind !== "none" && s.raw.diagram.source.trim()) {
+      jobs.push({ key: `${s.id}:diagram:source`, text: s.raw.diagram.source });
+      if (s.raw.diagram.caption.trim()) jobs.push({ key: `${s.id}:diagram:caption`, text: s.raw.diagram.caption });
+    }
+  }
+  const translated = await translateBatch(
+    jobs.map((j) => j.text),
+    "hi",
+    "UPPSC study material",
+    { purpose: "notes_chapter_translate", onUsage },
+  );
+  const hi = new Map(jobs.map((j, i) => [j.key, translated[i] ?? ""]));
+
+  const overviewHi = hi.get("overview") ?? "";
   const sections: ChapterSection[] = [];
   for (const s of rawSections) {
     const outlineSec = outline.sections.find((o) => o.id === s.id)!;
-    const headingHi = await tr(s.heading_en);
-    const bodyHi = await tr(s.raw.body_md);
-    const boxes: ChapterBox[] = [];
-    for (const b of s.raw.boxes) {
-      boxes.push({
-        kind: b.kind,
-        content_i18n: { en: b.content_md, hi: await tr(b.content_md) },
-        pyq_ids: resolvePyqIds(b.pyq_refs),
-      });
-    }
+    const headingHi = hi.get(`${s.id}:heading`) ?? "";
+    const bodyHi = hi.get(`${s.id}:body`) ?? "";
+    const boxes: ChapterBox[] = s.raw.boxes.map((b, bi) => ({
+      kind: b.kind,
+      content_i18n: { en: b.content_md, hi: hi.get(`${s.id}:box:${bi}`) ?? "" },
+      pyq_ids: resolvePyqIds(b.pyq_refs),
+    }));
     let diagram: ChapterDiagram | null = null;
     if (s.raw.diagram && s.raw.diagram.kind !== "none" && s.raw.diagram.source.trim()) {
       diagram = {
         kind: s.raw.diagram.kind,
-        source_i18n: { en: s.raw.diagram.source, hi: await tr(s.raw.diagram.source) },
-        caption_i18n: s.raw.diagram.caption.trim() ? { en: s.raw.diagram.caption, hi: await tr(s.raw.diagram.caption) } : null,
+        source_i18n: { en: s.raw.diagram.source, hi: hi.get(`${s.id}:diagram:source`) ?? "" },
+        caption_i18n: s.raw.diagram.caption.trim()
+          ? { en: s.raw.diagram.caption, hi: hi.get(`${s.id}:diagram:caption`) ?? "" }
+          : null,
       };
     }
     sections.push({
