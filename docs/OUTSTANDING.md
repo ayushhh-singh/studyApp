@@ -34,6 +34,7 @@ These are still described as open in `CLAUDE.md` but the code says otherwise. Fl
 | T3 | `assemble.ts` approved-CA-question pool over the cap (1038 in its 14-day fallback window); `deepdive.ts` at 92% of cap; `backfill.ts` unpaged. | ✅ RESOLVED | All three paged via `selectAll` with deterministic `.order()`. `embed-backfill.ts` was a false positive (already paged). |
 | T4 | Pre-filter embedding spend omitted from `ca:run` `costUsd`; coverage gaps disabled the filter silently (~33% cost regression). | ✅ RESOLVED | `EmbeddingUsage` + optional `onUsage` on the provider; coverage gap now logs missing node names. |
 | T5 | Devanagari pre-filter path validated only by recall-parity, no blind panel of its own. | ✅ RESOLVED | 16-item 3-arm run + free 3-subagent blind panel: shrunk arm inside the control's noise floor (no regression); 1 adverse gate case disclosed. |
+| T6 | **English blind panel had validated against a TRUNCATED 260-node syllabus** (it predated the `.limit(260)` fix), so the pre-filter's headline quality evidence was measured on the wrong population. | ✅ RESOLVED | Re-ran the 3-arm + blind-3-judge design on 25 Latin items against the real 284-node tree: relevance A=2/C=2/tie=1 (control A=1/B=1/tie=3), mapping A=9/C=8/tie=1 → **parity**. The earlier 11-6 mapping edge did NOT replicate and is retracted as noise. Corrected saving: ~41.8% Latin / ~19.3% Devanagari. |
 
 ## 1. Data & content gaps  *(category a)*
 

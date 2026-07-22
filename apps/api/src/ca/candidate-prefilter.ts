@@ -6,7 +6,8 @@
  * syllabus candidate list, which is sent in full regardless of what the item
  * is actually about. This narrows that list to the K nodes most semantically
  * related to the item BEFORE the triage call, cutting measured triage input
- * cost by ~37% (234,373 -> 147,185 tokens over 24 items, replicated twice).
+ * cost by ~42% for Latin-script items (262,176 -> 152,543 tokens over 25 items
+ * on the real 284-node tree) and ~19% for Devanagari ones (which use a wider K).
  *
  * WHAT IT DELIBERATELY DOES NOT DO: it does not touch the triage prompt. The
  * instructions, scoring rules, `${id}: ${title}` line format, list header and
@@ -17,12 +18,19 @@
  * VALIDATION (2026-07-22): 3-arm design against a same-prompt control arm to
  * separate the change from haiku's substantial run-to-run nondeterminism, then
  * a blind 3-judge panel (provenance hidden, X/Y randomised) over every
- * disagreement. Relevance scoring was a dead tie (4-4 — drift is movement, not
- * degradation); node mapping favoured the shrunk list 11-6 (n=17, p~0.33, i.e.
- * a trend, NOT a significant improvement — the firm result is the ABSENCE of
- * regression); both gate-crossing cases went to the shrunk list. Recall of the
- * full-list run's own node choices was 95.7% at K=150, matching the 95.3%
- * predicted from 723 historical assignments.
+ * disagreement. That first panel ran against a TRUNCATED 260-node candidate
+ * set (see the re-validation below) and suggested node mapping favoured the
+ * shrunk list 11-6 — flagged at the time as a trend, not a significant result.
+ *
+ * RE-VALIDATED 2026-07-23 on the corrected 284-node tree, same 3-arm + blind
+ * 3-judge design, 25 Latin-script items: relevance A=2 / C=2 / tie=1 against a
+ * control (full-list re-run) of A=1 / B=1 / tie=3, and node mapping A=9 / C=8 /
+ * tie=1. In other words the pre-filter is STATISTICALLY INDISTINGUISHABLE from
+ * the full list — the 11-6 mapping edge did NOT replicate once the truncation
+ * was fixed, confirming it was noise. Aggregates agree: kept 14 / 14 (control)
+ * / 15, mapped nodes 42 / 44 (control) / 49. The single gate crossing went to
+ * the shrunk arm. THE JUSTIFICATION FOR THIS FEATURE IS COST AT PARITY QUALITY,
+ * NOT A QUALITY IMPROVEMENT — do not cite one.
  *
  * RE-CALIBRATED 2026-07-23 on the TRUE 284-node tree (the earlier figures were
  * measured against a 260-node set, because loadSyllabusCandidates had a hard
