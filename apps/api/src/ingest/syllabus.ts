@@ -17,8 +17,7 @@
  */
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
-import { anthropic, structuredJson, translate, MODELS } from "../lib/anthropic.js";
+import { streamText, structuredJson, translate, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
 import {
   ROOT,
@@ -47,32 +46,24 @@ interface LangSource {
 }
 
 async function visionExtract(entry: ManifestEntry): Promise<string> {
-  const stream = anthropic().messages.stream({
+  const text = await streamText({
     model: MODELS.sonnet,
-    max_tokens: 64000,
-    output_config: { effort: "high" },
-    messages: [
+    maxTokens: 64000,
+    effort: "high",
+    purpose: "syllabus_vision_extract",
+    retryOnTruncation: true,
+    content: [
+      await pdfDocumentBlock(absPath(entry)),
       {
-        role: "user",
-        content: [
-          await pdfDocumentBlock(absPath(entry)),
-          {
-            type: "text",
-            text:
-              "This PDF appears to be scanned/image-only. Transcribe ALL of " +
-              "its text verbatim, preserving headings and the outline/section " +
-              "structure. Output plain text only — no commentary.",
-          },
-        ],
+        type: "text",
+        text:
+          "This PDF appears to be scanned/image-only. Transcribe ALL of " +
+          "its text verbatim, preserving headings and the outline/section " +
+          "structure. Output plain text only — no commentary.",
       },
     ],
   });
-  const msg = await stream.finalMessage();
-  return msg.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("")
-    .trim();
+  return text.trim();
 }
 
 async function loadLangSource(

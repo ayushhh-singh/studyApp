@@ -13,12 +13,12 @@ import { logger } from "./logger.js";
 let client: Anthropic | null = null;
 
 /**
- * Raised by structuredJson when a response hits stop_reason==="max_tokens"
- * before it could complete — i.e. the JSON was cut off mid-string rather than
- * genuinely refused or empty. Thrown BEFORE the JSON.parse attempt so callers
- * (and logs) get a clear, attributable error instead of a cryptic
- * "Unterminated string in JSON at position N" from a JSON.parse on a
- * truncated fragment.
+ * Raised by structuredJson (always) or streamText (when `retryOnTruncation`
+ * is set) when a response hits stop_reason==="max_tokens" before it could
+ * complete and a retry at a higher ceiling still truncates. For structuredJson
+ * this is thrown BEFORE the JSON.parse attempt so callers (and logs) get a
+ * clear, attributable error instead of a cryptic "Unterminated string in JSON
+ * at position N" from parsing a truncated fragment.
  */
 export class TruncatedResponseError extends Error {
   readonly purpose?: string;
@@ -27,7 +27,7 @@ export class TruncatedResponseError extends Error {
 
   constructor(opts: { purpose?: string; model: ModelId; requestedMaxTokens: number }) {
     super(
-      `structuredJson response truncated at max_tokens=${opts.requestedMaxTokens} ` +
+      `Anthropic response truncated at max_tokens=${opts.requestedMaxTokens} ` +
         `for model=${opts.model}${opts.purpose ? ` purpose=${opts.purpose}` : ""} — ` +
         `the call's default maxTokens is too low for this input`,
     );
@@ -390,6 +390,18 @@ export async function runBatch(
  * Stream plain text from a model, invoking `onDelta` for each text chunk —
  * the typed wrapper future SSE endpoints (e.g. answer evaluation, doubt chat)
  * build on. Returns the full text and logs tokens + cost to llm_calls.
+ *
+ * `retryOnTruncation` (default false) opts into structuredJson's retry
+ * pattern: on stop_reason==="max_tokens", retry ONCE with maxTokens raised
+ * ~1.75x (capped at the model's real output ceiling), throwing
+ * TruncatedResponseError if the retry also truncates. Each attempt is logged
+ * to llm_calls independently, exactly as structuredJson does. Leave this off
+ * (the default) for any caller that streams to a live consumer via `onDelta`
+ * — a retry restarts the request from scratch, which would replay a
+ * truncated attempt's text followed by a full duplicate re-stream to whoever
+ * is watching. Only opt in for a caller with no `onDelta`, or one that's
+ * genuinely fine restarting a fresh stream (e.g. a background transcription
+ * job with no live listener).
  */
 export async function streamText(opts: {
   model: ModelId;
@@ -403,40 +415,66 @@ export async function streamText(opts: {
   onUsage?: (usage: LlmUsage) => void;
   /** Abort the in-flight request (e.g. the SSE client disconnected). */
   signal?: AbortSignal;
+  /** See the function doc above — default false, unsafe to combine with a live `onDelta` consumer. */
+  retryOnTruncation?: boolean;
 }): Promise<string> {
-  const stream = anthropic().messages.stream(
-    {
-      model: opts.model,
-      max_tokens: opts.maxTokens ?? 8000,
-      ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
-      ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
-      messages: [{ role: "user", content: opts.content }],
-    } as Anthropic.MessageStreamParams,
-    opts.signal ? { signal: opts.signal } : undefined,
-  );
+  let attemptMaxTokens = opts.maxTokens ?? 8000;
+  const maxAttempts = opts.retryOnTruncation ? 2 : 1;
 
-  stream.on("text", (delta) => opts.onDelta?.(delta));
-
-  const message = await stream.finalMessage();
-  emitUsage(opts.model, message, opts.onUsage);
-  await recordLlmCall({
-    model: opts.model,
-    purpose: opts.purpose,
-    userId: opts.userId,
-    inputTokens: message.usage.input_tokens,
-    outputTokens: message.usage.output_tokens,
-    cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
-    cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
-  });
-  if (message.stop_reason === "refusal") {
-    throw new Error(
-      `Model refused (${message.stop_details?.category ?? "unknown"})`,
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const stream = anthropic().messages.stream(
+      {
+        model: opts.model,
+        max_tokens: attemptMaxTokens,
+        ...(opts.system ? { system: toSystemParam(opts.system) } : {}),
+        ...(opts.effort ? { output_config: { effort: opts.effort } } : {}),
+        messages: [{ role: "user", content: opts.content }],
+      } as Anthropic.MessageStreamParams,
+      opts.signal ? { signal: opts.signal } : undefined,
     );
+
+    stream.on("text", (delta) => opts.onDelta?.(delta));
+
+    const message = await stream.finalMessage();
+    emitUsage(opts.model, message, opts.onUsage);
+    await recordLlmCall({
+      model: opts.model,
+      purpose: opts.purpose,
+      userId: opts.userId,
+      inputTokens: message.usage.input_tokens,
+      outputTokens: message.usage.output_tokens,
+      cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
+      cacheWriteTokens: message.usage.cache_creation_input_tokens ?? 0,
+    });
+    if (message.stop_reason === "refusal") {
+      throw new Error(
+        `Model refused (${message.stop_details?.category ?? "unknown"})`,
+      );
+    }
+    if (message.stop_reason === "max_tokens" && opts.retryOnTruncation) {
+      const ceiling = MODEL_MAX_OUTPUT_TOKENS[opts.model] ?? attemptMaxTokens;
+      const retryMaxTokens = Math.min(Math.round(attemptMaxTokens * 1.75), ceiling);
+      if (attempt === 0 && retryMaxTokens > attemptMaxTokens) {
+        logger.warn(
+          { purpose: opts.purpose, model: opts.model, maxTokens: attemptMaxTokens, retryMaxTokens },
+          "streamText truncated at max_tokens; retrying once with a higher ceiling",
+        );
+        attemptMaxTokens = retryMaxTokens;
+        continue;
+      }
+      logger.warn(
+        { purpose: opts.purpose, model: opts.model, maxTokens: attemptMaxTokens },
+        "streamText truncated at max_tokens on the retry too; giving up",
+      );
+      throw new TruncatedResponseError({ purpose: opts.purpose, model: opts.model, requestedMaxTokens: attemptMaxTokens });
+    }
+    return message.content
+      .filter((b): b is Anthropic.TextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
   }
-  return message.content
-    .filter((b): b is Anthropic.TextBlock => b.type === "text")
-    .map((b) => b.text)
-    .join("");
+  // Unreachable — the loop above always returns or throws — but keeps TS happy.
+  throw new TruncatedResponseError({ purpose: opts.purpose, model: opts.model, requestedMaxTokens: attemptMaxTokens });
 }
 
 /**
