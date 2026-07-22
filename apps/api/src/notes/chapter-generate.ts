@@ -337,7 +337,7 @@ export async function generateChapterForNode(
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     "hi",
-    "UPPSC study material",
+    "UPPSC study material (write natural, fully-Hindi text — no leftover English words for ordinary terms like 'Preamble' or 'flowchart'; keep only genuine loanwords/acronyms Hindi speakers actually use as-is)",
     { purpose: "notes_chapter_translate", onUsage },
   );
   capCheck();
