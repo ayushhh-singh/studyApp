@@ -16,6 +16,7 @@
  * review) but never touches ones a reviewer already published.
  */
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { MODELS, estimateCostUsd } from "../lib/models.js";
 import { BATCH_DISCOUNT, runBatch, structuredParams, type BatchRequest, type LlmUsage } from "../lib/anthropic.js";
 import { retrieveGrounding } from "../services/evaluation/grounding.js";
@@ -54,17 +55,19 @@ interface MainsItemRow {
 
 async function loadMainsItems(month: string): Promise<MainsItemRow[]> {
   const { start, end } = monthBounds(month);
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select("id, date, title_i18n, mains_relevance, gs_papers, syllabus_node_ids, mains_brief")
-    .eq("status", "published")
-    .gte("mains_relevance", RELEVANCE_GATE)
-    .not("mains_brief", "is", null)
-    .gte("date", start)
-    .lt("date", end)
-    .order("date", { ascending: false });
-  if (error) throw new Error(`deep-dive item query failed: ${error.message}`);
-  return (data ?? []) as unknown as MainsItemRow[];
+  // Paged: a busy month already reaches ~92% of PostgREST's 1000-row cap.
+  return (await selectAll<unknown>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select("id, date, title_i18n, mains_relevance, gs_papers, syllabus_node_ids, mains_brief")
+      .eq("status", "published")
+      .gte("mains_relevance", RELEVANCE_GATE)
+      .not("mains_brief", "is", null)
+      .gte("date", start)
+      .lt("date", end)
+      .order("date", { ascending: false })
+      .order("id", { ascending: true }),
+  )) as MainsItemRow[];
 }
 
 export interface RankedIssue {

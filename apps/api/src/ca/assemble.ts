@@ -32,6 +32,7 @@ import { roundMarks } from "../lib/marks.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { daysBetween, istToday } from "../lib/ist.js";
+import { selectAll } from "../lib/paginate.js";
 import { getTestDetail } from "../services/tests.js";
 
 const PRELIMS_MAX = 20;
@@ -65,15 +66,18 @@ async function findTestIdBySlug(slug: string): Promise<string | null> {
 /** Approved CA questions of the given type dated within the last `days` days. */
 async function approvedCaQuestionIds(type: "mcq" | "descriptive", days: number): Promise<{ id: string; marks: number | null }[]> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
-  const { data, error } = await supabase()
-    .from("questions")
-    .select("id, marks, created_at")
-    .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
-    .eq("type", type)
-    .gte("created_at", cutoff)
-    .or(questionVisibilityOrFilter("catalog"));
-  if (error) throw new HttpError(500, `approved CA question lookup failed: ${error.message}`);
-  return (data ?? []) as { id: string; marks: number | null }[];
+  // Paged: the 14-day fallback window already matches >1000 rows, so an
+  // unranged select silently dropped approved questions from the quiz pool.
+  return await selectAll<{ id: string; marks: number | null }>(() =>
+    supabase()
+      .from("questions")
+      .select("id, marks, created_at")
+      .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+      .eq("type", type)
+      .gte("created_at", cutoff)
+      .or(questionVisibilityOrFilter("catalog"))
+      .order("id", { ascending: true }),
+  );
 }
 
 interface AssembleSpec {

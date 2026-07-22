@@ -11,12 +11,28 @@ import OpenAI from "openai";
 
 export const EMBEDDING_DIMENSIONS = 1536;
 
+/**
+ * Price per 1M input tokens for the active model. text-embedding-3-small is
+ * $0.02/1M — small enough that it was previously left untracked entirely, which
+ * meant any caller reporting a spend figure (e.g. ca:run's costUsd) silently
+ * omitted it. Cheap is not the same as free; report it.
+ */
+export const EMBEDDING_PRICE_PER_1M_TOKENS = 0.02;
+
+export interface EmbeddingUsage {
+  tokens: number;
+  costUsd: number;
+}
+
 export interface EmbeddingProvider {
   /** Human-readable id recorded alongside stored vectors / in logs. */
   readonly id: string;
   readonly dimensions: number;
-  /** Embed a batch of texts, returning one vector per input (same order). */
-  embed(texts: string[]): Promise<number[][]>;
+  /**
+   * Embed a batch of texts, returning one vector per input (same order).
+   * `onUsage` is optional so existing call sites need no change.
+   */
+  embed(texts: string[], onUsage?: (usage: EmbeddingUsage) => void): Promise<number[][]>;
 }
 
 class OpenAIEmbeddingProvider implements EmbeddingProvider {
@@ -34,13 +50,17 @@ class OpenAIEmbeddingProvider implements EmbeddingProvider {
     return this.client;
   }
 
-  async embed(texts: string[]): Promise<number[][]> {
+  async embed(texts: string[], onUsage?: (usage: EmbeddingUsage) => void): Promise<number[][]> {
     if (texts.length === 0) return [];
     const res = await this.openai().embeddings.create({
       model: "text-embedding-3-small",
       dimensions: EMBEDDING_DIMENSIONS,
       input: texts,
     });
+    if (onUsage) {
+      const tokens = res.usage?.total_tokens ?? 0;
+      onUsage({ tokens, costUsd: (tokens / 1e6) * EMBEDDING_PRICE_PER_1M_TOKENS });
+    }
     // Preserve input order (the API returns objects carrying their index).
     return res.data
       .sort((a, b) => a.index - b.index)

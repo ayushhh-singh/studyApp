@@ -2,7 +2,7 @@
  * Embedding pre-filter for the current-affairs triage candidate list.
  *
  * WHY: triage is the highest-frequency LLM call in the codebase (one per RSS
- * item, every ca:run) and ~94% of its ~9.2k-token prompt is the ~260-node
+ * item, every ca:run) and ~94% of its ~9.2k-token prompt is the ~284-node
  * syllabus candidate list, which is sent in full regardless of what the item
  * is actually about. This narrows that list to the K nodes most semantically
  * related to the item BEFORE the triage call, cutting measured triage input
@@ -24,12 +24,21 @@
  * full-list run's own node choices was 95.7% at K=150, matching the 95.3%
  * predicted from 723 historical assignments.
  *
+ * RE-CALIBRATED 2026-07-23 on the TRUE 284-node tree (the earlier figures were
+ * measured against a 260-node set, because loadSyllabusCandidates had a hard
+ * `.limit(260)` that was silently truncating 24 real nodes): recall is 94.2%
+ * for EN@150 and 93.7% for HI@220 over 728 assignments — ~2pts lower simply
+ * because the pool is larger. Both blind panels found no regression at these
+ * settings, and a panel on the live system outranks the recall proxy; the
+ * English panel predates the truncation fix (it ran on 260), which is a
+ * disclosed residual caveat, not a known defect.
+ *
  * K IS A QUALITY DIAL, NOT A FREE COST KNOB. Recall degrades roughly in step
  * with the list: ~95% @150, ~87% @100, ~66% @40. Do not lower it for extra
  * savings without re-running the control-arm + blind-panel validation.
  */
 import { supabase } from "../lib/supabase.js";
-import { embeddings, EMBEDDING_DIMENSIONS } from "../lib/embeddings.js";
+import { embeddings, EMBEDDING_DIMENSIONS, type EmbeddingUsage } from "../lib/embeddings.js";
 import { logger } from "../lib/logger.js";
 import type { SyllabusCandidate } from "./prompts.js";
 
@@ -42,10 +51,13 @@ export const PREFILTER_TOP_K = 150;
  * real node assignments (items carrying both language versions): recall@150 is
  * 96.4% for English item text but only 83.8% for the Hindi version of the SAME
  * items. This matters in production, not in theory: the `indiatv-uttar-pradesh`
- * source publishes entirely in Devanagari.
+ * source publishes entirely in Devanagari (verified live, 15/15 items).
  *
- * 220 is the K at which Hindi input reaches 96.4% — parity with the English
- * bar at 150 — while still trimming ~14% off the prompt. Two obvious-looking
+ * 220 is the K at which Hindi input reaches parity with the English bar at
+ * 150, while still trimming ~19% off the prompt (measured on real Devanagari
+ * feed items). A dedicated blind panel over Devanagari items found no
+ * regression: the shrunk arm landed inside the noise floor set by a full-list
+ * re-run of the same items. Two obvious-looking
  * alternatives were tested and are WORSE, do not "fix" this by reaching for
  * them: scoring against the hi node vectors (76.3%) or max(en,hi) (79.0%),
  * both below simply using the English vectors (83.8%). The English node
@@ -59,6 +71,9 @@ const MIN_CANDIDATES_TO_FILTER = PREFILTER_TOP_K + 20;
 
 /** Consecutive embed failures after which we stop trying for the rest of the run. */
 const EMBED_FAILURE_LIMIT = 3;
+
+/** Texts per embeddings call in the batch path. */
+const EMBED_BATCH = 96;
 
 const DEVANAGARI = /[ऀ-ॿ]/;
 
@@ -143,7 +158,60 @@ export class CandidatePrefilter {
       logger.warn({ err }, "ca prefilter: could not load syllabus vectors — triage will use the full candidate list");
       vectors.clear();
     }
+    // A coverage gap disables the filter, which is SAFE but is also a silent
+    // ~33% cost regression, so name the gap loudly: the usual cause is nodes
+    // added without a follow-up `pnpm ingest:embed`.
+    if (candidates.length >= MIN_CANDIDATES_TO_FILTER && vectors.size !== candidates.length) {
+      const missing = candidates.filter((c) => !vectors.has(c.id));
+      logger.warn(
+        { missing: missing.length, total: candidates.length, examples: missing.slice(0, 5).map((m) => m.title) },
+        "ca prefilter: syllabus embedding coverage is incomplete — falling back to the FULL candidate list for every item (run `pnpm ingest:embed` to restore the saving)",
+      );
+    }
     return new CandidatePrefilter(candidates, vectors, k);
+  }
+
+  /**
+   * Batch form of `narrow`, for callers that already hold every item up front
+   * (the Message Batches backfill). Embeds in batches of EMBED_BATCH rather
+   * than one call per item; same fail-open contract — on any error the affected
+   * items get the FULL candidate list.
+   */
+  async narrowMany(
+    items: { title: string; snippet: string }[],
+    onUsage?: (usage: EmbeddingUsage) => void,
+  ): Promise<SyllabusCandidate[][]> {
+    const out: SyllabusCandidate[][] = items.map(() => this.candidates);
+    if (!this.enabled) return out;
+
+    for (let start = 0; start < items.length; start += EMBED_BATCH) {
+      const slice = items.slice(start, start + EMBED_BATCH);
+      const texts = slice.map((it) => `${it.title}\n${it.snippet}`.slice(0, 2000));
+      // An empty/whitespace input would be rejected by the embeddings API and
+      // take the whole batch down with it, so give those a harmless placeholder
+      // and leave them on the full list below.
+      const usable = texts.map((t) => (t.trim() ? t : null));
+      try {
+        const vecs = await embeddings().embed(
+          usable.map((t) => t ?? "placeholder"),
+          onUsage,
+        );
+        slice.forEach((_, j) => {
+          const text = usable[j];
+          const vec = vecs[j];
+          if (!text || !vec || vec.length !== EMBEDDING_DIMENSIONS) return; // stays full list
+          const k = DEVANAGARI.test(text) ? PREFILTER_TOP_K_DEVANAGARI : this.k;
+          out[start + j] = this.candidates
+            .map((c) => ({ c, score: cosine(vec, this.vectors.get(c.id)!) }))
+            .sort((a, b) => b.score - a.score)
+            .slice(0, k)
+            .map((r) => r.c);
+        });
+      } catch (err) {
+        logger.warn({ err, from: start, count: slice.length }, "ca prefilter: batch embed failed — those items use the full candidate list");
+      }
+    }
+    return out;
   }
 
   /** True when we have enough coverage for narrowing to be safe. */
@@ -154,8 +222,16 @@ export class CandidatePrefilter {
     );
   }
 
-  /** Top-k candidates for this item, or the full list on any doubt. */
-  async narrow(title: string, snippet: string): Promise<SyllabusCandidate[]> {
+  /**
+   * Top-k candidates for this item, or the full list on any doubt.
+   * `onUsage` surfaces the pre-filter's own embedding spend so callers can
+   * fold it into their cost total instead of under-reporting.
+   */
+  async narrow(
+    title: string,
+    snippet: string,
+    onUsage?: (usage: EmbeddingUsage) => void,
+  ): Promise<SyllabusCandidate[]> {
     if (!this.enabled || this.embedFailures >= EMBED_FAILURE_LIMIT) return this.candidates;
     const text = `${title}\n${snippet}`.slice(0, 2000);
     if (!text.trim()) return this.candidates;
@@ -163,7 +239,7 @@ export class CandidatePrefilter {
     // need a wider net to hit the same recall — see PREFILTER_TOP_K_DEVANAGARI.
     const k = DEVANAGARI.test(text) ? PREFILTER_TOP_K_DEVANAGARI : this.k;
     try {
-      const [vec] = await embeddings().embed([text]);
+      const [vec] = await embeddings().embed([text], onUsage);
       if (!vec || vec.length !== EMBEDDING_DIMENSIONS) return this.candidates;
       this.embedFailures = 0;
       return this.candidates

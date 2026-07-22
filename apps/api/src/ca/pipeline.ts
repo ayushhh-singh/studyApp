@@ -21,6 +21,7 @@
 import { createHash } from "node:crypto";
 import Parser from "rss-parser";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { embeddings } from "../lib/embeddings.js";
 import { i18nComplete } from "../ingest/_shared.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
@@ -29,6 +30,7 @@ import { structuredJson } from "../lib/anthropic.js";
 import { MODELS } from "../lib/models.js";
 import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION } from "../qgen/prompts.js";
 import { CandidatePrefilter, PREFILTER_TOP_K, PREFILTER_TOP_K_DEVANAGARI } from "./candidate-prefilter.js";
+import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
@@ -73,31 +75,28 @@ function nullIfEmpty(pair: BilingualPair | null | undefined): BilingualPair | nu
   return pair.hi.trim() || pair.en.trim() ? pair : null;
 }
 
-async function loadSyllabusCandidates(): Promise<SyllabusCandidate[]> {
-  const { data, error } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, title_i18n")
-    .gte("depth", 1)
-    .lte("depth", 2)
-    .order("paper_code", { ascending: true })
-    .limit(260);
-  if (error) throw new Error(`syllabus candidates query failed: ${error.message}`);
-  return (data ?? []).map((n) => ({
-    id: n.id as string,
-    title: ((n.title_i18n as { en?: string }).en ?? "").trim(),
-  }));
-}
-
-/** content_hash of every item seen in the last 60 days — dedupe any realistic re-run window. */
+/**
+ * content_hash of every item seen in the last 60 days — dedupe any realistic
+ * re-run window.
+ *
+ * MUST be paged. This was an unranged select and silently hit PostgREST's
+ * 1000-row cap: with 2355 matching rows it returned 1000, so 1355 already-seen
+ * items looked NEW on every run and were re-triaged and re-enriched — the two
+ * most expensive calls in the pipeline — before the `content_hash` unique index
+ * rejected the insert. Wasted spend on every single run, silently, because the
+ * truncation surfaces as a plausible-looking count rather than an error.
+ */
 async function loadRecentHashes(): Promise<Set<string>> {
   const cutoff = istDateString(new Date(Date.now() - 60 * 24 * 3600 * 1000));
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select("content_hash")
-    .gte("date", cutoff)
-    .not("content_hash", "is", null);
-  if (error) throw new Error(`recent hashes query failed: ${error.message}`);
-  return new Set((data ?? []).map((r) => r.content_hash as string));
+  const rows = await selectAll<{ content_hash: string }>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select("content_hash")
+      .gte("date", cutoff)
+      .not("content_hash", "is", null)
+      .order("content_hash", { ascending: true }), // stable order for paging
+  );
+  return new Set(rows.map((r) => r.content_hash));
 }
 
 export interface PipelineOptions {
@@ -361,7 +360,7 @@ export async function runPipeline(
       // rather than being silently dropped forever.
       try {
         // --- 1. Triage --------------------------------------------------------
-        const itemCandidates = await prefilter.narrow(title, snippet);
+        const itemCandidates = await prefilter.narrow(title, snippet, (u) => (result.costUsd += u.costUsd));
         const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, onUsage });
         seenHashes.add(hash); // never re-triage this link again, kept or archived
         takenFromSource++;

@@ -29,6 +29,9 @@ import {
   type TriageResult,
 } from "./prompts.js";
 import { RELEVANCE_GATE } from "./pipeline.js";
+import { loadSyllabusCandidates } from "./syllabus-candidates.js";
+import { selectAll } from "../lib/paginate.js";
+import { CandidatePrefilter } from "./candidate-prefilter.js";
 import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
@@ -37,10 +40,13 @@ import type {
 
 const CHUNK_SIZE = 40;
 
-// Token estimates for the cost projection (measured against real triage/enrich
-// calls — the triage input is dominated by the ~260-node candidate list).
+// Token estimates for the cost projection (the triage input is dominated by the
+// candidate list). triageInput was 2300, which measurement showed was far too
+// low — a real full-list triage call is ~9235 input tokens, so the budget cap
+// was under-projecting and could overshoot `--max-usd`. With the embedding
+// pre-filter above (top-150 of the ~284-node tree) a call measures ~6100.
 const EST = {
-  triageInput: 2300,
+  triageInput: 6100,
   triageOutput: 260,
   enrichInput: 260,
   enrichOutput: 1500,
@@ -54,27 +60,18 @@ interface BackfillItem {
   is_up_specific: boolean;
 }
 
-async function loadSyllabusCandidates(): Promise<SyllabusCandidate[]> {
-  const { data, error } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, title_i18n")
-    .gte("depth", 1)
-    .lte("depth", 2)
-    .order("paper_code", { ascending: true })
-    .limit(260);
-  if (error) throw new Error(`syllabus candidates query failed: ${error.message}`);
-  return (data ?? []).map((n) => ({ id: n.id as string, title: ((n.title_i18n as { en?: string }).en ?? "").trim() }));
-}
 
 /** Published items not yet re-scored under the new model (prelims_relevance null). */
 async function loadItemsNeedingBackfill(): Promise<BackfillItem[]> {
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select("id, title_i18n, summary_i18n, detail_i18n, is_up_specific")
-    .eq("status", "published")
-    .is("prelims_relevance", null)
-    .order("date", { ascending: false });
-  if (error) throw new Error(`backfill item query failed: ${error.message}`);
+  const data = await selectAll<Record<string, unknown>>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select("id, title_i18n, summary_i18n, detail_i18n, is_up_specific")
+      .eq("status", "published")
+      .is("prelims_relevance", null)
+      .order("date", { ascending: false })
+      .order("id", { ascending: true }),
+  );
   return (data ?? []).map((r) => {
     const title = (r.title_i18n as { en?: string })?.en ?? "";
     const summary = (r.summary_i18n as { en?: string } | null)?.en ?? "";
@@ -147,6 +144,7 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
   const log = opts.log ?? (() => {});
   const candidates = await loadSyllabusCandidates();
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
+  const prefilter = await CandidatePrefilter.create(candidates);
   const all = await loadItemsNeedingBackfill();
   log(`items needing backfill: ${all.length}; budget cap: $${opts.maxUsd.toFixed(2)}`);
 
@@ -175,9 +173,17 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
     log(`chunk ${start / CHUNK_SIZE + 1}: ${chunk.length} items (triage)...`);
 
     // --- Phase 1: triage batch ---
+    // Same embedding pre-filter as the live pipeline, but batched: every item
+    // in the chunk is embedded in one call rather than one call per item.
+    // chunkCandidates[i] MUST be reused for normalizeTriage below — validating
+    // against the full list would accept ids the model was never shown.
+    const chunkCandidates = await prefilter.narrowMany(
+      chunk.map((it) => ({ title: it.title, snippet: it.snippet })),
+      (u) => (result.costUsd += u.costUsd),
+    );
     const triageReqs: BatchRequest[] = chunk.map((it, i) => ({
       customId: `t_${i}`,
-      params: structuredParams(triageParams({ title: it.title, snippet: it.snippet, sourceIsUp: it.is_up_specific, candidates })),
+      params: structuredParams(triageParams({ title: it.title, snippet: it.snippet, sourceIsUp: it.is_up_specific, candidates: chunkCandidates[i] })),
       purpose: "ca_triage",
     }));
     const triageRes = await runBatch(triageReqs, { onUsage: (u) => (result.costUsd += u.costUsd) });
@@ -186,7 +192,7 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
       const r = triageRes.get(`t_${i}`);
       if (!r?.ok) return null;
       try {
-        return normalizeTriage(JSON.parse(r.text) as TriageResult, candidates, it.is_up_specific);
+        return normalizeTriage(JSON.parse(r.text) as TriageResult, chunkCandidates[i], it.is_up_specific);
       } catch {
         return null;
       }
