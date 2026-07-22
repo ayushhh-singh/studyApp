@@ -28,7 +28,7 @@ import type { LlmUsage } from "../lib/anthropic.js";
 import { structuredJson } from "../lib/anthropic.js";
 import { MODELS } from "../lib/models.js";
 import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION } from "../qgen/prompts.js";
-import { CandidatePrefilter, PREFILTER_TOP_K } from "./candidate-prefilter.js";
+import { CandidatePrefilter, PREFILTER_TOP_K, PREFILTER_TOP_K_DEVANAGARI } from "./candidate-prefilter.js";
 import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
@@ -291,7 +291,13 @@ export async function runPipeline(
   // Narrows each item's candidate list before triage (~37% less triage input).
   // Fails open to the full list — see ./candidate-prefilter.ts.
   const prefilter = await CandidatePrefilter.create(candidates);
-  log(`triage candidate pre-filter: ${prefilter.enabled ? `on (top ${PREFILTER_TOP_K})` : "OFF — using full list"}`);
+  log(
+    `triage candidate pre-filter: ${
+      prefilter.enabled
+        ? `on (top ${PREFILTER_TOP_K}; ${PREFILTER_TOP_K_DEVANAGARI} for Devanagari items)`
+        : "OFF — using full list"
+    }`,
+  );
   const seenHashes = await loadRecentHashes();
   log(`known items in the last 60 days: ${seenHashes.size}`);
 
