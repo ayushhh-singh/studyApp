@@ -182,7 +182,7 @@ export class CandidatePrefilter {
     onUsage?: (usage: EmbeddingUsage) => void,
   ): Promise<SyllabusCandidate[][]> {
     const out: SyllabusCandidate[][] = items.map(() => this.candidates);
-    if (!this.enabled) return out;
+    if (!this.enabled || this.embedFailures >= EMBED_FAILURE_LIMIT) return out;
 
     for (let start = 0; start < items.length; start += EMBED_BATCH) {
       const slice = items.slice(start, start + EMBED_BATCH);
@@ -207,8 +207,16 @@ export class CandidatePrefilter {
             .slice(0, k)
             .map((r) => r.c);
         });
+        this.embedFailures = 0;
       } catch (err) {
+        // Share the latch with narrow(): a misconfigured key shouldn't retry
+        // once per chunk for the rest of the run either.
+        this.embedFailures++;
         logger.warn({ err, from: start, count: slice.length }, "ca prefilter: batch embed failed — those items use the full candidate list");
+        if (this.embedFailures >= EMBED_FAILURE_LIMIT) {
+          logger.warn(`ca prefilter: ${EMBED_FAILURE_LIMIT} consecutive embed failures — disabling for the rest of this run`);
+          break;
+        }
       }
     }
     return out;

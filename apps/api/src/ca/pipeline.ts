@@ -152,7 +152,10 @@ async function insertMcqsForItem(opts: {
   facts: string[];
   onUsage: (u: LlmUsage) => void;
 }): Promise<string[]> {
-  const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts });
+  // onUsage MUST be forwarded — without it every CA MCQ generation call was
+  // silently missing from the run's reported cost (the mains sibling below
+  // has always passed it).
+  const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts, onUsage: opts.onUsage });
   if (mcqs.length === 0) return [];
 
   // No inline blind-verify here (deliberately): ca:run is already close to
@@ -552,7 +555,7 @@ export async function runPipeline(
     const batchSize = 96;
     for (let i = 0; i < embedTasks.length; i += batchSize) {
       const batch = embedTasks.slice(i, i + batchSize);
-      const vectors = await provider.embed(batch.map((t) => t.text));
+      const vectors = await provider.embed(batch.map((t) => t.text), (u) => (result.costUsd += u.costUsd));
       const rows = batch.map((t, j) => ({
         source_type: "current_affairs" as const,
         source_id: t.itemId,
