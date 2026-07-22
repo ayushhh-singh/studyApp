@@ -350,9 +350,12 @@ export async function translateUserNote(userId: string, id: string): Promise<Use
     ...note.srs_candidates.map((c, i) => ({ key: `card_front:${i}`, text: c.front_i18n[from] })),
     ...note.srs_candidates.map((c, i) => ({ key: `card_back:${i}`, text: c.back_i18n[from] })),
   ];
-  const translated = jobs.length
-    ? await translateBatch(jobs.map((j) => j.text), to, "UPPSC study note", { purpose: "user_note_translate", userId })
-    : [];
+  // jobs always has >= 1 entry (the overview job is unconditional), so this
+  // never skips the call — no empty-batch special case needed.
+  const translated = await translateBatch(jobs.map((j) => j.text), to, "UPPSC study note", {
+    purpose: "user_note_translate",
+    userId,
+  });
   const byKey = new Map(jobs.map((j, i) => [j.key, translated[i] ?? ""]));
 
   const overview = byKey.get("overview") ?? "";

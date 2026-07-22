@@ -317,55 +317,61 @@ export async function generateChapterForNode(
   // instead of one haiku round-trip per field — see translateAndCacheEvaluation
   // / ingest/pyq.ts's collectHindiJobs for the same pattern. Jobs carry an
   // explicit key so results are mapped back by key, not by array position.
+  // Keyed by the section's ARRAY INDEX (si), not its model-generated `id` —
+  // the outline schema only asks for "a stable slug id", it neither enforces
+  // uniqueness nor forbids a ':' inside it, either of which could otherwise
+  // cross-wire two sections' Hindi text via a Map key collision. The index
+  // is safe: rawSections is built once, in order, and never reordered before
+  // this loop re-walks it.
   log("  [6/6] translating to Hindi…");
   const jobs: { key: string; text: string }[] = [{ key: "overview", text: outline.overview_en }];
-  for (const s of rawSections) {
-    jobs.push({ key: `${s.id}:heading`, text: s.heading_en });
-    jobs.push({ key: `${s.id}:body`, text: s.raw.body_md });
-    s.raw.boxes.forEach((b, bi) => jobs.push({ key: `${s.id}:box:${bi}`, text: b.content_md }));
+  rawSections.forEach((s, si) => {
+    jobs.push({ key: `${si}:heading`, text: s.heading_en });
+    jobs.push({ key: `${si}:body`, text: s.raw.body_md });
+    s.raw.boxes.forEach((b, bi) => jobs.push({ key: `${si}:box:${bi}`, text: b.content_md }));
     if (s.raw.diagram && s.raw.diagram.kind !== "none" && s.raw.diagram.source.trim()) {
-      jobs.push({ key: `${s.id}:diagram:source`, text: s.raw.diagram.source });
-      if (s.raw.diagram.caption.trim()) jobs.push({ key: `${s.id}:diagram:caption`, text: s.raw.diagram.caption });
+      jobs.push({ key: `${si}:diagram:source`, text: s.raw.diagram.source });
+      if (s.raw.diagram.caption.trim()) jobs.push({ key: `${si}:diagram:caption`, text: s.raw.diagram.caption });
     }
-  }
+  });
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     "hi",
     "UPPSC study material",
     { purpose: "notes_chapter_translate", onUsage },
   );
+  capCheck();
   const hi = new Map(jobs.map((j, i) => [j.key, translated[i] ?? ""]));
 
   const overviewHi = hi.get("overview") ?? "";
-  const sections: ChapterSection[] = [];
-  for (const s of rawSections) {
+  const sections: ChapterSection[] = rawSections.map((s, si) => {
     const outlineSec = outline.sections.find((o) => o.id === s.id)!;
-    const headingHi = hi.get(`${s.id}:heading`) ?? "";
-    const bodyHi = hi.get(`${s.id}:body`) ?? "";
+    const headingHi = hi.get(`${si}:heading`) ?? "";
+    const bodyHi = hi.get(`${si}:body`) ?? "";
     const boxes: ChapterBox[] = s.raw.boxes.map((b, bi) => ({
       kind: b.kind,
-      content_i18n: { en: b.content_md, hi: hi.get(`${s.id}:box:${bi}`) ?? "" },
+      content_i18n: { en: b.content_md, hi: hi.get(`${si}:box:${bi}`) ?? "" },
       pyq_ids: resolvePyqIds(b.pyq_refs),
     }));
     let diagram: ChapterDiagram | null = null;
     if (s.raw.diagram && s.raw.diagram.kind !== "none" && s.raw.diagram.source.trim()) {
       diagram = {
         kind: s.raw.diagram.kind,
-        source_i18n: { en: s.raw.diagram.source, hi: hi.get(`${s.id}:diagram:source`) ?? "" },
+        source_i18n: { en: s.raw.diagram.source, hi: hi.get(`${si}:diagram:source`) ?? "" },
         caption_i18n: s.raw.diagram.caption.trim()
-          ? { en: s.raw.diagram.caption, hi: hi.get(`${s.id}:diagram:caption`) ?? "" }
+          ? { en: s.raw.diagram.caption, hi: hi.get(`${si}:diagram:caption`) ?? "" }
           : null,
       };
     }
-    sections.push({
+    return {
       id: s.id,
       heading_i18n: { en: s.heading_en, hi: headingHi },
       body_md_i18n: { en: s.raw.body_md, hi: bodyHi },
       boxes,
       diagram,
       pyq_ids: resolvePyqIds([...s.raw.pyq_refs, ...outlineSec.planned_boxes.length ? [] : []]),
-    });
-  }
+    };
+  });
 
   const result = await persistChapter({
     nodeId,
