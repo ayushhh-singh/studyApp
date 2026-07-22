@@ -28,6 +28,7 @@ import type { LlmUsage } from "../lib/anthropic.js";
 import { structuredJson } from "../lib/anthropic.js";
 import { MODELS } from "../lib/models.js";
 import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION } from "../qgen/prompts.js";
+import { CandidatePrefilter, PREFILTER_TOP_K } from "./candidate-prefilter.js";
 import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
@@ -287,6 +288,10 @@ export async function runPipeline(
   const candidates = await loadSyllabusCandidates();
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
   log(`syllabus candidates for mapping: ${candidates.length}`);
+  // Narrows each item's candidate list before triage (~37% less triage input).
+  // Fails open to the full list — see ./candidate-prefilter.ts.
+  const prefilter = await CandidatePrefilter.create(candidates);
+  log(`triage candidate pre-filter: ${prefilter.enabled ? `on (top ${PREFILTER_TOP_K})` : "OFF — using full list"}`);
   const seenHashes = await loadRecentHashes();
   log(`known items in the last 60 days: ${seenHashes.size}`);
 
@@ -350,7 +355,8 @@ export async function runPipeline(
       // rather than being silently dropped forever.
       try {
         // --- 1. Triage --------------------------------------------------------
-        const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates, onUsage });
+        const itemCandidates = await prefilter.narrow(title, snippet);
+        const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, onUsage });
         seenHashes.add(hash); // never re-triage this link again, kept or archived
         takenFromSource++;
 
