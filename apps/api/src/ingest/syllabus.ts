@@ -90,9 +90,23 @@ async function loadLangSource(
   report.warn(
     `${lang}: ${entry.id} looks scanned (${extracted.charsPerPage.toFixed(0)} chars/page) → routing through Claude vision`,
   );
-  const text = await visionExtract(entry);
-  report.ok(`${lang}: vision-extracted ${entry.id} (${text.length} chars)`);
-  return { lang, text, viaVision: true, sourceId: entry.id };
+  try {
+    const text = await visionExtract(entry);
+    report.ok(`${lang}: vision-extracted ${entry.id} (${text.length} chars)`);
+    return { lang, text, viaVision: true, sourceId: entry.id };
+  } catch (err) {
+    // visionExtract can now throw TruncatedResponseError (retryOnTruncation)
+    // where it never threw before — degrade to the SAME "only one language
+    // parsed" path already used when a manifest entry is simply missing
+    // (below), rather than letting one scanned page abort the whole 10-paper
+    // run before any DB write happens. The other language, if it parsed,
+    // still lets the run complete with this one machine-translated + flagged.
+    report.warn(
+      `${lang}: vision extraction of ${entry.id} failed (${err instanceof Error ? err.message : String(err)}) — ` +
+        `skipping this language for this run; it will be machine-translated from the other if that one succeeded.`,
+    );
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------

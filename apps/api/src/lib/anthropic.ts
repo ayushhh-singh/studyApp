@@ -418,6 +418,16 @@ export async function streamText(opts: {
   /** See the function doc above — default false, unsafe to combine with a live `onDelta` consumer. */
   retryOnTruncation?: boolean;
 }): Promise<string> {
+  if (opts.retryOnTruncation && opts.onDelta) {
+    // Fail fast at call time rather than shipping a footgun that only shows
+    // up in production the first time a truncation actually happens — a
+    // retry restarts the request, which would replay a truncated attempt's
+    // text into onDelta followed by a full duplicate re-stream.
+    throw new Error(
+      "streamText: retryOnTruncation and onDelta cannot be combined — retrying restarts " +
+        "the stream from scratch, which would double-emit text to a live delta consumer",
+    );
+  }
   let attemptMaxTokens = opts.maxTokens ?? 8000;
   const maxAttempts = opts.retryOnTruncation ? 2 : 1;
 
