@@ -20,6 +20,7 @@ import type {
   ReviewMagazineEditBody,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { monthBounds, monthLabel } from "../lib/month.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
@@ -157,16 +158,21 @@ function selectCuratedMainsPerPaper<T extends MainsScoreRow>(scored: Scored<T>[]
 // ---------------------------------------------------------------------------
 
 export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
-  // Discover which months have ANY gate-clearing published CA (cheap — dates only).
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select("date")
-    .eq("status", "published")
-    .or(`prelims_relevance.gte.${RELEVANCE_GATE},mains_relevance.gte.${RELEVANCE_GATE}`);
-  if (error) throw new HttpError(500, `magazine months query failed: ${error.message}`);
+  // Discover which months have ANY gate-clearing published CA (dates only). MUST page: a single
+  // busy month already returns ~967 rows (~97% of PostgREST's 1000-row cap), and this spans EVERY
+  // month — unpaged it would silently truncate and drop whole months from the index once >1000.
+  const dateRows = await selectAll<{ date: string }>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select("date, id")
+      .eq("status", "published")
+      .or(`prelims_relevance.gte.${RELEVANCE_GATE},mains_relevance.gte.${RELEVANCE_GATE}`)
+      .order("date", { ascending: false })
+      .order("id", { ascending: true }),
+  );
 
   const months = new Set<string>();
-  for (const r of (data ?? []) as { date: string }[]) {
+  for (const r of dateRows) {
     const month = (r.date ?? "").slice(0, 7);
     if (/^\d{4}-\d{2}$/.test(month)) months.add(month);
   }
@@ -200,17 +206,20 @@ export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
 /** Curated Prelims write-up count (UP lead + topic sections) — the same selection the edition renders. */
 async function countCuratedPrelims(month: string, weightage: Map<string, OwnWeightage>, year: number): Promise<number> {
   const { start, end } = monthBounds(month);
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select(PRELIMS_SCORE_COLUMNS)
-    .eq("status", "published")
-    .gte("prelims_relevance", RELEVANCE_GATE)
-    .not("prelims_facts", "is", null)
-    .gte("date", start)
-    .lt("date", end)
-    .order("date", { ascending: false });
-  if (error) throw new HttpError(500, `magazine prelims count failed: ${error.message}`);
-  const items = (data ?? []) as unknown as PrelimsScoreRow[];
+  // Paged + date,id order — identical to the edition's item query, so the count can't drift from it
+  // (and a >1000-item month doesn't silently truncate the pool the caps rank over).
+  const items = await selectAll<PrelimsScoreRow>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select(PRELIMS_SCORE_COLUMNS)
+      .eq("status", "published")
+      .gte("prelims_relevance", RELEVANCE_GATE)
+      .not("prelims_facts", "is", null)
+      .gte("date", start)
+      .lt("date", end)
+      .order("date", { ascending: false })
+      .order("id", { ascending: true }),
+  );
   if (items.length === 0) return 0;
   const { upScored, topicMap } = selectCuratedPrelims(scorePrelims(items, weightage, year));
   let topic = 0;
@@ -221,17 +230,18 @@ async function countCuratedPrelims(month: string, weightage: Map<string, OwnWeig
 /** Curated Mains issue count (distinct union of per-paper top-N) — the same selection the edition renders. */
 async function countCuratedMainsIssues(month: string, weightage: Map<string, OwnWeightage>, year: number): Promise<number> {
   const { start, end } = monthBounds(month);
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select(MAINS_SCORE_COLUMNS)
-    .eq("status", "published")
-    .gte("mains_relevance", RELEVANCE_GATE)
-    .not("mains_brief", "is", null)
-    .gte("date", start)
-    .lt("date", end)
-    .order("date", { ascending: false });
-  if (error) throw new HttpError(500, `magazine mains count failed: ${error.message}`);
-  const items = (data ?? []) as unknown as MainsScoreRow[];
+  const items = await selectAll<MainsScoreRow>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select(MAINS_SCORE_COLUMNS)
+      .eq("status", "published")
+      .gte("mains_relevance", RELEVANCE_GATE)
+      .not("mains_brief", "is", null)
+      .gte("date", start)
+      .lt("date", end)
+      .order("date", { ascending: false })
+      .order("id", { ascending: true }),
+  );
   if (items.length === 0) return 0;
   const perPaper = selectCuratedMainsPerPaper(scoreMains(items, weightage, year));
   return new Set(perPaper.flatMap((p) => p.top.map((s) => s.row.id))).size;
@@ -313,23 +323,26 @@ async function loadWorkbook(month: string): Promise<MagazineMcq[]> {
 
 export async function compilePrelimsEdition(month: string): Promise<MagazinePrelims | null> {
   const { start, end } = monthBounds(month);
-  const [{ data, error }, weightage] = await Promise.all([
-    supabase()
-      .from("current_affairs_items")
-      .select(
-        "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids, title_i18n, summary_i18n, possible_questions, prelims_facts",
-      )
-      .eq("status", "published")
-      .gte("prelims_relevance", RELEVANCE_GATE)
-      .not("prelims_facts", "is", null)
-      .gte("date", start)
-      .lt("date", end)
-      .order("date", { ascending: false }),
+  // Paged (date,id) — a busy month's prelims-life pool can approach/exceed PostgREST's 1000-row cap;
+  // unpaged it would silently truncate and rank the caps over a partial month.
+  const [items, weightage] = await Promise.all([
+    selectAll<PrelimsItemRow>(() =>
+      supabase()
+        .from("current_affairs_items")
+        .select(
+          "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids, title_i18n, summary_i18n, possible_questions, prelims_facts",
+        )
+        .eq("status", "published")
+        .gte("prelims_relevance", RELEVANCE_GATE)
+        .not("prelims_facts", "is", null)
+        .gte("date", start)
+        .lt("date", end)
+        .order("date", { ascending: false })
+        .order("id", { ascending: true }),
+    ),
     loadNodeWeightage(),
   ]);
-  if (error) throw new HttpError(500, `prelims edition query failed: ${error.message}`);
 
-  const items = (data ?? []) as unknown as PrelimsItemRow[];
   if (items.length === 0) return null;
 
   // Rank by importance (relevance tier + syllabus weightage + UP + recency), then CAP each section
@@ -423,18 +436,20 @@ async function loadModelQuestions(month: string): Promise<MagazineModelQuestion[
 
 export async function compileMainsEdition(month: string): Promise<MagazineMains | null> {
   const { start, end } = monthBounds(month);
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select("id, date, category, is_up_specific, gs_papers, mains_relevance, title_i18n, mains_brief, possible_questions, syllabus_node_ids")
-    .eq("status", "published")
-    .gte("mains_relevance", RELEVANCE_GATE)
-    .not("mains_brief", "is", null)
-    .gte("date", start)
-    .lt("date", end)
-    .order("date", { ascending: false });
-  if (error) throw new HttpError(500, `mains edition query failed: ${error.message}`);
-
-  const items = (data ?? []) as unknown as MainsItemRow[];
+  // Paged (date,id) — mains-life already runs ~836 rows (~84% of PostgREST's 1000-row cap) and grows;
+  // unpaged it would silently truncate and rank the per-paper caps over a partial month.
+  const items = await selectAll<MainsItemRow>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select("id, date, category, is_up_specific, gs_papers, mains_relevance, title_i18n, mains_brief, possible_questions, syllabus_node_ids")
+      .eq("status", "published")
+      .gte("mains_relevance", RELEVANCE_GATE)
+      .not("mains_brief", "is", null)
+      .gte("date", start)
+      .lt("date", end)
+      .order("date", { ascending: false })
+      .order("id", { ascending: true }),
+  );
 
   const [{ data: ddData, error: ddError }, modelQuestions, weightage] = await Promise.all([
     supabase()
