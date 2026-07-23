@@ -199,6 +199,16 @@ async function batchEmbed(texts: string[]): Promise<number[][]> {
  * grounding lookups. Few-shot lookup (a plain DB query, no embedding) and the
  * two match_embeddings RPC calls per node are unaffected — those still run
  * once per node since they're node-scoped filters, not embed() round trips.
+ *
+ * Fault isolation: retrieveGrounding's own try/catch used to be the ONLY
+ * thing standing between a per-node embed() failure and that node losing
+ * grounding (never the whole run). Pooling hoists the embed call out of that
+ * per-node boundary into one shared call, so a failure there (rate limit, a
+ * transient network error, one oversized input 400ing the whole multi-input
+ * request) is caught here and degrades to leaving every `vecs[i]` undefined —
+ * each node's own retrieveGrounding call then embeds its query individually
+ * (its own try/catch still isolates a further per-node failure), exactly
+ * matching pre-pooling behavior. Never let a batch-embed failure fail the run.
  */
 async function loadGenContextsBatch(plans: GeneratePlan[]): Promise<GenContext[]> {
   const queries = plans.map((p) => groundingQueryFor(p.node));
@@ -210,9 +220,19 @@ async function loadGenContextsBatch(plans: GeneratePlan[]): Promise<GenContext[]
       toEmbed.push(q);
     }
   });
-  const embedded = toEmbed.length ? await batchEmbed(toEmbed) : [];
   const vecs: (number[] | undefined)[] = new Array(plans.length);
-  embedIdx.forEach((planIdx, j) => (vecs[planIdx] = embedded[j]));
+  if (toEmbed.length > 0) {
+    try {
+      const embedded = await batchEmbed(toEmbed);
+      embedIdx.forEach((planIdx, j) => (vecs[planIdx] = embedded[j]));
+    } catch (err) {
+      logger.warn(
+        { err, nodeCount: plans.length },
+        "qgen: pooled grounding-query embed failed; falling back to per-node embed",
+      );
+      // vecs stays all-undefined — each node embeds its own query below.
+    }
+  }
 
   return Promise.all(
     plans.map(async (plan, i) => {
