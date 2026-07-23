@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { BookOpen, FileText, ListChecks } from "lucide-react";
+import { BookOpen, FileText, ListChecks, Target, ArrowRight } from "lucide-react";
 import type { PaperSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -84,6 +84,7 @@ function PaperGroup({ title, papers }: { title: string; papers: PaperSummary[] }
 
 export function Component() {
   const { t } = useTranslation();
+  const locale = useLocale();
   const { data, isLoading } = usePaperSummaries();
 
   const grouped = useMemo(() => {
@@ -97,6 +98,17 @@ export function Component() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("Learn.title")} description={t("Learn.description")} tourAnchor="learn" />
+
+      {!isLoading && data && data.length > 0 && (
+        <Link
+          to={`/${locale}/profile`}
+          className="inline-flex w-fit items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Target className="size-4 shrink-0 text-primary" aria-hidden />
+          {t("Learn.matrixLinkCta")}
+          <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+        </Link>
+      )}
 
       {isLoading || !data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

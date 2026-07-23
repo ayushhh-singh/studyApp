@@ -9,6 +9,7 @@ import { CaMainsSetCard } from "@/components/answers/ca-mains-set-card";
 import { PyqPicker } from "@/components/answers/pyq-picker";
 import { AnswerTestTabs } from "@/components/answers/answer-test-tabs";
 import { SubmissionHistoryList } from "@/components/answers/submission-history-list";
+import { QuickDrillCard } from "@/components/answers/quick-drill-card";
 import { useTodaysQuestion } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
 import { EvaluationQuotaChip } from "@/components/billing/quota-chip";
@@ -71,6 +72,8 @@ export function Component() {
           </Link>
         </SectionCard>
       </div>
+
+      <QuickDrillCard />
 
       <AnswerTestTabs />
     </div>

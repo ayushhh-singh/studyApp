@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BoardTable } from "@/components/scoreboard/board-table";
 import { MainsOptInCard } from "@/components/scoreboard/mains-opt-in-card";
 import { DimensionBestsPanel } from "@/components/scoreboard/dimension-bests-panel";
+import { MyRanksCard } from "@/components/profile/my-ranks-card";
 import {
   useDailyQuizTodayBoard,
   useDailyQuizWeeklyBoard,
@@ -22,7 +23,7 @@ import {
 
 export const handle = { titleKey: "Scoreboard.title" };
 
-const MAIN_TABS = ["prelims", "mains"] as const;
+const MAIN_TABS = ["prelims", "mains", "mine"] as const;
 type MainTab = (typeof MAIN_TABS)[number];
 function isMainTab(v: string | null): v is MainTab {
   return !!v && (MAIN_TABS as readonly string[]).includes(v);
@@ -313,6 +314,7 @@ export function Component() {
         <TabsList>
           <TabsTrigger value="prelims">{t("Scoreboard.tabPrelims")}</TabsTrigger>
           <TabsTrigger value="mains">{t("Scoreboard.tabMains")}</TabsTrigger>
+          <TabsTrigger value="mine">{t("Scoreboard.tabMine")}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="prelims">
@@ -351,6 +353,10 @@ export function Component() {
               <MainsDimensionBestsPanel />
             </TabsContent>
           </Tabs>
+        </TabsContent>
+
+        <TabsContent value="mine">
+          <MyRanksCard />
         </TabsContent>
       </Tabs>
     </div>

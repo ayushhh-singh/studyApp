@@ -20,7 +20,9 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 import { cn } from "@/lib/utils";
 
-const INSIGHT_THRESHOLD = 5;
+/** Also reused by the Answers evaluation page's compact trend callout — a
+ * dimension's delta only counts as a real trend (not noise) past this bar. */
+export const INSIGHT_THRESHOLD = 5;
 const RADAR_SAMPLE = 5;
 
 function TrendChart({ points }: { points: EvaluationTrendPoint[] }) {
@@ -91,7 +93,9 @@ function DimensionRadar({ points }: { points: EvaluationTrendPoint[] }) {
   );
 }
 
-function InsightLine({ insight }: { insight: DimensionInsight }) {
+/** Exported for the Answers evaluation page's compact dimension-trend callout
+ * (shows only the meaningfully-trending lines there, not the full radar). */
+export function InsightLine({ insight }: { insight: DimensionInsight }) {
   const { t } = useTranslation();
   const labelKey = DIMENSION_LABEL_KEYS[insight.dimension_key];
   const meaningful = insight.delta_pct !== null && Math.abs(insight.delta_pct) >= INSIGHT_THRESHOLD;
