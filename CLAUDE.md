@@ -157,6 +157,39 @@ analytics, RAG doubt-solving chatbot.
   `neevstudy.com`, see the Branding note above). See `docs/operations.md` →
   "Portability guard". Also: `apps/api`/`packages` import specifiers use a
   `.js` extension on `.ts` sources — never flip one to `.ts`.
+- **TEST/VERIFICATION CLEANUP MUST DELETE ONLY BY AN EXPLICIT, PRE-GENERATED,
+  UNIQUE TAG OR ID FOR THAT RUN'S OWN SYNTHETIC ROWS — NEVER BY BROAD CRITERIA.
+  Non-negotiable, permanent, all future sessions.** Any script/step that seeds
+  synthetic rows for a live-DB test or verification and then cleans them up may
+  target for deletion ONLY: (a) the exact row ids the seed step captured at
+  insert time (`.in("id", createdIds)` / `.eq("id", id)`), or (b) a unique
+  sentinel value the run generated and wrote onto every synthetic row before
+  inserting it (e.g. a `content_hash`/tag prefix like
+  `verify-${uniqueRunId}:...`, deleted via `.like("col", "${tag}:%")`, or a
+  dedicated `purpose`/`source_id` used by nothing else). This DB is the SAME
+  Supabase project for dev AND production (see Architecture), so a cleanup
+  delete that matches a real row is real data loss.
+  - **FORBIDDEN — a delete filter that could ever match a row the run did not
+    itself create:** a time window (`created_at >= runStart`), a content/name
+    pattern that also occurs in real data, `status`/`type`/`paper_code`-style
+    category filters, "it looks like test data", OR — the specific trap that
+    caused the incident below — a **before/after snapshot diff** (`select` all
+    ids before, `select` all ids after, delete the difference). That diff is
+    doubly unsafe: any unpaged `select` silently truncates at PostgREST's
+    1000-row cap (see the embeddings/1000-row-cap gotchas), AND even a fully
+    paged snapshot races any concurrent writer. Assign the tag/id up front and
+    delete by it; do not compute "which rows are mine" after the fact.
+  - **ROOT CAUSE — 2026-07-23 `current_affairs_items` deletion incident:** a
+    throwaway billing-verification script computed "my test's items" as
+    `afterIds.filter(id => !beforeSet.has(id))` where both snapshots were an
+    UNPAGED `select("id")`. Each truncated to 1000 rows in an unstable order,
+    so the diff was ~588 essentially-random real rows, which the script then
+    deleted (plus their embeddings + CA MCQs). Had it tagged its 3 seeded items
+    with a unique `content_hash` prefix and deleted by that, zero real rows
+    could have been touched. The three committed cleanup scripts already comply
+    (`eval-harness.ts` explicit `createdIds`; `rls-security-check.ts` explicit
+    throwaway auth-user ids; `seed-demo-account.ts --reset` scoped to one
+    explicit account id) — this rule keeps every future ad-hoc script the same.
 
 ## Definition of done for any UI session
 Runs locally with `pnpm dev`, renders REAL Supabase data, works at 390px and 1440px, both locales render (language toggle), no console errors.
