@@ -353,3 +353,46 @@ export async function toggleTask(userId: string, date: string, taskId: string, d
   if (error) throw new HttpError(500, `study plan task toggle failed: ${error.message}`);
   return mapPlanRow(data as StudyPlanRow);
 }
+
+// ---------------------------------------------------------------------------
+// Delete one task, or a whole day, from the active plan — lets a learner trim
+// a plan they didn't ask to regenerate (e.g. a task that doesn't apply, or a
+// day they want off). Both are pure removals from the persisted JSON blob;
+// neither touches `is_active`/regeneration cooldown.
+// ---------------------------------------------------------------------------
+export async function deleteTask(userId: string, date: string, taskId: string): Promise<void> {
+  const row = await fetchActivePlanRow(userId);
+  if (!row) throw notFound("No active study plan");
+
+  const days = row.plan?.days ?? [];
+  const dayIndex = days.findIndex((d) => d.date === date);
+  if (dayIndex === -1) throw badRequest(`No plan day found for date ${date}`);
+  if (!days[dayIndex].tasks.some((t: PlanTask) => t.id === taskId)) {
+    throw badRequest(`No task ${taskId} found on ${date}`);
+  }
+
+  const updatedDays = days.map((d, i) =>
+    i === dayIndex ? { ...d, tasks: d.tasks.filter((t) => t.id !== taskId) } : d,
+  );
+
+  const { error } = await supabase()
+    .from("study_plans")
+    .update({ plan: { hours_per_day: row.plan?.hours_per_day ?? null, days: updatedDays } })
+    .eq("id", row.id);
+  if (error) throw new HttpError(500, `study plan task delete failed: ${error.message}`);
+}
+
+export async function deleteDay(userId: string, date: string): Promise<void> {
+  const row = await fetchActivePlanRow(userId);
+  if (!row) throw notFound("No active study plan");
+
+  const days = row.plan?.days ?? [];
+  if (!days.some((d) => d.date === date)) throw badRequest(`No plan day found for date ${date}`);
+
+  const updatedDays = days.filter((d) => d.date !== date);
+  const { error } = await supabase()
+    .from("study_plans")
+    .update({ plan: { hours_per_day: row.plan?.hours_per_day ?? null, days: updatedDays } })
+    .eq("id", row.id);
+  if (error) throw new HttpError(500, `study plan day delete failed: ${error.message}`);
+}

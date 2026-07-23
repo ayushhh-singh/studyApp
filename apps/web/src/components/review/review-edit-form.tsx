@@ -33,6 +33,13 @@ export function ReviewEditForm({
   const [difficulty, setDifficulty] = useState<Difficulty>(q.difficulty);
   const [marks, setMarks] = useState(q.marks ?? 0);
   const [wordLimit, setWordLimit] = useState(q.word_limit ?? 0);
+  // Free-typed text for the two number inputs below, separate from the
+  // canonical numeric state — see the fix + comment in
+  // practice/custom-test-builder.tsx. These fields had no `|| 1`-style clamp,
+  // but still force-displayed "0" the instant the field was cleared
+  // (Number("") === 0), fighting a retype.
+  const [marksInput, setMarksInput] = useState(() => String(q.marks ?? 0));
+  const [wordLimitInput, setWordLimitInput] = useState(() => String(q.word_limit ?? 0));
 
   function setOpt(i: number, lang: "en" | "hi", value: string) {
     setOptions((prev) => prev.map((o, j) => (j === i ? { ...o, text_i18n: { ...o.text_i18n, [lang]: value } } : o)));
@@ -114,11 +121,35 @@ export function ReviewEditForm({
           <>
             <label className="flex flex-col gap-1">
               <span className={LABEL}>{t("Review.marksLabel")}</span>
-              <input className={FIELD} type="number" value={marks} onChange={(e) => setMarks(Number(e.target.value))} />
+              <input
+                className={FIELD}
+                type="number"
+                value={marksInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setMarksInput(raw);
+                  if (raw === "") return; // let the field go empty mid-edit instead of snapping to 0
+                  const parsed = Number(raw);
+                  if (!Number.isNaN(parsed)) setMarks(parsed);
+                }}
+                onBlur={() => setMarksInput(String(marks))} // discard an empty/invalid typed value
+              />
             </label>
             <label className="flex flex-col gap-1">
               <span className={LABEL}>{t("Review.wordLimitLabel")}</span>
-              <input className={FIELD} type="number" value={wordLimit} onChange={(e) => setWordLimit(Number(e.target.value))} />
+              <input
+                className={FIELD}
+                type="number"
+                value={wordLimitInput}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  setWordLimitInput(raw);
+                  if (raw === "") return; // let the field go empty mid-edit instead of snapping to 0
+                  const parsed = Number(raw);
+                  if (!Number.isNaN(parsed)) setWordLimit(parsed);
+                }}
+                onBlur={() => setWordLimitInput(String(wordLimit))} // discard an empty/invalid typed value
+              />
             </label>
           </>
         )}

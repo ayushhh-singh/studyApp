@@ -5,7 +5,6 @@ import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
 import { handleSchema, type Locale, type OnboardingBody } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useProfile, useCompleteOnboarding } from "@/hooks/use-profile";
-import { useStudyPlanStream } from "@/hooks/use-study-plan-stream";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,7 +25,6 @@ export function Component() {
   const { user } = useAuth();
   const profileQuery = useProfile();
   const onboard = useCompleteOnboarding();
-  const planStream = useStudyPlanStream();
 
   const defaultName = useMemo(() => {
     const meta = user?.user_metadata as { full_name?: string; name?: string } | undefined;
@@ -39,9 +37,7 @@ export function Component() {
   const [medium, setMedium] = useState<Locale>(locale);
   const [targetYear, setTargetYear] = useState(CURRENT_YEAR);
   const [hours, setHours] = useState(3);
-  const [generatePlan, setGeneratePlan] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<"form" | "generating">("form");
 
   // Seed the name field once the profile/user metadata resolves.
   const nameValue = displayName || defaultName;
@@ -76,29 +72,16 @@ export function Component() {
       setError(err instanceof Error ? err.message : t("Onboarding.error"));
       return;
     }
-    if (generatePlan) {
-      setPhase("generating");
-      planStream.start(hours);
-    } else {
-      navigate(`/${locale}/dashboard`, { replace: true });
-    }
-  }
-
-  // Generating phase: wait for the plan stream, then head to the dashboard
-  // (also proceed if generation errors — the plan is optional).
-  if (phase === "generating") {
-    const done = !planStream.isStreaming && (planStream.plan !== null || planStream.error !== null);
-    if (done) return <Navigate to={`/${locale}/dashboard`} replace />;
-    return (
-      <div className="flex min-h-svh flex-col items-center justify-center gap-5 bg-background px-6 text-center">
-        <Sparkles className="size-8 text-primary" />
-        <div className="space-y-1.5">
-          <p className="text-lg font-semibold">{t("Onboarding.generatingTitle")}</p>
-          <p className="text-sm text-muted-foreground">{planStream.stage ?? t("Onboarding.generatingSub")}</p>
-        </div>
-        <Loader2 className="size-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    // The AI study plan lives on the Dashboard now (its natural home — see
+    // dashboard.tsx) and generates in a few seconds from a real click there,
+    // with its own progress UI. Onboarding used to offer to kick it off in
+    // the background via a checkbox, but the app immediately navigates away
+    // the moment `onboarding_completed` flips true (the guard above), which
+    // unmounts this route and aborts the in-flight SSE request before a plan
+    // is ever persisted — so the checkbox looked like it did nothing. Simpler
+    // and honest: just finish onboarding and let the Dashboard's own card
+    // handle generation for real.
+    navigate(`/${locale}/dashboard`, { replace: true });
   }
 
   return (
@@ -237,22 +220,6 @@ export function Component() {
                   ))}
                 </div>
               </div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border p-4">
-                <input
-                  type="checkbox"
-                  checked={generatePlan}
-                  onChange={(e) => setGeneratePlan(e.target.checked)}
-                  className="mt-0.5 size-4 accent-[var(--primary)]"
-                />
-                <span>
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    <Sparkles className="size-4 text-primary" /> {t("Onboarding.planLabel")}
-                  </span>
-                  <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground">
-                    {t("Onboarding.planHint")}
-                  </span>
-                </span>
-              </label>
             </div>
           ) : null}
 

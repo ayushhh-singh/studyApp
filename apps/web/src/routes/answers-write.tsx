@@ -75,6 +75,13 @@ export function Component() {
   const [customQuestionText, setCustomQuestionText] = useState(() => (questionId ? "" : readCustomDraft(draftKey).question));
   const [customWordLimit, setCustomWordLimit] = useState(150);
   const [customMarks, setCustomMarks] = useState(10);
+  // Free-typed text for the two number inputs below, separate from the
+  // canonical numeric state — see the identical fix + comment in
+  // practice/custom-test-builder.tsx (clamping on every keystroke, incl. the
+  // empty-string-parses-to-0 case, snapped an emptied field straight to the
+  // min, blocking a direct retype).
+  const [customWordLimitInput, setCustomWordLimitInput] = useState(() => String(150));
+  const [customMarksInput, setCustomMarksInput] = useState(() => String(10));
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const draftIdRef = useRef(crypto.randomUUID());
@@ -210,8 +217,15 @@ export function Component() {
                   min={1}
                   max={100}
                   className={INPUT_CLASS}
-                  value={customMarks}
-                  onChange={(e) => setCustomMarks(Math.min(100, Math.max(1, Number(e.target.value) || 1)))}
+                  value={customMarksInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCustomMarksInput(raw);
+                    if (raw === "") return; // let the field go empty mid-edit instead of snapping to the min
+                    const parsed = Number(raw);
+                    if (!Number.isNaN(parsed)) setCustomMarks(Math.min(100, Math.max(1, parsed)));
+                  }}
+                  onBlur={() => setCustomMarksInput(String(customMarks))} // discard an empty/invalid/out-of-range typed value
                 />
               </label>
               <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -221,8 +235,15 @@ export function Component() {
                   min={1}
                   max={2000}
                   className={INPUT_CLASS}
-                  value={customWordLimit}
-                  onChange={(e) => setCustomWordLimit(Math.min(2000, Math.max(1, Number(e.target.value) || 1)))}
+                  value={customWordLimitInput}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    setCustomWordLimitInput(raw);
+                    if (raw === "") return; // let the field go empty mid-edit instead of snapping to the min
+                    const parsed = Number(raw);
+                    if (!Number.isNaN(parsed)) setCustomWordLimit(Math.min(2000, Math.max(1, parsed)));
+                  }}
+                  onBlur={() => setCustomWordLimitInput(String(customWordLimit))} // discard an empty/invalid/out-of-range typed value
                 />
               </label>
             </div>

@@ -237,8 +237,10 @@ export async function getPaperTree(
     target.set(nodeId, (target.get(nodeId) ?? 0) + 1);
   }
 
-  // Current-affairs MCQs are prelims-format and now mapped to the prelims
-  // "Current Events" topic (see ca/prelims-node.ts). They carry
+  // Current-affairs MCQs are prelims-format and mapped to whichever real
+  // prelims topic node triage classified the item against, falling back to
+  // the pooled "Current Events" node only when triage found no prelims match
+  // (see ca/pipeline.ts's pickPrelimsMcqNode + ca/prelims-node.ts). They carry
   // paper_code=CURRENT_AFFAIRS, so the paper query above never counts them —
   // but a topic set admits them via the test scope. Fold them into the generated
   // top-up supply so the custom builder's cap reflects the real pool. Prelims

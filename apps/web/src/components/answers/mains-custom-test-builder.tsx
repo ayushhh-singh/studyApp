@@ -29,6 +29,10 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
   const [nodeIds, setNodeIds] = useState<string[]>([]);
   const { data: tree } = usePaperTree(paperCode || undefined);
   const [count, setCount] = useState(5);
+  // Free-typed text for the number input, separate from `count` — see the
+  // identical fix + comment in practice/custom-test-builder.tsx (this is a
+  // separate component, not shared, so it needed the same fix independently).
+  const [countInput, setCountInput] = useState(() => String(5));
   const createTest = useCreateCustomAnswerTest();
 
   const flatNodes = useMemo(
@@ -51,6 +55,10 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
   useEffect(() => {
     setCount((c) => Math.min(c, maxCount));
   }, [maxCount]);
+
+  useEffect(() => {
+    setCountInput(String(count));
+  }, [count]);
 
   function handleSubmit() {
     if (nodeIds.length === 0) return;
@@ -131,8 +139,15 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
           className={INPUT_CLASS}
           min={1}
           max={maxCount}
-          value={count}
-          onChange={(e) => setCount(Math.min(maxCount, Math.max(1, Number(e.target.value) || 1)))}
+          value={countInput}
+          onChange={(e) => {
+            const raw = e.target.value;
+            setCountInput(raw);
+            if (raw === "") return; // let the field go empty mid-edit instead of snapping to the min
+            const parsed = Number(raw);
+            if (!Number.isNaN(parsed)) setCount(Math.min(maxCount, Math.max(1, parsed)));
+          }}
+          onBlur={() => setCountInput(String(count))} // discard an empty/invalid/out-of-range typed value
         />
       </label>
 

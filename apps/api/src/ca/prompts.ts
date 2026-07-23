@@ -104,6 +104,10 @@ const bilingualList = {
 export interface SyllabusCandidate {
   id: string;
   title: string;
+  // Not used in the prompt itself (candidateLines below only emits id/title) —
+  // lets pipeline.ts pick a PRELIMS match from triage's own classification for
+  // MCQ placement without a second model call. Purely additive to this type.
+  paperCode: string;
 }
 
 // ---------------------------------------------------------------------------

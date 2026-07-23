@@ -24,6 +24,8 @@
     "ca:run": "pnpm --filter api ca:run",
     "ca:embed": "pnpm --filter api ca:embed",
     "ca:remap-prelims": "pnpm --filter api ca:remap-prelims",
+    "ca:distribute-mcqs": "pnpm --filter api ca:distribute-mcqs",
+    "ca:reclassify-mcq-nodes": "pnpm --filter api ca:reclassify-mcq-nodes",
     "ca:compile": "pnpm --filter api ca:compile",
     "daily:build": "pnpm --filter api daily:build",
     "mocks:build": "pnpm --filter api mocks:build",

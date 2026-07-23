@@ -38,6 +38,11 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   // questions than the cap promised.
   const { data: tree } = usePaperTree(paperCode || undefined, exam, difficulty || undefined);
   const [count, setCount] = useState(20);
+  // Free-typed text for the number input, separate from `count` — clamping
+  // on every keystroke (e.g. via `Number(e.target.value) || 1`) snapped an
+  // emptied field straight to "1" mid-edit, making it impossible to type a
+  // replacement digit without first typing e.g. "15" then deleting the "1".
+  const [countInput, setCountInput] = useState(() => String(count));
   const createTest = useCreateCustomTest();
 
   // own_pyq_count (exact node match), NOT pyq_count (subtree-aggregated) —
@@ -72,6 +77,13 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   useEffect(() => {
     setCount((c) => Math.min(c, maxCount));
   }, [maxCount]);
+
+  // Keep the input's displayed text in sync with the canonical clamped
+  // value — covers the reclamp above; a no-op when the sync originated from
+  // our own onChange below, since that already wrote matching text.
+  useEffect(() => {
+    setCountInput(String(count));
+  }, [count]);
 
   function handleSubmit() {
     if (nodeIds.length === 0) return;
@@ -180,8 +192,15 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
             className={INPUT_CLASS}
             min={1}
             max={maxCount}
-            value={count}
-            onChange={(e) => setCount(Math.min(maxCount, Math.max(1, Number(e.target.value) || 1)))}
+            value={countInput}
+            onChange={(e) => {
+              const raw = e.target.value;
+              setCountInput(raw);
+              if (raw === "") return; // let the field go empty mid-edit instead of snapping to the min
+              const parsed = Number(raw);
+              if (!Number.isNaN(parsed)) setCount(Math.min(maxCount, Math.max(1, parsed)));
+            }}
+            onBlur={() => setCountInput(String(count))} // discard an empty/invalid/out-of-range typed value
           />
         </label>
       </div>
