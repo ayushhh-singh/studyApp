@@ -15,8 +15,10 @@ import { CutoffComparison } from "@/components/practice/cutoff-comparison";
 import { ResultTopicBreakdown } from "@/components/practice/result-topic-breakdown";
 import { ResultReviewList } from "@/components/practice/result-review-list";
 import { RankCard } from "@/components/scoreboard/rank-card";
+import { AccuracyTimeCard } from "@/components/profile/accuracy-time-card";
 import { useAttemptResult } from "@/hooks/use-attempt";
 import { useAttemptRankCard } from "@/hooks/use-scoreboard";
+import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
 import { useLocale } from "@/hooks/use-locale";
 import { queryKeys } from "@/lib/query-keys";
 import { ApiError } from "@/lib/api";
@@ -30,6 +32,11 @@ export function Component() {
   const { attemptId = "" } = useParams<{ attemptId: string }>();
   const { data: result, isLoading, error } = useAttemptResult(attemptId);
   const { data: rankCard } = useAttemptRankCard(attemptId);
+  // Rushing-vs-overthinking is most actionable right when a test is fresh in
+  // mind, not as a passive card on Profile (rarely visited) or Dashboard
+  // (already busy with its own summaries) — same data source as Profile's
+  // own chart, just surfaced at the moment it's actually useful.
+  const { data: analytics, isLoading: analyticsLoading } = useProfileAnalytics();
 
   const handleExplanationGenerated = useCallback(
     (questionId: string, explanation: BilingualText) => {
@@ -114,6 +121,8 @@ export function Component() {
       <SectionCard title={t("Practice.resultTopicBreakdownTitle")}>
         <ResultTopicBreakdown items={result.topic_breakdown} locale={locale} />
       </SectionCard>
+
+      <AccuracyTimeCard data={analytics?.accuracy_time_buckets} isLoading={analyticsLoading} />
 
       <SectionCard title={t("Practice.resultReviewTitle")}>
         <ResultReviewList
