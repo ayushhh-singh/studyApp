@@ -346,6 +346,7 @@
     "todaysQuestionEmptyDescription": "वर्णनात्मक प्रश्न प्रकाशित होते ही यहाँ एक नया मुख्य परीक्षा प्रश्न दिखेगा।",
     "writeAnswerCta": "उत्तर लिखें",
     "pyqPickerTitle": "पिछले वर्षों के प्रश्न",
+    "pyqPickerDescription": "एक बार में एक प्रश्न, बिना समय-सीमा — लिखें और तुरंत रूब्रिक-आधारित AI फीडबैक पाएं।",
     "pyqPickerPaperFilter": "मुख्य परीक्षा पेपर चुनें",
     "pyqPickerYearUnknown": "अन्य वर्ष",
     "pyqPickerShowMore": "{{count}} और दिखाएँ",

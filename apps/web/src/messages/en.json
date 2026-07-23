@@ -346,6 +346,7 @@
     "todaysQuestionEmptyDescription": "A fresh Mains question will appear here once descriptive questions are published.",
     "writeAnswerCta": "Write answer",
     "pyqPickerTitle": "Pick from PYQs",
+    "pyqPickerDescription": "One question at a time, untimed — write it and get instant rubric-based AI feedback.",
     "pyqPickerPaperFilter": "Choose a Mains paper",
     "pyqPickerYearUnknown": "Other years",
     "pyqPickerShowMore": "Show {{count}} more",

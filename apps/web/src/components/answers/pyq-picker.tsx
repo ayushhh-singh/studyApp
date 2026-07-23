@@ -190,7 +190,7 @@ export function PyqPicker() {
     activePaper && papers.some((p) => p.paper_code === activePaper) ? activePaper : (papers[0]?.paper_code ?? "");
 
   return (
-    <SectionCard title={t("Answers.pyqPickerTitle")}>
+    <SectionCard title={t("Answers.pyqPickerTitle")} description={t("Answers.pyqPickerDescription")}>
       {/* data-tour-anchor="answers" (also on the real tab strip below) needs to
           exist in SOME form in every branch — if the guided tab tour lands on
           this stop while paperSummaries is still loading or has errored, an
