@@ -24,6 +24,18 @@ import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { monthBounds, monthLabel } from "../lib/month.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
+import { loadNodeWeightage, currentExamYear } from "../lib/weightage.js";
+import {
+  UP_SPECIAL_LIMIT,
+  TOPIC_TOTAL_LIMIT,
+  TOPIC_PER_CATEGORY_MAX,
+  BOXED_PER_KIND_LIMIT,
+  MAINS_ISSUE_TOTAL_LIMIT,
+  GS_PER_PAPER_MAX,
+  scoreRows,
+  curateTopicSections,
+  type Scored,
+} from "./magazine-curation.js";
 
 /** Fixed category display order for the Prelims Compendium's topic sections. */
 const CATEGORY_ORDER: CurrentAffairsCategory[] = [
@@ -110,6 +122,8 @@ interface PrelimsItemRow {
   date: string;
   category: CurrentAffairsCategory | null;
   is_up_specific: boolean;
+  prelims_relevance: number | null;
+  syllabus_node_ids: string[] | null;
   title_i18n: { hi: string; en: string };
   summary_i18n: { hi: string; en: string } | null;
   possible_questions: CurrentAffairsPossibleQuestions | null;
@@ -127,7 +141,8 @@ function toFactEntries(item: PrelimsItemRow): MagazineFactEntry[] {
 }
 
 /** A full item write-up (headline + context + all its facts) for topic sections / UP Special. */
-function toItemBlock(item: PrelimsItemRow): MagazineItemBlock {
+function toItemBlock(s: Scored<PrelimsItemRow>): MagazineItemBlock {
+  const item = s.row;
   return {
     item_id: item.id,
     item_title_i18n: item.title_i18n,
@@ -135,6 +150,8 @@ function toItemBlock(item: PrelimsItemRow): MagazineItemBlock {
     summary_i18n: item.summary_i18n,
     possible_question_i18n: item.possible_questions?.prelims_i18n ?? null,
     facts: item.prelims_facts ?? [],
+    weightage_pct: s.weightage_pct,
+    editors_pick: s.editors_pick,
   };
 }
 
@@ -162,38 +179,61 @@ async function loadWorkbook(month: string): Promise<MagazineMcq[]> {
 
 export async function compilePrelimsEdition(month: string): Promise<MagazinePrelims | null> {
   const { start, end } = monthBounds(month);
-  const { data, error } = await supabase()
-    .from("current_affairs_items")
-    .select("id, date, category, is_up_specific, title_i18n, summary_i18n, possible_questions, prelims_facts")
-    .eq("status", "published")
-    .gte("prelims_relevance", RELEVANCE_GATE)
-    .not("prelims_facts", "is", null)
-    .gte("date", start)
-    .lt("date", end)
-    .order("date", { ascending: false });
+  const [{ data, error }, weightage] = await Promise.all([
+    supabase()
+      .from("current_affairs_items")
+      .select(
+        "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids, title_i18n, summary_i18n, possible_questions, prelims_facts",
+      )
+      .eq("status", "published")
+      .gte("prelims_relevance", RELEVANCE_GATE)
+      .not("prelims_facts", "is", null)
+      .gte("date", start)
+      .lt("date", end)
+      .order("date", { ascending: false }),
+    loadNodeWeightage(),
+  ]);
   if (error) throw new HttpError(500, `prelims edition query failed: ${error.message}`);
 
   const items = (data ?? []) as unknown as PrelimsItemRow[];
   if (items.length === 0) return null;
 
-  const upItems = items.filter((i) => i.is_up_specific);
-  const restItems = items.filter((i) => !i.is_up_specific);
-  const upSpecial = upItems.map(toItemBlock);
-
-  const byCategory = new Map<CurrentAffairsCategory, PrelimsItemRow[]>();
-  for (const item of restItems) {
-    const cat = item.category ?? "polity_governance";
-    const arr = byCategory.get(cat) ?? [];
-    arr.push(item);
-    byCategory.set(cat, arr);
-  }
-  const topicSections: MagazineTopicSection[] = CATEGORY_ORDER.filter((c) => c !== "up_special" && byCategory.has(c)).map(
-    (category) => ({ category, items: (byCategory.get(category) ?? []).map(toItemBlock) }),
+  // Rank by importance (relevance tier + syllabus weightage + UP + recency), then CAP each section —
+  // a busy month clears every item past the survival gate, so unranked sections dump hundreds.
+  const scored = scoreRows(
+    items,
+    (i) => ({
+      relevance: i.prelims_relevance ?? RELEVANCE_GATE,
+      syllabus_node_ids: i.syllabus_node_ids ?? [],
+      is_up_specific: i.is_up_specific,
+      date: i.date,
+    }),
+    weightage,
+    currentExamYear(),
   );
 
+  // UP lead section — top UP-specific items.
+  const upScored = scored.filter((s) => s.row.is_up_specific).slice(0, UP_SPECIAL_LIMIT);
+  const upSpecial = upScored.map(toItemBlock);
+
+  // Topic sections — ≥1 per populated category, ≤ per-category max, ≤ total budget.
+  const nonUpScored = scored.filter((s) => !s.row.is_up_specific);
+  const topicMap = curateTopicSections(
+    nonUpScored,
+    (r) => r.category ?? "polity_governance",
+    TOPIC_PER_CATEGORY_MAX,
+    TOPIC_TOTAL_LIMIT,
+  );
+  const topicSections: MagazineTopicSection[] = CATEGORY_ORDER.filter((c) => c !== "up_special" && topicMap.has(c)).map(
+    (category) => ({ category, items: (topicMap.get(category) ?? []).map(toItemBlock) }),
+  );
+
+  // The curated set (UP + topic write-ups) also feeds the boxed-fact appendix and the cover counts,
+  // so the whole edition reflects one coherent, capped selection — not the raw month.
+  const curated = [...upScored, ...[...topicMap.values()].flat()].sort((a, b) => b.score - a.score);
   const byKind = new Map<CurrentAffairsFactKind, MagazineFactEntry[]>();
-  for (const item of items) {
-    for (const entry of toFactEntries(item)) {
+  for (const s of curated) {
+    for (const entry of toFactEntries(s.row)) {
       const arr = byKind.get(entry.kind) ?? [];
       arr.push(entry);
       byKind.set(entry.kind, arr);
@@ -201,16 +241,16 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
   }
   const boxedFeatures: MagazineBoxedFeature[] = FACT_KIND_ORDER.filter((k) => byKind.has(k)).map((kind) => ({
     kind,
-    facts: byKind.get(kind) ?? [],
+    facts: (byKind.get(kind) ?? []).slice(0, BOXED_PER_KIND_LIMIT),
   }));
 
   const workbook = await loadWorkbook(month);
-  const totalFacts = items.reduce((n, i) => n + (i.prelims_facts?.length ?? 0), 0);
+  const totalFacts = curated.reduce((n, s) => n + (s.row.prelims_facts?.length ?? 0), 0);
 
   return {
     month,
     title_i18n: monthLabel(month),
-    total_items: items.length,
+    total_items: curated.length,
     total_facts: totalFacts,
     up_special: upSpecial,
     topic_sections: topicSections,
@@ -282,7 +322,7 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
 
   const items = (data ?? []) as unknown as MainsItemRow[];
 
-  const [{ data: ddData, error: ddError }, modelQuestions] = await Promise.all([
+  const [{ data: ddData, error: ddError }, modelQuestions, weightage] = await Promise.all([
     supabase()
       .from("magazine_deep_dives")
       .select(
@@ -292,34 +332,55 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
       .eq("status", "published")
       .order("rank", { ascending: true }),
     loadModelQuestions(month),
+    loadNodeWeightage(),
   ]);
   if (ddError) throw new HttpError(500, `mains edition deep-dive query failed: ${ddError.message}`);
   const deepDives = ((ddData ?? []) as unknown as MagazineDeepDive[]).map((d) => ({ ...d, cost_usd: Number(d.cost_usd) }));
 
   if (items.length === 0 && deepDives.length === 0 && modelQuestions.length === 0) return null;
 
-  const toBrief = (item: MainsItemRow): MagazineIssueBrief => ({
-    item_id: item.id,
-    title_i18n: item.title_i18n,
-    date: item.date,
-    category: item.category,
-    is_up_specific: item.is_up_specific,
-    gs_papers: item.gs_papers ?? [],
-    mains_relevance: item.mains_relevance,
-    brief: item.mains_brief,
-    possible_questions: item.possible_questions,
-    syllabus_node_ids: item.syllabus_node_ids ?? [],
-  });
+  // Rank issues by importance and take the top curated set — then group into GS sections (capped per
+  // paper), the same rank-then-cap the Deep Dives already use, applied to the issue-brief pool.
+  const scored = scoreRows(
+    items,
+    (i) => ({
+      relevance: i.mains_relevance ?? RELEVANCE_GATE,
+      syllabus_node_ids: i.syllabus_node_ids ?? [],
+      is_up_specific: i.is_up_specific,
+      date: i.date,
+    }),
+    weightage,
+    currentExamYear(),
+  );
+  const curated = scored.slice(0, MAINS_ISSUE_TOTAL_LIMIT);
+
+  const toBrief = (s: Scored<MainsItemRow>): MagazineIssueBrief => {
+    const item = s.row;
+    return {
+      item_id: item.id,
+      title_i18n: item.title_i18n,
+      date: item.date,
+      category: item.category,
+      is_up_specific: item.is_up_specific,
+      gs_papers: item.gs_papers ?? [],
+      mains_relevance: item.mains_relevance,
+      brief: item.mains_brief,
+      possible_questions: item.possible_questions,
+      syllabus_node_ids: item.syllabus_node_ids ?? [],
+      weightage_pct: s.weightage_pct,
+      editors_pick: s.editors_pick,
+    };
+  };
 
   const gsSections: MagazineGsSection[] = GS_PAPER_ORDER.map((paper) => ({
     paper,
-    items: items.filter((i) => (i.gs_papers ?? []).includes(paper)).map(toBrief),
+    items: curated.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX).map(toBrief),
   })).filter((s) => s.items.length > 0);
 
   return {
     month,
     title_i18n: monthLabel(month),
-    total_issues: items.length,
+    total_issues: curated.length,
     gs_sections: gsSections,
     deep_dives: deepDives,
     model_questions: modelQuestions,

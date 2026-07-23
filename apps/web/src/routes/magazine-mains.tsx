@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
-import { Lightbulb, Newspaper } from "lucide-react";
+import { Lightbulb, Newspaper, Star } from "lucide-react";
 import type { Locale, MagazineDeepDive, MagazineIssueBrief, MagazineModelQuestion } from "@neev/shared";
 import { useMagazineMains } from "@/hooks/use-magazine";
 import { useLocale } from "@/hooks/use-locale";
@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { MagazineToolbar } from "@/components/magazine/magazine-toolbar";
+import { MagazineIndexNav, type MagazineIndexEntry } from "@/components/magazine/magazine-index-nav";
 import { RelevanceBadges } from "@/components/current-affairs/relevance-badge";
 import { LinkedSyllabusNode } from "@/components/current-affairs/linked-syllabus-node";
 
@@ -53,6 +54,14 @@ function IssueBriefCard({ item, locale }: { item: MagazineIssueBrief; locale: Lo
         {item.is_up_specific && (
           <span className="rounded-full bg-tulsi/15 px-2 py-0.5 font-semibold text-tulsi-foreground">
             {t("CurrentAffairs.upSpecific")}
+          </span>
+        )}
+        {item.editors_pick && (
+          <span
+            title={t("Magazine.editorsPick")}
+            className="inline-flex items-center gap-1 rounded-full bg-marigold/15 px-2 py-0.5 font-bold uppercase tracking-wide text-marigold-foreground"
+          >
+            <Star className="size-3" aria-hidden /> {t("Magazine.weightageChip")}
           </span>
         )}
         <span className="text-muted-foreground">{item.date}</span>
@@ -214,17 +223,28 @@ export function Component() {
   const { month = "" } = useParams<{ month: string }>();
   const { data: mag, isLoading, isError, refetch } = useMagazineMains(month);
 
+  const indexEntries: MagazineIndexEntry[] = mag
+    ? [
+        ...(mag.deep_dives.length > 0 ? [{ id: "deep-dives", label: t("Magazine.deepDivesSection") }] : []),
+        ...mag.gs_sections.map((s) => ({ id: `gs-${s.paper}`, label: s.paper })),
+        ...(mag.model_questions.length > 0 ? [{ id: "model-questions", label: t("Magazine.modelQuestionsSection") }] : []),
+      ]
+    : [];
+
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <style>{`@media print {
         .mag-noprint { display: none !important; }
+        .mag-shell { max-width: none !important; padding: 0 !important; gap: 0 !important; }
         .mag-page { max-width: none !important; padding: 0 !important; }
         .mag-section { break-inside: avoid; }
       }`}</style>
 
       <MagazineToolbar backTo={`/${locale}/magazine/${month}`} canPrint={!isLoading && !isError && !!mag} />
 
-      <main className="mag-page mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <div className="mag-shell mx-auto flex max-w-6xl justify-center gap-8 px-4 py-8 sm:px-6">
+        {mag && indexEntries.length > 0 && <MagazineIndexNav entries={indexEntries} />}
+        <main className="mag-page w-full min-w-0 max-w-3xl">
         {isLoading ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-10 w-64" />
@@ -248,35 +268,6 @@ export function Component() {
                 {t("Magazine.mainsCoverStats", { issues: mag.total_issues, deepDives: mag.deep_dives.length })}
               </p>
             </div>
-
-            <nav className="mag-noprint mb-8 rounded-xl border border-border bg-card p-4">
-              <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {t("Magazine.indexToc")}
-              </h2>
-              <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
-                {mag.deep_dives.length > 0 && (
-                  <li>
-                    <a href="#deep-dives" className="text-primary hover:underline">
-                      {t("Magazine.deepDivesSection")}
-                    </a>
-                  </li>
-                )}
-                {mag.gs_sections.map((s) => (
-                  <li key={s.paper}>
-                    <a href={`#gs-${s.paper}`} className="text-foreground hover:underline">
-                      {s.paper}
-                    </a>
-                  </li>
-                ))}
-                {mag.model_questions.length > 0 && (
-                  <li>
-                    <a href="#model-questions" className="text-marigold-foreground hover:underline">
-                      {t("Magazine.modelQuestionsSection")}
-                    </a>
-                  </li>
-                )}
-              </ul>
-            </nav>
 
             {mag.deep_dives.length > 0 && (
               <section id="deep-dives" className="mag-section mb-10">
@@ -320,7 +311,8 @@ export function Component() {
             </footer>
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }

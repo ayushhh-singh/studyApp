@@ -77,6 +77,10 @@ export const magazineItemBlockSchema = z.object({
   summary_i18n: bilingualTextSchema.nullable(),
   possible_question_i18n: bilingualTextSchema.nullable(),
   facts: z.array(currentAffairsFactSchema),
+  /** Rolled-up recency-decayed syllabus weightage of this item, 0-100 vs the month's busiest item. Drives the "why this made the cut" chip. */
+  weightage_pct: z.number().int().min(0).max(100).default(0),
+  /** Top-tier: max exam relevance, or high-weightage syllabus. Shown as an editor's-pick marker. */
+  editors_pick: z.boolean().default(false),
 });
 export type MagazineItemBlock = z.infer<typeof magazineItemBlockSchema>;
 
@@ -128,6 +132,10 @@ export const magazineIssueBriefSchema = z.object({
   brief: currentAffairsMainsBriefSchema,
   possible_questions: currentAffairsPossibleQuestionsSchema.nullable(),
   syllabus_node_ids: z.array(z.string().uuid()),
+  /** Rolled-up recency-decayed syllabus weightage of this issue, 0-100 vs the month's busiest issue. Drives the "why this made the cut" chip. */
+  weightage_pct: z.number().int().min(0).max(100).default(0),
+  /** Top-tier: mains_relevance 3, or high-weightage syllabus. Shown as an editor's-pick marker. */
+  editors_pick: z.boolean().default(false),
 });
 export type MagazineIssueBrief = z.infer<typeof magazineIssueBriefSchema>;
 

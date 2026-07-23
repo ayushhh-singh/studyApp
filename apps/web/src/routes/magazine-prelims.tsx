@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router";
-import { MapPin, Newspaper } from "lucide-react";
+import { MapPin, Newspaper, Star } from "lucide-react";
 import type { CurrentAffairsFactKind, Locale, MagazineFactEntry, MagazineItemBlock } from "@neev/shared";
 import { useMagazinePrelims } from "@/hooks/use-magazine";
 import { useLocale } from "@/hooks/use-locale";
@@ -9,6 +9,20 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { MagazineToolbar } from "@/components/magazine/magazine-toolbar";
+import { MagazineIndexNav, type MagazineIndexEntry } from "@/components/magazine/magazine-index-nav";
+
+/** "Why this made the cut" — a subtle marker on items that touch heavily-asked (high-weightage) syllabus. */
+function WeightageChip() {
+  const { t } = useTranslation();
+  return (
+    <span
+      title={t("Magazine.editorsPick")}
+      className="inline-flex shrink-0 items-center gap-1 rounded-full bg-marigold/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-marigold-foreground"
+    >
+      <Star className="size-3" aria-hidden /> {t("Magazine.weightageChip")}
+    </span>
+  );
+}
 
 const FACT_KIND_ICON: Record<CurrentAffairsFactKind, string> = {
   scheme: "🏛️",
@@ -30,6 +44,8 @@ function factEntryAsItemBlock(f: MagazineFactEntry): MagazineItemBlock {
     summary_i18n: f.item_summary_i18n,
     possible_question_i18n: null,
     facts: [{ fact_i18n: f.fact_i18n, kind: f.kind, extras: f.extras }],
+    weightage_pct: 0,
+    editors_pick: false,
   };
 }
 
@@ -47,7 +63,10 @@ function ItemBlock({ item, locale }: { item: MagazineItemBlock; locale: Locale }
     <article className="mag-item flex flex-col gap-2 break-inside-avoid rounded-xl border border-border bg-card p-4">
       <div className="flex items-baseline justify-between gap-2">
         <h3 className="text-[15px] font-bold leading-snug">{item.item_title_i18n[locale]}</h3>
-        <span className="shrink-0 text-[11px] text-muted-foreground">{item.item_date}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {item.editors_pick && <WeightageChip />}
+          <span className="text-[11px] text-muted-foreground">{item.item_date}</span>
+        </div>
       </div>
       {item.summary_i18n?.[locale] && (
         <p className={`text-sm text-foreground/90 ${proseLeading}`}>{item.summary_i18n[locale]}</p>
@@ -87,17 +106,31 @@ export function Component() {
   const { month = "" } = useParams<{ month: string }>();
   const { data: mag, isLoading, isError, refetch } = useMagazinePrelims(month);
 
+  const indexEntries: MagazineIndexEntry[] = mag
+    ? [
+        ...(mag.up_special.length > 0 ? [{ id: "up-special", label: t("Magazine.upSection") }] : []),
+        ...mag.boxed_features.map((b) => ({ id: `box-${b.kind}`, label: t(`Magazine.boxedFeature.${b.kind}`) })),
+        ...mag.topic_sections.map((s) => ({ id: `topic-${s.category}`, label: t(`CurrentAffairs.category.${s.category}`) })),
+        ...(mag.workbook.length > 0
+          ? [{ id: "workbook", label: t("Magazine.workbookAppendix", { count: mag.workbook.length }) }]
+          : []),
+      ]
+    : [];
+
   return (
     <div className="min-h-dvh bg-background text-foreground">
       <style>{`@media print {
         .mag-noprint { display: none !important; }
+        .mag-shell { max-width: none !important; padding: 0 !important; gap: 0 !important; }
         .mag-page { max-width: none !important; padding: 0 !important; }
         .mag-section { break-inside: avoid; }
       }`}</style>
 
       <MagazineToolbar backTo={`/${locale}/magazine/${month}`} canPrint={!isLoading && !isError && !!mag} />
 
-      <main className="mag-page mx-auto max-w-3xl px-4 py-8 sm:px-6">
+      <div className="mag-shell mx-auto flex max-w-6xl justify-center gap-8 px-4 py-8 sm:px-6">
+        {mag && indexEntries.length > 0 && <MagazineIndexNav entries={indexEntries} />}
+        <main className="mag-page w-full min-w-0 max-w-3xl">
         {isLoading ? (
           <div className="flex flex-col gap-3">
             <Skeleton className="h-10 w-64" />
@@ -122,43 +155,6 @@ export function Component() {
                 {t("Magazine.prelimsCoverStats", { items: mag.total_items, facts: mag.total_facts })}
               </p>
             </div>
-
-            {/* index / TOC */}
-            <nav className="mag-noprint mb-8 rounded-xl border border-border bg-card p-4">
-              <h2 className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                {t("Magazine.indexToc")}
-              </h2>
-              <ul className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">
-                {mag.up_special.length > 0 && (
-                  <li>
-                    <a href="#up-special" className="text-tulsi-foreground hover:underline">
-                      {t("Magazine.upSection")}
-                    </a>
-                  </li>
-                )}
-                {mag.boxed_features.map((b) => (
-                  <li key={b.kind}>
-                    <a href={`#box-${b.kind}`} className="text-marigold-foreground hover:underline">
-                      {t(`Magazine.boxedFeature.${b.kind}`)}
-                    </a>
-                  </li>
-                ))}
-                {mag.topic_sections.map((s) => (
-                  <li key={s.category}>
-                    <a href={`#topic-${s.category}`} className="text-primary hover:underline">
-                      {t(`CurrentAffairs.category.${s.category}`)}
-                    </a>
-                  </li>
-                ))}
-                {mag.workbook.length > 0 && (
-                  <li>
-                    <a href="#workbook" className="text-foreground hover:underline">
-                      {t("Magazine.workbookAppendix", { count: mag.workbook.length })}
-                    </a>
-                  </li>
-                )}
-              </ul>
-            </nav>
 
             {/* UP SPECIAL — first-class lead section, full write-ups */}
             {mag.up_special.length > 0 && (
@@ -239,7 +235,8 @@ export function Component() {
             </footer>
           </>
         )}
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
