@@ -71,6 +71,24 @@ export function structuralCheck(q: AuditQuestion): StructuralResult {
 // ---------------------------------------------------------------------------
 // 2. Explanation-vs-key (haiku, batched)
 // ---------------------------------------------------------------------------
+// NO PROMPT CACHING HERE — INVESTIGATED, DO NOT "FIX" (2026-07-23). A prior
+// cost-audit commit (9e03929) claimed audit/resolve.ts already had caching
+// that this file lacked, as if to copy from. That claim was checked and is
+// FALSE — neither audit/resolve.ts nor ingest/resolve.ts has any
+// cache_control/PromptSegment usage; there is no sibling pattern here at all.
+// Building the split fresh (per the Session 13 evaluation/prompts.ts
+// static/dynamic pattern) was then evaluated and rejected on its own merits:
+// ARGUED_SYSTEM is 122 tokens (messages.count_tokens against claude-haiku-4-5)
+// against haiku's ~4096-token minimum cacheable prefix — ~34x under, a much
+// wider gap than the near-misses documented elsewhere in this codebase
+// (Session 13's ~1000-vs-1024 shared block, ca/prompts.ts's enrich/generateMcqs
+// calls). Unlike CA triage's ~8.6k-token candidate list, there is no batch-
+// invariant content anywhere in buildArguedParams to legitimately move into
+// `system` and clear the floor — stem/options/explanation are all per-question,
+// and ARGUED_SCHEMA goes through output_config.format, not system, so it isn't
+// cacheable material either. Marking `{text, cache: true}` here would compile
+// and ship but cache nothing, while still risking the 1.25x cache-write
+// premium on every batch item — a silent no-op, not a small win.
 const ARGUED_SYSTEM =
   "You are auditing an exam question for INTERNAL CONSISTENCY. You are given a multiple-choice question, its options, " +
   "and its written explanation. Reading ONLY the explanation, report which single option it CONCLUDES is correct — " +
