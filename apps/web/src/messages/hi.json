@@ -437,7 +437,6 @@
     "yourAnswerLabel": "आपका उत्तर",
     "modelAnswerLabel": "आदर्श उत्तर",
     "reattemptCta": "पुनः प्रयास करें",
-    "improvedSinceLastAttempt": "पिछली बार आपको इस प्रश्न पर {{before}}% मिले थे — इस बार {{after}}%। दोबारा लिखना काम कर रहा है।",
     "addKeyPointsCta": "मुख्य बिंदु रिवीजन में जोड़ें",
     "shareCta": "कार्ड साझा करें",
     "dimensionStructureFlow": "संरचना और प्रवाह",

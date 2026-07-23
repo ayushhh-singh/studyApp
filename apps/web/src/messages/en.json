@@ -437,7 +437,6 @@
     "yourAnswerLabel": "Your answer",
     "modelAnswerLabel": "Model answer",
     "reattemptCta": "Re-attempt",
-    "improvedSinceLastAttempt": "You scored {{before}}% on this question last time — {{after}}% this time. Rewriting is working.",
     "addKeyPointsCta": "Add key points to revision",
     "shareCta": "Share card",
     "dimensionStructureFlow": "Structure & Flow",

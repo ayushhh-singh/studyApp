@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
-import { FileQuestion, Loader2, PenLine, Share2, Sparkles, TrendingUp } from "lucide-react";
+import { FileQuestion, Loader2, PenLine, Share2, Sparkles } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -15,7 +15,8 @@ import { EvaluationFeedback } from "@/components/answers/evaluation-feedback";
 import { EvaluationAnalysisNotes } from "@/components/answers/evaluation-analysis-notes";
 import { EvaluationModelAnswer } from "@/components/answers/evaluation-model-answer";
 import { PercentileBand } from "@/components/scoreboard/percentile-band";
-import { InsightLine, INSIGHT_THRESHOLD } from "@/components/profile/writing-progress-card";
+import { WritingProgressCard } from "@/components/profile/writing-progress-card";
+import { ImprovementProofCard } from "@/components/profile/improvement-proof-card";
 import { useSubmissionDetail } from "@/hooks/use-answers";
 import { useEvaluationStream } from "@/hooks/use-evaluation-stream";
 import { useAddEvaluationToRevision } from "@/hooks/use-add-to-revision";
@@ -54,14 +55,13 @@ export function Component() {
   const shareButtonRef = useRef<HTMLButtonElement>(null);
   const { data: percentile } = useEvaluationPercentile(stream.done ? submissionId : undefined);
   const { data: catalogedQuestion } = useQuestion(detail?.submission.question_id ?? undefined);
-  // Both reuse Profile's own analytics query (same data, no new endpoint) —
-  // only fetched once the evaluation is actually persisted, so the "recent"
-  // window/improvement-pair list correctly includes this very evaluation.
-  const { data: analytics } = useProfileAnalytics({ enabled: !!stream.done });
-  const trendingInsights = (analytics?.dimension_insights ?? []).filter(
-    (i) => i.delta_pct !== null && Math.abs(i.delta_pct) >= INSIGHT_THRESHOLD,
-  );
-  const improvementPair = analytics?.improvement_proof.items.find((i) => i.after_submission_id === submissionId);
+  // Reuses Profile's own analytics query (same data, no new endpoint) — only
+  // fetched once the evaluation is actually persisted, so the dimension-trend
+  // window and improvement-proof list correctly include this very evaluation.
+  // Rendered via the SAME WritingProgressCard/ImprovementProofCard components
+  // Profile uses, not a hand-picked subset, so it looks and behaves exactly
+  // like the "real" card the user already knows from Profile.
+  const { data: analytics, isLoading: analyticsLoading } = useProfileAnalytics({ enabled: !!stream.done });
 
   useEffect(() => {
     // Also re-runs on a locale switch: a replay's feedback text is
@@ -144,12 +144,12 @@ export function Component() {
 
       {stream.dimensions.length > 0 && <EvaluationDimensions dimensions={stream.dimensions} />}
 
-      {stream.done && trendingInsights.length > 0 && (
-        <ul className="flex flex-col gap-2 rounded-xl border border-border bg-card p-4">
-          {trendingInsights.map((insight) => (
-            <InsightLine key={insight.dimension_key} insight={insight} />
-          ))}
-        </ul>
+      {stream.done && (
+        <WritingProgressCard
+          trend={analytics?.evaluation_trend}
+          insights={analytics?.dimension_insights}
+          isLoading={analyticsLoading}
+        />
       )}
 
       {stream.analysis && (
@@ -161,18 +161,12 @@ export function Component() {
         />
       )}
 
-      {stream.done && improvementPair && (
-        <div className="flex items-center gap-3 rounded-xl border border-border bg-card p-4 shadow-sm" style={{ borderLeftColor: "var(--tulsi)", borderLeftWidth: 4 }}>
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-tulsi/15 text-tulsi">
-            <TrendingUp className="size-5" aria-hidden />
-          </span>
-          <p className="text-sm">
-            {t("Answers.improvedSinceLastAttempt", {
-              before: Math.round(improvementPair.before_pct),
-              after: Math.round(improvementPair.after_pct),
-            })}
-          </p>
-        </div>
+      {stream.done && (
+        <ImprovementProofCard
+          items={analytics?.improvement_proof.items}
+          avgDeltaPct={analytics?.improvement_proof.avg_delta_pct}
+          isLoading={analyticsLoading}
+        />
       )}
 
       {stream.analysis && <EvaluationAnalysisNotes analysis={stream.analysis} />}
