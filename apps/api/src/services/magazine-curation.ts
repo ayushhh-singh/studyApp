@@ -18,24 +18,31 @@ import type { CurrentAffairsCategory } from "@neev/shared";
 import { hotnessRaw, type OwnWeightage } from "../lib/weightage.js";
 
 // ---------------------------------------------------------------------------
-// Per-section caps — informed by what real monthly CA magazines actually run.
+// Per-section caps — calibrated (2026-07) to a full "coaching-grade" monthly, benchmarked against a
+// real Vision IAS monthly magazine (June 2025 = 98 pages: ~50-70 detailed articles across ~8-9
+// subject sections + ~40-60 short "in news" items), Vajiram's "The Recitals" (8 subject domains,
+// 2-3 feature articles + ~50 Prelims MCQs + ~50 Mains Q&A/month), and Vision PT365's 7-subject split.
 //
-// Prelims Compendium (write-ups):  UP lead (≤10) + topic sections (≤36 total,
-//   ≥1 per topic for coverage, ≤6 per topic so one category can't dominate) =
-//   ≤46 write-ups, plus a boxed-fact appendix (≤8 per kind) and the existing
-//   30-MCQ workbook.  →  ~40-55 curated items, not hundreds.
-// Mains Analysis (issue briefs):   top ≤8 per GS paper (the "top-N per section"
-//   cap, balanced so a student gets fair coverage of every paper rather than a
-//   GS2/GS3-only dump) + 5 Deep Dives + 15 Model Questions.  →  ~45 distinct
-//   issues, not hundreds. gs_papers is multi-valued, so the per-paper cap alone
-//   bounds the total (≤ 7×8) and the DISTINCT union is what the cover counts —
-//   no global pre-slice (that would count items the per-paper cap then hides).
+// Prelims Compendium (write-ups):  UP lead (≤12) + topic sections (≤70 total, ≥1 per topic for
+//   coverage, ≤10 per topic so one category can't dominate) = ≤82 write-ups (~8/subject, matching a
+//   coaching monthly's detailed-article depth), plus a boxed-fact appendix (≤10 per kind, ~the
+//   "in news"/News-in-Shorts count) and the 30-MCQ workbook.
+// Mains Analysis (issue briefs):   top ≤10 per GS paper (the "top-N per section" cap, balanced so a
+//   student gets fair coverage of every paper — like a coaching monthly's per-subject Mains Q&A —
+//   rather than a GS2/GS3-only dump) + 5 Deep Dives (≈ feature articles) + 15 Model Questions.
+//   →  ~55 distinct issues. gs_papers is multi-valued, so the per-paper cap alone bounds the total
+//   (≤ 7×10) and the DISTINCT union is what the cover counts — no global pre-slice (that would count
+//   items the per-paper cap then hides).
+//
+// NOTE: the 30-MCQ workbook + 15 Model Questions are supply-limited (they draw on the CA MCQs /
+// descriptive Qs actually generated that month, ~38 MCQs in a typical run), not demand-capped —
+// raising them only helps if generation increases, so they're left as-is.
 // ---------------------------------------------------------------------------
-export const UP_SPECIAL_LIMIT = 10;
-export const TOPIC_TOTAL_LIMIT = 36;
-export const TOPIC_PER_CATEGORY_MAX = 6;
-export const BOXED_PER_KIND_LIMIT = 8;
-export const GS_PER_PAPER_MAX = 8;
+export const UP_SPECIAL_LIMIT = 12;
+export const TOPIC_TOTAL_LIMIT = 70;
+export const TOPIC_PER_CATEGORY_MAX = 10;
+export const BOXED_PER_KIND_LIMIT = 10;
+export const GS_PER_PAPER_MAX = 10;
 
 /** A relevance-3 issue always outranks a relevance-2 one (mirrors deepdive rankIssues). */
 const REL_TIER = 1000;
