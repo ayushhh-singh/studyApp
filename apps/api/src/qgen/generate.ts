@@ -21,6 +21,7 @@ import {
   type BatchRequest,
   type LlmUsage,
 } from "../lib/anthropic.js";
+import { embeddings } from "../lib/embeddings.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
 import { dedupCandidates, type DedupResult } from "./dedup.js";
 import {
@@ -164,13 +165,70 @@ interface GenContext {
   grounding: GroundingResult;
 }
 
+function groundingQueryFor(node: NodeContext): string {
+  return `${node.title_i18n.en}. ${node.description_i18n?.en ?? ""}`.trim();
+}
+
 async function loadGenContext(node: NodeContext, kind: QuestionType): Promise<GenContext> {
-  const query = `${node.title_i18n.en}. ${node.description_i18n?.en ?? ""}`.trim();
+  const query = groundingQueryFor(node);
   const [examples, grounding] = await Promise.all([
     loadFewShot(node, kind),
     retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, k: 6 }),
   ]);
   return { node, examples, grounding };
+}
+
+/** Batch-embed size — matches the 96-per-call pattern already used in ca/pipeline.ts, notes/embed.ts, and qgen/dedup.ts. */
+const EMBED_BATCH_SIZE = 96;
+
+async function batchEmbed(texts: string[]): Promise<number[][]> {
+  const provider = embeddings();
+  const out: number[][] = [];
+  for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
+    const vecs = await provider.embed(texts.slice(i, i + EMBED_BATCH_SIZE));
+    out.push(...vecs);
+  }
+  return out;
+}
+
+/**
+ * Load generation context for MANY nodes at once (the nightly top-up path),
+ * pooling every node's grounding-query embedding into shared batched embed()
+ * calls instead of one embed() round trip per node — same saving as the
+ * existing ca/pipeline.ts and notes/embed.ts batching, just applied to qgen's
+ * grounding lookups. Few-shot lookup (a plain DB query, no embedding) and the
+ * two match_embeddings RPC calls per node are unaffected — those still run
+ * once per node since they're node-scoped filters, not embed() round trips.
+ */
+async function loadGenContextsBatch(plans: GeneratePlan[]): Promise<GenContext[]> {
+  const queries = plans.map((p) => groundingQueryFor(p.node));
+  const embedIdx: number[] = [];
+  const toEmbed: string[] = [];
+  queries.forEach((q, i) => {
+    if (q) {
+      embedIdx.push(i);
+      toEmbed.push(q);
+    }
+  });
+  const embedded = toEmbed.length ? await batchEmbed(toEmbed) : [];
+  const vecs: (number[] | undefined)[] = new Array(plans.length);
+  embedIdx.forEach((planIdx, j) => (vecs[planIdx] = embedded[j]));
+
+  return Promise.all(
+    plans.map(async (plan, i) => {
+      const [examples, grounding] = await Promise.all([
+        loadFewShot(plan.node, plan.kind),
+        retrieveGrounding({
+          questionText: queries[i],
+          locale: "en",
+          syllabusNodeId: plan.node.id,
+          k: 6,
+          queryEmbedding: vecs[i],
+        }),
+      ]);
+      return { node: plan.node, examples, grounding };
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -433,15 +491,14 @@ function addCost(states: BatchPlanState[], customId: string, usd: number): void 
 
 export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}): Promise<NodeGenerationResult[]> {
   if (plans.length === 0) return [];
-  const states: BatchPlanState[] = await Promise.all(
-    plans.map(async (plan) => ({
-      plan,
-      ctx: await loadGenContext(plan.node, plan.kind),
-      mix: plan.difficultyMix ?? DEFAULT_DIFFICULTY_MIX,
-      candidates: [] as Candidate[],
-      cost: 0,
-    })),
-  );
+  const contexts = await loadGenContextsBatch(plans);
+  const states: BatchPlanState[] = plans.map((plan, i) => ({
+    plan,
+    ctx: contexts[i],
+    mix: plan.difficultyMix ?? DEFAULT_DIFFICULTY_MIX,
+    candidates: [] as Candidate[],
+    cost: 0,
+  }));
 
   // Stage A — one batch of all generate chunks across all nodes.
   const genReqs: BatchRequest[] = [];

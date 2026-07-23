@@ -72,13 +72,20 @@ export async function retrieveGrounding(opts: {
   locale: Locale;
   syllabusNodeId: string | null;
   k?: number;
+  /**
+   * Precomputed embedding for `questionText`, skipping the internal embed()
+   * call — for a caller that has already batched this query alongside others
+   * in one pooled embed request (e.g. qgen's nightly top-up across many nodes).
+   * Must be the embedding of `questionText` itself; omit to embed it here.
+   */
+  queryEmbedding?: number[];
 }): Promise<GroundingResult> {
   const k = opts.k ?? 8;
   const query = opts.questionText.replace(/\s+/g, " ").trim();
   if (!query) return { chunks: [], nodeChunkCount: 0 };
 
   try {
-    const [vec] = await embeddings().embed([query]);
+    const vec = opts.queryEmbedding ?? (await embeddings().embed([query]))[0];
     if (!vec) return { chunks: [], nodeChunkCount: 0 };
     const literal = toVectorLiteral(vec);
 
