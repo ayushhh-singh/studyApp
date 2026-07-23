@@ -68,6 +68,7 @@ import type {
 } from "@neev/shared";
 import { CA_SOURCES } from "./sources.js";
 import { getPrelimsCurrentAffairsNodeId } from "./prelims-node.js";
+import { classifyPrelimsMcqNode } from "./mcq-node-classify.js";
 import {
   enrichItem,
   generateMainsQuestion,
@@ -206,6 +207,8 @@ interface ProcessCtx {
   result: PipelineResult;
   embedTasks: EmbedTask[];
   candidateById: Map<string, SyllabusCandidate>;
+  /** PRE_GS1 candidates only (never PRE_CSAT), excluding the pooled fallback node — for classifyPrelimsMcqNode. */
+  prelimsCandidates: SyllabusCandidate[];
   onUsage: (u: LlmUsage) => void;
   log: (msg: string) => void;
 }
@@ -226,30 +229,63 @@ interface PendingSubmission {
 }
 
 /**
- * Picks the best PRELIMS-paper node (PRE_GS1/PRE_CSAT) out of triage's own
- * `syllabus_node_ids` classification, for placing a CA MCQ on its real topic
- * instead of always pooling it under one "Current Events" node. Triage's
- * candidate pool spans the WHOLE tree (see syllabus-candidates.ts), so it can
- * and does classify a factual item straight onto a prelims node when that's
- * the closest topical match — this just prefers that over the item's
- * mains-paper match (`syllabus_node_ids[0]`, used for the mains brief/question)
- * when one exists. Returns null if triage classified the item to mains-only
- * topics, so the caller can fall back to the pooled node.
+ * First of `nodeIds` (triage's own classification, in the model's preference
+ * order) whose paper matches `paperMatches` — shared by the prelims and
+ * mains node pickers below, which differ only in which paper they require.
+ */
+function pickNodeMatching(
+  nodeIds: string[],
+  candidateById: Map<string, SyllabusCandidate>,
+  paperMatches: (paperCode: string) => boolean,
+): string | null {
+  for (const id of nodeIds) {
+    const paperCode = candidateById.get(id)?.paperCode;
+    if (paperCode && paperMatches(paperCode)) return id;
+  }
+  return null;
+}
+
+/**
+ * Picks a real PRELIMS-paper node out of triage's own `syllabus_node_ids`
+ * classification, for placing a CA MCQ on its real topic instead of always
+ * pooling it under one "Current Events" node. Triage's candidate pool spans
+ * the WHOLE tree (see syllabus-candidates.ts), so it can and does classify a
+ * factual item straight onto a prelims node when that's the closest topical
+ * match — this just prefers that over the item's mains-paper match
+ * (`syllabus_node_ids[0]`, used for the mains brief/question) when one
+ * exists. Returns null if triage classified the item to mains-only topics,
+ * so the caller can fall back (see classifyPrelimsMcqNode, then the pooled
+ * node — pipeline.ts's MCQ-generation branch tries both in order).
  */
 function pickPrelimsMcqNode(
   nodeIds: string[],
   candidateById: Map<string, SyllabusCandidate>,
 ): string | null {
-  for (const id of nodeIds) {
-    // PRE_GS1 only, not PRE_CSAT — CSAT topics are aptitude/reasoning skills
-    // (comprehension, data interpretation, mental ability), never a real
-    // current-affairs GK subject, so a CSAT match here would be a genuine
-    // mis-mapping rather than a real topic fit. PRE_GS1 is also where the
-    // pooled "Current Events" fallback itself lives, so this stays within
-    // one paper either way.
-    if (candidateById.get(id)?.paperCode === "PRE_GS1") return id;
-  }
-  return null;
+  // PRE_GS1 only, not PRE_CSAT — CSAT topics are aptitude/reasoning skills
+  // (comprehension, data interpretation, mental ability), never a real
+  // current-affairs GK subject, so a CSAT match here would be a genuine
+  // mis-mapping rather than a real topic fit. PRE_GS1 is also where the
+  // pooled "Current Events" fallback itself lives, so this stays within
+  // one paper either way.
+  return pickNodeMatching(nodeIds, candidateById, (p) => p === "PRE_GS1");
+}
+
+/**
+ * Picks a real MAINS-paper node for the mains descriptive question — NOT a
+ * blind `syllabus_node_ids[0]`, because triage's candidate pool spans every
+ * paper (see syllabus-candidates.ts), so the model's first-choice id COULD
+ * be a PRE_ node. That would silently orphan the question: every consumer
+ * that reads it back (the paper tree, mastery/weightage rollups) filters by
+ * `paper_code`, which stays `CURRENT_AFFAIRS` regardless of
+ * `syllabus_node_id` — so a mains-stage row sitting under a PRE_GS1 node id
+ * would never surface under EITHER paper's tree. Same class of
+ * misattribution pickPrelimsMcqNode guards against for MCQs, checked here
+ * too rather than assumed away. Returns null (unmapped, same as before this
+ * guard existed) if none of triage's classified nodes belongs to a mains
+ * paper.
+ */
+function pickMainsNode(nodeIds: string[], candidateById: Map<string, SyllabusCandidate>): string | null {
+  return pickNodeMatching(nodeIds, candidateById, (p) => p.startsWith("MAINS_"));
 }
 
 /** Build the node_significance record, keeping only lines for the item's active lives. */
@@ -625,8 +661,11 @@ export async function runPipeline(
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
   log(`syllabus candidates for mapping: ${candidates.length}`);
 
+  const pooledNodeId = await getPrelimsCurrentAffairsNodeId();
+  const prelimsCandidates = candidates.filter((c) => c.paperCode === "PRE_GS1" && c.id !== pooledNodeId);
+
   const embedTasks: EmbedTask[] = [];
-  const ctx: ProcessCtx = { result, embedTasks, candidateById, onUsage, log };
+  const ctx: ProcessCtx = { result, embedTasks, candidateById, prelimsCandidates, onUsage, log };
 
   // -------------------------------------------------------------------------
   // REAP + COLLECT FIRST, in BOTH modes. The ordering is load-bearing:
@@ -942,7 +981,7 @@ export async function processTriagedItem(
   triage: TriageResult,
   ctx: ProcessCtx,
 ): Promise<ProcessOutcome> {
-  const { result, embedTasks, candidateById, onUsage, log } = ctx;
+  const { result, embedTasks, candidateById, prelimsCandidates, onUsage, log } = ctx;
   const { link, title, snippet, date: dateStr, sourceId, hash } = item;
 
   const bestScore = Math.max(triage.prelims_relevance, triage.mains_relevance);
@@ -1072,23 +1111,36 @@ export async function processTriagedItem(
   }
 
   // --- 5. Dual quiz generation ------------------------------------------
-  const nodeId = triage.syllabus_node_ids[0] ?? null;
+  // Used only for the mains descriptive question below — pickMainsNode, not
+  // a blind [0], since triage's classification can include a PRE_ node too.
+  const nodeId = pickMainsNode(triage.syllabus_node_ids, candidateById);
 
   // Prelims MCQs — a real factual nugget (prelims_relevance >= 2), published.
   if (hasPrelims && isPublished && prelimsFacts) {
     try {
+      const factsEn = prelimsFacts.map((f) => f.fact_i18n.en);
+      // Two-tier node placement, cheapest-first:
+      // (1) triage's OWN classification incidentally includes a real PRE_GS1
+      //     topic (History/Polity/etc) — free, no extra call, but measured to
+      //     fire for only ~1-in-50 items (triage is framed around mains
+      //     themes, so it rarely reaches for a prelims-shaped node even
+      //     though its candidate pool spans every paper).
+      // (2) a dedicated, narrow classification asking the ONE question that
+      //     matters for MCQ placement — given the exact facts this MCQ was
+      //     written from, which PRE_GS1 topic (if any) fits — the same
+      //     prompt validated live against 585 historical items via
+      //     scripts/ca-reclassify-mcq-nodes.ts. This is what actually keeps
+      //     new MCQs distributed going forward, since (1) alone leaves most
+      //     items pooled purely by how rarely it fires, not by any flaw.
+      // Only items with no real prelims-topic fit under EITHER tier fall
+      // back to the pooled "Current Events" node — see ca/prelims-node.ts.
+      const prelimsNodeId =
+        pickPrelimsMcqNode(triage.syllabus_node_ids, candidateById) ??
+        (await classifyPrelimsMcqNode({ title: enrich.title_i18n.en, facts: factsEn, prelimsCandidates, onUsage }));
       const mcqIds = await insertMcqsForItem({
-        // CA MCQs are prelims-format and belong in prelims practice. Prefer
-        // whichever of triage's OWN classified nodes is a real prelims topic
-        // (History/Polity/etc — triage's candidate pool spans every paper, so
-        // it does map plainly-factual items straight onto one), so the "+N AI"
-        // supply is distributed across topics instead of always landing on one
-        // pooled node. Only items triage classified purely against mains-only
-        // topics (no prelims match at all) fall back to the pooled "Current
-        // Events" node — see ca/prelims-node.ts.
-        syllabusNodeId: pickPrelimsMcqNode(triage.syllabus_node_ids, candidateById) ?? (await getPrelimsCurrentAffairsNodeId()),
+        syllabusNodeId: prelimsNodeId ?? (await getPrelimsCurrentAffairsNodeId()),
         title: enrich.title_i18n.en,
-        facts: prelimsFacts.map((f) => f.fact_i18n.en),
+        facts: factsEn,
         onUsage,
       });
       if (mcqIds.length > 0) {
