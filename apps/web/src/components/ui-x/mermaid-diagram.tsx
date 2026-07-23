@@ -10,6 +10,23 @@ import { useThemeStore } from "@/stores/theme-store";
  */
 let counter = 0;
 
+// mermaid.initialize()/render() mutate shared global parser/state — calling
+// them concurrently from independent component instances (e.g. a chapter
+// with several diagrams mounting at once) corrupts that shared state and can
+// leave a render's promise permanently unsettled (no resolve, no reject, no
+// console error — just a blank container forever). Every call funnels
+// through this single chain so only one is ever in flight at a time; a
+// rejection from one diagram must not break the chain for the next.
+let renderQueue: Promise<void> = Promise.resolve();
+function withMermaidQueue<T>(task: () => Promise<T>): Promise<T> {
+  const run = renderQueue.then(task, task);
+  renderQueue = run.then(
+    () => undefined,
+    () => undefined,
+  );
+  return run;
+}
+
 export function MermaidDiagram({ source, caption }: { source: string; caption?: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
   const dark = useThemeStore((s) => s.theme === "dark");
@@ -18,7 +35,8 @@ export function MermaidDiagram({ source, caption }: { source: string; caption?: 
   useEffect(() => {
     let cancelled = false;
     setError(false);
-    (async () => {
+    withMermaidQueue(async () => {
+      if (cancelled) return;
       try {
         const mermaid = (await import("mermaid")).default;
         mermaid.initialize({
@@ -28,7 +46,7 @@ export function MermaidDiagram({ source, caption }: { source: string; caption?: 
           fontFamily: "inherit",
         });
         const id = `mmd-${counter++}`;
-        if (!ref.current) return;
+        if (!ref.current || cancelled) return;
         // Passing our own container is load-bearing, not cosmetic: with no
         // container, mermaid.render() builds (and, on a parse error, LEAVES
         // BEHIND) its scratch DOM directly under document.body — outside
@@ -47,7 +65,7 @@ export function MermaidDiagram({ source, caption }: { source: string; caption?: 
       } catch {
         if (!cancelled) setError(true);
       }
-    })();
+    });
     return () => {
       cancelled = true;
     };
