@@ -24,7 +24,7 @@ import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { monthBounds, monthLabel } from "../lib/month.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
-import { loadNodeWeightage, currentExamYear } from "../lib/weightage.js";
+import { loadNodeWeightage, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import {
   UP_SPECIAL_LIMIT,
   TOPIC_TOTAL_LIMIT,
@@ -70,6 +70,89 @@ const WORKBOOK_LIMIT = 30;
 const MODEL_QUESTIONS_LIMIT = 15;
 
 // ---------------------------------------------------------------------------
+// Shared curation selection — used by BOTH the full editions (compile*) and the
+// lightweight month-index counts, so a card's count can never drift from the
+// edition it opens. scoreRows only reads the fields the mappers below expose, so
+// the light "score row" (scalar columns only, no heavy jsonb) selects identically
+// to the full row — letting the index count skip the facts/brief/workbook payloads.
+// ---------------------------------------------------------------------------
+
+/** A non-UP item whose category is "up_special" (or outside the taxonomy) has no topic section to render in. */
+const RENDERABLE_TOPIC = new Set<CurrentAffairsCategory>(CATEGORY_ORDER.filter((c) => c !== "up_special"));
+
+const PRELIMS_SCORE_COLUMNS = "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids";
+const MAINS_SCORE_COLUMNS = "id, date, is_up_specific, gs_papers, mains_relevance, syllabus_node_ids";
+
+interface PrelimsScoreRow {
+  id: string;
+  date: string;
+  category: CurrentAffairsCategory | null;
+  is_up_specific: boolean;
+  prelims_relevance: number | null;
+  syllabus_node_ids: string[] | null;
+}
+interface MainsScoreRow {
+  id: string;
+  date: string;
+  is_up_specific: boolean;
+  gs_papers: CurrentAffairsGsPaper[] | null;
+  mains_relevance: number | null;
+  syllabus_node_ids: string[] | null;
+}
+
+function scorePrelims<T extends PrelimsScoreRow>(items: T[], weightage: Map<string, OwnWeightage>, year: number): Scored<T>[] {
+  return scoreRows(
+    items,
+    (i) => ({
+      relevance: i.prelims_relevance ?? RELEVANCE_GATE,
+      syllabus_node_ids: i.syllabus_node_ids ?? [],
+      is_up_specific: i.is_up_specific,
+      date: i.date,
+    }),
+    weightage,
+    year,
+  );
+}
+
+function scoreMains<T extends MainsScoreRow>(items: T[], weightage: Map<string, OwnWeightage>, year: number): Scored<T>[] {
+  return scoreRows(
+    items,
+    (i) => ({
+      relevance: i.mains_relevance ?? RELEVANCE_GATE,
+      syllabus_node_ids: i.syllabus_node_ids ?? [],
+      is_up_specific: i.is_up_specific,
+      date: i.date,
+    }),
+    weightage,
+    year,
+  );
+}
+
+/** UP lead + capped topic sections. The one selection both the Prelims edition and its index count use. */
+function selectCuratedPrelims<T extends PrelimsScoreRow>(scored: Scored<T>[]): {
+  upScored: Scored<T>[];
+  topicMap: Map<CurrentAffairsCategory, Scored<T>[]>;
+} {
+  const upScored = scored.filter((s) => s.row.is_up_specific).slice(0, UP_SPECIAL_LIMIT);
+  const nonUp = scored.filter((s) => !s.row.is_up_specific && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"));
+  const topicMap = curateTopicSections(
+    nonUp,
+    (r) => r.category ?? "polity_governance",
+    TOPIC_PER_CATEGORY_MAX,
+    TOPIC_TOTAL_LIMIT,
+  );
+  return { upScored, topicMap };
+}
+
+/** Top-N per GS paper. The one selection both the Mains edition and its index count use. */
+function selectCuratedMainsPerPaper<T extends MainsScoreRow>(scored: Scored<T>[]): { paper: CurrentAffairsGsPaper; top: Scored<T>[] }[] {
+  return GS_PAPER_ORDER.map((paper) => ({
+    paper,
+    top: scored.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX),
+  }));
+}
+
+// ---------------------------------------------------------------------------
 // Month index
 // ---------------------------------------------------------------------------
 
@@ -88,26 +171,80 @@ export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
     if (/^\d{4}-\d{2}$/.test(month)) months.add(month);
   }
   const sorted = [...months].sort((a, b) => (a < b ? 1 : -1));
+  if (sorted.length === 0) return [];
 
   // Counts shown on the index/month cards MUST be the CURATED edition counts, not the raw
-  // gate-clearing pile — otherwise a card advertises "582 items" and links to a 46-item edition.
-  // Reuse the exact compilers so the card can never disagree with the edition it opens. Read-only;
-  // the month list is short (one per calendar month) and client-cached, so per-month compiles are fine.
+  // gate-clearing pile — otherwise a card advertises "582 items" and links to an 82-item edition.
+  // Use the SAME scoring + selection the editions use (via selectCuratedPrelims/…MainsPerPaper), but
+  // over light scalar-only rows and skipping the workbook/deep-dive/model-question/block-building
+  // payloads — so the card can never drift from the edition it opens, without compiling it in full.
+  // Weightage is global, so load it ONCE for every month rather than per edition per month.
+  const year = currentExamYear();
+  const weightage = await loadNodeWeightage();
+
   const summaries = await Promise.all(
     sorted.map(async (month) => {
-      const [prelims, mains] = await Promise.all([compilePrelimsEdition(month), compileMainsEdition(month)]);
-      return {
-        month,
-        title_i18n: monthLabel(month),
-        prelims_item_count: prelims?.total_items ?? 0,
-        mains_item_count: mains?.total_issues ?? 0,
-        deep_dive_count: mains?.deep_dives.length ?? 0,
-      };
+      const [prelims_item_count, mains_item_count, deep_dive_count] = await Promise.all([
+        countCuratedPrelims(month, weightage, year),
+        countCuratedMainsIssues(month, weightage, year),
+        countPublishedDeepDives(month),
+      ]);
+      return { month, title_i18n: monthLabel(month), prelims_item_count, mains_item_count, deep_dive_count };
     }),
   );
   // Drop any month that cleared the gate but has nothing curatable in either edition (both would
   // open to an empty state) — don't advertise a month card that leads nowhere.
   return summaries.filter((s) => s.prelims_item_count > 0 || s.mains_item_count > 0 || s.deep_dive_count > 0);
+}
+
+/** Curated Prelims write-up count (UP lead + topic sections) — the same selection the edition renders. */
+async function countCuratedPrelims(month: string, weightage: Map<string, OwnWeightage>, year: number): Promise<number> {
+  const { start, end } = monthBounds(month);
+  const { data, error } = await supabase()
+    .from("current_affairs_items")
+    .select(PRELIMS_SCORE_COLUMNS)
+    .eq("status", "published")
+    .gte("prelims_relevance", RELEVANCE_GATE)
+    .not("prelims_facts", "is", null)
+    .gte("date", start)
+    .lt("date", end)
+    .order("date", { ascending: false });
+  if (error) throw new HttpError(500, `magazine prelims count failed: ${error.message}`);
+  const items = (data ?? []) as unknown as PrelimsScoreRow[];
+  if (items.length === 0) return 0;
+  const { upScored, topicMap } = selectCuratedPrelims(scorePrelims(items, weightage, year));
+  let topic = 0;
+  for (const arr of topicMap.values()) topic += arr.length;
+  return upScored.length + topic;
+}
+
+/** Curated Mains issue count (distinct union of per-paper top-N) — the same selection the edition renders. */
+async function countCuratedMainsIssues(month: string, weightage: Map<string, OwnWeightage>, year: number): Promise<number> {
+  const { start, end } = monthBounds(month);
+  const { data, error } = await supabase()
+    .from("current_affairs_items")
+    .select(MAINS_SCORE_COLUMNS)
+    .eq("status", "published")
+    .gte("mains_relevance", RELEVANCE_GATE)
+    .not("mains_brief", "is", null)
+    .gte("date", start)
+    .lt("date", end)
+    .order("date", { ascending: false });
+  if (error) throw new HttpError(500, `magazine mains count failed: ${error.message}`);
+  const items = (data ?? []) as unknown as MainsScoreRow[];
+  if (items.length === 0) return 0;
+  const perPaper = selectCuratedMainsPerPaper(scoreMains(items, weightage, year));
+  return new Set(perPaper.flatMap((p) => p.top.map((s) => s.row.id))).size;
+}
+
+async function countPublishedDeepDives(month: string): Promise<number> {
+  const { count, error } = await supabase()
+    .from("magazine_deep_dives")
+    .select("id", { count: "exact", head: true })
+    .eq("month", month)
+    .eq("status", "published");
+  if (error) throw new HttpError(500, `magazine deep-dive count failed: ${error.message}`);
+  return count ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -195,37 +332,12 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
   const items = (data ?? []) as unknown as PrelimsItemRow[];
   if (items.length === 0) return null;
 
-  // Rank by importance (relevance tier + syllabus weightage + UP + recency), then CAP each section —
-  // a busy month clears every item past the survival gate, so unranked sections dump hundreds.
-  const scored = scoreRows(
-    items,
-    (i) => ({
-      relevance: i.prelims_relevance ?? RELEVANCE_GATE,
-      syllabus_node_ids: i.syllabus_node_ids ?? [],
-      is_up_specific: i.is_up_specific,
-      date: i.date,
-    }),
-    weightage,
-    currentExamYear(),
-  );
+  // Rank by importance (relevance tier + syllabus weightage + UP + recency), then CAP each section
+  // via the SHARED selection (also used by the index count, so they can't drift) — a busy month
+  // clears every item past the survival gate, so unranked sections would dump hundreds.
+  const { upScored, topicMap } = selectCuratedPrelims(scorePrelims(items, weightage, currentExamYear()));
 
-  // UP lead section — top UP-specific items.
-  const upScored = scored.filter((s) => s.row.is_up_specific).slice(0, UP_SPECIAL_LIMIT);
   const upSpecial = upScored.map(toItemBlock);
-
-  // Topic sections — ≥1 per populated category, ≤ per-category max, ≤ total budget.
-  // Only items in a RENDERABLE topic category are eligible: a non-UP item whose category is
-  // "up_special" (or any value outside the topic taxonomy) has no topic section to render in, so
-  // it must not be curated/counted (else total_items would overcount + its facts would leak into
-  // boxed with no matching write-up). `null` defaults to polity_governance, which is renderable.
-  const RENDERABLE_TOPIC = new Set<CurrentAffairsCategory>(CATEGORY_ORDER.filter((c) => c !== "up_special"));
-  const nonUpScored = scored.filter((s) => !s.row.is_up_specific && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"));
-  const topicMap = curateTopicSections(
-    nonUpScored,
-    (r) => r.category ?? "polity_governance",
-    TOPIC_PER_CATEGORY_MAX,
-    TOPIC_TOTAL_LIMIT,
-  );
   const topicSections: MagazineTopicSection[] = CATEGORY_ORDER.filter((c) => c !== "up_special" && topicMap.has(c)).map(
     (category) => ({ category, items: (topicMap.get(category) ?? []).map(toItemBlock) }),
   );
@@ -341,21 +453,11 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
 
   if (items.length === 0 && deepDives.length === 0 && modelQuestions.length === 0) return null;
 
-  // Rank issues by importance, then cap each GS section to its top-N — the same rank-then-cap the
-  // Deep Dives already use, applied per paper. gs_papers is multi-valued (an issue can span papers),
-  // so the DISTINCT union of what renders IS the curated set — never a global pre-slice, which would
-  // count items a later per-paper cap then dropped from view (rendering nowhere).
-  const scored = scoreRows(
-    items,
-    (i) => ({
-      relevance: i.mains_relevance ?? RELEVANCE_GATE,
-      syllabus_node_ids: i.syllabus_node_ids ?? [],
-      is_up_specific: i.is_up_specific,
-      date: i.date,
-    }),
-    weightage,
-    currentExamYear(),
-  );
+  // Rank issues by importance, then cap each GS section to its top-N via the SHARED selection (also
+  // used by the index count, so they can't drift). gs_papers is multi-valued (an issue can span
+  // papers), so the DISTINCT union of what renders IS the curated set — never a global pre-slice,
+  // which would count items a later per-paper cap then dropped from view (rendering nowhere).
+  const perPaperTop = selectCuratedMainsPerPaper(scoreMains(items, weightage, currentExamYear()));
 
   const toBrief = (s: Scored<MainsItemRow>): MagazineIssueBrief => {
     const item = s.row;
@@ -375,10 +477,6 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
     };
   };
 
-  const perPaperTop = GS_PAPER_ORDER.map((paper) => ({
-    paper,
-    top: scored.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX),
-  }));
   const gsSections: MagazineGsSection[] = perPaperTop
     .filter((p) => p.top.length > 0)
     .map((p) => ({ paper: p.paper, items: p.top.map(toBrief) }));
