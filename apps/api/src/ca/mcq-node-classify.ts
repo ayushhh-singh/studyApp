@@ -16,6 +16,23 @@
  * FAILS OPEN: any error (bad key, timeout, malformed response) logs a
  * warning and returns null so the caller falls back to the pooled "Current
  * Events" node — never blocks MCQ generation.
+ *
+ * NO PROMPT CACHING — DELIBERATE, MEASURED, DO NOT ADD (2026-07-23). Unlike
+ * ca/prompts.ts's triage prompt (candidate list ~8.6k tokens, rejected only
+ * because reordering it to be cacheable proved a real quality regression —
+ * see that file's own header), this prompt has nowhere near enough content
+ * to ever benefit: MCQ_NODE_CLASSIFY_SYSTEM measures ~123 tokens and the
+ * full PRE_GS1 candidate list ~474 tokens — combined, ~600 tokens against
+ * claude-haiku-4-5's ~4096-token minimum cacheable prefix. Even a `system:
+ * PromptSegment[]` with the whole thing marked `cache: true` would compile,
+ * ship, and cache nothing (the exact silent-no-op trap CLAUDE.md's Session
+ * 13 already documented for prompts this size on this model) — there is no
+ * reordering that fixes a token-count problem. Also considered and rejected:
+ * moving this call onto the Message Batches API for the 50% discount — it
+ * runs synchronously inline while an item is being processed (the MCQ needs
+ * its node before insert), so batching would mean a submit-now/collect-later
+ * restructure for a call that's already ~3-4% of a run's total CA spend
+ * (measured: $0.0124 across 5 calls in one run) — not proportionate.
  */
 import { MODELS, structuredJson, type LlmUsage } from "../lib/anthropic.js";
 import { logger } from "../lib/logger.js";
