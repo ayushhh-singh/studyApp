@@ -147,6 +147,82 @@ async function reportQuestionQuality(): Promise<void> {
   }
 }
 
+interface PurposeBucket {
+  purpose: string;
+  calls: number;
+  callsWithCacheHit: number;
+  cacheReadTokens: number;
+  cacheWriteTokens: number;
+  costIntro: number;
+  costStandard: number;
+}
+
+/**
+ * Cache hit-rate collapsed to one row per purpose (across model/batch splits)
+ * — the (purpose, model, batch) table above can spread one purpose's calls
+ * across several rows, hiding a regression in mental arithmetic. This is the
+ * single-glance version: "which purpose's caching broke, and what did that
+ * cost." Check weekly per docs/operations.md — a purpose whose hit-rate drops
+ * from its usual level (or a `cache`-eligible purpose showing 0%) is a
+ * regression worth chasing before the next invoice, not after.
+ */
+function reportCacheHitRateByPurpose(buckets: Bucket[], totalIntro: number): void {
+  const byPurpose = new Map<string, PurposeBucket>();
+  for (const b of buckets) {
+    if (!isModelId(b.model)) continue;
+    const schedule = MODEL_PRICING[b.model];
+    const disc = b.batch ? BATCH_DISCOUNT : 1;
+    const costIntro = costFromPriceSet(schedule.intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
+    const costStandard =
+      costFromPriceSet(schedule.standard, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
+    const pb = byPurpose.get(b.purpose) ?? {
+      purpose: b.purpose,
+      calls: 0,
+      callsWithCacheHit: 0,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      costIntro: 0,
+      costStandard: 0,
+    };
+    pb.calls += b.calls;
+    pb.callsWithCacheHit += b.callsWithCacheHit;
+    pb.cacheReadTokens += b.cacheReadTokens;
+    pb.cacheWriteTokens += b.cacheWriteTokens;
+    pb.costIntro += costIntro;
+    pb.costStandard += costStandard;
+    byPurpose.set(b.purpose, pb);
+  }
+  const purposeSorted = [...byPurpose.values()].sort((a, b) => b.costIntro - a.costIntro);
+
+  console.log("\n" + "=".repeat(100));
+  console.log("Cache hit-rate by purpose (collapsed across model/batch — check weekly, see docs/operations.md)");
+  console.log("=".repeat(100));
+  const header = [
+    "purpose".padEnd(28),
+    "calls".padStart(7),
+    "cache hit".padStart(10),
+    "cache r/w tok".padStart(18),
+    "cost (intro)".padStart(14),
+    "% of total".padStart(11),
+  ].join(" ");
+  console.log(header);
+  console.log("-".repeat(header.length));
+  for (const pb of purposeSorted) {
+    const share = totalIntro > 0 ? pb.costIntro / totalIntro : 0;
+    console.log(
+      [
+        pb.purpose.padEnd(28),
+        String(pb.calls).padStart(7),
+        fmtPct(pb.calls ? pb.callsWithCacheHit / pb.calls : 0).padStart(10),
+        `${pb.cacheReadTokens}/${pb.cacheWriteTokens}`.padStart(18),
+        fmtUsd(pb.costIntro).padStart(14),
+        fmtPct(share).padStart(11),
+      ].join(" "),
+    );
+  }
+  console.log("-".repeat(header.length));
+}
+
 async function main(): Promise<void> {
   const { days } = parseArgs(process.argv.slice(2));
   const since = new Date(Date.now() - days * 24 * 3600 * 1000);
@@ -256,6 +332,8 @@ async function main(): Promise<void> {
   const jumpPct = totalIntro > 0 ? ((totalStandard - totalIntro) / totalIntro) * 100 : 0;
   console.log(`\nStandard pricing would cost ${jumpPct.toFixed(0)}% more than intro pricing for this window's usage.`);
   if (sorted.some((b) => b.batch)) console.log("(* = Message-Batches API rows, priced at 0.5x.)");
+
+  reportCacheHitRateByPurpose(sorted, totalIntro);
 
   // Cost per evaluation: total answer_eval_* cost / number of real (non-replayed)
   // evaluation runs — each run calls answer_eval_analysis exactly once.

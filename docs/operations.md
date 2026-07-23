@@ -440,7 +440,23 @@ worth paying for headroom:
 - **Cost check + question-bank quality**: `pnpm --filter api cost:report
   [--days 7]` — watch for per-evaluation / per-CA-run cost drift and cache-hit-
   rate dropping (prompt-cache misses are the single biggest lever on Anthropic
-  spend here). The report now ends with a **Question-bank quality** table
+  spend here). **Check the "Cache hit-rate by purpose" table every week** —
+  it collapses each purpose's calls across model/batch splits into one row
+  (`purpose, calls, cache hit%, cache r/w tok, cost, % of total`), so a
+  caching regression on any one purpose (e.g. `qgen_descriptive_generate`/
+  `qgen_mcq_generate`, the two purposes that actually cache today) is a
+  single glance instead of mental arithmetic across the
+  split rows in the table above it. A purpose that's supposed to cache (its
+  system prompt is built from `PromptSegment[]` with `cache:true` — see
+  `evaluation/prompts.ts`'s pattern) showing a hit-rate that's dropped from
+  its usual level, or sitting at 0% where it used to hit, means either a
+  prompt edit broke the cacheable prefix's byte-stability or the 5-minute TTL
+  is being missed by call spacing — chase it before the next invoice, not
+  after. A purpose showing a permanent `cache r/w tok = 0/0` with no caching
+  wired in at all is expected, not a regression (most purposes in this
+  codebase don't cache — see the CA-pipeline caching investigation in
+  CLAUDE.md for why some deliberately don't). The report now also ends with a
+  **Question-bank quality** table
   (published MCQs by `source_kind` + generation `prompt_version`) fed by the
   `question_quality` view, and prints **QUALITY ALERTS** when a cohort exceeds a
   threshold:
