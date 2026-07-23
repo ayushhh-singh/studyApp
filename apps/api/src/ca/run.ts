@@ -50,7 +50,14 @@ async function main(): Promise<void> {
   report.ok(
     `generated — prelims MCQs: ${result.mcqsGenerated}, mains questions: ${result.mainsQuestionsGenerated}  |  cost: $${result.costUsd.toFixed(4)}`,
   );
-  if (mode === "batch") {
+  // Shown in batch mode always, and in sync mode too when it actually touched a
+  // batch — sync now drains any batch left pending by an earlier batch-mode run.
+  if (
+    mode === "batch" ||
+    result.collected > 0 ||
+    result.collectFailed > 0 ||
+    result.batchesPending > 0
+  ) {
     report.ok(
       `triage batches — submitted: ${result.submitted} (live on a later run), collected: ${result.collected}, ` +
         `collect-failed: ${result.collectFailed}  |  batches still pending: ${result.batchesPending}`,
@@ -66,6 +73,17 @@ async function main(): Promise<void> {
     report.fail(`source "${failure.source}" failed: ${failure.error}`);
   }
 
+  // A per-SOURCE RSS fetch failure (one feed down) is expected/transient and
+  // stays a warning — one flaky feed must not red the whole cron. But the batch
+  // TRANSPORT failing is systemic: submitBatch throwing (bad ANTHROPIC_API_KEY,
+  // a deprecated model id, a network/Anthropic outage) or a collect throwing
+  // are reported under the reserved source id "triage-batch", and a persistent
+  // one of those would otherwise produce a green run every 6h forever while
+  // silently doing no triage. Those exit non-zero so the same alerting fires as
+  // for any other systemic failure. (They increment neither enrichFailed nor
+  // collectFailed, so the item-ratio gate below would never catch them.)
+  const transportFailed = result.sourceFailures.some((f) => f.source === "triage-batch");
+
   // Item-level failures (see ca/pipeline.ts's per-item try/catch) are never
   // fatal to the run by themselves, but a high failure rate is a signal of a
   // systemic problem (a model regression, a bad prompt change) rather than
@@ -73,16 +91,19 @@ async function main(): Promise<void> {
   // threshold so it triggers the same CI/cron failure alerting as any other
   // real regression, instead of a quietly-degraded but "successful" run.
   //
-  // Computed over items actually PROCESSED this run, in whichever mode ran.
-  // Sync-mode items land in processed/archived; a batch-mode item is counted
-  // exactly once as `collected` (which already covers persisted + archived +
-  // duplicate), so the two are never summed together — that would double-count
-  // every batch item. A run that only SUBMITS has 0 attempted and is correctly
-  // exempt from the ratio (nothing was processed to fail).
+  // Denominator is mode-AGNOSTIC: processTriagedItem (the one funnel every kept
+  // item passes through, sync-fed OR batch-collected) increments processed /
+  // archived, so `processed + archived` already counts every collected item
+  // exactly once. Adding `result.collected` on top would DOUBLE-count each
+  // collected item — which is exactly what happens now that collect runs in
+  // sync mode too (a sync run that drains a pending batch bumps both). So the
+  // ratio is built only from the funnel counters + the two failure counters.
+  // A submit-only run has 0 of all four → 0 attempted → correctly exempt.
+  // Duplicates (23505) land in skippedDuplicate, not processed/archived, so
+  // they're excluded from the ratio (neither fresh work nor a failure).
   const itemFailures = result.enrichFailed + result.collectFailed;
   const itemsAttempted =
-    result.collected + result.collectFailed + result.enrichFailed +
-    (mode === "sync" ? result.processed + result.archived : 0);
+    result.processed + result.archived + result.enrichFailed + result.collectFailed;
   const ENRICH_FAILURE_FRACTION_THRESHOLD = 0.2;
   if (itemFailures > 0) {
     report.fail(
@@ -91,7 +112,17 @@ async function main(): Promise<void> {
   } else {
     report.ok(`item failures — 0`);
   }
-  if (itemsAttempted > 0 && itemFailures / itemsAttempted > ENRICH_FAILURE_FRACTION_THRESHOLD) {
+  const ratioBreached =
+    itemsAttempted > 0 && itemFailures / itemsAttempted > ENRICH_FAILURE_FRACTION_THRESHOLD;
+  if (transportFailed) {
+    console.error(
+      `\nca:run: the triage batch transport failed this run (see the "triage-batch" failure above) — ` +
+        `submit/collect could not talk to the Message Batches API. Exiting non-zero so a persistent ` +
+        `misconfiguration or outage surfaces as a workflow failure rather than a silently no-op run.`,
+    );
+    process.exit(1);
+  }
+  if (ratioBreached) {
     console.error(
       `\nca:run: ${itemFailures}/${itemsAttempted} items ` +
         `(${Math.round((itemFailures / itemsAttempted) * 100)}%) failed mid-pipeline — ` +

@@ -367,9 +367,19 @@ export async function batchEnded(batchId: string): Promise<boolean> {
 export async function fetchBatchResults(
   batchId: string,
   meta: Map<string, BatchRequestMeta>,
-  opts: { onUsage?: (usage: LlmUsage) => void } = {},
+  opts: { onUsage?: (usage: LlmUsage) => void; record?: boolean } = {},
 ): Promise<Map<string, BatchItemResult>> {
   const out = new Map<string, BatchItemResult>();
+  // record:false makes this a PURE read — every result still carries its
+  // `usage`, but nothing is billed here. A submit-now/collect-later caller uses
+  // this so it can bill each result EXACTLY ONCE at the moment its ledger row
+  // reaches a terminal state, instead of in bulk over the whole stream: the
+  // stream replays the entire batch on every retry, so bulk billing would
+  // re-charge every not-yet-settled row after a partial-collect crash. runBatch
+  // leaves it at the default (true) because it settles the whole batch in one
+  // shot with no persistence, so it can never re-collect. See ca/pipeline.ts's
+  // collectBatch for the per-row billing this enables.
+  const record = opts.record !== false;
   const results = await anthropic().messages.batches.results(batchId);
   for await (const entry of results) {
     const info = meta.get(entry.custom_id);
@@ -401,7 +411,7 @@ export async function fetchBatchResults(
       // that happened once. An entry with no `meta` is still RETURNED, just
       // never re-billed. runBatch always supplies a complete map, so its
       // behaviour is unchanged.
-      if (info) {
+      if (info && record) {
         opts.onUsage?.(usage);
         await recordLlmCall({
           model,
@@ -431,6 +441,28 @@ export async function fetchBatchResults(
     }
   }
   return out;
+}
+
+/**
+ * Log ONE already-computed batch usage (from a BatchItemResult obtained via
+ * `fetchBatchResults(..., { record: false })`) to llm_calls at the batch rate.
+ *
+ * The companion of the record:false read path: a collect-later caller reads
+ * results without billing, then calls this exactly once per row as that row
+ * settles to a terminal state — so a partial-collect crash can't double-bill
+ * the rows it hadn't reached yet.
+ */
+export async function recordBatchLlmCall(usage: LlmUsage, purpose: string, userId?: string): Promise<void> {
+  await recordLlmCall({
+    model: usage.model,
+    purpose,
+    userId,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheReadTokens: usage.cacheReadTokens,
+    cacheWriteTokens: usage.cacheWriteTokens,
+    batch: true,
+  });
 }
 
 /**

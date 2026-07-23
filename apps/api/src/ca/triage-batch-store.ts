@@ -43,6 +43,26 @@ const PRUNE_AFTER_DAYS = 30;
 /** Postgres unique-violation SQLSTATE — the in-flight lock rejecting a duplicate. */
 const UNIQUE_VIOLATION = "23505";
 
+/**
+ * Max rows per write round-trip. Reads in this file are paged (selectAll); the
+ * WRITES need bounding for the same PostgREST reasons, which is easy to miss:
+ *  - an `insert(...).select(...)` still caps its RETURNED rows at 1000, so a
+ *    single insert of >1000 claims would insert them all but hand back only
+ *    1000 ids — the excess would be claimed-in-DB but invisible to the caller,
+ *    never submitted, and left holding the in-flight lock until the reaper.
+ *  - an `.in("id", ids)` update/delete puts every id in the URL, which fails
+ *    ("fetch failed") past a few hundred (this repo has hit that at 500+).
+ * 200 keeps both well inside their limits; at the default --max-total (40) a
+ * whole run is a single chunk, so this is a no-op until an operator raises it.
+ */
+const WRITE_CHUNK = 200;
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
+}
+
 const TABLE = "ca_triage_batches";
 
 export interface PendingTriagePayload {
@@ -112,10 +132,12 @@ export async function loadInFlightHashes(): Promise<Set<string>> {
  *
  * Returns one `{ rowId, customId }` per input that was ACTUALLY claimed — a
  * 23505 on the partial content_hash index means another process (or a bug)
- * already has that item in flight, which must never abort the whole run. The
- * fast path is a single batch insert; if that trips the unique index we fall
- * back to inserting one at a time and silently skip the conflicting ones, so
- * the caller can tell exactly which items it owns.
+ * already has that item in flight, which must never abort the whole run. Per
+ * chunk the fast path is a single insert; if that trips the unique index we
+ * fall back to inserting that chunk one at a time and silently skip the
+ * conflicting ones, so the caller can tell exactly which items it owns.
+ * Chunked (WRITE_CHUNK) so a >1000-item claim can't lose ids to the returning
+ * cap; the returned list stays in the caller's input order.
  */
 export async function claimForSubmission(
   items: ClaimInput[],
@@ -129,38 +151,40 @@ export async function claimForSubmission(
     status: "claimed",
   });
 
-  const { data, error } = await supabase()
-    .from(TABLE)
-    .insert(items.map(payloadFor))
-    .select("id, custom_id");
-
-  if (!error) {
-    const byCustomId = new Map((data ?? []).map((r) => [r.custom_id as string, r.id as string]));
-    // Preserve the caller's input order rather than PostgREST's return order.
-    return items
-      .filter((i) => byCustomId.has(i.customId))
-      .map((i) => ({ rowId: byCustomId.get(i.customId)!, customId: i.customId }));
-  }
-
-  if (!isUniqueViolation(error)) {
-    throw new Error(`ca_triage_batches claim failed: ${error.message}`);
-  }
-
-  // At least one item is already in flight — the whole batch insert was rolled
-  // back, so retry individually and keep whatever we can legitimately claim.
   const claimed: { rowId: string; customId: string }[] = [];
   let skipped = 0;
-  for (const item of items) {
-    const one = await supabase().from(TABLE).insert(payloadFor(item)).select("id").single();
-    if (one.error) {
-      if (isUniqueViolation(one.error)) {
-        skipped++;
-        continue;
+
+  for (const group of chunk(items, WRITE_CHUNK)) {
+    const { data, error } = await supabase().from(TABLE).insert(group.map(payloadFor)).select("id, custom_id");
+
+    if (!error) {
+      const byCustomId = new Map((data ?? []).map((r) => [r.custom_id as string, r.id as string]));
+      // Preserve input order within the chunk (chunks are already in order).
+      for (const it of group) {
+        if (byCustomId.has(it.customId)) claimed.push({ rowId: byCustomId.get(it.customId)!, customId: it.customId });
       }
-      throw new Error(`ca_triage_batches claim failed: ${one.error.message}`);
+      continue;
     }
-    claimed.push({ rowId: one.data.id as string, customId: item.customId });
+
+    if (!isUniqueViolation(error)) {
+      throw new Error(`ca_triage_batches claim failed: ${error.message}`);
+    }
+
+    // At least one item in THIS chunk is already in flight — the chunk insert
+    // rolled back, so retry it individually and keep what we can legitimately claim.
+    for (const item of group) {
+      const one = await supabase().from(TABLE).insert(payloadFor(item)).select("id").single();
+      if (one.error) {
+        if (isUniqueViolation(one.error)) {
+          skipped++;
+          continue;
+        }
+        throw new Error(`ca_triage_batches claim failed: ${one.error.message}`);
+      }
+      claimed.push({ rowId: one.data.id as string, customId: item.customId });
+    }
   }
+
   if (skipped > 0) {
     logger.warn(
       { skipped, requested: items.length, claimed: claimed.length },
@@ -173,11 +197,16 @@ export async function claimForSubmission(
 /** Flip claimed rows -> pending, recording the real Anthropic batch id. */
 export async function markSubmitted(rowIds: string[], batchId: string): Promise<void> {
   if (rowIds.length === 0) return;
-  const { error } = await supabase()
-    .from(TABLE)
-    .update({ batch_id: batchId, status: "pending", submitted_at: new Date().toISOString() })
-    .in("id", rowIds);
-  if (error) throw new Error(`ca_triage_batches markSubmitted failed: ${error.message}`);
+  // One submitted_at for the whole batch, regardless of how many chunks it
+  // takes, so PENDING_TTL_HOURS measures from the batch's real submit time.
+  const submittedAt = new Date().toISOString();
+  for (const group of chunk(rowIds, WRITE_CHUNK)) {
+    const { error } = await supabase()
+      .from(TABLE)
+      .update({ batch_id: batchId, status: "pending", submitted_at: submittedAt })
+      .in("id", group);
+    if (error) throw new Error(`ca_triage_batches markSubmitted failed: ${error.message}`);
+  }
 }
 
 /**
@@ -186,8 +215,10 @@ export async function markSubmitted(rowIds: string[], batchId: string): Promise<
  */
 export async function releaseClaims(rowIds: string[]): Promise<void> {
   if (rowIds.length === 0) return;
-  const { error } = await supabase().from(TABLE).delete().in("id", rowIds);
-  if (error) throw new Error(`ca_triage_batches releaseClaims failed: ${error.message}`);
+  for (const group of chunk(rowIds, WRITE_CHUNK)) {
+    const { error } = await supabase().from(TABLE).delete().in("id", group);
+    if (error) throw new Error(`ca_triage_batches releaseClaims failed: ${error.message}`);
+  }
 }
 
 /**

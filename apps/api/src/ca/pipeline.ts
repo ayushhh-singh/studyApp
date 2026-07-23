@@ -51,6 +51,7 @@ import type { BatchRequest, BatchRequestMeta, LlmUsage } from "../lib/anthropic.
 import {
   batchEnded,
   fetchBatchResults,
+  recordBatchLlmCall,
   structuredJson,
   structuredParams,
   submitBatch,
@@ -400,15 +401,45 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
   if (rows.length === 0) return;
   let fallbacksUsed = 0;
 
-  // Attribution travels with the ROW, not the original request — by collect
-  // time the submitting process is long gone (see lib/anthropic.ts's note on
-  // why fetchBatchResults takes a meta map).
-  const meta = new Map<string, BatchRequestMeta>(
-    rows.map((r) => [r.customId, { model: MODELS.haiku, purpose: "ca_triage" }]),
-  );
-  const results = await fetchBatchResults(batchId, meta, { onUsage: ctx.onUsage });
+  // record:false — read the results WITHOUT billing here. Each row's own
+  // batch-triage cost is billed once, below, at the moment that row settles to
+  // a terminal state (billBatchUsage). Billing in bulk over the stream instead
+  // would re-charge every not-yet-settled row on a partial-collect retry, since
+  // batches.results() replays the whole batch every time. `meta` is unused when
+  // record:false, so an empty map is passed to say so.
+  const results = await fetchBatchResults(batchId, new Map<string, BatchRequestMeta>(), {
+    record: false,
+  });
 
   for (const row of rows) {
+    // The batch-triage cost for THIS row (r.usage from the succeeded batch
+    // entry, if any), billed AT MOST ONCE and only AFTER the row's ledger state
+    // has moved to terminal. Called from every terminal branch below (collected
+    // and failed) so it fires exactly once on the happy path, but never before
+    // the mark commits — billing in bulk at fetch time instead would re-charge
+    // every not-yet-settled row on a partial-collect retry, since
+    // batches.results() replays the whole batch each time. The residual: a
+    // crash in the narrow window BETWEEN a committed mark and this call leaves
+    // that one row settled-but-unbilled forever (loadPendingRows never re-sees
+    // a terminal row). That's a deliberate at-most-once bias — a sub-cent
+    // under-count on a rare crash is the right trade vs. any double-count.
+    //
+    // The cost is priced as haiku: rr.usage.model comes from
+    // fetchBatchResults' `info?.model ?? MODELS.haiku` fallback (info is empty
+    // here — record:false), and CA triage IS haiku by construction
+    // (triageParams). If triage's model ever changes, persist the model on the
+    // ledger row and read it back here, or this silently mis-prices.
+    //
+    // This is only the batch call's cost; a sync-fallback rescue bills its own
+    // (full-price) cost separately via triageItem's onUsage — both really ran.
+    const rr = results.get(row.customId);
+    const billBatchUsage = async () => {
+      if (rr?.usage) {
+        ctx.onUsage(rr.usage);
+        await recordBatchLlmCall(rr.usage, "ca_triage");
+      }
+    };
+
     // The candidate list the model was actually SHOWN, reconstructed from the
     // row's stored candidateIds — validating against the full list would accept
     // node ids the model never saw (backfill.ts makes the same point for its
@@ -419,7 +450,7 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
       .map((id) => candidateById.get(id))
       .filter((c): c is SyllabusCandidate => !!c);
 
-    const r = results.get(row.customId);
+    const r = rr;
     let triage: TriageResult | null = null;
     let reason = "";
     if (!r) {
@@ -461,6 +492,7 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
 
     if (!triage) {
       await markFailed(row.id, reason);
+      await billBatchUsage(); // bill only after the row is terminal (see above)
       result.collectFailed++;
       log(
         `[${row.payload.sourceId}] COLLECT FAILED for "${row.payload.title.slice(0, 60)}": ${reason}` +
@@ -488,14 +520,17 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
         // A non-23505 DB error: terminal for this row (the triage spend is
         // already sunk and un-repeatable), surfaced as a collect failure.
         await markFailed(row.id, "downstream insert failed");
+        await billBatchUsage();
         result.collectFailed++;
       } else {
         await markCollected(row.id);
+        await billBatchUsage();
         result.collected++;
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       await markFailed(row.id, message);
+      await billBatchUsage();
       result.collectFailed++;
       log(`[${row.payload.sourceId}] COLLECT FAILED for "${row.payload.title.slice(0, 64)}": ${message}`);
     }
@@ -567,12 +602,18 @@ export async function runPipeline(
   const ctx: ProcessCtx = { result, embedTasks, candidateById, onUsage, log };
 
   // -------------------------------------------------------------------------
-  // COLLECT FIRST. The ordering is load-bearing: collecting persists items into
-  // current_affairs_items, so their content_hash is present BEFORE
-  // loadRecentHashes() runs below — otherwise this run would re-read those same
-  // links from RSS, see them as new, and submit (and pay for) them a second time.
-  // -------------------------------------------------------------------------
-  if (mode === "batch") {
+  // REAP + COLLECT FIRST, in BOTH modes. The ordering is load-bearing:
+  // collecting persists items into current_affairs_items, so their content_hash
+  // is present BEFORE loadRecentHashes() runs below — otherwise this run would
+  // re-read those same links from RSS, see them as new, and pay for them again.
+  //
+  // Runs in sync mode too on purpose: `--mode sync` never SUBMITS, but a batch
+  // left pending by an earlier batch-mode run still needs draining. If collect
+  // were batch-only, an operator who switched to sync would strand that batch
+  // until PENDING_TTL_HOURS reaped it to failed (a 26h delay + a wasted, paid
+  // batch). Collecting is pure downside-free work in any mode — it only applies
+  // results that were already bought — so it always runs.
+  {
     const reaped = await reapStale();
     if (reaped.releasedClaims > 0) {
       // A claim with no batch id means a process died between claiming and
@@ -848,13 +889,13 @@ export async function runPipeline(
     log(`embedded ${embedTasks.length} chunks`);
   }
 
-  if (mode === "batch") {
-    // Recounted at the end rather than tallied during collect, so the number
-    // means exactly "batches still awaiting collection when this run finished"
-    // — it includes the one just submitted and excludes any fully collected.
-    result.batchesPending = (await listPendingBatches()).length;
-    if (result.batchesPending > 0) log(`batches awaiting collection: ${result.batchesPending}`);
-  }
+  // Recounted at the end (both modes — sync can leave batches pending too if it
+  // collected some but not all) rather than tallied during collect, so the
+  // number means exactly "batches still awaiting collection when this run
+  // finished" — it includes the one just submitted and excludes any fully
+  // collected.
+  result.batchesPending = (await listPendingBatches()).length;
+  if (result.batchesPending > 0) log(`batches awaiting collection: ${result.batchesPending}`);
 
   return result;
 }
