@@ -15,8 +15,19 @@ export function useUpdateProfile() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: ProfileUpdateBody) => api.patch("/api/v1/profile", profileResponseSchema, body),
-    onSuccess: (profile) => {
+    onSuccess: (profile, variables) => {
       queryClient.setQueryData(queryKeys.profile(), profile);
+      // Leaving/rejoining the Mains board must reflect immediately in
+      // whichever board the user is currently looking at — otherwise
+      // "Leave the Mains board" appears to do nothing until some unrelated
+      // refetch happens to land. Scoped to this one field so an unrelated
+      // profile edit (display name, locale, ...) doesn't refetch scoreboard
+      // data for no reason.
+      if (variables.show_on_mains_board !== undefined) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.scoreboardMainsWeekly() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.scoreboardMainsEssay() });
+        void queryClient.invalidateQueries({ queryKey: queryKeys.scoreboardDimensionBests() });
+      }
     },
   });
 }

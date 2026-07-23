@@ -419,7 +419,15 @@ export async function getMainsWeeklyBoard(userId: string): Promise<MainsWeeklyBo
   // the same default the column itself carries, never to hidden.
   const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? true;
 
-  const entries = ((mvRows ?? []) as { user_id: string; avg_pct: number }[]).sort((a, b) => b.avg_pct - a.avg_pct);
+  const rawEntries = (mvRows ?? []) as { user_id: string; avg_pct: number }[];
+  // Live re-check: mv_mains_weekly_board is only nightly-refreshed, so a user
+  // who left the board SINCE last night's refresh would otherwise still show
+  // here to every other viewer for up to ~24h — directly contradicting
+  // "leave anytime". Filtering the row set by CURRENT opt-in status closes
+  // that gap; the row's own score can stay a night stale, but its very
+  // presence/visibility must never lag behind a leave.
+  const stillOptedIn = await getOptedInUserIds(rawEntries.map((e) => e.user_id));
+  const entries = rawEntries.filter((e) => stillOptedIn.has(e.user_id)).sort((a, b) => b.avg_pct - a.avg_pct);
   const handles = await getHandles(entries.map((e) => e.user_id));
   const ranks = computeRanks(entries.map((e) => e.avg_pct));
   let yourRank: number | null = null;
@@ -522,7 +530,11 @@ export async function getDimensionBests(userId: string): Promise<DimensionBestsD
   // the same default the column itself carries, never to hidden.
   const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? true;
 
-  const rows = (data ?? []) as { user_id: string; dimension_bests: Record<string, number> }[];
+  const rawRows = (data ?? []) as { user_id: string; dimension_bests: Record<string, number> }[];
+  // Same live re-check as getMainsWeeklyBoard — a user who left since last
+  // night's refresh must disappear from every dimension board immediately.
+  const stillOptedIn = await getOptedInUserIds(rawRows.map((r) => r.user_id));
+  const rows = rawRows.filter((r) => stillOptedIn.has(r.user_id));
   const handles = await getHandles(rows.map((r) => r.user_id));
 
   const boards: DimensionBestBoard[] = RUBRIC_DIMENSION_KEYS.map((dim) => {
