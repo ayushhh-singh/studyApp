@@ -197,12 +197,17 @@ function reportCacheHitRateByPurpose(buckets: Bucket[], totalIntro: number): voi
   console.log("\n" + "=".repeat(100));
   console.log("Cache hit-rate by purpose (collapsed across model/batch — check weekly, see docs/operations.md)");
   console.log("=".repeat(100));
+  if (purposeSorted.length === 0) {
+    console.log("No calls with a recognized model in this window (see the skip warnings above, if any).");
+    return;
+  }
   const header = [
     "purpose".padEnd(28),
     "calls".padStart(7),
     "cache hit".padStart(10),
     "cache r/w tok".padStart(18),
     "cost (intro)".padStart(14),
+    "cost (std)".padStart(14),
     "% of total".padStart(11),
   ].join(" ");
   console.log(header);
@@ -216,6 +221,7 @@ function reportCacheHitRateByPurpose(buckets: Bucket[], totalIntro: number): voi
         fmtPct(pb.calls ? pb.callsWithCacheHit / pb.calls : 0).padStart(10),
         `${pb.cacheReadTokens}/${pb.cacheWriteTokens}`.padStart(18),
         fmtUsd(pb.costIntro).padStart(14),
+        fmtUsd(pb.costStandard).padStart(14),
         fmtPct(share).padStart(11),
       ].join(" "),
     );
