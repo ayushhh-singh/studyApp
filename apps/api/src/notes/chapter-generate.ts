@@ -388,6 +388,15 @@ export async function generateChapterForNode(
       section_plan: outline.sections.map((s) => ({ id: s.id, heading_en: s.heading_en, focus: s.focus })),
       coherence: coherence ? { terminology_fixes: coherence.terminology_fixes, duplicate_warnings: coherence.duplicate_warnings, overall: coherence.overall } : null,
       source_context_ids: nodeIds,
+      // Explicit, not omitted — persistChapter's meta merge is `{...existing, ...input}`,
+      // so a key this call doesn't set falls through from whatever the PREVIOUS
+      // version's meta had. Regenerating a chapter that was last authored by the
+      // free agent path (chapter-assemble.ts, which always stamps its own
+      // authored_by:"claude-code-agent") would otherwise silently keep that stale
+      // tag on a real, billed API run — misrepresenting real spend as free to any
+      // future cost/provenance audit. Mirrors assemble's own explicit stamp.
+      authored_by: "api",
+      assembled: false,
     },
   });
 
