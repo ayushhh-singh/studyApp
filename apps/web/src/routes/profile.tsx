@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { ActivityHeatmapCard } from "@/components/dashboard/activity-heatmap-card";
 import { ProfileCard } from "@/components/profile/profile-card";
+import { AnalyticsTeaserCard } from "@/components/profile/analytics-teaser-card";
 import { ScoreTrajectoryCard } from "@/components/profile/score-trajectory-card";
 import { AccuracyTimeCard } from "@/components/profile/accuracy-time-card";
 import { StrengthWeaknessCard } from "@/components/profile/strength-weakness-card";
@@ -32,11 +33,15 @@ export function Component() {
 
       <PlanBanner />
 
+      <AnalyticsTeaserCard analytics={analytics} isLoading={analyticsLoading} />
+
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.helpSectionTitle")}</h2>
 
       <HelpAboutCard />
 
-      <h2 className="text-lg font-bold tracking-tight">{t("Profile.analyticsSectionTitle")}</h2>
+      <h2 id="profile-analytics" className="scroll-mt-20 text-lg font-bold tracking-tight">
+        {t("Profile.analyticsSectionTitle")}
+      </h2>
 
       <ActivityHeatmapCard weeks={26} />
 
