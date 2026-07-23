@@ -76,10 +76,11 @@ export const mockSeriesBoardSchema = z.object({
 export type MockSeriesBoard = z.infer<typeof mockSeriesBoardSchema>;
 
 // ---------------------------------------------------------------------------
-// Mains — opt-in only (users_profile.show_on_mains_board). A user who hasn't
-// opted in (or hasn't cleared the >=3-evaluations-this-week floor) still gets
-// their own private stats back, alongside an invitation to opt in — never
-// forced onto the public board.
+// Mains — shown by default, opt-OUT (users_profile.show_on_mains_board
+// defaults true; a "Leave the Mains board" control opts a user out anytime).
+// A user who has left (or hasn't cleared the >=3-evaluations-this-week floor)
+// still gets their own private stats back, alongside an invitation to rejoin
+// — never forced back onto the public board.
 // ---------------------------------------------------------------------------
 export const mainsWeeklyStatsSchema = z.object({
   week_start: z.string(),

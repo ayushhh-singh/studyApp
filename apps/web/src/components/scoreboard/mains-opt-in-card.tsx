@@ -5,9 +5,11 @@ import { Button } from "@/components/ui/button";
 import { useUpdateProfile } from "@/hooks/use-profile";
 
 /**
- * Mains scores are personal by default (users_profile.show_on_mains_board).
- * Always shows the viewer's own private weekly stats regardless of opt-in —
- * never gates that behind joining the public board.
+ * Everyone is shown on the Mains board by default (users_profile.
+ * show_on_mains_board defaults true) — this card's job is the "leave the
+ * board" control, not an invite. Always shows the viewer's own private
+ * weekly stats regardless of the flag — never gates that behind being on
+ * the public board.
  */
 export function MainsOptInCard({ optedIn, yourStats }: { optedIn: boolean; yourStats: MainsWeeklyStats }) {
   const { t } = useTranslation();

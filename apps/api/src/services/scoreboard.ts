@@ -342,11 +342,14 @@ export async function getMockSeriesBoard(userId: string, paperCode: string): Pro
 }
 
 // ---------------------------------------------------------------------------
-// Mains — opt-in only. The public board (mv_mains_weekly_board) is already
-// gated at the SQL level to opted-in, >=3-evaluations-this-week users; a
-// user's own private stats and the evaluation screen's percentile pool are
-// computed live against the RAW population instead, so neither depends on
-// having opted in.
+// Mains — shown by default, opt-OUT (users_profile.show_on_mains_board
+// defaults true as of migration 0077; a user leaves via the "Leave the Mains
+// board" control). The public board (mv_mains_weekly_board) is still gated
+// at the SQL level to currently-opted-in, >=3-evaluations-this-week users —
+// leaving the board still removes you from it immediately; a user's own
+// private stats and the evaluation screen's percentile pool are computed
+// live against the RAW population instead, so neither depends on the flag
+// either way.
 // ---------------------------------------------------------------------------
 
 interface WeeklyEvalRow {
@@ -412,7 +415,9 @@ export async function getMainsWeeklyBoard(userId: string): Promise<MainsWeeklyBo
   ]);
   if (mvError) throw new HttpError(500, `mains weekly board lookup failed: ${mvError.message}`);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
-  const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? false;
+  // Shown by default (opt-OUT model) — a missing profile row falls back to
+  // the same default the column itself carries, never to hidden.
+  const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? true;
 
   const entries = ((mvRows ?? []) as { user_id: string; avg_pct: number }[]).sort((a, b) => b.avg_pct - a.avg_pct);
   const handles = await getHandles(entries.map((e) => e.user_id));
@@ -461,7 +466,9 @@ export async function getMainsEssayWeeklyBoard(userId: string): Promise<MainsWee
     supabase().from("users_profile").select("show_on_mains_board").eq("id", userId).maybeSingle(),
   ]);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
-  const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? false;
+  // Shown by default (opt-OUT model) — a missing profile row falls back to
+  // the same default the column itself carries, never to hidden.
+  const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? true;
 
   const byUser = aggregateByUser(weekly);
 
@@ -511,7 +518,9 @@ export async function getDimensionBests(userId: string): Promise<DimensionBestsD
   ]);
   if (error) throw new HttpError(500, `dimension bests lookup failed: ${error.message}`);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
-  const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? false;
+  // Shown by default (opt-OUT model) — a missing profile row falls back to
+  // the same default the column itself carries, never to hidden.
+  const optedIn = (profileRes.data?.show_on_mains_board as boolean | undefined) ?? true;
 
   const rows = (data ?? []) as { user_id: string; dimension_bests: Record<string, number> }[];
   const handles = await getHandles(rows.map((r) => r.user_id));
