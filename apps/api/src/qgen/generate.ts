@@ -181,12 +181,28 @@ async function loadGenContext(node: NodeContext, kind: QuestionType): Promise<Ge
 /** Batch-embed size — matches the 96-per-call pattern already used in ca/pipeline.ts, notes/embed.ts, and qgen/dedup.ts. */
 const EMBED_BATCH_SIZE = 96;
 
-async function batchEmbed(texts: string[]): Promise<number[][]> {
+/**
+ * Embed in chunks of EMBED_BATCH_SIZE, isolating a failure to just the chunk
+ * it occurred in — a failed chunk leaves its slots `undefined` (rather than
+ * rejecting the whole call and discarding every OTHER chunk's already-
+ * successful vectors) so only the texts in that one chunk fall back to
+ * per-node individual embedding. Never throws.
+ */
+async function batchEmbed(texts: string[]): Promise<(number[] | undefined)[]> {
   const provider = embeddings();
-  const out: number[][] = [];
+  const out: (number[] | undefined)[] = new Array(texts.length);
   for (let i = 0; i < texts.length; i += EMBED_BATCH_SIZE) {
-    const vecs = await provider.embed(texts.slice(i, i + EMBED_BATCH_SIZE));
-    out.push(...vecs);
+    const chunk = texts.slice(i, i + EMBED_BATCH_SIZE);
+    try {
+      const vecs = await provider.embed(chunk);
+      vecs.forEach((v, j) => (out[i + j] = v));
+    } catch (err) {
+      logger.warn(
+        { err, chunkOffset: i, chunkSize: chunk.length },
+        "qgen: pooled grounding-query embed chunk failed; those nodes will fall back to individual embed",
+      );
+      // leave out[i..i+chunk.length) undefined — each affected node embeds its own query below.
+    }
   }
   return out;
 }
@@ -203,12 +219,11 @@ async function batchEmbed(texts: string[]): Promise<number[][]> {
  * Fault isolation: retrieveGrounding's own try/catch used to be the ONLY
  * thing standing between a per-node embed() failure and that node losing
  * grounding (never the whole run). Pooling hoists the embed call out of that
- * per-node boundary into one shared call, so a failure there (rate limit, a
- * transient network error, one oversized input 400ing the whole multi-input
- * request) is caught here and degrades to leaving every `vecs[i]` undefined —
- * each node's own retrieveGrounding call then embeds its query individually
- * (its own try/catch still isolates a further per-node failure), exactly
- * matching pre-pooling behavior. Never let a batch-embed failure fail the run.
+ * per-node boundary into shared batched calls, so batchEmbed() itself catches
+ * per-chunk and never throws — a failed chunk leaves its nodes' vectors
+ * undefined, and each such node's own retrieveGrounding call then embeds its
+ * query individually (its own try/catch still isolates a further per-node
+ * failure), exactly matching pre-pooling behavior for the affected nodes only.
  */
 async function loadGenContextsBatch(plans: GeneratePlan[]): Promise<GenContext[]> {
   const queries = plans.map((p) => groundingQueryFor(p.node));
@@ -221,18 +236,8 @@ async function loadGenContextsBatch(plans: GeneratePlan[]): Promise<GenContext[]
     }
   });
   const vecs: (number[] | undefined)[] = new Array(plans.length);
-  if (toEmbed.length > 0) {
-    try {
-      const embedded = await batchEmbed(toEmbed);
-      embedIdx.forEach((planIdx, j) => (vecs[planIdx] = embedded[j]));
-    } catch (err) {
-      logger.warn(
-        { err, nodeCount: plans.length },
-        "qgen: pooled grounding-query embed failed; falling back to per-node embed",
-      );
-      // vecs stays all-undefined — each node embeds its own query below.
-    }
-  }
+  const embedded = toEmbed.length ? await batchEmbed(toEmbed) : [];
+  embedIdx.forEach((planIdx, j) => (vecs[planIdx] = embedded[j]));
 
   return Promise.all(
     plans.map(async (plan, i) => {
