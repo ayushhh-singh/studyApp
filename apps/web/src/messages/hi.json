@@ -1074,6 +1074,7 @@
     "weakestDimension": "अभी आपका सबसे कमज़ोर पक्ष {{dimension}} है।",
     "startIntro": "भूमिका ड्रिल शुरू करें",
     "startConclusion": "निष्कर्ष ड्रिल शुरू करें",
+    "startError": "ड्रिल शुरू नहीं हो सकी। कृपया फिर से प्रयास करें।",
     "historyTitle": "हाल की ड्रिल",
     "historyEmptyTitle": "अभी तक कोई ड्रिल नहीं",
     "historyEmptyDescription": "आपकी पूरी की गई ड्रिल यहाँ उनके स्कोर के साथ दिखेंगी।",

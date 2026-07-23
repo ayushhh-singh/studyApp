@@ -6,10 +6,12 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Button } from "@/components/ui/button";
+import { ApiError } from "@/lib/api";
 import { useCreateDrill, useDeleteDrill, useDrillHistory, useDrillRecommendation } from "@/hooks/use-micro-drill";
 import { useLocale } from "@/hooks/use-locale";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 import { useDrillSessionStore } from "@/stores/drill-session-store";
+import { usePaywallStore, toPaywallFeature } from "@/stores/paywall-store";
 import { scoreBandColor } from "@/lib/score-band";
 import { cn } from "@/lib/utils";
 
@@ -19,6 +21,7 @@ export function MicroDrillsCard() {
   const { t } = useTranslation();
   const locale = useLocale();
   const navigate = useNavigate();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
   const { data: recommendation, isLoading: recLoading } = useDrillRecommendation();
   const { data: history, isLoading: historyLoading } = useDrillHistory();
   const createDrill = useCreateDrill();
@@ -31,8 +34,16 @@ export function MicroDrillsCard() {
         setSession(session);
         navigate(`/${locale}/profile/drill`);
       },
+      onError: (err) => {
+        // Micro-drills are Pro-only (assertMicroDrill) — a free/lapsed-trial
+        // user hitting Start needs the soft paywall, not a silently-failed
+        // button. Any other failure falls through to the inline message below.
+        if (err instanceof ApiError && err.status === 402) openPaywall(toPaywallFeature(err.feature));
+      },
     });
   }
+
+  const startFailedSilently = createDrill.isError && !(createDrill.error instanceof ApiError && createDrill.error.status === 402);
 
   function remove(id: string) {
     if (window.confirm(t("MicroDrill.deleteConfirm"))) deleteDrill.mutate(id);
@@ -71,6 +82,7 @@ export function MicroDrillsCard() {
                 );
               })}
             </div>
+            {startFailedSilently && <p className="text-sm text-coral">{t("MicroDrill.startError")}</p>}
           </div>
         )}
 

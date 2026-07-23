@@ -1074,6 +1074,7 @@
     "weakestDimension": "Your weakest area right now is {{dimension}}.",
     "startIntro": "Start an intro drill",
     "startConclusion": "Start a conclusion drill",
+    "startError": "Couldn't start the drill. Please try again.",
     "historyTitle": "Recent drills",
     "historyEmptyTitle": "No drills yet",
     "historyEmptyDescription": "Your completed drills will show up here with their scores.",

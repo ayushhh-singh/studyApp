@@ -150,16 +150,25 @@ export async function generateMentorInsights(userId: string): Promise<void> {
     logger.warn({ err }, "mentor-insights: profile load failed");
     return;
   }
-  const [drillRecommendation, improvementProof] = await Promise.all([
-    getRecommendation(userId).catch((err) => {
-      logger.warn({ err }, "mentor-insights: drill recommendation load failed");
-      return null;
-    }),
-    getImprovementProof(userId).catch((err) => {
-      logger.warn({ err }, "mentor-insights: improvement proof load failed");
-      return null;
-    }),
-  ]);
+  // This self-heals on EVERY `GET /mentor/insights` call, i.e. every dashboard
+  // load (see routes/doubts.ts) — unlike `profile`, neither of these two has a
+  // cache. Both are provably no-ops for a user with zero evaluations
+  // (getRecommendation's own trend window and the improvement-pairs RPC are
+  // both scoped to `evaluations` rows), so skip the two extra round trips for
+  // that large, common cohort rather than paying them on every single load.
+  const [drillRecommendation, improvementProof] =
+    profile.evaluation.count === 0
+      ? [null, null]
+      : await Promise.all([
+          getRecommendation(userId).catch((err) => {
+            logger.warn({ err }, "mentor-insights: drill recommendation load failed");
+            return null;
+          }),
+          getImprovementProof(userId).catch((err) => {
+            logger.warn({ err }, "mentor-insights: improvement proof load failed");
+            return null;
+          }),
+        ]);
 
   const candidates = buildCandidates(profile, istToday(), drillRecommendation, improvementProof);
   if (candidates.length === 0) return;
