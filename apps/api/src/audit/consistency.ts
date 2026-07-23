@@ -71,10 +71,14 @@ export function structuralCheck(q: AuditQuestion): StructuralResult {
 // ---------------------------------------------------------------------------
 // 2. Explanation-vs-key (haiku, batched)
 // ---------------------------------------------------------------------------
-// NO PROMPT CACHING HERE — INVESTIGATED, DO NOT "FIX" (2026-07-23). A prior
-// cost-audit commit (9e03929) claimed audit/resolve.ts already had caching
-// that this file lacked, as if to copy from. That claim was checked and is
-// FALSE — neither audit/resolve.ts nor ingest/resolve.ts has any
+// NO PROMPT CACHING HERE — INVESTIGATED, DO NOT "FIX" (2026-07-23). A claim
+// was raised that audit/resolve.ts already had caching this file lacked, as
+// if to copy from — framed as coming from cost-audit commit 9e03929, but that
+// commit's diff/message contain zero mentions of resolve.ts or consistency.ts
+// (it's scoped entirely to ca/prompts.ts's triage/enrich/qgen calls); no
+// commit anywhere in this repo's history actually makes the claim. Checked
+// against the code regardless of the dubious sourcing, and it's FALSE either
+// way — neither audit/resolve.ts nor ingest/resolve.ts has any
 // cache_control/PromptSegment usage; there is no sibling pattern here at all.
 // Building the split fresh (per the Session 13 evaluation/prompts.ts
 // static/dynamic pattern) was then evaluated and rejected on its own merits:
