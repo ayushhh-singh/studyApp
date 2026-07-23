@@ -78,39 +78,43 @@ export function Component() {
                 message={t("Explore.coachmarkMagazine")}
                 dismissLabel={t("Explore.coachmarkGotIt")}
               />
-              <Link
-                to={`/${locale}/magazine/${month}/prelims`}
-                className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
-                  <ListChecks className="size-5" aria-hidden />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="font-display text-lg font-bold">{t("Magazine.prelimsEditionTitle")}</span>
-                  <span className="text-sm text-muted-foreground">{t("Magazine.prelimsEditionDescription")}</span>
-                  <span className="mt-1 text-xs font-semibold text-primary">
-                    {t("Magazine.itemCount", { count: summary.prelims_item_count })}
+              {summary.prelims_item_count > 0 && (
+                <Link
+                  to={`/${locale}/magazine/${month}/prelims`}
+                  className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+                    <ListChecks className="size-5" aria-hidden />
                   </span>
-                </span>
-              </Link>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="font-display text-lg font-bold">{t("Magazine.prelimsEditionTitle")}</span>
+                    <span className="text-sm text-muted-foreground">{t("Magazine.prelimsEditionDescription")}</span>
+                    <span className="mt-1 text-xs font-semibold text-primary">
+                      {t("Magazine.itemCount", { count: summary.prelims_item_count })}
+                    </span>
+                  </span>
+                </Link>
+              )}
 
-              <Link
-                to={`/${locale}/magazine/${month}/mains`}
-                className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-marigold/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-marigold/15 text-marigold-foreground">
-                  <BookOpenCheck className="size-5" aria-hidden />
-                </span>
-                <span className="flex min-w-0 flex-1 flex-col gap-1">
-                  <span className="font-display text-lg font-bold">{t("Magazine.mainsEditionTitle")}</span>
-                  <span className="text-sm text-muted-foreground">{t("Magazine.mainsEditionDescription")}</span>
-                  <span className="mt-1 text-xs font-semibold text-marigold-foreground">
-                    {t("Magazine.itemCount", { count: summary.mains_item_count })}
-                    {summary.deep_dive_count > 0 &&
-                      ` · ${t("Magazine.deepDiveCount", { count: summary.deep_dive_count })}`}
+              {(summary.mains_item_count > 0 || summary.deep_dive_count > 0) && (
+                <Link
+                  to={`/${locale}/magazine/${month}/mains`}
+                  className="flex items-start gap-4 rounded-2xl border border-border bg-card p-5 shadow-sm transition-colors hover:border-marigold/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-marigold/15 text-marigold-foreground">
+                    <BookOpenCheck className="size-5" aria-hidden />
                   </span>
-                </span>
-              </Link>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="font-display text-lg font-bold">{t("Magazine.mainsEditionTitle")}</span>
+                    <span className="text-sm text-muted-foreground">{t("Magazine.mainsEditionDescription")}</span>
+                    <span className="mt-1 text-xs font-semibold text-marigold-foreground">
+                      {t("Magazine.itemCount", { count: summary.mains_item_count })}
+                      {summary.deep_dive_count > 0 &&
+                        ` · ${t("Magazine.deepDiveCount", { count: summary.deep_dive_count })}`}
+                    </span>
+                  </span>
+                </Link>
+              )}
             </div>
           </>
         )}

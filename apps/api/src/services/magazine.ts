@@ -74,42 +74,40 @@ const MODEL_QUESTIONS_LIMIT = 15;
 // ---------------------------------------------------------------------------
 
 export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
+  // Discover which months have ANY gate-clearing published CA (cheap — dates only).
   const { data, error } = await supabase()
     .from("current_affairs_items")
-    .select("date, prelims_relevance, mains_relevance")
+    .select("date")
     .eq("status", "published")
     .or(`prelims_relevance.gte.${RELEVANCE_GATE},mains_relevance.gte.${RELEVANCE_GATE}`);
   if (error) throw new HttpError(500, `magazine months query failed: ${error.message}`);
 
-  const counts = new Map<string, { prelims: number; mains: number }>();
-  for (const r of (data ?? []) as { date: string; prelims_relevance: number | null; mains_relevance: number | null }[]) {
+  const months = new Set<string>();
+  for (const r of (data ?? []) as { date: string }[]) {
     const month = (r.date ?? "").slice(0, 7);
-    if (!/^\d{4}-\d{2}$/.test(month)) continue;
-    const cur = counts.get(month) ?? { prelims: 0, mains: 0 };
-    if ((r.prelims_relevance ?? 0) >= RELEVANCE_GATE) cur.prelims++;
-    if ((r.mains_relevance ?? 0) >= RELEVANCE_GATE) cur.mains++;
-    counts.set(month, cur);
+    if (/^\d{4}-\d{2}$/.test(month)) months.add(month);
   }
+  const sorted = [...months].sort((a, b) => (a < b ? 1 : -1));
 
-  const { data: ddData, error: ddError } = await supabase()
-    .from("magazine_deep_dives")
-    .select("month")
-    .eq("status", "published");
-  if (ddError) throw new HttpError(500, `magazine months (deep dive) query failed: ${ddError.message}`);
-  const deepDiveCounts = new Map<string, number>();
-  for (const r of (ddData ?? []) as { month: string }[]) {
-    deepDiveCounts.set(r.month, (deepDiveCounts.get(r.month) ?? 0) + 1);
-  }
-
-  return [...counts.entries()]
-    .sort((a, b) => (a[0] < b[0] ? 1 : -1))
-    .map(([month, c]) => ({
-      month,
-      title_i18n: monthLabel(month),
-      prelims_item_count: c.prelims,
-      mains_item_count: c.mains,
-      deep_dive_count: deepDiveCounts.get(month) ?? 0,
-    }));
+  // Counts shown on the index/month cards MUST be the CURATED edition counts, not the raw
+  // gate-clearing pile — otherwise a card advertises "582 items" and links to a 46-item edition.
+  // Reuse the exact compilers so the card can never disagree with the edition it opens. Read-only;
+  // the month list is short (one per calendar month) and client-cached, so per-month compiles are fine.
+  const summaries = await Promise.all(
+    sorted.map(async (month) => {
+      const [prelims, mains] = await Promise.all([compilePrelimsEdition(month), compileMainsEdition(month)]);
+      return {
+        month,
+        title_i18n: monthLabel(month),
+        prelims_item_count: prelims?.total_items ?? 0,
+        mains_item_count: mains?.total_issues ?? 0,
+        deep_dive_count: mains?.deep_dives.length ?? 0,
+      };
+    }),
+  );
+  // Drop any month that cleared the gate but has nothing curatable in either edition (both would
+  // open to an empty state) — don't advertise a month card that leads nowhere.
+  return summaries.filter((s) => s.prelims_item_count > 0 || s.mains_item_count > 0 || s.deep_dive_count > 0);
 }
 
 // ---------------------------------------------------------------------------
