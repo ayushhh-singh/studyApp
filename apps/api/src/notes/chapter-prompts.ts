@@ -168,6 +168,17 @@ export function buildChapterResearchContent(node: ChapterNodeContext): string {
 // SECTION — one call per planned section, English, structured (no tools).
 // The shared per-chapter context (topic + weightage + grounding + research +
 // PYQ list) is cached; only the per-section instruction varies.
+//
+// Stays on the default 5-minute ephemeral TTL — DELIBERATE, MEASURED
+// (2026-07-23), do not switch to the 1-hour extended TTL without new
+// evidence. A real live run (8 planned sections, the observed max) showed
+// call 1 WRITE + all 7 subsequent calls HIT, the whole section loop
+// completing in ~123s — only 41% of the 300s window. The 1-hour tier only
+// pays for itself once a run has >=2 genuine cache-expiry events (algebra:
+// 2 + 0.1(N-1) < 1.25K + 0.1(N-K) reduces to K > 1.65, independent of N);
+// this pipeline measures K=1, so extended TTL would just add a 2x-vs-1.25x
+// write premium for zero benefit. See CLAUDE.md's "Extended-TTL prompt
+// caching investigated" session note for the full breakeven + real numbers.
 // ---------------------------------------------------------------------------
 const SECTION_SYSTEM =
   "You are an expert UPPSC faculty member WRITING one section of a study chapter, in English. Write in YOUR OWN WORDS — " +

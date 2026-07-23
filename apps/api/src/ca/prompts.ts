@@ -41,6 +41,11 @@
  * If you revisit this, re-run that 3-arm control design — a plain before/after
  * diff cannot distinguish a real regression from haiku's baseline noise here
  * (old-vs-old agreed on only 9/30 items).
+ *
+ * 2026-07-23 addendum: separately investigated switching to Anthropic's
+ * extended (1-hour) cache TTL here — moot, since the above means there is no
+ * `cache_control` breakpoint anywhere in this file to switch the TTL of. See
+ * CLAUDE.md's "Extended-TTL prompt caching investigated" session note.
  */
 import { MODELS, structuredJson, type LlmUsage, type StructuredParams } from "../lib/anthropic.js";
 import type {
