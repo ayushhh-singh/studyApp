@@ -44,7 +44,11 @@ export function Component() {
 
   function goBack() {
     setSession(null);
-    navigate(returnTo);
+    // returnTo is only null when no drill has been started in this browser
+    // session yet (e.g. /profile/drill opened directly or refreshed) — the
+    // router has no bare `/profile` route, only `/:locale/*`, so this must
+    // build a real locale-prefixed path rather than let a raw null through.
+    navigate(returnTo ?? `/${locale}/profile`);
   }
 
   if (!session) {

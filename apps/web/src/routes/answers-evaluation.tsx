@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { FileQuestion, Loader2, PenLine, Share2, Sparkles } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -26,6 +27,7 @@ import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { useShareAnswer } from "@/hooks/use-community";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { queryKeys } from "@/lib/query-keys";
 
 export const handle = { titleKey: "Nav.answers" };
 
@@ -42,6 +44,7 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { submissionId = "" } = useParams<{ submissionId: string }>();
   const {
     data: detail,
@@ -62,6 +65,17 @@ export function Component() {
   // Profile uses, not a hand-picked subset, so it looks and behaves exactly
   // like the "real" card the user already knows from Profile.
   const { data: analytics, isLoading: analyticsLoading } = useProfileAnalytics({ enabled: !!stream.done });
+
+  useEffect(() => {
+    // The default 30s staleTime means a cached analytics snapshot from a
+    // recent Profile/other-evaluation visit would otherwise be reused as-is
+    // — showing THIS evaluation's dimension trend / improvement proof one
+    // step stale. A rewrite-and-resubmit loop (exactly what this feature is
+    // for) can easily land two evaluations within that window, so force a
+    // real refetch on every genuine completion rather than trusting timing.
+    if (stream.done) queryClient.invalidateQueries({ queryKey: queryKeys.profileAnalytics() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [!!stream.done, submissionId]);
 
   useEffect(() => {
     // Also re-runs on a locale switch: a replay's feedback text is

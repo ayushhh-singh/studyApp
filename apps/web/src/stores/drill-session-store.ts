@@ -15,13 +15,17 @@ interface DrillSessionState {
   /** Full locale-prefixed path the drill was started from (e.g. `/en/answers`
    * vs `/en/profile`) — MicroDrillsCard now renders on more than one page, so
    * "Exit"/"Try another" must return wherever the user actually came from,
-   * not always Profile. */
-  returnTo: string;
+   * not always Profile. `null` until a drill is actually started in this
+   * browser session (e.g. `/profile/drill` opened directly/refreshed with no
+   * session in memory) — the router has no bare `/profile` route (only
+   * `/:locale/*`), so a caller MUST fall back to a locale-prefixed path
+   * itself rather than this store guessing one without a locale. */
+  returnTo: string | null;
   setSession: (session: DrillSession | null, returnTo?: string) => void;
 }
 
 export const useDrillSessionStore = create<DrillSessionState>((set) => ({
   session: null,
-  returnTo: "/profile",
+  returnTo: null,
   setSession: (session, returnTo) => set((state) => ({ session, returnTo: returnTo ?? state.returnTo })),
 }));
