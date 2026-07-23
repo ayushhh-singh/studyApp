@@ -24,15 +24,18 @@ import { hotnessRaw, type OwnWeightage } from "../lib/weightage.js";
 //   ≥1 per topic for coverage, ≤6 per topic so one category can't dominate) =
 //   ≤46 write-ups, plus a boxed-fact appendix (≤8 per kind) and the existing
 //   30-MCQ workbook.  →  ~40-55 curated items, not hundreds.
-// Mains Analysis (issue briefs):   ≤36 curated briefs + 5 Deep Dives + 15
-//   Model Questions.  →  ~40-55 analytical pieces.
+// Mains Analysis (issue briefs):   top ≤8 per GS paper (the "top-N per section"
+//   cap, balanced so a student gets fair coverage of every paper rather than a
+//   GS2/GS3-only dump) + 5 Deep Dives + 15 Model Questions.  →  ~45 distinct
+//   issues, not hundreds. gs_papers is multi-valued, so the per-paper cap alone
+//   bounds the total (≤ 7×8) and the DISTINCT union is what the cover counts —
+//   no global pre-slice (that would count items the per-paper cap then hides).
 // ---------------------------------------------------------------------------
 export const UP_SPECIAL_LIMIT = 10;
 export const TOPIC_TOTAL_LIMIT = 36;
 export const TOPIC_PER_CATEGORY_MAX = 6;
 export const BOXED_PER_KIND_LIMIT = 8;
-export const MAINS_ISSUE_TOTAL_LIMIT = 36;
-export const GS_PER_PAPER_MAX = 12;
+export const GS_PER_PAPER_MAX = 8;
 
 /** A relevance-3 issue always outranks a relevance-2 one (mirrors deepdive rankIssues). */
 const REL_TIER = 1000;
@@ -97,7 +100,8 @@ export function scoreRows<T>(
     const { score, hotness } = rawScore(toInputs(r), weightage, year);
     return { r, score, hotness };
   });
-  const maxHot = Math.max(1, ...withHot.map((x) => x.hotness));
+  // reduce, not Math.max(1, ...spread) — a huge month would blow the call-stack arg limit.
+  const maxHot = withHot.reduce((m, x) => (x.hotness > m ? x.hotness : m), 1);
   return withHot
     .map((x) => {
       const weightage_pct = Math.round((x.hotness / maxHot) * 100);

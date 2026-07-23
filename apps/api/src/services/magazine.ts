@@ -30,7 +30,6 @@ import {
   TOPIC_TOTAL_LIMIT,
   TOPIC_PER_CATEGORY_MAX,
   BOXED_PER_KIND_LIMIT,
-  MAINS_ISSUE_TOTAL_LIMIT,
   GS_PER_PAPER_MAX,
   scoreRows,
   curateTopicSections,
@@ -217,7 +216,12 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
   const upSpecial = upScored.map(toItemBlock);
 
   // Topic sections — ≥1 per populated category, ≤ per-category max, ≤ total budget.
-  const nonUpScored = scored.filter((s) => !s.row.is_up_specific);
+  // Only items in a RENDERABLE topic category are eligible: a non-UP item whose category is
+  // "up_special" (or any value outside the topic taxonomy) has no topic section to render in, so
+  // it must not be curated/counted (else total_items would overcount + its facts would leak into
+  // boxed with no matching write-up). `null` defaults to polity_governance, which is renderable.
+  const RENDERABLE_TOPIC = new Set<CurrentAffairsCategory>(CATEGORY_ORDER.filter((c) => c !== "up_special"));
+  const nonUpScored = scored.filter((s) => !s.row.is_up_specific && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"));
   const topicMap = curateTopicSections(
     nonUpScored,
     (r) => r.category ?? "polity_governance",
@@ -339,8 +343,10 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
 
   if (items.length === 0 && deepDives.length === 0 && modelQuestions.length === 0) return null;
 
-  // Rank issues by importance and take the top curated set — then group into GS sections (capped per
-  // paper), the same rank-then-cap the Deep Dives already use, applied to the issue-brief pool.
+  // Rank issues by importance, then cap each GS section to its top-N — the same rank-then-cap the
+  // Deep Dives already use, applied per paper. gs_papers is multi-valued (an issue can span papers),
+  // so the DISTINCT union of what renders IS the curated set — never a global pre-slice, which would
+  // count items a later per-paper cap then dropped from view (rendering nowhere).
   const scored = scoreRows(
     items,
     (i) => ({
@@ -352,7 +358,6 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
     weightage,
     currentExamYear(),
   );
-  const curated = scored.slice(0, MAINS_ISSUE_TOTAL_LIMIT);
 
   const toBrief = (s: Scored<MainsItemRow>): MagazineIssueBrief => {
     const item = s.row;
@@ -372,15 +377,19 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
     };
   };
 
-  const gsSections: MagazineGsSection[] = GS_PAPER_ORDER.map((paper) => ({
+  const perPaperTop = GS_PAPER_ORDER.map((paper) => ({
     paper,
-    items: curated.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX).map(toBrief),
-  })).filter((s) => s.items.length > 0);
+    top: scored.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX),
+  }));
+  const gsSections: MagazineGsSection[] = perPaperTop
+    .filter((p) => p.top.length > 0)
+    .map((p) => ({ paper: p.paper, items: p.top.map(toBrief) }));
+  const curatedIds = new Set(perPaperTop.flatMap((p) => p.top.map((s) => s.row.id)));
 
   return {
     month,
     title_i18n: monthLabel(month),
-    total_issues: curated.length,
+    total_issues: curatedIds.size,
     gs_sections: gsSections,
     deep_dives: deepDives,
     model_questions: modelQuestions,
