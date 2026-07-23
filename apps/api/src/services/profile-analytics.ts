@@ -186,7 +186,7 @@ interface ImprovementPairRow {
   after_date: string;
 }
 
-async function getImprovementProof(
+export async function getImprovementProof(
   userId: string,
 ): Promise<{ items: ImprovementProofItem[]; avg_delta_pct: number | null }> {
   const { data, error } = await supabase().rpc("profile_improvement_pairs", { p_user_id: userId });
@@ -242,3 +242,4 @@ export async function getProfileAnalytics(userId: string): Promise<ProfileAnalyt
 
 /** Exported for micro-drills.ts's recommendation logic (same evaluation window, no query duplication). */
 export { fetchRecentEvaluations, computeDimensionInsights };
+/** getImprovementProof is also exported (see its `export` above) for mentor-insights.ts's rewrite_improvement candidate. */
