@@ -29,6 +29,7 @@ export function Component() {
   const navigate = useNavigate();
   const session = useDrillSessionStore((s) => s.session);
   const setSession = useDrillSessionStore((s) => s.setSession);
+  const returnTo = useDrillSessionStore((s) => s.returnTo);
   const submitResponses = useSubmitDrillResponses();
   const stream = useDrillStream(session?.id ?? "");
 
@@ -41,9 +42,9 @@ export function Component() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session?.id]);
 
-  function goToProfile() {
+  function goBack() {
     setSession(null);
-    navigate(`/${locale}/profile`);
+    navigate(returnTo);
   }
 
   if (!session) {
@@ -52,7 +53,7 @@ export function Component() {
         icon={Sparkles}
         title={t("MicroDrill.noSessionTitle")}
         description={t("MicroDrill.noSessionDescription")}
-        action={<Button onClick={goToProfile}>{t("MicroDrill.backToProfile")}</Button>}
+        action={<Button onClick={goBack}>{t("MicroDrill.goBack")}</Button>}
         className="mx-auto mt-8 max-w-md"
       />
     );
@@ -93,7 +94,7 @@ export function Component() {
             {t("MicroDrill.focusDimension", { dimension: t(DIMENSION_LABEL_KEYS[session.dimension_key]) })}
           </p>
         </div>
-        <Button type="button" variant="ghost" size="sm" onClick={goToProfile}>
+        <Button type="button" variant="ghost" size="sm" onClick={goBack}>
           {t("MicroDrill.exit")}
         </Button>
       </div>
@@ -181,7 +182,7 @@ export function Component() {
               </div>
             ))}
           </div>
-          <Button type="button" onClick={goToProfile}>
+          <Button type="button" onClick={goBack}>
             {t("MicroDrill.tryAnother")}
           </Button>
         </div>

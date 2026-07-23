@@ -12,10 +12,16 @@ import type { DrillSession } from "@neev/shared";
  */
 interface DrillSessionState {
   session: DrillSession | null;
-  setSession: (session: DrillSession | null) => void;
+  /** Full locale-prefixed path the drill was started from (e.g. `/en/answers`
+   * vs `/en/profile`) — MicroDrillsCard now renders on more than one page, so
+   * "Exit"/"Try another" must return wherever the user actually came from,
+   * not always Profile. */
+  returnTo: string;
+  setSession: (session: DrillSession | null, returnTo?: string) => void;
 }
 
 export const useDrillSessionStore = create<DrillSessionState>((set) => ({
   session: null,
-  setSession: (session) => set({ session }),
+  returnTo: "/profile",
+  setSession: (session, returnTo) => set((state) => ({ session, returnTo: returnTo ?? state.returnTo })),
 }));

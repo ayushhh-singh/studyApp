@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Sparkles, Trash2, Zap } from "lucide-react";
 import type { DrillType } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -21,6 +21,7 @@ export function MicroDrillsCard() {
   const { t } = useTranslation();
   const locale = useLocale();
   const navigate = useNavigate();
+  const location = useLocation();
   const openPaywall = usePaywallStore((s) => s.openPaywall);
   const { data: recommendation, isLoading: recLoading } = useDrillRecommendation();
   const { data: history, isLoading: historyLoading } = useDrillHistory();
@@ -31,7 +32,10 @@ export function MicroDrillsCard() {
   function start(type: DrillType) {
     createDrill.mutate(type, {
       onSuccess: (session) => {
-        setSession(session);
+        // This card now renders on more than one page (Profile, Answers) —
+        // remember wherever it was actually started from so exiting the
+        // drill returns there, not always Profile.
+        setSession(session, location.pathname);
         navigate(`/${locale}/profile/drill`);
       },
       onError: (err) => {
