@@ -16,6 +16,7 @@ import { HelpAboutCard } from "@/components/profile/help-about-card";
 import { PlanBanner } from "@/components/billing/plan-banner";
 import { useProfile } from "@/hooks/use-profile";
 import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
+import { useScrollToHash } from "@/hooks/use-scroll-to-hash";
 
 export const handle = { titleKey: "Nav.profile" };
 
@@ -23,6 +24,7 @@ export function Component() {
   const { t } = useTranslation();
   const { data: profile, isLoading: profileLoading } = useProfile();
   const { data: analytics, isLoading: analyticsLoading } = useProfileAnalytics();
+  useScrollToHash();
 
   return (
     <div className="flex flex-col gap-6">
@@ -44,7 +46,21 @@ export function Component() {
 
       <AccuracyTimeCard data={analytics?.accuracy_time_buckets} isLoading={analyticsLoading} />
 
-      <StrengthWeaknessCard />
+      {/* scroll-mt so a hash deep-link (Learn's "see mastery matrix" CTA)
+          lands below the sticky top bar instead of flush against it.
+          tabIndex=-1 makes it a valid target for useScrollToHash's
+          programmatic .focus() (screen-reader/keyboard users, not just a
+          visual scroll) without joining the normal tab order; outline-none
+          suppresses the focus ring since the scroll itself is the visible
+          cue here, not a real interactive control. */}
+      <div
+        id="mastery-matrix"
+        tabIndex={-1}
+        aria-label={t("Profile.matrixTitle")}
+        className="scroll-mt-20 outline-none"
+      >
+        <StrengthWeaknessCard />
+      </div>
 
       <WritingProgressCard
         trend={analytics?.evaluation_trend}

@@ -101,7 +101,7 @@ export function Component() {
 
       {!isLoading && data && data.length > 0 && (
         <Link
-          to={`/${locale}/profile`}
+          to={`/${locale}/profile#mastery-matrix`}
           className="inline-flex w-fit items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           <Target className="size-4 shrink-0 text-primary" aria-hidden />
