@@ -455,18 +455,27 @@ export function TestPlayer({
               </SheetContent>
             </Sheet>
             {/* Next is the highest-frequency action during a real attempt, so it
-                takes the easily-reachable primary-button position that Submit
-                used to occupy (far end of the row, filled/primary styling) —
-                Submit itself moved below the palette (see paletteWithSubmit). */}
-            <Button
-              type="button"
-              onClick={() => goTo(currentIndex + 1)}
-              disabled={currentIndex === test.questions.length - 1}
-              className="ms-auto"
-            >
-              {t("Practice.next")}
-              <ChevronRight aria-hidden />
-            </Button>
+                takes the easily-reachable primary-button position (far end of
+                the row, filled/primary styling). On the LAST question there's no
+                Next to give — a disabled dead-end button used to sit here, and
+                the only Submit affordance lived behind the palette (a scroll/tap
+                away on mobile). So the terminal question swaps that dead Next for
+                a Submit button in the same reachable spot. It still opens the
+                SubmitConfirmDialog (the "N unanswered" guard), so submission is
+                no more accidental than before — the deliberateness moved from
+                "hidden behind the palette" to "only appears once you're actually
+                on the last question, and still confirms". Going Previous restores
+                Next automatically. */}
+            {currentIndex === test.questions.length - 1 ? (
+              <Button type="button" onClick={() => setSubmitOpen(true)} className="ms-auto">
+                {t("Practice.submitTest")}
+              </Button>
+            ) : (
+              <Button type="button" onClick={() => goTo(currentIndex + 1)} className="ms-auto">
+                {t("Practice.next")}
+                <ChevronRight aria-hidden />
+              </Button>
+            )}
           </div>
         </div>
 
