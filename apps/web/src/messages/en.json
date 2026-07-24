@@ -1817,6 +1817,37 @@
     "youSub": "Your check-ins, streaks, and privacy settings.",
     "youComingSoon": "Wellbeing check-ins and privacy settings are coming soon.",
     "pwaOfflineReady": "Sukoon is ready to work offline.",
+    "garden": {
+      "title": "Sukoon Garden",
+      "subtitle": "Grows a little with every check-in, exercise, and journal entry.",
+      "pointsToNext": "{{points}} more to the next stage",
+      "maxStage": "Fully grown — still here for you every day.",
+      "neverDecays": "It only grows. There's no way to lose progress here.",
+      "stage": {
+        "seed": "Seed",
+        "sprout": "Sprout",
+        "sapling": "Sapling",
+        "tree": "Tree",
+        "blooming": "Blooming tree"
+      }
+    },
+    "notifications": {
+      "title": "Reminders",
+      "subtitle": "Choose which gentle nudges you'd like to receive.",
+      "moodReminder": "Daily check-in reminder",
+      "moodReminderDesc": "A nudge at your chosen time, only if you haven't checked in yet.",
+      "journeyReminder": "Journey step reminder",
+      "journeyReminderDesc": "An evening nudge if today's step on a started journey is still open.",
+      "examEve": "Exam-eve support ping",
+      "examEveDesc": "A check-in the evening before your exam date.",
+      "quietHoursNote": "Nothing is ever sent between 11pm and 7am."
+    },
+    "installPrompt": {
+      "title": "Add Sukoon to your home screen",
+      "description": "Quick access, even with a patchy connection.",
+      "cta": "Install",
+      "dismiss": "Dismiss"
+    },
     "mood": {
       "title": "How are you feeling?",
       "subtitle": "A 10-second check-in. Everything past the mood scale is optional.",

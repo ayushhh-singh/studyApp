@@ -112,10 +112,18 @@ function useInvalidateJournal() {
 
 export function useCreateJournalEntry() {
   const invalidate = useInvalidateJournal();
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (body: SukoonJournalCreateBody) =>
       api.post("/api/sukoon/journal/entries", sukoonJournalEntryResponseSchema, body),
-    onSuccess: () => invalidate(),
+    onSuccess: () => {
+      invalidate();
+      // A new entry is one of the three activities that grow the Garden
+      // (F11) — refresh it so Home reflects it right away. (Editing an
+      // existing entry doesn't add a new day-count row, so only create
+      // needs this — update/delete leave growth_points unchanged either way.)
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sukoonGarden() });
+    },
   });
 }
 

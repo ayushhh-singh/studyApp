@@ -53,8 +53,10 @@ interface ProgressRow {
 }
 
 /** Day D unlocks at IST midnight of (start + D-1 days); `days=1` collapses to
- *  always-1 (see header — this IS the exam-eve exemption, not a special case). */
-function calcUnlockedDay(startedAtIso: string, totalDays: number): number {
+ *  always-1 (see header — this IS the exam-eve exemption, not a special case).
+ *  Exported for services/reminders.ts (F11 journey-step reminder), which needs
+ *  the SAME day-lock math without duplicating it. */
+export function calcUnlockedDay(startedAtIso: string, totalDays: number): number {
   const startDate = istDateString(Date.parse(startedAtIso));
   const elapsed = daysBetween(startDate, istToday());
   return Math.min(totalDays, Math.max(1, elapsed + 1));
@@ -355,4 +357,41 @@ export async function saveJourneyReflection(
     .single();
   if (error) throw new HttpError(500, `sukoon journey reflection save failed: ${error.message}`);
   return toProgress(data as unknown as ProgressRow, journey.days);
+}
+
+/**
+ * F11 journey-step reminder helper: true if the user has at least one
+ * IN-PROGRESS journey (started, not completed) whose day-unlocked step for
+ * TODAY hasn't been completed yet. Deliberately journey-agnostic of publish
+ * state (mirrors getAccessibleJourneyOrThrow's "already has progress" rule)
+ * — an admin unpublishing a journey mid-flight must not silently stop its
+ * reminder for someone already on it. Embeds the journey's own `days` via a
+ * single joined query rather than a per-row lookup-by-id (journey-store.ts
+ * only exposes lookup-by-slug, which this doesn't have).
+ */
+export async function hasIncompleteStepToday(userId: string): Promise<boolean> {
+  const { data, error } = await supabase()
+    .from("sukoon_journey_progress")
+    .select("journey_id, completed_steps, started_at, sukoon_journeys(days)")
+    .eq("user_id", userId)
+    .is("completed_at", null);
+  if (error) throw new HttpError(500, `sukoon journey reminder lookup failed: ${error.message}`);
+
+  interface Row {
+    journey_id: string;
+    completed_steps: string[] | null;
+    started_at: string;
+    sukoon_journeys: { days: number } | { days: number }[] | null;
+  }
+  const rows = (data as unknown as Row[]) ?? [];
+
+  for (const row of rows) {
+    const journeyMeta = Array.isArray(row.sukoon_journeys) ? row.sukoon_journeys[0] : row.sukoon_journeys;
+    if (!journeyMeta) continue;
+    const unlockedDay = calcUnlockedDay(row.started_at, journeyMeta.days);
+    const steps = await listStepsForJourney(row.journey_id);
+    const completed = new Set(row.completed_steps ?? []);
+    if (steps.some((s) => s.day <= unlockedDay && !completed.has(s.id))) return true;
+  }
+  return false;
 }

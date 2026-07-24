@@ -50,6 +50,7 @@ export const queryKeys = {
   sukoonAdminStatus: () => ["sukoon", "admin", "status"] as const,
   sukoonAdminJourneys: () => ["sukoon", "admin", "journeys", "list"] as const,
   sukoonAdminJourneyDetail: (slug: string) => ["sukoon", "admin", "journeys", "detail", slug] as const,
+  sukoonGarden: () => ["sukoon", "garden"] as const,
   drillRecommendation: () => ["drills", "recommendation"] as const,
   drillHistory: () => ["drills", "history"] as const,
   activePlan: () => ["study-plan", "active"] as const,

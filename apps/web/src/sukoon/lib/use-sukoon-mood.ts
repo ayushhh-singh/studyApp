@@ -41,11 +41,15 @@ export function useMoodHeatmap(month: string, options?: { enabled?: boolean }) {
   });
 }
 
-/** Invalidate everything a create/update/delete can change (today, aggregates, heatmap). */
+/** Invalidate everything a create/update/delete can change (today, aggregates,
+ *  heatmap) — plus the Garden (F11), since a check-in is one of the three
+ *  activities that grow it, so the Home card should reflect it right away
+ *  rather than waiting for an unrelated refocus/remount to refetch it. */
 function useInvalidateMood() {
   const queryClient = useQueryClient();
   return useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: ["sukoon", "mood"] });
+    void queryClient.invalidateQueries({ queryKey: queryKeys.sukoonGarden() });
   }, [queryClient]);
 }
 

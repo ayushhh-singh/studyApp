@@ -92,3 +92,16 @@
 .sukoon {
   --sukoon-transition-slow: 700ms;
 }
+
+/* F11 Sukoon Garden: a single, slow sway on the plant's leafy stages — the
+   ONLY motion in the whole component, deliberately far calmer than anything
+   gamified (contrast Neev's own conquest-pulse). Disabled automatically by
+   index.css's global prefers-reduced-motion override (it forces every
+   animation-duration near-zero), so no extra guard is needed here. */
+@keyframes sukoon-garden-sway {
+  0%, 100% { transform: rotate(-1.5deg); }
+  50% { transform: rotate(1.5deg); }
+}
+.sukoon-garden-sway {
+  animation: sukoon-garden-sway 6s ease-in-out infinite;
+}

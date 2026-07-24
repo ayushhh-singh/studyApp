@@ -43,6 +43,13 @@ export const sukoonProfileSchema = z.object({
   restricted_mode: z.boolean(),
   voice_pref: z.string().nullable(),
   reminder_time: z.string().nullable(),
+  // F11 per-type push-reminder opt-outs (Settings → notification preferences).
+  // All default true server-side; the cron (services/reminders.ts) checks
+  // these BEFORE ever computing whether a nudge is due, so turning one off
+  // here is a hard stop, not just a UI hint.
+  mood_reminder_enabled: z.boolean(),
+  journey_reminder_enabled: z.boolean(),
+  exam_eve_reminder_enabled: z.boolean(),
   onboarding_completed: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -80,6 +87,9 @@ export const sukoonProfileUpdateBodySchema = z
     exam_date: isoDateSchema.nullable().optional(),
     reminder_time: reminderTimeSchema.nullable().optional(),
     voice_pref: z.string().max(60).nullable().optional(),
+    mood_reminder_enabled: z.boolean().optional(),
+    journey_reminder_enabled: z.boolean().optional(),
+    exam_eve_reminder_enabled: z.boolean().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "No fields to update" });
 export type SukoonProfileUpdateBody = z.infer<typeof sukoonProfileUpdateBodySchema>;
@@ -1230,3 +1240,58 @@ export type SukoonJourneyUpsertResponse = z.infer<typeof sukoonJourneyUpsertResp
  *  frontend gate for the admin journeys queue page. */
 export const sukoonAdminStatusResponseSchema = apiEnvelopeSchema(z.object({ is_admin: z.boolean() }));
 export type SukoonAdminStatusResponse = z.infer<typeof sukoonAdminStatusResponseSchema>;
+
+
+// ---------------------------------------------------------------------------
+// F11 — "Sukoon Garden" (reminders, streaks & gentle gamification). Shared
+// because the Home card's SVG plant, its stage copy, and the backend's growth
+// calculation (services/garden.ts) must all agree on the same stage ladder.
+//
+// HARD ANTI-DARK-PATTERN RULE (blueprint F11, verbatim): the garden "grows
+// slowly, never dies or regresses." `growth_points` is therefore a pure,
+// monotonically non-decreasing function of the user's own activity history —
+// there is deliberately no field anywhere in this contract (or the backend
+// that fills it) representing decay, a reset, or a loss. `stage` only ever
+// moves forward as `growth_points` rises.
+// ---------------------------------------------------------------------------
+
+export const sukoonGardenStageIdSchema = z.enum(["seed", "sprout", "sapling", "tree", "blooming"]);
+export type SukoonGardenStageId = z.infer<typeof sukoonGardenStageIdSchema>;
+
+export interface SukoonGardenStageDef {
+  id: SukoonGardenStageId;
+  /** Minimum cumulative growth_points to be at this stage (0 for the first). */
+  min: number;
+  label_hi: string;
+  label_en: string;
+}
+
+/**
+ * The ONE ordered stage ladder — index === rank, same convention as
+ * SUKOON_CRISIS_LEVELS. `min` values are code constants (not seeded/DB-editable
+ * data): a five-stage ladder is deliberately calm and slow, never a fast XP-bar
+ * feel (blueprint: "no gamified motion like Neev's Conquest Map").
+ */
+export const SUKOON_GARDEN_STAGES: readonly SukoonGardenStageDef[] = [
+  { id: "seed", min: 0, label_hi: "बीज", label_en: "Seed" },
+  { id: "sprout", min: 15, label_hi: "अंकुर", label_en: "Sprout" },
+  { id: "sapling", min: 40, label_hi: "पौधा", label_en: "Sapling" },
+  { id: "tree", min: 80, label_hi: "पेड़", label_en: "Tree" },
+  { id: "blooming", min: 150, label_hi: "खिलता हुआ पेड़", label_en: "Blooming tree" },
+] as const;
+
+/** GET /garden — the Home card's one read. */
+export const sukoonGardenStateSchema = z.object({
+  /** Cumulative, capped-per-IST-day total — see services/garden.ts. Never decreases. */
+  growth_points: z.number().int().min(0),
+  stage: sukoonGardenStageIdSchema,
+  stage_index: z.number().int().min(0),
+  stage_count: z.number().int().min(1),
+  /** Points needed to reach the NEXT stage; null when already at the last (max) stage. */
+  next_stage_threshold: z.number().int().nullable(),
+  /** 0–1 progress from the current stage's own threshold toward the next; 1 at the max stage. */
+  progress_to_next: z.number().min(0).max(1),
+});
+export type SukoonGardenState = z.infer<typeof sukoonGardenStateSchema>;
+export const sukoonGardenResponseSchema = apiEnvelopeSchema(sukoonGardenStateSchema);
+export type SukoonGardenResponse = z.infer<typeof sukoonGardenResponseSchema>;

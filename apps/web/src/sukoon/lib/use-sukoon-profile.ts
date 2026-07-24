@@ -3,6 +3,7 @@ import {
   sukoonProfileResponseSchema,
   sukoonProfileWriteResponseSchema,
   type SukoonOnboardingBody,
+  type SukoonProfileUpdateBody,
 } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -29,6 +30,19 @@ export function useCompleteSukoonOnboarding() {
     onSuccess: (profile) => {
       // Match the GET shape ({ profile }) so the gate sees the fresh profile
       // immediately and lets the app render without a refetch round-trip.
+      queryClient.setQueryData(queryKeys.sukoonProfile(), { profile });
+    },
+  });
+}
+
+/** PATCH /profile — the Settings screen's notification-preference toggles
+ *  (and any other user-editable field) go through this one mutation. */
+export function useUpdateSukoonProfile() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (body: SukoonProfileUpdateBody) =>
+      api.patch("/api/sukoon/profile", sukoonProfileWriteResponseSchema, body),
+    onSuccess: (profile) => {
       queryClient.setQueryData(queryKeys.sukoonProfile(), { profile });
     },
   });

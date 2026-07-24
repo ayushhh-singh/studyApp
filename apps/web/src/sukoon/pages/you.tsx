@@ -7,6 +7,7 @@ import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { MoodTrends } from "@/sukoon/components/mood-trends";
 import { useSukoonAdminStatus } from "@/sukoon/lib/use-sukoon-admin-journeys";
+import { NotificationPrefsCard } from "@/sukoon/components/settings/notification-prefs-card";
 
 export function Component() {
   const { t } = useSukoonLanguage();
@@ -35,6 +36,7 @@ export function Component() {
       ) : (
         <>
           <MoodTrends />
+          <NotificationPrefsCard />
           <EmptyState
             icon={CircleUser}
             title={t("Sukoon.comingSoonTitle")}

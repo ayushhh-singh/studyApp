@@ -86,6 +86,10 @@ export function useCompleteExerciseSession() {
       // consistent with every other Sukoon mutation's invalidate-the-family
       // convention so a future stats surface picks it up for free.
       void queryClient.invalidateQueries({ queryKey: ["sukoon", "exercises"] });
+      // A completed session is one of the three activities that grow the
+      // Garden (F11) — refresh it so Home reflects it without waiting for an
+      // unrelated refocus/remount.
+      void queryClient.invalidateQueries({ queryKey: queryKeys.sukoonGarden() });
     },
   });
 }

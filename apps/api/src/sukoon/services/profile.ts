@@ -9,7 +9,8 @@ import { SUKOON_CONSENT_VERSION } from "../consent.js";
 
 const PROFILE_COLUMNS =
   "user_id, language, exam, exam_attempt, exam_date, restricted_mode, voice_pref, " +
-  "reminder_time, onboarding_completed, created_at, updated_at";
+  "reminder_time, mood_reminder_enabled, journey_reminder_enabled, exam_eve_reminder_enabled, " +
+  "onboarding_completed, created_at, updated_at";
 
 /**
  * The Sukoon profile, or null when the user hasn't onboarded yet — a normal,

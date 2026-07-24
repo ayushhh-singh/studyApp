@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { MoodHomeCard } from "@/sukoon/components/mood-home-card";
 import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
 import { JourneysHomeCard } from "@/sukoon/components/journeys/journeys-home-card";
+import { SukoonGardenCard } from "@/sukoon/components/garden/sukoon-garden-card";
 
 export function Component() {
   const { t } = useSukoonLanguage();
@@ -15,6 +16,7 @@ export function Component() {
       <PageHeader title={t("Sukoon.homeTitle")} description={t("Sukoon.homeSub")} />
       {session ? <ExamEveJourneyCard /> : null}
       {session ? <MoodHomeCard /> : null}
+      {session ? <SukoonGardenCard /> : null}
       {session ? <JourneysHomeCard /> : null}
       <EmptyState
         icon={Sparkles}

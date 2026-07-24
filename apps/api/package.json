@@ -55,6 +55,7 @@
     "push:send": "tsx --env-file-if-exists=.env scripts/send-push.ts",
     "nightly:settle": "tsx --env-file-if-exists=.env scripts/nightly-settle.ts",
     "notifications:run": "tsx --env-file-if-exists=.env scripts/notifications-run.ts",
+    "sukoon:notifications:run": "tsx --env-file-if-exists=.env scripts/sukoon-notifications-run.ts",
     "demo:seed": "tsx --env-file-if-exists=.env scripts/seed-demo-account.ts",
     "trial-abuse:report": "tsx --env-file-if-exists=.env scripts/trial-abuse-report.ts",
     "og:generate": "tsx scripts/generate-marketing-og.ts",
