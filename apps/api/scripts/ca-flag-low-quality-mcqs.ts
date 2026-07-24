@@ -8,14 +8,22 @@
  * generated BEFORE that filter existed are already published+approved.
  *
  * This surfaces the clearest low-quality candidates for a HUMAN second look
- * WITHOUT unpublishing anything: it flips a flagged live MCQ from approved back
- * to needs_review (keeping is_published=true, so its only serving surface — the
- * weekly CA quiz, which reads CA questions by paper_code regardless of
- * review_state, see lib/question-visibility.ts's "test" scope — stays live) and
- * stamps generation_meta.re_review. That drops it into the Review Queue's
- * Current Affairs tab with a "Live — re-review" marker, where a reviewer either
- * re-approves it (back to approved, nothing changed for the user) or rejects it
- * (unpublished — the human's call, never this script's).
+ * WITHOUT changing anything a user sees. It leaves the row fully LIVE — status
+ * approved, is_published=true — and only stamps generation_meta.re_review. The
+ * Review Queue's Current Affairs tab then ALSO surfaces re_review-flagged live
+ * rows (see services/review.ts's applyTab), showing a "Live — re-review" marker,
+ * where a reviewer either keeps it (Approve clears the flag — services/review.ts
+ * approveQuestion) or removes it (Reject → unpublished). Both are the human's
+ * call, never this script's.
+ *
+ * IMPORTANT — why NOT flip review_state to needs_review: an approved CA MCQ
+ * carries exam_code='uppsc' and a real syllabus_node_id, and the catalog
+ * visibility scope (lib/question-visibility.ts) has no paper_code exclusion, so
+ * it is genuinely user-visible in the Learn node PYQ browse and general question
+ * search (empirically confirmed: ~18 CA MCQs in one node's 65-row browse).
+ * Flipping it to needs_review would remove it from those catalog surfaces — a
+ * silent partial-unpublish, exactly what the brief says NOT to do. Keeping it
+ * approved leaves it live everywhere it already is; the flag is metadata only.
  *
  * CANDIDATE CRITERION (the "start with the clearest signal" bar from the brief):
  * a live CA MCQ whose SOURCE current-affairs item has NO anchored prelims fact —
@@ -93,67 +101,86 @@ async function main(): Promise<void> {
     process.exit(0);
   }
 
-  // Of those items' MCQs, keep only the ones that are actually LIVE
-  // (published + approved) — a still-needs_review one is already in the queue,
-  // and an already-flagged one (re_review present) is skipped for idempotency.
+  // Of those items' MCQs, act on the ones that are actually LIVE
+  // (is_published=true). Desired end state for each = approved + re_review
+  // stamped. A row already in that exact state is skipped (idempotent); a row
+  // that a prior (buggy) run flipped to needs_review is self-healed back to
+  // approved here, since keeping it approved is what keeps it live on the
+  // catalog surfaces (see the header note).
   const candidateQuestionIds = [...itemByQuestion.keys()];
-  const liveToFlag: { id: string; meta: GenerationMeta | null; itemId: string }[] = [];
-  let alreadyFlagged = 0;
+  const toFlag: { id: string; meta: GenerationMeta | null; itemId: string; wasNeedsReview: boolean }[] = [];
+  let alreadyDone = 0;
   let notLive = 0;
+  let seen = 0;
   for (let i = 0; i < candidateQuestionIds.length; i += 300) {
     const batch = candidateQuestionIds.slice(i, i + 300);
     const { data, error } = await supabase()
       .from("questions")
-      .select("id, generation_meta")
+      .select("id, generation_meta, review_state")
       .in("id", batch)
       .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
       .eq("type", "mcq")
       .eq("is_published", true)
-      .eq("review_state", "approved");
+      // Approved (the normal live state) OR needs_review (self-heal a prior
+      // wrongful flip that also carries the flag). Never touch a rejected row.
+      .in("review_state", ["approved", "needs_review"]);
     if (error) throw new Error(`live MCQ lookup failed: ${error.message}`);
-    for (const row of (data ?? []) as LiveMcqRow[]) {
-      if (row.generation_meta?.re_review) {
-        alreadyFlagged++;
-        continue;
+    for (const row of (data ?? []) as (LiveMcqRow & { review_state: string })[]) {
+      seen++;
+      const flagged = !!row.generation_meta?.re_review;
+      if (flagged && row.review_state === "approved") {
+        alreadyDone++;
+        continue; // already in the desired end state
       }
-      liveToFlag.push({ id: row.id, meta: row.generation_meta, itemId: itemByQuestion.get(row.id)!.id });
+      toFlag.push({
+        id: row.id,
+        meta: row.generation_meta,
+        itemId: itemByQuestion.get(row.id)!.id,
+        wasNeedsReview: row.review_state === "needs_review",
+      });
     }
   }
-  notLive = candidateQuestionIds.length - liveToFlag.length - alreadyFlagged;
+  notLive = candidateQuestionIds.length - seen;
+  const toHeal = toFlag.filter((q) => q.wasNeedsReview).length;
 
   console.log(
-    `Live approved MCQs to flag: ${liveToFlag.length}; ` +
-      `already flagged (skipped): ${alreadyFlagged}; ` +
-      `not live / not found (draft, needs_review, rejected, or non-MCQ): ${notLive}`,
+    `Live MCQs to flag/keep-live: ${toFlag.length} (of which self-heal a prior needs_review flip: ${toHeal}); ` +
+      `already flagged+approved (skipped): ${alreadyDone}; ` +
+      `not live / not found (draft, rejected, or non-MCQ): ${notLive}`,
   );
-  if (liveToFlag.length === 0) {
-    console.log("Nothing to flag.");
+  if (toFlag.length === 0) {
+    console.log("Nothing to do.");
     process.exit(0);
   }
   if (!APPLY) {
-    console.log("DRY-RUN — re-run with --apply to flip these to needs_review (kept published) for re-review.");
+    console.log("DRY-RUN — re-run with --apply to stamp re_review (kept approved + live) for a Review Queue second pass.");
     process.exit(0);
   }
 
   const reason =
     "Source current-affairs item had no anchored prelims fact (all 'misc'/incidental) — " +
     "confirm this MCQ tests an examinable fact, not story colour.";
-  let flagged = 0;
-  for (const q of liveToFlag) {
+  let done = 0;
+  for (const q of toFlag) {
     const nextMeta: GenerationMeta = {
       ...(q.meta ?? {}),
       re_review: { reason, flagged_at: flaggedAt, source_item_id: q.itemId },
     };
-    // Kept published on purpose — review_state=needs_review is what surfaces it
-    // in the queue; is_published stays true so the content is NOT taken down.
+    // Kept approved + published on purpose — the row stays live on every surface
+    // it's already on (catalog browse, search, weekly quiz). review_state is set
+    // to 'approved' to self-heal any prior wrongful flip; generation_meta.re_review
+    // is the ONLY thing that marks it for a second pass, and the Review Queue's CA
+    // tab surfaces it via that flag (services/review.ts).
     const { error } = await supabase()
       .from("questions")
-      .update({ review_state: "needs_review", generation_meta: nextMeta })
+      .update({ review_state: "approved", generation_meta: nextMeta })
       .eq("id", q.id);
     if (error) throw new Error(`flag update failed for ${q.id}: ${error.message}`);
-    flagged++;
+    done++;
   }
-  console.log(`APPLIED: flagged ${flagged} live CA MCQs for re-review (still published; now in the Review Queue).`);
+  console.log(
+    `APPLIED: flagged ${done} live CA MCQs for re-review (kept approved + published; surfaced in the Review Queue via the re_review marker).`,
+  );
   process.exit(0);
 }
 
