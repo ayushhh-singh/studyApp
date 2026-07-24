@@ -234,3 +234,99 @@ export type SukoonCrisisAssessBody = z.infer<typeof sukoonCrisisAssessBodySchema
 
 export const sukoonCrisisAssessResponseSchema = apiEnvelopeSchema(sukoonCrisisAssessmentSchema);
 export type SukoonCrisisAssessResponse = z.infer<typeof sukoonCrisisAssessResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// F2 — Saathi chat. Shared because the streaming chat UI, the history/
+// conversation views, and the cap-reached state all need the same vocabulary
+// as the backend (message shape, tier caps, the SSE event payloads). The tier
+// literal mirrors sukoon_subscriptions.tier; caps live server-side (LIMITS),
+// surfaced to the client only via GET /chat/usage.
+// ---------------------------------------------------------------------------
+
+/** Sukoon subscription tier (mirrors sukoon_subscriptions.tier). */
+export const sukoonTierSchema = z.enum(["free", "plus", "pro"]);
+export type SukoonTier = z.infer<typeof sukoonTierSchema>;
+
+/** Who authored a chat turn. `system` rows are never returned to the client. */
+export const sukoonMessageRoleSchema = z.enum(["user", "assistant"]);
+export type SukoonMessageRole = z.infer<typeof sukoonMessageRoleSchema>;
+
+/** One persisted chat turn (sukoon_messages), as returned to the client. */
+export const sukoonMessageSchema = z.object({
+  id: z.string().uuid(),
+  role: sukoonMessageRoleSchema,
+  content: z.string(),
+  /** Present on assistant turns (which model answered); null on user turns. */
+  model_used: z.string().nullable(),
+  /** The crisis level assessed for a user turn (drives replayed inline cards). */
+  crisis_level: sukoonCrisisLevelSchema.nullable(),
+  created_at: z.string(),
+});
+export type SukoonMessage = z.infer<typeof sukoonMessageSchema>;
+
+/** A conversation summary row for the history drawer (sukoon_conversations). */
+export const sukoonConversationSchema = z.object({
+  id: z.string().uuid(),
+  started_at: z.string(),
+  last_message_at: z.string().nullable(),
+  /** A short, gentle title/preview — the running summary or first-line fallback. */
+  preview: z.string().nullable(),
+});
+export type SukoonConversation = z.infer<typeof sukoonConversationSchema>;
+
+/**
+ * POST /chat/stream body. `conversation_id` continues an existing thread; omit
+ * it (or send null) to start a fresh conversation — the server mints one and
+ * returns its id in the `conversation` SSE event.
+ */
+export const sukoonChatStreamBodySchema = z.object({
+  content: z.string().trim().min(1).max(4000),
+  conversation_id: z.string().uuid().nullable().optional(),
+});
+export type SukoonChatStreamBody = z.infer<typeof sukoonChatStreamBodySchema>;
+
+/**
+ * GET /chat/usage — the daily cap meter the composer reads to show "N left"
+ * and to disable input at 0 before a doomed stream. `limit` is the tier cap;
+ * `used`/`remaining` are IST-day counts.
+ */
+export const sukoonChatUsageSchema = z.object({
+  tier: sukoonTierSchema,
+  used: z.number().int(),
+  limit: z.number().int(),
+  remaining: z.number().int(),
+});
+export type SukoonChatUsage = z.infer<typeof sukoonChatUsageSchema>;
+export const sukoonChatUsageResponseSchema = apiEnvelopeSchema(sukoonChatUsageSchema);
+export type SukoonChatUsageResponse = z.infer<typeof sukoonChatUsageResponseSchema>;
+
+/**
+ * GET /chat/history?conversation_id= — the turns of one conversation (the most
+ * recent conversation when the id is omitted). `conversation` is null when the
+ * user has no conversations yet (a fresh Saathi screen, not an error).
+ */
+export const sukoonChatHistorySchema = z.object({
+  conversation: sukoonConversationSchema.nullable(),
+  messages: z.array(sukoonMessageSchema),
+});
+export type SukoonChatHistory = z.infer<typeof sukoonChatHistorySchema>;
+export const sukoonChatHistoryResponseSchema = apiEnvelopeSchema(sukoonChatHistorySchema);
+export type SukoonChatHistoryResponse = z.infer<typeof sukoonChatHistoryResponseSchema>;
+
+/** GET /chat/conversations — the history-drawer list, newest first. */
+export const sukoonConversationsResponseSchema = apiEnvelopeSchema(
+  z.object({ conversations: z.array(sukoonConversationSchema) }),
+);
+export type SukoonConversationsResponse = z.infer<typeof sukoonConversationsResponseSchema>;
+
+/**
+ * The `crisis` SSE event payload. `surface` is derived from `level` via
+ * `crisisSurface()` (inline for moderate, takeover for high/critical) so the
+ * client never re-derives the mapping. For a takeover, the stream carries NO
+ * reply — the AI never manages a crisis; it hands off to humans.
+ */
+export const sukoonChatCrisisEventSchema = z.object({
+  level: sukoonCrisisLevelSchema,
+  surface: z.enum(["inline", "takeover"]),
+});
+export type SukoonChatCrisisEvent = z.infer<typeof sukoonChatCrisisEventSchema>;

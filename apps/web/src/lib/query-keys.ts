@@ -20,6 +20,10 @@ export const queryKeys = {
   profile: () => ["profile"] as const,
   profileAnalytics: () => ["profile", "analytics"] as const,
   sukoonProfile: () => ["sukoon", "profile"] as const,
+  sukoonChatUsage: () => ["sukoon", "chat", "usage"] as const,
+  sukoonConversations: () => ["sukoon", "chat", "conversations"] as const,
+  sukoonChatHistory: (conversationId?: string) =>
+    ["sukoon", "chat", "history", conversationId ?? "latest"] as const,
   drillRecommendation: () => ["drills", "recommendation"] as const,
   drillHistory: () => ["drills", "history"] as const,
   activePlan: () => ["study-plan", "active"] as const,
