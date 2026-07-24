@@ -26,6 +26,7 @@ import { supabase } from "../lib/supabase.js";
 import { roundMarks } from "../lib/marks.js";
 import { UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { PRELIMS_MARKING } from "../lib/exam-papers.js";
+import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { paperByCode, report } from "./_shared.js";
 
 interface QRow {
@@ -189,11 +190,20 @@ async function main(): Promise<void> {
   }
 
   // --- 2. Sectional tests (published MCQs per top-level syllabus node) ---
+  // Both MCQ (Prelims) and descriptive (Mains — the Answer Writing "Sectional"
+  // tab) sectionals are built by this ONE loop, keyed by type; there is no
+  // separate mains builder. Within each sectional the questions are ordered by
+  // a GENTLE weightage ranking — higher-weightage sub-topics and more recent
+  // years surface first — WITHOUT dropping any question, so a sectional keeps
+  // its full-coverage purpose while leading with what UPPSC asks most.
   report.section("Sectional tests (per top-level syllabus node)");
   const topByNode = await topLevelByNode();
+  const weightage = await loadNodeWeightage();
+  const examYear = currentExamYear();
+  const hotOf = (nodeId: string | null) => hotnessRaw(weightage.get(nodeId ?? "")?.byYear ?? new Map(), examYear);
   const bySection = new Map<
     string,
-    { paperCode: string; top: string; titleEn: string; type: "mcq" | "descriptive"; ids: string[] }
+    { paperCode: string; top: string; titleEn: string; type: "mcq" | "descriptive"; qs: QRow[] }
   >();
   for (const q of published) {
     if (!q.syllabus_node_id) continue;
@@ -204,14 +214,20 @@ async function main(): Promise<void> {
     // (Mains)): the player can only run one kind, so a section must never
     // mix them if that ever changes.
     const key = `${info.paperCode}::${info.top}::${q.type}`;
-    if (!bySection.has(key)) bySection.set(key, { ...info, type: q.type, ids: [] });
-    bySection.get(key)!.ids.push(q.id);
+    if (!bySection.has(key)) bySection.set(key, { ...info, type: q.type, qs: [] });
+    bySection.get(key)!.qs.push(q);
   }
   let sectionalCount = 0;
   for (const key of [...bySection.keys()].sort()) {
     const s = bySection.get(key)!;
     const paper = paperByCode(s.paperCode);
     if (!paper) continue;
+    // Gentle within-section ordering: node weightage (hotness) desc, then more
+    // recent year first, then id — surface the heavily-tested topics/years up
+    // top; every question stays in the set.
+    const orderedIds = [...s.qs]
+      .sort((a, b) => hotOf(b.syllabus_node_id) - hotOf(a.syllabus_node_id) || (b.year ?? 0) - (a.year ?? 0) || a.id.localeCompare(b.id))
+      .map((q) => q.id);
     const slug = `sectional:${s.paperCode}:${s.top}`;
     const testId = await upsertTest({
       slug,
@@ -233,8 +249,8 @@ async function main(): Promise<void> {
             : { type: "descriptive", negative_marking: 0 },
       },
     });
-    await setMembership(testId, s.ids.sort());
-    report.ok(`${slug}: ${s.ids.length} ${s.type === "mcq" ? "MCQs" : "questions"}`);
+    await setMembership(testId, orderedIds);
+    report.ok(`${slug}: ${orderedIds.length} ${s.type === "mcq" ? "MCQs" : "questions"}`);
     sectionalCount++;
   }
 
