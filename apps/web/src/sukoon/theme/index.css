@@ -1,0 +1,94 @@
+/*
+ * Sukoon theme — scoped shadcn CSS-variable overrides under a `.sukoon` root
+ * class (applied once, on the shell's own wrapper div). Zero component forks:
+ * every shadcn/ui-x component already reads these same variable names via
+ * index.css's `@theme inline` mapping (--color-background: var(--background),
+ * etc.), so re-declaring the variables here is enough to give the whole
+ * Sukoon subtree its own look while Neev's :root/.dark stay untouched.
+ *
+ * Palette: deep indigo #2E2A5E, soft teal #4FB3A9, warm sand #F4EDE3.
+ * `.sukoon-dark` is Sukoon's OWN dark variant (see use-sukoon-night-mode.ts,
+ * auto after 9pm local) — deliberately a different class from Neev's global
+ * `.dark`, so it never depends on or fights the user's manual Neev toggle.
+ * Larger --radius + more breathing room than Neev's 0.75rem, per the calmer/
+ * slower motion direction in the design brief.
+ */
+
+.sukoon {
+  --radius: 1.15rem;
+
+  --background: #f4ede3;
+  --foreground: #2e2a5e;
+  --card: #ffffff;
+  --card-foreground: #2e2a5e;
+  --popover: #ffffff;
+  --popover-foreground: #2e2a5e;
+
+  --primary: #2e2a5e;
+  --primary-foreground: #ffffff;
+  --secondary: #4fb3a9;
+  --secondary-foreground: #0b3b36;
+
+  --muted: #ece3d3;
+  --muted-foreground: #6b6580;
+  --accent: #dcefea;
+  --accent-foreground: #1f5952;
+  --destructive: #d9534f;
+
+  --border: #e4dac9;
+  --input: #e4dac9;
+  /* A focus ring needs >=3:1 non-text contrast (WCAG 1.4.11) against the
+     surfaces it sits on — the raw --secondary teal (#4FB3A9) only manages
+     ~2.2-2.5:1 here against the light sand/white surfaces, so the ring uses
+     this darker teal instead (verified: ~4.1:1 vs background, ~4.7:1 vs
+     card). Dark mode's ring stays the brighter teal — it already clears
+     ~6.9:1 there. */
+  --ring: #357f79;
+
+  --sidebar: #efe7d9;
+  --sidebar-foreground: #2e2a5e;
+  --sidebar-primary: #2e2a5e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #dcefea;
+  --sidebar-accent-foreground: #1f5952;
+  --sidebar-border: #e4dac9;
+  --sidebar-ring: #357f79;
+}
+
+.sukoon.sukoon-dark {
+  --background: #1b1830;
+  --foreground: #f4ede3;
+  --card: #241f3f;
+  --card-foreground: #f4ede3;
+  --popover: #241f3f;
+  --popover-foreground: #f4ede3;
+
+  --primary: #a29bd9;
+  --primary-foreground: #1b1830;
+  --secondary: #4fb3a9;
+  --secondary-foreground: #0b241f;
+
+  --muted: #2a2547;
+  --muted-foreground: #b4aedd;
+  --accent: #33574f;
+  --accent-foreground: #cdede7;
+  --destructive: #e2938e;
+
+  --border: #362f55;
+  --input: #362f55;
+  --ring: #4fb3a9;
+
+  --sidebar: #201c3a;
+  --sidebar-foreground: #f4ede3;
+  --sidebar-primary: #a29bd9;
+  --sidebar-primary-foreground: #1b1830;
+  --sidebar-accent: #33574f;
+  --sidebar-accent-foreground: #cdede7;
+  --sidebar-border: #362f55;
+  --sidebar-ring: #4fb3a9;
+}
+
+/* Slow, breathing-paced motion — no snappy gamified transitions here. */
+.sukoon {
+  --sukoon-transition-slow: 700ms;
+}

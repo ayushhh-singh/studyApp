@@ -7,6 +7,14 @@ import { CacheableResponsePlugin } from "workbox-cacheable-response";
 
 declare const self: ServiceWorkerGlobalScope;
 
+// Statically replaced per build (same VITE_APP switch as vite.config.ts /
+// router.tsx / shell.tsx) — the SW is built through Vite's own pipeline even
+// under injectManifest, so this branch is resolved and dead-code-eliminated
+// at build time, not read at runtime.
+const IS_SUKOON = import.meta.env.VITE_APP === "sukoon";
+const OFFLINE_FALLBACK = IS_SUKOON ? "/sukoon-offline.html" : "/offline.html";
+const PUSH_ICON = IS_SUKOON ? "/pwa/sukoon-icon-192.png" : "/pwa/icon-192.png";
+
 cleanupOutdatedCaches();
 // self.__WB_MANIFEST is injected at build time (vite-plugin-pwa injectManifest)
 // with every hashed build asset — JS/CSS chunks, the Fontsource woff2 files,
@@ -50,7 +58,7 @@ registerRoute(
 // fallback page.
 setCatchHandler(async ({ request }) => {
   if (request.destination === "document") {
-    return (await matchPrecache("/index.html")) ?? (await matchPrecache("/offline.html")) ?? Response.error();
+    return (await matchPrecache("/index.html")) ?? (await matchPrecache(OFFLINE_FALLBACK)) ?? Response.error();
   }
   return Response.error();
 });
@@ -66,8 +74,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(payload.title, {
       body: payload.body,
-      icon: "/pwa/icon-192.png",
-      badge: "/pwa/icon-192.png",
+      icon: PUSH_ICON,
+      badge: PUSH_ICON,
       tag: payload.tag,
       data: { link: payload.link },
     }),

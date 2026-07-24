@@ -37,6 +37,8 @@ import { scoreboardRouter } from "./routes/scoreboard.js";
 import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./routes/billing.js";
 import { pushRouter } from "./routes/push.js";
 import { tourRouter } from "./routes/tour.js";
+import { sukoonRouter } from "./sukoon/routes/index.js";
+import { sukoonConfig } from "./sukoon/config.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
 import { initSentry } from "./lib/sentry.js";
@@ -104,6 +106,20 @@ app.use("/api/v1", healthRouter);
 
 // Public — the /pricing marketing page needs the plan list while signed out.
 app.use("/api/v1", billingPublicRouter);
+
+// Sukoon (wellness companion) is a self-contained module — its own /api/sukoon
+// namespace, deliberately outside /api/v1 and requireAuth's ordering, so it
+// stays mountable into any Express app unchanged (see CLAUDE.md's Sukoon
+// architecture rules). SUKOON_ENABLED is the kill switch for launch.
+if (sukoonConfig.enabled) {
+  app.use("/api/sukoon", sukoonRouter);
+  // Without this, an unmatched /api/sukoon/* path falls through to Express's
+  // default HTML 404 instead of the {data,error} JSON envelope every other
+  // route in this API guarantees — errorHandler (mounted once, globally, at
+  // the bottom of this file) already covers thrown errors from sukoonRouter
+  // itself; this only needs to cover the "no route matched at all" case.
+  app.use("/api/sukoon", notFoundHandler);
+}
 
 // Everything below requires a valid Supabase session. requireAuth verifies the
 // JWT, derives the user id, and binds it to the request's async context.

@@ -4,6 +4,15 @@ import { RefreshCw, WifiOff, X } from "lucide-react";
 import { useRegisterSW } from "virtual:pwa-register/react";
 import { Button } from "@/components/ui/button";
 
+// Mounted unconditionally regardless of build mode (see below), so the one
+// string here that names the app ("Neev is ready to work offline.") needs a
+// Sukoon-branded counterpart for the standalone build — confirmed live via a
+// vite-preview smoke test that this toast otherwise says "Neev" inside a
+// Sukoon-only PWA. Every OTHER Pwa.* string (install banner, push settings)
+// lives in components only ever mounted inside Neev's app-shell, which never
+// exists in a standalone Sukoon build, so they need no equivalent branch.
+const IS_SUKOON_STANDALONE = import.meta.env.VITE_APP === "sukoon";
+
 /**
  * Mounted once at the app root (not inside app-shell, so it also covers the
  * public/auth routes). registerType:'prompt' means a new SW build sits
@@ -51,7 +60,9 @@ export function PwaUpdateToast() {
     return (
       <div className="fixed inset-x-4 bottom-4 z-50 mx-auto flex max-w-sm items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-lg sm:inset-x-auto sm:right-4">
         <WifiOff className="size-4 shrink-0 text-tulsi" aria-hidden />
-        <p className="flex-1 text-sm">{t("Pwa.offlineReady")}</p>
+        <p className="flex-1 text-sm">
+          {t(IS_SUKOON_STANDALONE ? "Sukoon.pwaOfflineReady" : "Pwa.offlineReady")}
+        </p>
       </div>
     );
   }

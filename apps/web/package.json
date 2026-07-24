@@ -9,7 +9,9 @@
     "prerender": "node scripts/prerender.mjs",
     "build:ci": "pnpm build && pnpm prerender",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:sukoon": "VITE_APP=sukoon vite",
+    "build:sukoon": "tsc -b && VITE_APP=sukoon vite build"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.2.8",

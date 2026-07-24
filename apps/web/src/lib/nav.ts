@@ -12,6 +12,7 @@ import {
   MessagesSquare,
   StickyNote,
   Compass,
+  HeartHandshake,
   type LucideIcon,
 } from "lucide-react";
 
@@ -44,6 +45,9 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "my-notes", to: "my-notes", labelKey: "Nav.myNotes", icon: StickyNote },
   { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain },
   { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
+  // Sukoon has its own shell (src/sukoon/shell.tsx) — this just routes there;
+  // it's a real Neev nav item, not nested app-shell content.
+  { id: "wellness", to: "sukoon", labelKey: "Nav.wellness", icon: HeartHandshake },
   // The tour's permanent discovery surface — deliberately a real nav item
   // (not buried in Settings) so it's trivially findable on demand at any time.
   { id: "explore", to: "explore", labelKey: "Nav.explore", icon: Compass },

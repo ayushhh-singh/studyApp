@@ -1,11 +1,61 @@
 import path from 'node:path'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// Build command for the standalone Sukoon deployable (own manifest/branding,
+// Neev nav never in the bundle — see router.tsx's IS_SUKOON_STANDALONE):
+//   VITE_APP=sukoon pnpm --filter web build   (or `pnpm --filter web dev:sukoon` locally)
+// Plain `pnpm --filter web build` (VITE_APP unset) keeps building Neev, unchanged.
+
+const NEEV_MANIFEST = {
+  name: 'Neev — UPPSC Exam Prep',
+  short_name: 'Neev',
+  description:
+    'AI answer-writing evaluation, PYQ practice, and syllabus-mapped study for UPPSC (UP PCS) aspirants.',
+  lang: 'en',
+  dir: 'ltr' as const,
+  start_url: '/en/dashboard',
+  scope: '/',
+  display: 'standalone' as const,
+  theme_color: '#2563EB',
+  background_color: '#F7F9FC',
+  icons: [
+    { src: '/pwa/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
+    { src: '/pwa/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' as const },
+    { src: '/pwa/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
+    { src: '/pwa/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' as const },
+  ],
+}
+
+// Placeholder branding (public/sukoon-mark.svg + generate-sukoon-pwa-icons.mjs)
+// — replace both before any real Sukoon deploy.
+const SUKOON_MANIFEST = {
+  name: 'Sukoon — Wellness Companion',
+  short_name: 'Sukoon',
+  description: 'A calm space for exam stress: journaling, mood check-ins, and a companion to talk things through.',
+  lang: 'en',
+  dir: 'ltr' as const,
+  start_url: '/',
+  scope: '/',
+  display: 'standalone' as const,
+  theme_color: '#2E2A5E',
+  background_color: '#F4EDE3',
+  icons: [
+    { src: '/pwa/sukoon-icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' as const },
+    { src: '/pwa/sukoon-icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' as const },
+    { src: '/pwa/sukoon-icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' as const },
+    { src: '/pwa/sukoon-icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' as const },
+  ],
+}
+
 // https://vite.dev/config/
-export default defineConfig({
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  const isSukoon = env.VITE_APP === 'sukoon'
+
+  return {
   plugins: [
     react(),
     tailwindcss(),
@@ -19,7 +69,9 @@ export default defineConfig({
         enabled: false, // injectManifest + dev SSR reload don't mix well; test PWA behavior against `vite build && vite preview`
         type: 'module',
       },
-      includeAssets: ['favicon.svg', 'offline.html', 'manifest.hi.webmanifest', 'pwa/*.png'],
+      includeAssets: isSukoon
+        ? ['sukoon-mark.svg', 'sukoon-offline.html', 'pwa/sukoon-icon*.png']
+        : ['favicon.svg', 'offline.html', 'manifest.hi.webmanifest', 'pwa/*.png'],
       injectManifest: {
         // Precache the app shell + hashed JS/CSS/font assets. Fonts are
         // Fontsource woff2 files bundled as hashed assets by Vite, so they're
@@ -27,25 +79,7 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
-      manifest: {
-        name: 'Neev — UPPSC Exam Prep',
-        short_name: 'Neev',
-        description:
-          'AI answer-writing evaluation, PYQ practice, and syllabus-mapped study for UPPSC (UP PCS) aspirants.',
-        lang: 'en',
-        dir: 'ltr',
-        start_url: '/en/dashboard',
-        scope: '/',
-        display: 'standalone',
-        theme_color: '#2563EB',
-        background_color: '#F7F9FC',
-        icons: [
-          { src: '/pwa/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/pwa/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/pwa/icon-maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/pwa/icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-        ],
-      },
+      manifest: isSukoon ? SUKOON_MANIFEST : NEEV_MANIFEST,
     }),
   ],
   resolve: {
@@ -87,4 +121,5 @@ export default defineConfig({
       },
     },
   },
+  }
 })

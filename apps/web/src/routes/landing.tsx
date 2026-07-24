@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, PenLine, Target, BookOpen, BarChart3, Check, Sparkles } from "lucide-react";
+import { ArrowRight, PenLine, Target, BookOpen, BarChart3, Check, Sparkles, HeartHandshake } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,24 @@ export function Component() {
               </Button>
               <p className="text-sm text-muted-foreground">{t("Landing.heroCtaption")}</p>
             </div>
+
+            {/* Wellness Companion — a second, deliberately calmer entry point
+                beside the primary CTA. Styled with a teal accent hinting at
+                Sukoon's own palette without pulling in its scoped theme (this
+                card lives on Neev's page, outside the .sukoon subtree). */}
+            <Link
+              to={`/${locale}/sukoon`}
+              className="mt-4 flex max-w-md items-center gap-3 rounded-2xl border border-[#4FB3A9]/30 bg-[#4FB3A9]/8 px-4 py-3 transition-colors hover:bg-[#4FB3A9]/12"
+            >
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-[#4FB3A9]/15 text-[#2E2A5E]">
+                <HeartHandshake className="size-4.5" aria-hidden />
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm font-semibold text-foreground">{t("Landing.wellnessCardTitle")}</span>
+                <span className="text-xs text-muted-foreground">{t("Landing.wellnessCardSub")}</span>
+              </span>
+              <ArrowRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
+            </Link>
           </div>
 
           {/* Hero visual: the flagship evaluation, anchored by the Rubric Dial */}

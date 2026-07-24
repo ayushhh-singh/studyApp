@@ -1,12 +1,34 @@
-import { createBrowserRouter, redirect } from "react-router";
+import { createBrowserRouter, redirect, type RouteObject } from "react-router";
 import { DEFAULT_LOCALE } from "@/lib/locale";
 import { Component as AppErrorBoundary } from "@/components/app-shell/app-error-boundary";
+import { createSukoonRoute } from "@/sukoon/routes";
 
 function RedirectPending() {
   return null;
 }
 
-export const router = createBrowserRouter([
+// Build-time switch: VITE_APP=sukoon (apps/web/package.json's build:sukoon /
+// dev:sukoon scripts) produces a standalone deployable that mounts ONLY the
+// Sukoon module, at "/", with no Neev route ever reachable in that bundle —
+// see vite.config.ts for the matching PWA-manifest branch.
+const IS_SUKOON_STANDALONE = import.meta.env.VITE_APP === "sukoon";
+
+// createBrowserRouter attaches a history listener at CONSTRUCTION time, not
+// at RouterProvider mount — building both trees unconditionally and picking
+// one after the fact would leave two competing listeners on the same browser
+// history. So only one config array is ever actually passed to
+// createBrowserRouter, chosen below by IS_SUKOON_STANDALONE.
+const standaloneRouteConfig: RouteObject[] = [
+  { ...createSukoonRoute("/"), ErrorBoundary: AppErrorBoundary, HydrateFallback: RedirectPending },
+  {
+    path: "*",
+    loader: () => redirect("/"),
+    Component: RedirectPending,
+    HydrateFallback: RedirectPending,
+  },
+];
+
+const integratedRouteConfig: RouteObject[] = [
   {
     path: "/",
     loader: ({ request }) => {
@@ -39,6 +61,13 @@ export const router = createBrowserRouter([
       // reachable signed-out from the landing/app-shell footer.
       { path: "about", lazy: () => import("@/routes/about") },
       { path: "faq", lazy: () => import("@/routes/faq") },
+      // Wellness Companion — own shell (sidebar/bottom-nav), deliberately a
+      // sibling here rather than nested under app-shell/RequireAuth below: it
+      // has its own chrome (doubling up Neev's would be wrong) and must stay
+      // reachable pre-login from the public homepage's Wellness card
+      // (routes/landing.tsx). Still gets the shared Supabase session for
+      // free when signed in, since AuthProvider wraps the whole router.
+      createSukoonRoute("sukoon"),
       // Everything below requires a signed-in session (RequireAuth also gates
       // the onboarding wizard: unfinished onboarding is redirected to it).
       {
@@ -146,4 +175,8 @@ export const router = createBrowserRouter([
     Component: RedirectPending,
     HydrateFallback: RedirectPending,
   },
-]);
+];
+
+export const router = createBrowserRouter(
+  IS_SUKOON_STANDALONE ? standaloneRouteConfig : integratedRouteConfig,
+);

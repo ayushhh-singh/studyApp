@@ -20,6 +20,7 @@
     "community": "Community",
     "scoreboard": "Scoreboard",
     "myNotes": "My Notes",
+    "wellness": "Wellness",
     "explore": "Explore"
   },
   "TopBar": {
@@ -1203,6 +1204,8 @@
     "heroTitleEn": "AI evaluation for your UPPSC Mains answers",
     "heroSub": "Write typed or upload a handwritten answer. Get a UPPSC-style rubric score, examiner-grade feedback, and a model answer — in Hindi or English, in seconds.",
     "heroCtaption": "Free to start · No card needed",
+    "wellnessCardTitle": "Wellness Companion — सुकून",
+    "wellnessCardSub": "A calm space for exam stress, journaling, and mood check-ins.",
     "heroCardLabel": "Answer evaluation",
     "heroCardScore": "Score",
     "dimStructure": "Structure",
@@ -1549,5 +1552,34 @@
     "faq": "FAQ",
     "pricing": "Pricing",
     "support": "Support"
+  },
+  "Sukoon": {
+    "brand": "Sukoon",
+    "navLabel": "Sukoon sections",
+    "navHome": "Home",
+    "navSaathi": "Saathi",
+    "navJournal": "Journal",
+    "navTools": "Tools",
+    "navYou": "You",
+    "backToNeev": "Back to Neev",
+    "languageToggle": "Switch language",
+    "disclaimer": "Sukoon is a wellness companion, not a substitute for professional mental health care. In a crisis, call Tele-MANAS on 14416.",
+    "comingSoonTitle": "Coming soon",
+    "homeTitle": "Welcome to Sukoon",
+    "homeSub": "A calm space to check in with yourself between study sessions.",
+    "homeComingSoon": "Your daily check-in, garden, and quick exercises will live here.",
+    "saathiTitle": "Saathi",
+    "saathiSub": "A warm, judgment-free companion to talk things through.",
+    "saathiComingSoon": "Chat with Saathi is coming soon.",
+    "journalTitle": "Journal",
+    "journalSub": "Write freely, or follow a gentle daily prompt.",
+    "journalComingSoon": "Journaling — free-write, guided prompts, and mood tags — is coming soon.",
+    "toolsTitle": "Tools",
+    "toolsSub": "Breathing, grounding, and calming exercises for exam stress.",
+    "toolsComingSoon": "Breathing exercises, grounding, and guided meditations are coming soon.",
+    "youTitle": "You",
+    "youSub": "Your check-ins, streaks, and privacy settings.",
+    "youComingSoon": "Mood history, wellbeing check-ins, and settings are coming soon.",
+    "pwaOfflineReady": "Sukoon is ready to work offline."
   }
 }
