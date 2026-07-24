@@ -62,7 +62,7 @@ function nodeLine(node: NodeContext): string {
   return `Topic: ${node.title_i18n.en}${desc ? ` — ${desc}` : ""}\nPaper: ${node.paperCode} (${node.stage})`;
 }
 
-function fewShotBlock(examples: FewShotQuestion[]): string {
+export function fewShotBlock(examples: FewShotQuestion[]): string {
   if (examples.length === 0) {
     return "No sample past-year questions were available for this exact topic; follow the general UPPSC style described above.";
   }

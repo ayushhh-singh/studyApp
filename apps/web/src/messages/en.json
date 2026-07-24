@@ -741,6 +741,8 @@
     },
     "willPublish": "Will publish",
     "wontPublish": "Incomplete — won’t publish",
+    "reReviewLive": "Live — re-review",
+    "reReviewNotice": "This question is already live. It was flagged for a second look against the current exam-worthiness bar:",
     "correctAnswer": "Correct answer",
     "question": "Question",
     "explanation": "Explanation",

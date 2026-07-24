@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Check, X, AlertTriangle, ShieldQuestion } from "lucide-react";
+import { Check, X, AlertTriangle, ShieldQuestion, RefreshCw } from "lucide-react";
 import type { Difficulty, ReviewQuestion } from "@neev/shared";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { cn } from "@/lib/utils";
@@ -32,6 +32,7 @@ export function ReviewCard({ question: q }: { question: ReviewQuestion }) {
   const meta = q.generation_meta;
   const critic = meta?.critic;
   const verify = meta?.verify_result;
+  const reReview = meta?.re_review;
 
   return (
     <div className="flex flex-col gap-4">
@@ -40,6 +41,11 @@ export function ReviewCard({ question: q }: { question: ReviewQuestion }) {
         <Chip className="bg-primary/10 text-primary">{q.paper_code}</Chip>
         <Chip className="bg-muted text-muted-foreground uppercase">{q.type}</Chip>
         <Chip className={DIFFICULTY_STYLE[q.difficulty]}>{t(`Review.difficulty.${q.difficulty}`)}</Chip>
+        {reReview && (
+          <Chip className="bg-marigold/15 text-marigold-foreground">
+            <RefreshCw className="size-3" /> {t("Review.reReviewLive")}
+          </Chip>
+        )}
         {q.syllabus_title_i18n && (
           <span className="text-xs text-muted-foreground">{q.syllabus_title_i18n.en}</span>
         )}
@@ -55,6 +61,13 @@ export function ReviewCard({ question: q }: { question: ReviewQuestion }) {
           )}
         </span>
       </div>
+
+      {/* re-review notice — a LIVE question flagged for a second look, not fresh output */}
+      {reReview && (
+        <div className="rounded-lg border border-marigold/40 bg-marigold/5 p-3 text-xs text-marigold-foreground">
+          {t("Review.reReviewNotice")} {reReview.reason}
+        </div>
+      )}
 
       {/* stem */}
       <div>
