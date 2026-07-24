@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
 import { useAmbientChannel } from "@/sukoon/lib/use-ambient-channel";
+import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
 import { ToolPlayerFrame } from "@/sukoon/components/tools/tool-player-frame";
 import { BreathingCircle } from "@/sukoon/components/tools/breathing-circle";
 import { CompletionScreen } from "@/sukoon/components/tools/completion-screen";
@@ -64,6 +65,7 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
   });
 
   const session = useExerciseSession(exercise.id);
+  const { returnTo, finish } = useToolReturnTo();
   useAmbientChannel(config.default_ambient ?? "rain", ambientOn && !!config.default_ambient, 0.3);
 
   useEffect(() => {
@@ -122,8 +124,12 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
           ]}
           onRestart={restart}
           restartLabel={t("Sukoon.tools.doAgain")}
-          onDone={() => setState({ phaseIdx: 0, cycle: 1, remaining: activePhases[0]?.seconds ?? 0, running: false, done: false })}
-          doneLabel={t("Sukoon.tools.backToTools")}
+          onDone={
+            returnTo
+              ? finish
+              : () => setState({ phaseIdx: 0, cycle: 1, remaining: activePhases[0]?.seconds ?? 0, running: false, done: false })
+          }
+          doneLabel={returnTo ? t("Sukoon.tools.backToJourney") : t("Sukoon.tools.backToTools")}
         />
       </div>
     );

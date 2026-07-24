@@ -15,6 +15,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
 import { useResolvedAudioSrc } from "@/sukoon/lib/use-resolved-audio-src";
+import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
 import { ToolPlayerFrame } from "@/sukoon/components/tools/tool-player-frame";
 import { AudioPlayer } from "@/sukoon/components/tools/audio-player";
 import { PinAudioButton } from "@/sukoon/components/tools/pin-audio-button";
@@ -31,6 +32,7 @@ function TextGuidedPmr({ exercise }: { exercise: Extract<SukoonExercise, { type:
   const { t, language } = useSukoonLanguage();
   const { segments } = exercise.config;
   const session = useExerciseSession(exercise.id);
+  const { returnTo, finish } = useToolReturnTo();
   const [started, setStarted] = useState(false);
   const [state, setState] = useState<PmrState>({
     idx: 0,
@@ -73,8 +75,8 @@ function TextGuidedPmr({ exercise }: { exercise: Extract<SukoonExercise, { type:
         description={t("Sukoon.tools.pmr.doneBody")}
         onRestart={start}
         restartLabel={t("Sukoon.tools.doAgain")}
-        onDone={() => setStarted(false)}
-        doneLabel={t("Sukoon.tools.backToTools")}
+        onDone={returnTo ? finish : () => setStarted(false)}
+        doneLabel={returnTo ? t("Sukoon.tools.backToJourney") : t("Sukoon.tools.backToTools")}
       />
     );
   }
@@ -144,6 +146,7 @@ function AudioGuidedPmr({
   const title = language === "hi" ? exercise.title_hi : exercise.title_en;
   const session = useExerciseSession(exercise.id);
   const resolved = useResolvedAudioSrc(exercise.id, language, hasAudio);
+  const { finish } = useToolReturnTo();
   const [started, setStarted] = useState(false);
 
   if (resolved.status !== "ready") {
@@ -160,7 +163,10 @@ function AudioGuidedPmr({
           setStarted(true);
           session.start();
         }}
-        onEnded={() => session.complete(exercise.config.segments.reduce((s, seg) => s + seg.seconds, 0))}
+        onEnded={() => {
+          session.complete(exercise.config.segments.reduce((s, seg) => s + seg.seconds, 0));
+          finish();
+        }}
       />
       <div className="flex justify-center">
         <PinAudioButton exerciseId={exercise.id} lang={language} label={title} signedUrl={resolved.signedUrl} />

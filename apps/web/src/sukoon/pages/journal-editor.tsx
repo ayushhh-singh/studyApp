@@ -32,6 +32,16 @@ interface DraftShape {
   promptId: string | null;
 }
 
+/** A journey's journal_prompt step seeds inline prompt text that has no real
+ *  sukoon_journal_prompts row (blueprint F7) — shown the same way as a picked
+ *  catalog prompt, but never sent as `prompt_id` (there is no id to send). */
+interface JourneySeed {
+  journeyPrompt?: { text_hi: string; text_en: string };
+  /** Where to navigate after saving, back into the journey's day player,
+   *  instead of the normal "view the new entry" destination. */
+  returnTo?: string;
+}
+
 export function Component() {
   const { t, language } = useSukoonLanguage();
   const { locale, entryId } = useParams<{ locale?: string; entryId?: string }>();
@@ -50,9 +60,12 @@ export function Component() {
   const [body, setBody] = useState("");
   const [mood, setMood] = useState<number | null>(null);
   const [tags, setTags] = useState<string[]>([]);
+  const journeySeed = location.state as JourneySeed | null;
   const [prompt, setPrompt] = useState<SukoonJournalPrompt | null>(
     (location.state as { prompt?: SukoonJournalPrompt } | null)?.prompt ?? null,
   );
+  const journeyPrompt = journeySeed?.journeyPrompt ?? null;
+  const journeyReturnTo = journeySeed?.returnTo ?? null;
   const [hydrated, setHydrated] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -121,7 +134,7 @@ export function Component() {
         id = res.entry.id;
       }
       localStorage.removeItem(draftKey);
-      navigate(`${base}/journal/${id}`, { replace: true });
+      navigate(journeyReturnTo ?? `${base}/journal/${id}`, { replace: true });
     } catch {
       /* mutation error is surfaced below via isError */
     }
@@ -197,7 +210,16 @@ export function Component() {
         </Button>
       </div>
 
-      {prompt ? (
+      {journeyPrompt ? (
+        <div className="rounded-2xl border border-secondary/40 bg-secondary/10 p-3">
+          <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-secondary">
+            {t("Sukoon.journal.writingOn")}
+          </p>
+          <p className="text-sm leading-relaxed text-foreground">
+            {language === "hi" ? journeyPrompt.text_hi : journeyPrompt.text_en}
+          </p>
+        </div>
+      ) : prompt ? (
         <div className="rounded-2xl border border-secondary/40 bg-secondary/10 p-3">
           <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-secondary">
             {t("Sukoon.journal.writingOn")}

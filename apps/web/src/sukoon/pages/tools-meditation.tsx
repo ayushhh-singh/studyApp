@@ -14,6 +14,7 @@ import { Skeleton } from "@/components/ui-x/skeleton";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
 import { useResolvedAudioSrc } from "@/sukoon/lib/use-resolved-audio-src";
+import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
 import { ToolPlayerFrame } from "@/sukoon/components/tools/tool-player-frame";
 import { AudioPlayer } from "@/sukoon/components/tools/audio-player";
 import { PinAudioButton } from "@/sukoon/components/tools/pin-audio-button";
@@ -26,6 +27,7 @@ function MeditationPlayer({ exercise }: { exercise: Extract<SukoonExercise, { ty
   const hasAudio = language === "hi" ? exercise.has_audio_hi : exercise.has_audio_en;
   const session = useExerciseSession(exercise.id);
   const resolved = useResolvedAudioSrc(exercise.id, language, hasAudio);
+  const { finish } = useToolReturnTo();
   const startedRef = useRef(false);
   const handleFirstPlay = () => {
     if (startedRef.current) return;
@@ -67,7 +69,10 @@ function MeditationPlayer({ exercise }: { exercise: Extract<SukoonExercise, { ty
             src={resolved.src}
             title={title}
             onPlay={handleFirstPlay}
-            onEnded={() => session.complete(exercise.config.duration_min * 60)}
+            onEnded={() => {
+              session.complete(exercise.config.duration_min * 60);
+              finish();
+            }}
           />
           <div className="flex justify-center">
             <PinAudioButton exerciseId={exercise.id} lang={language} label={title} signedUrl={resolved.signedUrl} />

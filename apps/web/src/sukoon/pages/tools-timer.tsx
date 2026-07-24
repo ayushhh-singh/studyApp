@@ -11,6 +11,7 @@ import { Progress } from "@/components/ui/progress";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
+import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
 import { playSingingBowlChime } from "@/sukoon/lib/sukoon-audio-synth";
 import { ToolPlayerFrame } from "@/sukoon/components/tools/tool-player-frame";
 import { AmbientMixer } from "@/sukoon/components/tools/ambient-mixer";
@@ -28,6 +29,7 @@ function TimerPlayer({ exercise }: { exercise: Extract<SukoonExercise, { type: "
   const base = locale ? `/${locale}/sukoon` : "";
   const { config } = exercise;
   const session = useExerciseSession(exercise.id);
+  const { returnTo, finish } = useToolReturnTo();
 
   const [minutes, setMinutes] = useState(config.default_duration_min);
   const [remaining, setRemaining] = useState(0);
@@ -76,8 +78,8 @@ function TimerPlayer({ exercise }: { exercise: Extract<SukoonExercise, { type: "
           stats={[{ label: t("Sukoon.tools.stats.minutes"), value: String(minutes) }]}
           onRestart={start}
           restartLabel={t("Sukoon.tools.doAgain")}
-          onDone={() => setStarted(false)}
-          doneLabel={t("Sukoon.tools.backToTools")}
+          onDone={returnTo ? finish : () => setStarted(false)}
+          doneLabel={returnTo ? t("Sukoon.tools.backToJourney") : t("Sukoon.tools.backToTools")}
         />
       </div>
     );

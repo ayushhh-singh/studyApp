@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
+import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
 import { ToolPlayerFrame } from "@/sukoon/components/tools/tool-player-frame";
 import { CompletionScreen } from "@/sukoon/components/tools/completion-screen";
 
@@ -32,6 +33,7 @@ function GroundingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
   const [notes, setNotes] = useState<Record<number, string>>({});
   const [done, setDone] = useState(false);
   const session = useExerciseSession(exercise.id);
+  const { returnTo, finish } = useToolReturnTo();
 
   const start = () => {
     session.start();
@@ -57,11 +59,15 @@ function GroundingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
           description={t("Sukoon.tools.grounding.doneBody")}
           onRestart={start}
           restartLabel={t("Sukoon.tools.doAgain")}
-          onDone={() => {
-            setStarted(false);
-            setNotes({});
-          }}
-          doneLabel={t("Sukoon.tools.backToTools")}
+          onDone={
+            returnTo
+              ? finish
+              : () => {
+                  setStarted(false);
+                  setNotes({});
+                }
+          }
+          doneLabel={returnTo ? t("Sukoon.tools.backToJourney") : t("Sukoon.tools.backToTools")}
         />
       </div>
     );

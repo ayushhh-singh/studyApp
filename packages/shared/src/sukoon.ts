@@ -858,6 +858,9 @@ export type SukoonExerciseAudioLang = z.infer<typeof sukoonExerciseAudioLangSche
  */
 const exerciseCommonFields = {
   id: z.string().uuid(),
+  /** The stable seed key (0084) — how a journey's exercise_ref step (F7)
+   *  cross-references a catalog entry without hardcoding its uuid. */
+  key: z.string().nullable(),
   title_hi: z.string(),
   title_en: z.string(),
   has_audio_hi: z.boolean(),
@@ -910,3 +913,320 @@ export const sukoonExerciseSessionResponseSchema = apiEnvelopeSchema(
   z.object({ session: sukoonExerciseSessionSchema }),
 );
 export type SukoonExerciseSessionResponse = z.infer<typeof sukoonExerciseSessionResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// F7 — Guided Journeys (multi-day exam-stress programs). Shared because the
+// ADMIN content-queue (paste/upload → validate → preview → publish), the
+// catalog/detail/day-player frontend, and the backend content loader all need
+// the exact same "journey → days → steps" document shape. Every content node
+// carries BOTH `_hi` and `_en` text (SUKOON_CONTEXT's bilingual rule) — there is
+// no locale-conditional field anywhere in this section.
+//
+// Content is authored/validated as ONE JSON document (`sukoonJourneyContentSchema`)
+// then exploded by the backend into sukoon_journeys (title/description/premium)
+// + sukoon_journey_steps (one row per step, `day`/`step_order` as real columns,
+// the rest of the step's fields in `content_json`) — see chapter-persist.ts's
+// "one document in, several rows out" precedent in the Notes feature.
+// ---------------------------------------------------------------------------
+
+/** A stable, admin-authorable slug — also how the FE finds the fixed "Exam-Eve
+ *  Panic" journey (see SUKOON_EXAM_EVE_JOURNEY_SLUG below) without a hardcoded id. */
+export const sukoonJourneySlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(80)
+  .regex(/^[a-z0-9_]+$/, "lowercase letters, numbers, and underscores only");
+
+/** The fixed slug of the single-session "Exam-Eve Panic" journey (blueprint F7 #1)
+ *  — instantly available the day before an exam, exempt from day-locking by
+ *  construction (a 1-day journey has no "next day" to lock). Sukoon Home and
+ *  Saathi both key off this constant to surface it, rather than hardcoding a uuid. */
+export const SUKOON_EXAM_EVE_JOURNEY_SLUG = "exam_eve_panic";
+
+export const SUKOON_JOURNEY_STEP_TYPES = [
+  "read",
+  "exercise_ref",
+  "journal_prompt",
+  "saathi_checkin",
+  "checkin_scale",
+] as const;
+export const sukoonJourneyStepTypeSchema = z.enum(SUKOON_JOURNEY_STEP_TYPES);
+export type SukoonJourneyStepType = z.infer<typeof sukoonJourneyStepTypeSchema>;
+
+const stepCommonFields = {
+  title_hi: z.string().trim().min(1).max(140),
+  title_en: z.string().trim().min(1).max(140),
+};
+
+/** checkin_scale's labeled Likert scale — kept small (a wellness check-in, not a
+ *  survey instrument); label arrays must exactly cover `min..max` inclusive.
+ *  Plain object (no per-object .refine — that would turn it into a ZodEffects,
+ *  which z.discriminatedUnion rejects); the scale-invariant checks are applied
+ *  as a .superRefine on the WHOLE union below instead. */
+const scaleStepSchema = z.object({
+  type: z.literal("checkin_scale"),
+  ...stepCommonFields,
+  question_hi: z.string().trim().min(1).max(280),
+  question_en: z.string().trim().min(1).max(280),
+  scale_min: z.number().int().min(0).max(10),
+  scale_max: z.number().int().min(1).max(10),
+  scale_labels_hi: z.array(z.string().trim().min(1).max(40)).min(2).max(11),
+  scale_labels_en: z.array(z.string().trim().min(1).max(40)).min(2).max(11),
+});
+
+/** The per-type CONTENT fields an admin authors — no id/day/step_order (those
+ *  become real sukoon_journey_steps columns once persisted; see sukoonJourneyStepSchema). */
+export const sukoonJourneyStepContentSchema = z
+  .discriminatedUnion("type", [
+    z.object({
+      type: z.literal("read"),
+      ...stepCommonFields,
+      body_hi: z.string().trim().min(1).max(4000),
+      body_en: z.string().trim().min(1).max(4000),
+    }),
+    z.object({
+      type: z.literal("exercise_ref"),
+      ...stepCommonFields,
+      // References sukoon_exercises.key (a stable human-authorable seed key —
+      // see 0084's seed convention), NOT a uuid, so an admin can author this by
+      // hand; the backend resolves + validates it exists at upsert time.
+      exercise_key: z.string().trim().min(1).max(80),
+    }),
+    z.object({
+      type: z.literal("journal_prompt"),
+      ...stepCommonFields,
+      prompt_hi: z.string().trim().min(1).max(500),
+      prompt_en: z.string().trim().min(1).max(500),
+    }),
+    z.object({
+      type: z.literal("saathi_checkin"),
+      ...stepCommonFields,
+      // The message Saathi's chat opens with when this step deep-links in —
+      // sent as the FIRST user turn, exactly like tapping a starter chip.
+      seed_message_hi: z.string().trim().min(1).max(500),
+      seed_message_en: z.string().trim().min(1).max(500),
+    }),
+    scaleStepSchema,
+  ])
+  .superRefine((d, ctx) => {
+    if (d.type !== "checkin_scale") return;
+    if (d.scale_max <= d.scale_min) {
+      ctx.addIssue({ code: "custom", message: "scale_max must be greater than scale_min", path: ["scale_max"] });
+    }
+    const expected = d.scale_max - d.scale_min + 1;
+    if (d.scale_labels_hi.length !== expected) {
+      ctx.addIssue({
+        code: "custom",
+        message: `scale_labels_hi must have exactly ${expected} entries`,
+        path: ["scale_labels_hi"],
+      });
+    }
+    if (d.scale_labels_en.length !== expected) {
+      ctx.addIssue({
+        code: "custom",
+        message: `scale_labels_en must have exactly ${expected} entries`,
+        path: ["scale_labels_en"],
+      });
+    }
+  });
+export type SukoonJourneyStepContent = z.infer<typeof sukoonJourneyStepContentSchema>;
+
+export const sukoonJourneyDayContentSchema = z.object({
+  day: z.number().int().min(1).max(31),
+  steps: z.array(sukoonJourneyStepContentSchema).min(1).max(20),
+});
+export type SukoonJourneyDayContent = z.infer<typeof sukoonJourneyDayContentSchema>;
+
+/**
+ * The whole admin-authored document (paste/upload → validate → preview →
+ * publish). `days` must be exactly 1..N, contiguous and in order — the loader
+ * refuses a gap or an out-of-order day rather than silently reordering it, so
+ * what an admin sees in the preview is exactly what gets persisted.
+ */
+export const sukoonJourneyContentSchema = z
+  .object({
+    slug: sukoonJourneySlugSchema,
+    title_hi: z.string().trim().min(1).max(140),
+    title_en: z.string().trim().min(1).max(140),
+    description_hi: z.string().trim().min(1).max(600),
+    description_en: z.string().trim().min(1).max(600),
+    premium: z.boolean().default(false),
+    days: z.array(sukoonJourneyDayContentSchema).min(1).max(31),
+  })
+  .refine(
+    (d) => d.days.every((day, i) => day.day === i + 1),
+    { message: "days must be numbered 1..N with no gaps, in order", path: ["days"] },
+  );
+export type SukoonJourneyContent = z.infer<typeof sukoonJourneyContentSchema>;
+
+/** A persisted step as returned to the client — content fields + where it lives. */
+export const sukoonJourneyStepSchema = z.intersection(
+  sukoonJourneyStepContentSchema,
+  z.object({ id: z.string().uuid(), day: z.number().int(), step_order: z.number().int() }),
+);
+export type SukoonJourneyStep = z.infer<typeof sukoonJourneyStepSchema>;
+
+/** One day's step count — the catalog/detail's per-day summary (progress dots). */
+export const sukoonJourneyDaySummarySchema = z.object({
+  day: z.number().int(),
+  step_count: z.number().int(),
+});
+export type SukoonJourneyDaySummary = z.infer<typeof sukoonJourneyDaySummarySchema>;
+
+/** Per-user progress on one journey (sukoon_journey_progress). */
+export const sukoonJourneyProgressSchema = z.object({
+  journey_id: z.string().uuid(),
+  started_at: z.string(),
+  completed_at: z.string().nullable(),
+  /** The furthest day unlocked as of now (day-locking: min(days, elapsed_calendar_days+1)). */
+  current_unlocked_day: z.number().int(),
+  completed_step_ids: z.array(z.string().uuid()),
+  reflection: z.string().nullable(),
+  reflection_at: z.string().nullable(),
+});
+export type SukoonJourneyProgress = z.infer<typeof sukoonJourneyProgressSchema>;
+
+/** GET /journeys — the catalog. `locked` is resolved server-side from tier
+ *  (same pattern as sukoonExerciseSchema); `progress` is null pre-start. */
+export const sukoonJourneySchema = z.object({
+  id: z.string().uuid(),
+  slug: sukoonJourneySlugSchema,
+  title_hi: z.string(),
+  title_en: z.string(),
+  description_hi: z.string(),
+  description_en: z.string(),
+  days: z.number().int(),
+  total_steps: z.number().int(),
+  premium: z.boolean(),
+  locked: z.boolean(),
+  version: z.number().int(),
+  progress: sukoonJourneyProgressSchema.nullable(),
+});
+export type SukoonJourney = z.infer<typeof sukoonJourneySchema>;
+
+export const sukoonJourneysResponseSchema = apiEnvelopeSchema(
+  z.object({ journeys: z.array(sukoonJourneySchema) }),
+);
+export type SukoonJourneysResponse = z.infer<typeof sukoonJourneysResponseSchema>;
+
+/** GET /journeys/:slug — detail (catalog row + per-day step counts). */
+export const sukoonJourneyDetailResponseSchema = apiEnvelopeSchema(
+  z.object({ journey: sukoonJourneySchema, days_summary: z.array(sukoonJourneyDaySummarySchema) }),
+);
+export type SukoonJourneyDetailResponse = z.infer<typeof sukoonJourneyDetailResponseSchema>;
+
+/** POST /journeys/:slug/start — idempotent while in progress; RESTARTS
+ *  (blueprint: "re-take anytime") when the prior run is already completed_at. */
+export const sukoonJourneyProgressResponseSchema = apiEnvelopeSchema(
+  z.object({ progress: sukoonJourneyProgressSchema }),
+);
+export type SukoonJourneyProgressResponse = z.infer<typeof sukoonJourneyProgressResponseSchema>;
+
+/**
+ * GET /journeys/:slug/today and POST /journeys/:slug/steps/:stepId/complete
+ * share this shape — the one contract the day player renders from. `state`:
+ *   not_started → the player should offer "Start"
+ *   step        → `step` is the next thing to do (day <= current_unlocked_day)
+ *   day_locked  → everything unlocked so far is done; `next_unlock_at` is when
+ *                 the next day opens (a 1-day journey can never reach this state)
+ *   completed   → every day/step is done; the player shows the completion
+ *                 celebration + (if not yet saved) the reflection prompt
+ */
+export const sukoonJourneyStateSchema = z.enum(["not_started", "step", "day_locked", "completed"]);
+export type SukoonJourneyState = z.infer<typeof sukoonJourneyStateSchema>;
+
+export const sukoonJourneyTodayResponseSchema = apiEnvelopeSchema(
+  z.object({
+    state: sukoonJourneyStateSchema,
+    progress: sukoonJourneyProgressSchema.nullable(),
+    step: sukoonJourneyStepSchema.nullable(),
+    next_unlock_at: z.string().nullable(),
+  }),
+);
+export type SukoonJourneyTodayResponse = z.infer<typeof sukoonJourneyTodayResponseSchema>;
+
+/** POST /journeys/:slug/steps/:stepId/complete — `response` is an optional
+ *  free-form answer (a checkin_scale pick, a journal-written flag, …), stored
+ *  in sukoon_journey_progress.step_responses keyed by step id. Idempotent —
+ *  completing an already-completed step is a no-op that just re-returns state. */
+export const sukoonJourneyCompleteStepBodySchema = z.object({
+  response: z.union([z.string().max(2000), z.number(), z.boolean()]).nullable().optional(),
+});
+export type SukoonJourneyCompleteStepBody = z.infer<typeof sukoonJourneyCompleteStepBodySchema>;
+
+/** POST /journeys/:slug/reflection — only allowed once the journey is
+ *  completed (blueprint: "completion reflection save"). */
+export const sukoonJourneyReflectionBodySchema = z.object({
+  reflection: z.string().trim().min(1).max(2000),
+});
+export type SukoonJourneyReflectionBody = z.infer<typeof sukoonJourneyReflectionBodySchema>;
+
+// --- Admin content queue (paste/upload → validate → preview → publish) -----
+
+/** GET /admin/journeys — the queue's list row (draft + published, one place
+ *  to see every journey's state before deciding what to touch). */
+export const sukoonJourneyAdminSummarySchema = z.object({
+  id: z.string().uuid(),
+  slug: sukoonJourneySlugSchema,
+  title_hi: z.string(),
+  title_en: z.string(),
+  description_hi: z.string(),
+  description_en: z.string(),
+  days: z.number().int(),
+  total_steps: z.number().int(),
+  premium: z.boolean(),
+  version: z.number().int(),
+  published: z.boolean(),
+});
+export type SukoonJourneyAdminSummary = z.infer<typeof sukoonJourneyAdminSummarySchema>;
+
+export const sukoonJourneyAdminListResponseSchema = apiEnvelopeSchema(
+  z.object({ journeys: z.array(sukoonJourneyAdminSummarySchema) }),
+);
+export type SukoonJourneyAdminListResponse = z.infer<typeof sukoonJourneyAdminListResponseSchema>;
+
+/** GET /admin/journeys/:slug — the full content document, reconstructed from
+ *  the DB, so an admin can re-open an existing journey's JSON to edit it. */
+export const sukoonJourneyAdminDetailResponseSchema = apiEnvelopeSchema(
+  z.object({ journey: sukoonJourneyAdminSummarySchema, content: sukoonJourneyContentSchema }),
+);
+export type SukoonJourneyAdminDetailResponse = z.infer<typeof sukoonJourneyAdminDetailResponseSchema>;
+
+/**
+ * POST /admin/journeys/validate — a DRY RUN: validates a pasted/uploaded
+ * document against sukoonJourneyContentSchema WITHOUT writing anything, so the
+ * admin queue can show a field-level error list or a bilingual preview before
+ * anyone commits. `content` is raw/unknown in (the admin's pasted JSON.parse
+ * result), never pre-validated by the client.
+ */
+export const sukoonJourneyValidateBodySchema = z.object({ content: z.unknown() });
+export type SukoonJourneyValidateBody = z.infer<typeof sukoonJourneyValidateBodySchema>;
+
+export const sukoonJourneyValidationIssueSchema = z.object({ path: z.string(), message: z.string() });
+export type SukoonJourneyValidationIssue = z.infer<typeof sukoonJourneyValidationIssueSchema>;
+
+export const sukoonJourneyValidateResponseSchema = apiEnvelopeSchema(
+  z.object({
+    valid: z.boolean(),
+    issues: z.array(sukoonJourneyValidationIssueSchema),
+    content: sukoonJourneyContentSchema.nullable(),
+  }),
+);
+export type SukoonJourneyValidateResponse = z.infer<typeof sukoonJourneyValidateResponseSchema>;
+
+/** POST /admin/journeys — upsert-by-slug (create, or replace an existing
+ *  journey's content + bump `version`); leaves `published` as-is (a brand-new
+ *  journey starts unpublished — publish is a deliberate, separate action). */
+export const sukoonJourneyUpsertBodySchema = sukoonJourneyContentSchema;
+export type SukoonJourneyUpsertBody = z.infer<typeof sukoonJourneyUpsertBodySchema>;
+
+export const sukoonJourneyUpsertResponseSchema = apiEnvelopeSchema(
+  z.object({ journey: sukoonJourneyAdminSummarySchema }),
+);
+export type SukoonJourneyUpsertResponse = z.infer<typeof sukoonJourneyUpsertResponseSchema>;
+
+/** GET /admin/status (Sukoon's own, self-contained mirror of Neev's) — the
+ *  frontend gate for the admin journeys queue page. */
+export const sukoonAdminStatusResponseSchema = apiEnvelopeSchema(z.object({ is_admin: z.boolean() }));
+export type SukoonAdminStatusResponse = z.infer<typeof sukoonAdminStatusResponseSchema>;

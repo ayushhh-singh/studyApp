@@ -25,10 +25,11 @@ import { getSukoonTier } from "./entitlements.js";
 import { signAudioPath, type SignedAudio } from "../lib/storage.js";
 
 const EXERCISE_COLUMNS =
-  "id, type, title_hi, title_en, config_json, audio_hi, audio_en, premium, sort";
+  "id, key, type, title_hi, title_en, config_json, audio_hi, audio_en, premium, sort";
 
 interface ExerciseRow {
   id: string;
+  key: string | null;
   type: string;
   title_hi: string;
   title_en: string;
@@ -44,6 +45,7 @@ interface ExerciseRow {
 function parseConfig(row: ExerciseRow): SukoonExercise {
   const common = {
     id: row.id,
+    key: row.key,
     title_hi: row.title_hi,
     title_en: row.title_en,
     has_audio_hi: row.audio_hi != null,

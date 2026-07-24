@@ -21,6 +21,11 @@ const sukoonAppRoutes: RouteObject[] = [
   { path: "tools/meditation/:exerciseId", lazy: () => import("@/sukoon/pages/tools-meditation") },
   { path: "tools/timer/:exerciseId", lazy: () => import("@/sukoon/pages/tools-timer") },
   { path: "you", lazy: () => import("@/sukoon/pages/you") },
+  // Static segments before :journeySlug so they aren't captured as a slug.
+  { path: "journeys", lazy: () => import("@/sukoon/pages/journeys") },
+  { path: "admin/journeys", lazy: () => import("@/sukoon/pages/admin-journeys") },
+  { path: "journeys/:journeySlug", lazy: () => import("@/sukoon/pages/journey-detail") },
+  { path: "journeys/:journeySlug/day", lazy: () => import("@/sukoon/pages/journey-day") },
 ];
 
 /**

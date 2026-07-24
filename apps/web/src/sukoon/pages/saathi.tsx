@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { History, Loader2, Plus, Send, Sparkles, Wind } from "lucide-react";
 import type { SukoonCrisisLevel } from "@neev/shared";
@@ -13,6 +13,8 @@ import { useSukoonProfile } from "@/sukoon/lib/use-sukoon-profile";
 import { NotTherapyFooter } from "@/sukoon/components/not-therapy-footer";
 import { CrisisInlineCard } from "@/sukoon/components/crisis-inline-card";
 import { CrisisTakeover } from "@/sukoon/components/crisis-takeover";
+import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
+import { daysUntil } from "@/sukoon/lib/days-until";
 import {
   useSaathiConversations,
   useSaathiHistory,
@@ -26,18 +28,6 @@ interface ChatMsg {
   role: "user" | "assistant";
   content: string;
   crisis_level: SukoonCrisisLevel | null;
-}
-
-/** Days until a `YYYY-MM-DD` exam date (null when unset); negative if passed. */
-function daysUntil(dateStr: string | null): number | null {
-  if (!dateStr) return null;
-  const to = Date.parse(`${dateStr}T00:00:00`);
-  if (Number.isNaN(to)) return null;
-  const today = new Date();
-  const from = Date.parse(
-    `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}T00:00:00`,
-  );
-  return Math.round((to - from) / 86_400_000);
 }
 
 /**
@@ -61,6 +51,7 @@ function pickStarterKeys(hour: number, daysToExam: number | null): string[] {
 export function Component() {
   const { t, language: uiLang } = useSukoonLanguage();
   const { locale } = useParams<{ locale?: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
@@ -183,6 +174,25 @@ export function Component() {
     [profile?.exam_date],
   );
 
+  // A journey's saathi_checkin step deep-links in via `?seed=` (blueprint F7:
+  // "deep-links into Saathi with a context seed message") — sent as the FIRST
+  // user turn of a fresh thread, exactly like tapping a starter chip. Fires
+  // once (seededRef guards StrictMode's double-invoke + any later re-render)
+  // and strips the param afterward so a refresh/back-nav never re-sends it.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || !canChat) return;
+    const seed = searchParams.get("seed");
+    if (!seed) return;
+    seededRef.current = true;
+    startNewChat();
+    handleSend(seed);
+    const next = new URLSearchParams(searchParams);
+    next.delete("seed");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canChat, searchParams]);
+
   // Restricted (under-18) — no open chat; a friendly tools screen instead (F1/F3).
   // Safe to check before `authLoading`: `restricted` derives from `profile`,
   // which is null until profileQuery has data, so it never reads true during
@@ -242,6 +252,10 @@ export function Component() {
           </Sheet>
         </div>
       </div>
+
+      {/* Exam-eve surfacing (blueprint F7): only alongside a fresh/empty
+          thread, so an active conversation isn't interrupted by it. */}
+      {showStarters ? <ExamEveJourneyCard className="mb-4" /> : null}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
