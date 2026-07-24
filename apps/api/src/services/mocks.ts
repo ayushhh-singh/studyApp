@@ -15,8 +15,16 @@ import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
 import { questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { roundMarks } from "../lib/marks.js";
+import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 
 const MCQ_MARKS = 2;
+
+/**
+ * A mock must ALWAYS carry at least this many questions from every populated
+ * top-level section, so a rarely-asked section still appears — this is
+ * reweighting toward high-frequency topics, NOT excluding low-frequency ones.
+ */
+const MOCK_MIN_PER_SECTION = 1;
 
 /**
  * Shared hard ceiling on distinct mock sets per paper (was per-paper fixed caps:
@@ -127,23 +135,69 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
   }));
 }
 
-/** Round-robin across top-level sections so the mock spreads over the syllabus tree. */
-function balancedSample(items: AvailQ[], count: number): AvailQ[] {
+/**
+ * Rolled-up recency-weighted PYQ frequency (hotness) per top-level section of a
+ * paper, from the cached weightage matview — the SAME signal qgen/topup.ts and
+ * the /learn weightage bars use. Every node under a section contributes, so a
+ * chapter's weight reflects its whole subtree. Sections with no dated PYQ have
+ * weight 0 (they still appear in a mock via the per-section floor).
+ */
+export async function sectionHotness(paperCode: string, weightage: Map<string, OwnWeightage>, year: number): Promise<Map<string, number>> {
+  const topByNode = await topLevelByNode(paperCode);
+  const out = new Map<string, number>();
+  for (const [nodeId, top] of topByNode) {
+    const w = weightage.get(nodeId);
+    if (!w) continue;
+    out.set(top, (out.get(top) ?? 0) + hotnessRaw(w.byYear, year));
+  }
+  return out;
+}
+
+/**
+ * Weightage-weighted sample across top-level sections, so a mock's topic mix
+ * tracks how often UPPSC actually asks each section (recency-weighted hotness),
+ * the way a real paper does — instead of the old flat round-robin that gave a
+ * niche section the same share as History/Polity.
+ *
+ * Two-phase, so it's reweighting rather than exclusion:
+ *   1. Coverage floor — up to MOCK_MIN_PER_SECTION from every populated section,
+ *      so even a zero-weightage section appears.
+ *   2. Weighted fill — the remaining slots go to sections in proportion to their
+ *      hotness, via a weighted-round-robin ticket interleave (a heavier section
+ *      gets more early tickets). A section that runs dry is simply skipped.
+ *   3. Any slots still unfilled (all remaining sections had weight 0, or supply
+ *      ran short) are topped up from whatever's left, so the mock still reaches
+ *      `count` whenever supply allows.
+ */
+export function weightedSample(items: AvailQ[], count: number, weightOf: (top: string) => number): AvailQ[] {
   const groups = new Map<string, AvailQ[]>();
   for (const it of items) (groups.get(it.top) ?? groups.set(it.top, []).get(it.top)!).push(it);
   for (const arr of groups.values()) arr.splice(0, arr.length, ...shuffle(arr));
-  const keys = shuffle([...groups.keys()]);
+
   const picked: AvailQ[] = [];
-  let progressed = true;
-  while (picked.length < count && progressed) {
-    progressed = false;
-    for (const k of keys) {
-      const arr = groups.get(k)!;
-      if (arr.length) {
-        picked.push(arr.pop()!);
-        progressed = true;
-        if (picked.length >= count) break;
-      }
+  // 1. Coverage floor.
+  for (const arr of groups.values()) {
+    for (let i = 0; i < MOCK_MIN_PER_SECTION && arr.length && picked.length < count; i++) picked.push(arr.pop()!);
+  }
+  // 2. Weighted fill: tickets at position (k-0.5)/weight, walked ascending — a
+  //    heavier section's tickets bunch up front, so it's drawn more often.
+  const tickets: { pos: number; top: string }[] = [];
+  for (const [top, arr] of groups) {
+    const w = Math.max(0, weightOf(top));
+    if (w <= 0 || arr.length === 0) continue;
+    for (let k = 1; k <= arr.length; k++) tickets.push({ pos: (k - 0.5) / w, top });
+  }
+  tickets.sort((a, b) => a.pos - b.pos);
+  for (const t of tickets) {
+    if (picked.length >= count) break;
+    const arr = groups.get(t.top)!;
+    if (arr.length) picked.push(arr.pop()!);
+  }
+  // 3. Top-up from any leftover (weight-0 sections included).
+  if (picked.length < count) {
+    for (const it of shuffle([...groups.values()].flat())) {
+      if (picked.length >= count) break;
+      picked.push(it);
     }
   }
   return picked;
@@ -211,6 +265,8 @@ export interface MockBuildResult {
 
 export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]> {
   const results: MockBuildResult[] = [];
+  const weightage = await loadNodeWeightage();
+  const year = currentExamYear();
   for (const cfg of MOCK_PAPERS) {
     const available = await availableQuestions(cfg.paperCode);
     if (available.length < cfg.count) {
@@ -218,10 +274,12 @@ export async function buildMocks(log: Log = () => {}): Promise<MockBuildResult[]
       results.push({ paper_code: cfg.paperCode, built: 0, skipped: true });
       continue;
     }
+    const hot = await sectionHotness(cfg.paperCode, weightage, year);
+    const weightOf = (top: string) => hot.get(top) ?? 0;
     // As many distinct sets as supply allows, capped by the shared ceiling.
     const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
     for (let s = 1; s <= numSets; s++) {
-      const sample = balancedSample(available, cfg.count);
+      const sample = weightedSample(available, cfg.count, weightOf);
       const totalMarks = roundMarks(sample.reduce((sum, q) => sum + q.marks, 0));
       const testId = await upsertMockTest({
         slug: `mock:${cfg.paperCode}:${s}`,
@@ -351,6 +409,8 @@ async function upsertMainsMockTest(input: {
 
 export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildResult[]> {
   const results: MockBuildResult[] = [];
+  const weightage = await loadNodeWeightage();
+  const year = currentExamYear();
   for (const cfg of MAINS_MOCK_CONFIGS) {
     const officialMax = cfg.marksPattern.reduce((s, m) => s + m, 0);
     const available = await availableDescriptiveQuestions(cfg.paperCode);
@@ -359,9 +419,11 @@ export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildRes
       results.push({ paper_code: cfg.paperCode, built: 0, skipped: true });
       continue;
     }
+    const hot = await sectionHotness(cfg.paperCode, weightage, year);
+    const weightOf = (top: string) => hot.get(top) ?? 0;
     const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
     for (let s = 1; s <= numSets; s++) {
-      const sample = balancedSample(available, cfg.count);
+      const sample = weightedSample(available, cfg.count, weightOf);
       // Re-weight each sampled question to the real paper's marks pattern
       // (shuffled so the values are mixed, like the actual paper), so every set
       // matches the paper's exact structure regardless of the PYQs' own marks.
