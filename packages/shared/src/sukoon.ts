@@ -553,3 +553,188 @@ export const sukoonJournalExportResponseSchema = apiEnvelopeSchema(
   }),
 );
 export type SukoonJournalExportResponse = z.infer<typeof sukoonJournalExportResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// F5 — Mood tracking & emotions. Shared because the 10-second check-in, the
+// Trends view (calendar/line-chart/emotion-bars/correlations), and Home's
+// today-status + 7-day strip all need the same vocabulary as the backend. The
+// 1-5 score reuses the EXACT scale already defined for journal mood tags
+// (same emoji/labels, `Sukoon.journal.mood.{n}`) — one "how do I feel" scale
+// across the app rather than a second parallel one for this feature.
+// ---------------------------------------------------------------------------
+
+/** The emotion wheel (blueprint F5). A fixed set — validated server-side, not free text. */
+export const SUKOON_EMOTION_IDS = [
+  "anxious",
+  "exhausted",
+  "lonely",
+  "hopeful",
+  "overwhelmed",
+  "frustrated",
+  "sad",
+  "calm",
+  "motivated",
+  "confident",
+  "restless",
+  "grateful",
+] as const;
+export const sukoonEmotionIdSchema = z.enum(SUKOON_EMOTION_IDS);
+export type SukoonEmotionId = z.infer<typeof sukoonEmotionIdSchema>;
+
+export interface SukoonEmotionDef {
+  id: SukoonEmotionId;
+  label_hi: string;
+  label_en: string;
+}
+export const SUKOON_EMOTIONS: readonly SukoonEmotionDef[] = [
+  { id: "anxious", label_hi: "चिंता", label_en: "Anxious" },
+  { id: "exhausted", label_hi: "थकान", label_en: "Exhausted" },
+  { id: "lonely", label_hi: "अकेलापन", label_en: "Lonely" },
+  { id: "hopeful", label_hi: "उम्मीद", label_en: "Hopeful" },
+  { id: "overwhelmed", label_hi: "अभिभूत", label_en: "Overwhelmed" },
+  { id: "frustrated", label_hi: "चिढ़", label_en: "Frustrated" },
+  { id: "sad", label_hi: "उदास", label_en: "Sad" },
+  { id: "calm", label_hi: "शांत", label_en: "Calm" },
+  { id: "motivated", label_hi: "उत्साहित", label_en: "Motivated" },
+  { id: "confident", label_hi: "आत्मविश्वासी", label_en: "Confident" },
+  { id: "restless", label_hi: "बेचैन", label_en: "Restless" },
+  { id: "grateful", label_hi: "आभारी", label_en: "Grateful" },
+] as const;
+
+/** The optional "what's behind this" factor chips (blueprint F5, exact set given). */
+export const SUKOON_MOOD_FACTOR_IDS = [
+  "studies",
+  "family",
+  "sleep",
+  "result",
+  "comparison",
+  "health",
+  "friends",
+] as const;
+export const sukoonMoodFactorIdSchema = z.enum(SUKOON_MOOD_FACTOR_IDS);
+export type SukoonMoodFactorId = z.infer<typeof sukoonMoodFactorIdSchema>;
+
+export interface SukoonMoodFactorDef {
+  id: SukoonMoodFactorId;
+  label_hi: string;
+  label_en: string;
+}
+export const SUKOON_MOOD_FACTORS: readonly SukoonMoodFactorDef[] = [
+  { id: "studies", label_hi: "पढ़ाई", label_en: "Studies" },
+  { id: "family", label_hi: "परिवार", label_en: "Family" },
+  { id: "sleep", label_hi: "नींद", label_en: "Sleep" },
+  { id: "result", label_hi: "परिणाम", label_en: "Result" },
+  { id: "comparison", label_hi: "तुलना", label_en: "Comparison" },
+  { id: "health", label_hi: "स्वास्थ्य", label_en: "Health" },
+  { id: "friends", label_hi: "दोस्त", label_en: "Friends" },
+] as const;
+
+const moodScoreSchema = z.number().int().min(1).max(5);
+const moodNoteSchema = z.string().trim().max(280);
+
+/** One mood check-in (sukoon_mood_entries) as returned to the client. */
+export const sukoonMoodEntrySchema = z.object({
+  id: z.string().uuid(),
+  score: moodScoreSchema,
+  emotions: z.array(sukoonEmotionIdSchema),
+  factors: z.array(sukoonMoodFactorIdSchema),
+  note: z.string().nullable(),
+  created_at: z.string(),
+});
+export type SukoonMoodEntry = z.infer<typeof sukoonMoodEntrySchema>;
+
+/**
+ * POST /mood/entries and PATCH /mood/entries/:id share this shape — a full
+ * replace on edit (matches the journal entry update convention) rather than a
+ * partial patch, since the check-in is a single small form submitted whole.
+ */
+export const sukoonMoodCreateBodySchema = z.object({
+  score: moodScoreSchema,
+  emotions: z.array(sukoonEmotionIdSchema).max(SUKOON_EMOTION_IDS.length).optional(),
+  factors: z.array(sukoonMoodFactorIdSchema).max(SUKOON_MOOD_FACTOR_IDS.length).optional(),
+  note: moodNoteSchema.optional(),
+});
+export type SukoonMoodCreateBody = z.infer<typeof sukoonMoodCreateBodySchema>;
+export const sukoonMoodUpdateBodySchema = sukoonMoodCreateBodySchema;
+export type SukoonMoodUpdateBody = z.infer<typeof sukoonMoodUpdateBodySchema>;
+
+export const sukoonMoodEntryResponseSchema = apiEnvelopeSchema(
+  z.object({ entry: sukoonMoodEntrySchema }),
+);
+export type SukoonMoodEntryResponse = z.infer<typeof sukoonMoodEntryResponseSchema>;
+
+export const sukoonMoodDeleteResponseSchema = apiEnvelopeSchema(z.object({ ok: z.literal(true) }));
+export type SukoonMoodDeleteResponse = z.infer<typeof sukoonMoodDeleteResponseSchema>;
+
+/**
+ * GET /mood/today — one PRIMARY entry/day (the first check-in that IST day,
+ * editable in place) plus any EXTRA check-ins the same day (also stored, both
+ * feed the aggregates). `next_reminder_at` is the F11-precursor "expose
+ * next-reminder computation" ask — null when no reminder_time is set.
+ */
+export const sukoonMoodTodayResponseSchema = apiEnvelopeSchema(
+  z.object({
+    primary: sukoonMoodEntrySchema.nullable(),
+    extra: z.array(sukoonMoodEntrySchema),
+    next_reminder_at: z.string().nullable(),
+  }),
+);
+export type SukoonMoodTodayResponse = z.infer<typeof sukoonMoodTodayResponseSchema>;
+
+/** GET /mood/heatmap?month=YYYY-MM — per-IST-day check-in count + average mood. */
+export const sukoonMoodHeatmapDaySchema = z.object({
+  date: isoDateSchema,
+  count: z.number().int(),
+  avg_score: z.number().nullable(),
+});
+export type SukoonMoodHeatmapDay = z.infer<typeof sukoonMoodHeatmapDaySchema>;
+export const sukoonMoodHeatmapResponseSchema = apiEnvelopeSchema(
+  z.object({ month: z.string(), days: z.array(sukoonMoodHeatmapDaySchema) }),
+);
+export type SukoonMoodHeatmapResponse = z.infer<typeof sukoonMoodHeatmapResponseSchema>;
+
+/** GET /mood/aggregates?range=7|30|90 */
+export const sukoonMoodAggregatesRangeSchema = z.enum(["7", "30", "90"]);
+export type SukoonMoodAggregatesRange = z.infer<typeof sukoonMoodAggregatesRangeSchema>;
+
+export const sukoonMoodDailyPointSchema = z.object({
+  date: isoDateSchema,
+  avg_score: z.number().nullable(),
+  count: z.number().int(),
+});
+export type SukoonMoodDailyPoint = z.infer<typeof sukoonMoodDailyPointSchema>;
+
+export const sukoonMoodEmotionFrequencySchema = z.object({
+  emotion: sukoonEmotionIdSchema,
+  count: z.number().int(),
+});
+export type SukoonMoodEmotionFrequency = z.infer<typeof sukoonMoodEmotionFrequencySchema>;
+
+/**
+ * A naive factor correlation (blueprint F5/Session 6): the user's average mood
+ * on days a factor was tagged vs days it wasn't, gated on a minimum of 5
+ * samples PER SIDE so a single data point can never produce a claim.
+ */
+export const sukoonMoodFactorCorrelationSchema = z.object({
+  factor: sukoonMoodFactorIdSchema,
+  avg_with: z.number(),
+  avg_without: z.number(),
+  gap: z.number(),
+  samples_with: z.number().int(),
+  samples_without: z.number().int(),
+});
+export type SukoonMoodFactorCorrelation = z.infer<typeof sukoonMoodFactorCorrelationSchema>;
+
+export const sukoonMoodAggregatesSchema = z.object({
+  range_days: z.number().int(),
+  daily: z.array(sukoonMoodDailyPointSchema),
+  avg_7d: z.number().nullable(),
+  avg_30d: z.number().nullable(),
+  total_entries: z.number().int(),
+  emotion_frequency: z.array(sukoonMoodEmotionFrequencySchema),
+  /** Top 3 (by |gap|) factors that clear the 5-samples-per-side bar; empty when none do. */
+  factor_correlations: z.array(sukoonMoodFactorCorrelationSchema),
+});
+export type SukoonMoodAggregates = z.infer<typeof sukoonMoodAggregatesSchema>;
+export const sukoonMoodAggregatesResponseSchema = apiEnvelopeSchema(sukoonMoodAggregatesSchema);
+export type SukoonMoodAggregatesResponse = z.infer<typeof sukoonMoodAggregatesResponseSchema>;

@@ -30,7 +30,7 @@ import type { SukoonJournalEntry } from "@neev/shared";
 export function Component() {
   const { t, language } = useSukoonLanguage();
   const { locale, entryId } = useParams<{ locale?: string; entryId?: string }>();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const base = locale ? `/${locale}/sukoon` : "";
   const promptText = usePromptText();
@@ -40,7 +40,9 @@ export function Component() {
   const deleteMut = useDeleteJournalEntry();
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  if (!session && !entryQuery.isPending) return <SignInPrompt locale={locale} />;
+  // Check `loading` BEFORE `session` — see journal.tsx's identical comment.
+  if (authLoading) return null;
+  if (!session) return <SignInPrompt locale={locale} />;
 
   if (entryQuery.isPending) {
     return (

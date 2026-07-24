@@ -49,7 +49,7 @@ function currentMonth(): string {
 
 export function Component() {
   const { t, language } = useSukoonLanguage();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   // :locale is present in integrated mode (/:locale/sukoon), absent in standalone.
   const { locale } = useParams<{ locale?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
@@ -60,7 +60,12 @@ export function Component() {
   const listQuery = useJournalList(filters, { enabled: !!session });
   const streakQuery = useJournalStreak({ enabled: !!session });
 
-  if (!session && !listQuery.isPending) return <SignInPrompt locale={locale} />;
+  // Check `loading` BEFORE `session`: session is null until getSession()
+  // resolves, and a DISABLED query's isPending never flips true->false (it
+  // simply never fetches) — so `!session && !listQuery.isPending` never
+  // becomes true while signed out, and the prompt below never renders.
+  if (authLoading) return null;
+  if (!session) return <SignInPrompt locale={locale} />;
 
   const data = listQuery.data;
   const hasFilters = !!(

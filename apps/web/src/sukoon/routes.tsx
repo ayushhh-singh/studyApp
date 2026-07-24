@@ -7,6 +7,7 @@ import type { RouteObject } from "react-router";
 const sukoonAppRoutes: RouteObject[] = [
   { index: true, lazy: () => import("@/sukoon/pages/home") },
   { path: "saathi", lazy: () => import("@/sukoon/pages/saathi") },
+  { path: "mood", lazy: () => import("@/sukoon/pages/mood") },
   { path: "journal", lazy: () => import("@/sukoon/pages/journal") },
   // Static segments before the :entryId param so they aren't captured as ids
   // (React Router ranks static > dynamic, but keep them ordered for clarity).

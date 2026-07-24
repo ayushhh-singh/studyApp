@@ -35,7 +35,7 @@ interface DraftShape {
 export function Component() {
   const { t, language } = useSukoonLanguage();
   const { locale, entryId } = useParams<{ locale?: string; entryId?: string }>();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const promptText = usePromptText();
@@ -154,7 +154,11 @@ export function Component() {
     requestAnimationFrame(() => el.focus());
   };
 
-  if (!session && !entryQuery.isPending) return <SignInPrompt locale={locale} />;
+  // Check `loading` BEFORE `session` — see journal.tsx's identical comment;
+  // for a NEW entry (isEdit=false) entryQuery is disabled too, so this bug
+  // affected /journal/new the same way it affected the edit path.
+  if (authLoading) return null;
+  if (!session) return <SignInPrompt locale={locale} />;
 
   // Editing an entry that failed to load (deleted / not owner) → honest not-found
   // instead of a blank editor that would 404 on save.

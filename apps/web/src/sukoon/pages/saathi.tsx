@@ -61,7 +61,7 @@ function pickStarterKeys(hour: number, daysToExam: number | null): string[] {
 export function Component() {
   const { t, language: uiLang } = useSukoonLanguage();
   const { locale } = useParams<{ locale?: string }>();
-  const { session } = useAuth();
+  const { session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
 
   const profileQuery = useSukoonProfile({ enabled: !!session });
@@ -184,11 +184,20 @@ export function Component() {
   );
 
   // Restricted (under-18) — no open chat; a friendly tools screen instead (F1/F3).
+  // Safe to check before `authLoading`: `restricted` derives from `profile`,
+  // which is null until profileQuery has data, so it never reads true during
+  // the loading window.
   if (restricted) {
     return <RestrictedScreen locale={locale} />;
   }
-  // Signed out — Sukoon pages are reachable pre-login, but chat needs an account.
-  if (!session && !profileQuery.isPending) {
+  // Signed out — Sukoon pages are reachable pre-login, but chat needs an
+  // account. Check `authLoading` first: `session` is null until the initial
+  // getSession() resolves, and profileQuery is DISABLED while signed out, so
+  // its isPending never flips (a disabled query never fetches) — the old
+  // `!session && !profileQuery.isPending` combination could never be true,
+  // meaning SignInScreen never rendered for a genuinely signed-out visitor.
+  if (authLoading) return null;
+  if (!session) {
     return <SignInScreen locale={locale} />;
   }
 

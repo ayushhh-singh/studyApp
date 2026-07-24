@@ -4,6 +4,7 @@ import { sukoonConfig } from "../config.js";
 import { sukoonProfileRouter } from "./profile.js";
 import { sukoonChatRouter } from "./chat.js";
 import { sukoonJournalRouter } from "./journal.js";
+import { sukoonMoodRouter } from "./mood.js";
 import { sukoonDevRouter } from "./dev.js";
 
 // Mounted directly at /api/sukoon (not /api/v1) — Sukoon is a self-contained
@@ -23,6 +24,7 @@ sukoonRouter.get(
 sukoonRouter.use(sukoonProfileRouter);
 sukoonRouter.use(sukoonChatRouter);
 sukoonRouter.use(sukoonJournalRouter);
+sukoonRouter.use(sukoonMoodRouter);
 
 // Dev-only crisis probe — mounted ONLY when devTools is on (never in a plain
 // production boot). Kept last so its /dev/* paths don't shadow anything.
