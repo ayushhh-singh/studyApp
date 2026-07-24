@@ -175,8 +175,14 @@ export function weightedSample(items: AvailQ[], count: number, weightOf: (top: s
   for (const arr of groups.values()) arr.splice(0, arr.length, ...shuffle(arr));
 
   const picked: AvailQ[] = [];
-  // 1. Coverage floor.
-  for (const arr of groups.values()) {
+  // 1. Coverage floor, highest-weightage sections first — so a small mock whose
+  //    `count` is less than the number of sections still spends its floor on the
+  //    sections UPPSC weights most, rather than on whatever section happened to
+  //    appear first in the pool. (For count >= sections every section gets its
+  //    floor regardless of order, so this only changes the small-mock case.)
+  const floorOrder = [...groups.keys()].sort((a, b) => weightOf(b) - weightOf(a));
+  for (const top of floorOrder) {
+    const arr = groups.get(top)!;
     for (let i = 0; i < MOCK_MIN_PER_SECTION && arr.length && picked.length < count; i++) picked.push(arr.pop()!);
   }
   // 2. Weighted fill: tickets at position (k-0.5)/weight, walked ascending — a
