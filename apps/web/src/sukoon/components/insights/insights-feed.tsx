@@ -17,12 +17,14 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { cn } from "@/lib/utils";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useInsights } from "@/sukoon/lib/use-sukoon-insights";
+import { useSukoonPaywallStore } from "@/sukoon/stores/sukoon-paywall-store";
 
 export function InsightsFeed({ max }: { max?: number }) {
   const { t, language } = useSukoonLanguage();
   const { locale } = useParams<{ locale?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
   const query = useInsights();
+  const openPaywall = useSukoonPaywallStore((s) => s.openPaywall);
 
   if (query.isPending) return <div className="h-40 animate-pulse rounded-2xl bg-muted" />;
   if (!query.data) return null;
@@ -54,11 +56,12 @@ export function InsightsFeed({ max }: { max?: number }) {
               {language === "hi" ? SUKOON_SAMPLE_INSIGHT.suggestion_hi : SUKOON_SAMPLE_INSIGHT.suggestion_en}
             </p>
           </div>
-          <Button asChild size="sm" className="self-start">
-            <Link to={`${base}/pricing`}>
-              {t("Sukoon.insights.upsellCta")}
-              <ArrowRight className="size-3.5" aria-hidden />
-            </Link>
+          {/* The consistent paywall interstitial (same as chat-cap/reflections/
+              journeys) — it offers the free trial + "See plans", so the insights
+              funnel matches every other Sukoon upsell rather than a bare link. */}
+          <Button size="sm" className="self-start" onClick={() => openPaywall("insights")}>
+            {t("Sukoon.insights.upsellCta")}
+            <ArrowRight className="size-3.5" aria-hidden />
           </Button>
         </div>
       </SectionCard>
