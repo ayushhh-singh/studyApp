@@ -22,7 +22,10 @@ function itemLink(
 ): string {
   switch (key) {
     case "daily_quiz":
-      return today.daily_quiz ? `/${locale}/practice/test/${today.daily_quiz.id}` : `/${locale}/practice?tab=daily`;
+      // The single "Daily quiz" habit ticks when EITHER quiz is done; point the
+      // still-actionable link at the GS quiz (primary), falling back to the
+      // Daily Quiz tab (which shows both) when it hasn't been built yet.
+      return today.daily_quiz_gs ? `/${locale}/practice/test/${today.daily_quiz_gs.id}` : `/${locale}/practice?tab=daily`;
     case "answer_set":
       return `/${locale}/answers`;
     case "revision":

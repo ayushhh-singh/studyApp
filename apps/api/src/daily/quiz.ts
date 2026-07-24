@@ -1,22 +1,20 @@
 /**
- * Daily-quiz assembler. `buildDailyQuiz` composes ONE daily_quiz test for a
- * given IST date, mixing four slices (generated-on-weak-topics, spaced PYQs,
- * this week's current-affairs MCQs, random coverage) per DAILY_QUIZ_CONFIG.
+ * Daily-quiz assembler. Each IST day carries TWO genuinely separate quizzes —
+ * a GS quiz (paper PRE_GS1) and a CSAT quiz (paper PRE_CSAT) — assembled
+ * INDEPENDENTLY, never blended. `buildDailyQuizVariant` composes one variant's
+ * daily_quiz test by mixing four slices (generated-on-weak-topics, spaced PYQs,
+ * this week's current-affairs MCQs, random coverage) — all drawn from that
+ * variant's OWN paper pool — per its DailyQuizConfig; `buildDailyQuizzes` builds
+ * both. See daily/config.ts for the per-paper sizes/ratios and the split's
+ * rationale.
  *
- * This is a single SHARED test, not a per-user one — `services/scoreboard.ts`
- * ranks every user's attempt on it against each other via
- * `daily_quiz_board_entries`, which only makes sense if everyone took the
- * same set of questions. So "weak topics"/"recently seen" below are
- * platform-wide signals (aggregated across all graded attempts / all past
- * daily quizzes), never any one individual's — there is no single "the user"
- * for a quiz everyone takes. (This function previously took a `userId` and
- * personalized to it; `daily/run.ts`'s nightly job called it once per
- * onboarded user, so each night's build silently overwrote the previous
- * user's build for the very same `tests` row until only the last-processed
- * user's personalization survived — wasteful and, since the "generated"
- * slice draws from a small pool filtered to one user's own weak nodes, a real
- * cause of the same handful of questions recurring night after night for
- * everyone. See docs/OUTSTANDING.md.)
+ * Each variant's test is a single SHARED test, not per-user — `services/
+ * scoreboard.ts` ranks every user's attempt on the GS quiz against each other
+ * via `daily_quiz_board_entries`, which only makes sense if everyone took the
+ * same set. So "weak topics"/"recently seen" below are platform-wide signals
+ * (aggregated across all graded attempts / all past daily quizzes of THAT
+ * paper), never any one individual's — there is no single "the user" for a quiz
+ * everyone takes.
  *
  * Every pool query goes through the centralized question-visibility helper
  * (never an inline is_published filter): the generated/pyq/random slices use
@@ -26,9 +24,11 @@
  * CA questions, the attempt player/grader — which also runs "test" scope — serves
  * and scores every slice correctly.
  *
- * Idempotent per date: keyed on slug `daily:YYYY-MM-DD`; a re-run rebuilds
- * membership. Yesterday's quiz simply remains a published test (makeup), and the
- * archive lists every past daily_quiz by scheduled_date.
+ * Idempotent per (date, paper): keyed on slug `daily:YYYY-MM-DD:<paper>`; a
+ * re-run rebuilds membership. Yesterday's quizzes simply remain published tests
+ * (makeup), and the archive lists every past daily_quiz by scheduled_date.
+ * Legacy pre-split quizzes (slug `daily:YYYY-MM-DD`, paper_code NULL) still
+ * render exactly as before — nothing rewrites them.
  */
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
@@ -37,11 +37,12 @@ import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { DEFAULT_MCQ_MARKS, roundMarks } from "../lib/marks.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import {
-  DAILY_QUIZ_CONFIG,
+  DAILY_QUIZ_VARIANTS,
   SLICE_FILL_ORDER,
   clampSize,
   sliceTargets,
-  type DailyQuizConfig,
+  type DailyQuizPaper,
+  type DailyQuizVariant,
   type QuizSlice,
 } from "./config.js";
 
@@ -55,6 +56,8 @@ interface PoolItem {
 export interface DailyQuizBuildResult {
   test_id: string;
   date: string;
+  /** Which paper this quiz is — 'gs' (PRE_GS1) or 'csat' (PRE_CSAT). */
+  paper: DailyQuizPaper;
   size: number;
   total_marks: number;
   /** How many questions each slice actually contributed. */
@@ -139,18 +142,22 @@ export function rankWeakNodes(entries: { id: string; weakness: number; hot: numb
 }
 
 /**
- * Question ids used in a daily quiz within the last `days` days — the
- * spaced-reuse skip set. Platform-wide (which past daily_quiz test rows
- * included which questions), not any one user's answer history, since this
- * is what actually determines whether a question would look "repeated" to
- * everyone taking the shared quiz.
+ * Question ids used in THIS PAPER's daily quiz within the last `days` days — the
+ * spaced-reuse skip set. Scoped to the variant's own paper (so a GS question
+ * shown yesterday never blocks a CSAT slot, and vice versa) and platform-wide
+ * (which past daily_quiz test rows of that paper included which questions), not
+ * any one user's answer history, since this is what actually determines whether
+ * a question would look "repeated" to everyone taking the shared quiz. Legacy
+ * pre-split rows (paper_code NULL) are ignored — the paper filter excludes
+ * them — so a paper's recency window is clean of the old blended pool.
  */
-async function recentlyUsedInDailyQuiz(days: number): Promise<Set<string>> {
+async function recentlyUsedInDailyQuiz(days: number, paperCode: string): Promise<Set<string>> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data: tests, error: tErr } = await supabase()
     .from("tests")
     .select("id")
     .eq("kind", "daily_quiz")
+    .eq("paper_code", paperCode)
     .gte("scheduled_date", cutoff);
   if (tErr) throw new Error(`recent daily quizzes lookup failed: ${tErr.message}`);
   const testIds = (tests ?? []).map((r) => r.id as string);
@@ -168,18 +175,21 @@ async function recentlyUsedInDailyQuiz(days: number): Promise<Set<string>> {
  * pool degrades into "rest" generated (and ultimately the backfill reservoir)
  * rather than re-serving a recently-seen weak question.
  */
-async function generatedPool(weakNodes: string[], seen: Set<string>): Promise<PoolItem[]> {
+async function generatedPool(paperCode: string, weakNodes: string[], seen: Set<string>): Promise<PoolItem[]> {
   // Paginate (selectAll + stable order), same as pyqPool: generated MCQs now
   // exceed 1000, and a single select silently truncates to the first 1000
   // (PostgREST cap) — so the last ~255 generated questions were never eligible
   // for this slice and the quiz skewed to early ids. That truncation is a second
   // cause of the same felt repetition this recency fix targets.
+  // Scoped to this quiz's paper (PRE_GS1 / PRE_CSAT) so the two quizzes never
+  // draw from each other's pool.
   const data = await selectAll<{ id: string; marks: number | null; syllabus_node_id: string | null }>(() =>
     supabase()
       .from("questions")
       .select("id, marks, syllabus_node_id")
       .eq("type", "mcq")
       .eq("source", "generated")
+      .eq("paper_code", paperCode)
       .or(questionVisibilityOrFilter("catalog"))
       .order("id", { ascending: true }),
   );
@@ -197,15 +207,17 @@ async function generatedPool(weakNodes: string[], seen: Set<string>): Promise<Po
   return [...orderedWeak, ...shuffle(rest)].map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
-async function pyqPool(seen: Set<string>): Promise<PoolItem[]> {
+async function pyqPool(paperCode: string, seen: Set<string>): Promise<PoolItem[]> {
   // Paginate: published pyq MCQs exceed 1000, so a single select truncated the
   // pool to the first 1000 (biasing every daily quiz toward earlier questions).
+  // Scoped to this quiz's paper (PRE_GS1 / PRE_CSAT).
   const data = await selectAll<{ id: string; marks: number | null }>(() =>
     supabase()
       .from("questions")
       .select(MCQ_COLUMNS)
       .eq("type", "mcq")
       .eq("source", "pyq")
+      .eq("paper_code", paperCode)
       .or(questionVisibilityOrFilter("catalog"))
       .order("id", { ascending: true }),
   );
@@ -239,8 +251,12 @@ async function currentAffairsPool(days: number): Promise<PoolItem[]> {
   return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
-/** Every catalog-visible MCQ — the random-coverage slice AND the backfill reservoir. */
-async function randomPool(): Promise<PoolItem[]> {
+/**
+ * Every catalog-visible MCQ IN THIS PAPER — the random-coverage slice AND the
+ * per-paper backfill reservoir. Scoped to the variant's paper so a short GS
+ * slice never backfills with a CSAT question (and vice versa).
+ */
+async function randomPool(paperCode: string): Promise<PoolItem[]> {
   // Paginate: the full catalog MCQ set (2000+) exceeds the 1000-row cap, and this
   // pool is BOTH the random slice and the backfill reservoir — so a single select
   // silently shrank both to the first 1000 ids. Stable order for complete
@@ -250,6 +266,7 @@ async function randomPool(): Promise<PoolItem[]> {
       .from("questions")
       .select(MCQ_COLUMNS)
       .eq("type", "mcq")
+      .eq("paper_code", paperCode)
       .or(questionVisibilityOrFilter("catalog"))
       .order("id", { ascending: true }),
   );
@@ -259,6 +276,7 @@ async function randomPool(): Promise<PoolItem[]> {
 async function upsertDailyQuizTest(input: {
   slug: string;
   date: string;
+  paperCode: string;
   title: { hi: string; en: string };
   durationMinutes: number;
   totalMarks: number;
@@ -271,7 +289,7 @@ async function upsertDailyQuizTest(input: {
         slug: input.slug,
         title_i18n: input.title,
         kind: "daily_quiz",
-        paper_code: null,
+        paper_code: input.paperCode,
         scheduled_date: input.date,
         duration_minutes: input.durationMinutes,
         total_marks: input.totalMarks,
@@ -327,29 +345,60 @@ async function setMembership(testId: string, items: PoolItem[]): Promise<PoolIte
 export interface BuildDailyQuizOptions {
   date: string;
   size?: number;
-  config?: DailyQuizConfig;
   log?: Log;
 }
 
-export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<DailyQuizBuildResult | null> {
-  const cfg = opts.config ?? DAILY_QUIZ_CONFIG;
+/**
+ * Build BOTH daily quizzes (GS + CSAT) for a date, each from its own paper's
+ * pool. Returns one result per variant (keyed by paper), or null for a variant
+ * that had genuinely no questions to build from. Variants are built
+ * sequentially — the two quizzes are independent, but their per-paper pool
+ * queries are heavy (full paginated MCQ scans), so running them back-to-back
+ * keeps the DB load flat rather than doubling concurrent scans.
+ */
+export async function buildDailyQuizzes(
+  opts: BuildDailyQuizOptions,
+): Promise<Record<DailyQuizPaper, DailyQuizBuildResult | null>> {
+  const out = {} as Record<DailyQuizPaper, DailyQuizBuildResult | null>;
+  for (const variant of DAILY_QUIZ_VARIANTS) {
+    // `size` (a manual override) only applies to the GS quiz — CSAT keeps its
+    // own configured, smaller default. A blanket override would blow CSAT past
+    // its narrow pool.
+    out[variant.key] = await buildDailyQuizVariant(variant, {
+      ...opts,
+      size: variant.key === "gs" ? opts.size : undefined,
+    });
+  }
+  return out;
+}
+
+export async function buildDailyQuizVariant(
+  variant: DailyQuizVariant,
+  opts: BuildDailyQuizOptions,
+): Promise<DailyQuizBuildResult | null> {
+  const cfg = variant.config;
   const log = opts.log ?? (() => {});
   const size = clampSize(opts.size ?? cfg.defaultSize, cfg);
   const { date } = opts;
+  const { paperCode } = variant;
 
   const weak = await globalWeakNodeIds(cfg.weakAccuracyThreshold);
   // `recentlyUsedInDailyQuiz` returns every question (any slice) used in recent
-  // daily quizzes; the pyq and generated slices each skip that set over their own
-  // window. Reuse the one query when the windows match (the default) rather than
-  // hitting the DB twice for the same result.
-  const seen = await recentlyUsedInDailyQuiz(cfg.pyqRecencyDays);
+  // daily quizzes OF THIS PAPER; the pyq and generated slices each skip that set
+  // over their own window. Reuse the one query when the windows match (the
+  // default) rather than hitting the DB twice for the same result.
+  const seen = await recentlyUsedInDailyQuiz(cfg.pyqRecencyDays, paperCode);
   const genSeen =
-    cfg.generatedRecencyDays === cfg.pyqRecencyDays ? seen : await recentlyUsedInDailyQuiz(cfg.generatedRecencyDays);
+    cfg.generatedRecencyDays === cfg.pyqRecencyDays
+      ? seen
+      : await recentlyUsedInDailyQuiz(cfg.generatedRecencyDays, paperCode);
   const [gen, pyq, ca, rand] = await Promise.all([
-    generatedPool(weak, genSeen),
-    pyqPool(seen),
-    currentAffairsPool(cfg.currentAffairsDays),
-    randomPool(),
+    generatedPool(paperCode, weak, genSeen),
+    pyqPool(paperCode, seen),
+    // Current affairs is GS content only — the CSAT variant never includes it
+    // (its ratio is 0 too, so this is belt-and-suspenders).
+    variant.includeCurrentAffairs ? currentAffairsPool(cfg.currentAffairsDays) : Promise.resolve([]),
+    randomPool(paperCode),
   ]);
   const pools: Record<QuizSlice, PoolItem[]> = { generated: gen, pyq, current_affairs: ca, random: rand };
   log(
@@ -402,17 +451,22 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   const finalItems = shuffle([...chosen.values()]);
   const totalMarks = roundMarks(finalItems.reduce((s, it) => s + (it.marks ?? 0), 0));
   const d = formatDateBilingual(date);
-  const slug = `daily:${date}`;
+  const slug = `daily:${date}:${variant.key}`;
 
   const testId = await upsertDailyQuizTest({
     slug,
     date,
-    title: { en: `Daily Quiz — ${d.en}`, hi: `डेली क्विज़ — ${d.hi}` },
+    paperCode,
+    title: {
+      en: `Daily Quiz (${variant.labelI18n.en}) — ${d.en}`,
+      hi: `डेली क्विज़ (${variant.labelI18n.hi}) — ${d.hi}`,
+    },
     durationMinutes: finalItems.length, // ~1 min/question — a gentle exam-like pace, auto-submits on expiry.
     totalMarks,
     meta: {
       source: "daily_quiz",
       date,
+      paper: variant.key,
       marking_scheme: cfg.markingScheme,
       slice_breakdown: breakdown,
       shortfalls,
@@ -456,6 +510,7 @@ export async function buildDailyQuiz(opts: BuildDailyQuizOptions): Promise<Daily
   return {
     test_id: testId,
     date,
+    paper: variant.key,
     size: persisted.length,
     total_marks: persistedMarks,
     slice_breakdown: breakdown,

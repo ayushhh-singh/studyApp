@@ -84,6 +84,7 @@ function DailyQuizPanel() {
         </div>
       }
     >
+      <p className="mb-3 text-xs text-muted-foreground">{t("Scoreboard.dailyQuizGsNote")}</p>
       {board.isLoading || !board.data ? (
         <BoardSkeleton />
       ) : (

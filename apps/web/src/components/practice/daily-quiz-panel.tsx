@@ -15,9 +15,19 @@ function istDate(offsetDays = 0): string {
   return new Date(Date.now() + IST_OFFSET_MS + offsetDays * 24 * 3600 * 1000).toISOString().slice(0, 10);
 }
 
-/** Only two groups: today's quiz, and everything before it — no separate "yesterday" bucket. */
+/** Both daily quizzes are built per day, so a complete day has two "today" rows. */
+const DAILY_QUIZ_VARIANT_COUNT = 2;
+
+/** Only two groups: today's quizzes, and everything before them — no separate "yesterday" bucket. */
 function groupOf(scheduledDate: string): "today" | "older" {
   return scheduledDate === istDate(0) ? "today" : "older";
+}
+
+/** Short paper chip label for a daily quiz — GS / CSAT / (legacy blended: none). */
+function paperChip(paperCode: string | null, t: (k: string) => string): string | null {
+  if (paperCode === "PRE_GS1") return t("Practice.dailyPaperGs");
+  if (paperCode === "PRE_CSAT") return t("Practice.dailyPaperCsat");
+  return null; // legacy pre-split blended quiz — the title already reads "Daily Quiz — <date>"
 }
 
 function ArchiveRow({
@@ -31,6 +41,7 @@ function ArchiveRow({
   const { t } = useTranslation();
   const locale = useLocale();
   const group = groupOf(item.scheduled_date);
+  const chip = paperChip(item.paper_code, t);
   // Yesterday's quiz is still the one real makeup opportunity (per the page's
   // own description: "today's quiz, yesterday's makeup, and every past day")
   // — the badge marks that specific quiz regardless of which group header
@@ -53,7 +64,14 @@ function ArchiveRow({
           )}
         </div>
       )}
-      <TestCard test={item} locale={locale} />
+      <div className="flex flex-col gap-1">
+        {chip && (
+          <span className="w-fit rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-primary">
+            {chip}
+          </span>
+        )}
+        <TestCard test={item} locale={locale} />
+      </div>
     </div>
   );
 }
@@ -78,7 +96,7 @@ function GenerateTodayCta({ bare = false }: { bare?: boolean }) {
         {ensureToday.isPending ? t("Practice.dailyGenerating") : t("Practice.dailyGenerateButton")}
       </Button>
       {ensureToday.isError && <p className="text-xs text-destructive">{t("Practice.dailyGenerateError")}</p>}
-      {ensureToday.isSuccess && ensureToday.data === null && (
+      {ensureToday.isSuccess && !ensureToday.data.gs && !ensureToday.data.csat && (
         <p className="text-xs text-muted-foreground">{t("Practice.dailyGenerateEmpty")}</p>
       )}
     </div>
@@ -129,11 +147,14 @@ export function DailyQuizPanel() {
   }
 
   const totalPages = data.pagination.total_pages;
-  const hasToday = data.items.some((item) => item.scheduled_date === istDate(0));
+  // Both quizzes (GS + CSAT) are built each day; offer the self-heal CTA until
+  // both of today's rows are present, not just one.
+  const todayCount = data.items.filter((item) => item.scheduled_date === istDate(0)).length;
+  const todayComplete = todayCount >= DAILY_QUIZ_VARIANT_COUNT;
 
   return (
     <div className="flex flex-col gap-4">
-      {page === 1 && !hasToday && <GenerateTodayCta />}
+      {page === 1 && !todayComplete && <GenerateTodayCta />}
       <ul className="flex flex-col gap-3">
         {data.items.map((item, index) => {
           // The archive is newest-first, so a group's header belongs on the

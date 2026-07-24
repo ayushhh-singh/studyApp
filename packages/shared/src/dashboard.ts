@@ -61,7 +61,9 @@ export type DashboardChecklistItem = z.infer<typeof dashboardChecklistItemSchema
 export const dashboardTodaySchema = z.object({
   srs_due_count: z.number().int(),
   current_affairs_today_count: z.number().int(),
-  daily_quiz: testSummarySchema.nullable(),
+  /** Today's GS daily quiz (primary) and CSAT daily quiz (secondary), each null if not yet built. */
+  daily_quiz_gs: testSummarySchema.nullable(),
+  daily_quiz_csat: testSummarySchema.nullable(),
   /** The guided-mode checklist + its progress ring numbers. */
   checklist: z.array(dashboardChecklistItemSchema),
   checklist_completed: z.number().int(),

@@ -16,6 +16,20 @@ export type DailyQuizArchiveItem = z.infer<typeof dailyQuizArchiveItemSchema>;
 export const dailyQuizArchiveResponseSchema = apiEnvelopeSchema(paginatedSchema(dailyQuizArchiveItemSchema));
 export type DailyQuizArchiveResponse = z.infer<typeof dailyQuizArchiveResponseSchema>;
 
+/**
+ * Today's two daily quizzes — GS (primary) + CSAT (secondary). Either can be
+ * null if it hasn't been built yet / has no questions. Returned by the
+ * self-heal endpoint `POST /daily-quiz/today`.
+ */
+export const dailyQuizzesTodaySchema = z.object({
+  gs: testSummarySchema.nullable(),
+  csat: testSummarySchema.nullable(),
+});
+export type DailyQuizzesToday = z.infer<typeof dailyQuizzesTodaySchema>;
+
+export const dailyQuizzesTodayResponseSchema = apiEnvelopeSchema(dailyQuizzesTodaySchema);
+export type DailyQuizzesTodayResponse = z.infer<typeof dailyQuizzesTodayResponseSchema>;
+
 // ---------------------------------------------------------------------------
 // Daily answer set — 4-5 descriptive questions/day with per-question status.
 // ---------------------------------------------------------------------------

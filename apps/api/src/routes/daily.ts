@@ -1,12 +1,11 @@
 import { Router } from "express";
 import { z } from "zod";
-import { dailyQuizArchiveResponseSchema, testDetailResponseSchema } from "@neev/shared";
+import { dailyQuizArchiveResponseSchema, dailyQuizzesTodayResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { examCutoffsResponseSchema } from "@neev/shared";
-import { DAILY_ARCHIVE_PAGE_SIZE, ensureTodayQuiz, listDailyQuizzes } from "../services/daily.js";
-import { getTestDetail } from "../services/tests.js";
+import { DAILY_ARCHIVE_PAGE_SIZE, ensureTodayQuizzes, listDailyQuizzes } from "../services/daily.js";
 import { getCutoffs } from "../services/mocks.js";
 
 export const dailyRouter = Router();
@@ -35,20 +34,16 @@ dailyRouter.get(
 );
 
 /**
- * Ensure today's quiz exists and return its detail — lets the "Today" card
- * self-heal if the 5:00 AM IST job hasn't run yet in this dev process.
+ * Ensure both of today's quizzes (GS + CSAT) exist and return their summaries —
+ * lets the "Today" card and Practice > Daily Quiz panel self-heal if the 5:00 AM
+ * IST job hasn't run yet in this dev process. Either summary may be null if a
+ * variant has no questions to build from.
  */
 dailyRouter.post(
   "/daily-quiz/today",
   asyncHandler(async (_req, res) => {
-    const testId = await ensureTodayQuiz();
-    if (!testId) {
-      // No questions available to build from — a valid, graceful empty result.
-      res.json({ data: null, error: null });
-      return;
-    }
-    const test = await getTestDetail(testId);
-    res.json(testDetailResponseSchema.parse({ data: test, error: null }));
+    const quizzes = await ensureTodayQuizzes();
+    res.json(dailyQuizzesTodayResponseSchema.parse({ data: quizzes, error: null }));
   }),
 );
 

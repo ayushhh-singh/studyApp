@@ -9,6 +9,7 @@
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDayRangeUtc, istToday } from "../lib/ist.js";
+import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
 import { getDailyAnswerSet } from "./answer-set.js";
 
 /** Reviews-in-a-day threshold that counts as a study day on its own. */
@@ -17,9 +18,18 @@ export const SRS_ACTIVITY_THRESHOLD = 10;
 export const ANSWER_SET_CHECKLIST_TARGET = 2;
 
 export interface DailyProgress {
-  /** Today's daily-quiz test id, if one exists. */
+  /**
+   * The GS daily quiz — the primary quiz. `daily_quiz_test_id`/`daily_quiz_done`
+   * are kept as convenience aliases of the GS variant (the primary), so callers
+   * that still think in terms of "the daily quiz" (e.g. the quiz_ready nudge)
+   * point at GS.
+   */
   daily_quiz_test_id: string | null;
   daily_quiz_done: boolean;
+  gs_quiz_test_id: string | null;
+  gs_quiz_done: boolean;
+  csat_quiz_test_id: string | null;
+  csat_quiz_done: boolean;
   /** Attempts (any test) the user submitted today. */
   attempts_today: number;
   /** Answer-set items with a completed evaluation, and the day's set size. */
@@ -46,30 +56,35 @@ export async function getDailyProgress(userId: string, date: string = istToday()
   const { startUtc, endUtc } = istDayRangeUtc(date);
   const nowIso = new Date().toISOString();
 
-  // Today's daily quiz + whether it's been submitted.
-  const { data: quiz, error: quizErr } = await supabase()
+  // Today's two daily quizzes (GS + CSAT), paper-scoped. A legacy pre-split
+  // blended quiz (paper_code NULL) is ignored here — only the GS/CSAT rows drive
+  // today's progress.
+  const { data: quizRows, error: quizErr } = await supabase()
     .from("tests")
-    .select("id")
+    .select("id, paper_code")
     .eq("kind", "daily_quiz")
+    .eq("is_published", true)
     .eq("scheduled_date", date)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in("paper_code", [PRELIMS_GS1_PAPER_CODE, PRELIMS_CSAT_PAPER_CODE]);
   if (quizErr) throw new HttpError(500, `daily quiz lookup failed: ${quizErr.message}`);
-  const dailyQuizId = (quiz?.id as string | undefined) ?? null;
+  const rows = (quizRows ?? []) as { id: string; paper_code: string | null }[];
+  const gsQuizId = rows.find((r) => r.paper_code === PRELIMS_GS1_PAPER_CODE)?.id ?? null;
+  const csatQuizId = rows.find((r) => r.paper_code === PRELIMS_CSAT_PAPER_CODE)?.id ?? null;
 
-  let dailyQuizDone = false;
-  if (dailyQuizId) {
-    dailyQuizDone =
+  const quizDone = async (testId: string | null): Promise<boolean> => {
+    if (!testId) return false;
+    return (
       (await headCount(() =>
         supabase()
           .from("attempts")
           .select("id", { count: "exact", head: true })
           .eq("user_id", userId)
-          .eq("test_id", dailyQuizId)
+          .eq("test_id", testId)
           .not("submitted_at", "is", null),
-      )) > 0;
-  }
+      )) > 0
+    );
+  };
+  const [gsQuizDone, csatQuizDone] = await Promise.all([quizDone(gsQuizId), quizDone(csatQuizId)]);
 
   const [attemptsToday, srsReviewsToday, submissionsToday, readTodayCount, answerSet, srsDue, postsToday, votesToday] =
     await Promise.all([
@@ -135,8 +150,15 @@ export async function getDailyProgress(userId: string, date: string = istToday()
   const readToday = readTodayCount > 0;
 
   return {
-    daily_quiz_test_id: dailyQuizId,
-    daily_quiz_done: dailyQuizDone,
+    // Aliases point at GS (the primary quiz); "done" is EITHER quiz done — see
+    // buildChecklist / hadActivity: completing either the GS or the CSAT quiz
+    // satisfies the single "Daily quiz" habit item and the streak.
+    daily_quiz_test_id: gsQuizId,
+    daily_quiz_done: gsQuizDone || csatQuizDone,
+    gs_quiz_test_id: gsQuizId,
+    gs_quiz_done: gsQuizDone,
+    csat_quiz_test_id: csatQuizId,
+    csat_quiz_done: csatQuizDone,
     attempts_today: attemptsToday,
     answer_completed: answerSet.completed_count,
     answer_total: answerSet.items.length,
@@ -158,6 +180,10 @@ export interface ChecklistItem {
 /** The guided "Today" checklist derived from progress. */
 export function buildChecklist(p: DailyProgress): { items: ChecklistItem[]; completed: number; total: number } {
   const items: ChecklistItem[] = [
+    // The single "Daily quiz" habit item ticks when EITHER the GS or CSAT quiz
+    // is done (p.daily_quiz_done = gs_done || csat_done). Keeping it one item
+    // keeps the daily habit attainable — the streak rewards showing up, not
+    // grinding both papers (35+ questions) every day; CSAT is qualifying-only.
     { key: "daily_quiz", done: p.daily_quiz_done, current: p.daily_quiz_done ? 1 : 0, target: 1 },
     {
       key: "answer_set",
@@ -174,9 +200,11 @@ export function buildChecklist(p: DailyProgress): { items: ChecklistItem[]; comp
 }
 
 /**
- * The any-activity rule: a study day counts if the user did the daily quiz,
- * reviewed 10+ SRS cards, submitted an answer, took a test attempt, OR completed
- * the whole Today checklist.
+ * The any-activity rule: a study day counts if the user did EITHER daily quiz
+ * (daily_quiz_done = gs_done || csat_done), reviewed 10+ SRS cards, submitted an
+ * answer, took a test attempt, OR completed the whole Today checklist. (Both
+ * quizzes are attempts, so p.attempts_today >= 1 already covers either — the
+ * explicit daily_quiz_done branch just keeps the rule self-documenting.)
  */
 export function hadActivity(p: DailyProgress): boolean {
   const checklist = buildChecklist(p);

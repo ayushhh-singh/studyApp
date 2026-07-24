@@ -9,7 +9,8 @@
 import { istToday } from "../lib/ist.js";
 import { logger } from "../lib/logger.js";
 import { listAllUserIds } from "../lib/users.js";
-import { buildDailyQuiz } from "./quiz.js";
+import { buildDailyQuizzes } from "./quiz.js";
+import { DAILY_QUIZ_VARIANTS } from "./config.js";
 import { getDailyAnswerSet } from "../services/answer-set.js";
 
 export interface DailyBuildOptions {
@@ -24,20 +25,17 @@ export async function runDailyBuild(opts: DailyBuildOptions = {}): Promise<void>
   const date = opts.date ?? istToday();
   const log = opts.log ?? ((m: string) => logger.info(`daily: ${m}`));
 
-  // The daily quiz is ONE shared test — services/scoreboard.ts ranks every
-  // user's attempt on it against everyone else's via
-  // daily_quiz_board_entries, which only makes sense if they all took the
-  // same set of questions. Build it once, not once per user: it used to run
-  // inside the per-user loop below, so every user's build silently
-  // overwrote the previous user's membership for the same `tests` row —
-  // only whichever user happened to be processed last that night actually
-  // determined what everyone saw (and, since the "generated" slice used to
-  // draw from a pool filtered to one user's own weak nodes, a real cause of
-  // the same handful of questions recurring night after night for
-  // everyone). See daily/quiz.ts's doc comment.
-  log(`building daily quiz for ${date}`);
-  const quiz = await buildDailyQuiz({ date, size: opts.size, log });
-  if (!quiz) log("daily quiz: skipped (no questions available)");
+  // The daily quizzes are SHARED tests (one GS + one CSAT for the whole
+  // platform, not per-user) — services/scoreboard.ts ranks every user's GS
+  // attempt against everyone else's via daily_quiz_board_entries, which only
+  // makes sense if they all took the same set. Build them once, not once per
+  // user. Each variant is assembled from its own paper's pool (see
+  // daily/quiz.ts / config.ts).
+  log(`building daily quizzes (${DAILY_QUIZ_VARIANTS.map((v) => v.key).join(", ")}) for ${date}`);
+  const quizzes = await buildDailyQuizzes({ date, size: opts.size, log });
+  for (const variant of DAILY_QUIZ_VARIANTS) {
+    if (!quizzes[variant.key]) log(`daily quiz [${variant.key}]: skipped (no questions available)`);
+  }
 
   const userIds = opts.userId ? [opts.userId] : await listAllUserIds();
   if (userIds.length === 0) {

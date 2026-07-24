@@ -35,6 +35,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
+import { PRELIMS_CSAT_PAPER_CODE } from "../lib/exam-papers.js";
 import { RUBRIC_DIMENSION_KEYS } from "./evaluation/rubric.js";
 
 const BOARD_TOP_N = 20;
@@ -147,11 +148,19 @@ export async function recordDailyQuizResult(
 
   const { data: test, error } = await supabase()
     .from("tests")
-    .select("kind, scheduled_date")
+    .select("kind, scheduled_date, paper_code")
     .eq("id", attempt.test_id)
     .maybeSingle();
   if (error) throw new HttpError(500, `test lookup failed: ${error.message}`);
   if (!test || test.kind !== "daily_quiz") return;
+  // The competitive daily board tracks the GS quiz ONLY. CSAT is qualifying-only
+  // in the real exam (not merit-ranked), and summing GS+CSAT would unfairly rank
+  // a user who did both above one who did only GS — so a CSAT attempt is scored
+  // and saved like any attempt, just never placed on the daily board. Legacy
+  // pre-split blended quizzes (paper_code NULL) keep recording, as they always
+  // were the "daily quiz". unique(user_id, quiz_date) stays valid because at
+  // most one of {legacy, GS} exists per date.
+  if (test.paper_code === PRELIMS_CSAT_PAPER_CODE) return;
 
   const quizDate = (test.scheduled_date as string | null) ?? istDateString(Date.parse(attempt.submitted_at));
   const attempted = gradedAnswers.length;

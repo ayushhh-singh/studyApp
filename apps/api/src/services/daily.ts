@@ -4,12 +4,13 @@
  * exists" used on load in case the 5:00 AM IST job hasn't run in this dev
  * process yet.
  */
-import type { BilingualText, DailyQuizArchiveItem, TestKind } from "@neev/shared";
+import type { BilingualText, DailyQuizArchiveItem, DailyQuizzesToday, TestKind, TestSummary } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istToday } from "../lib/ist.js";
 import { getBestScoresByTest } from "./tests.js";
-import { buildDailyQuiz } from "../daily/quiz.js";
+import { buildDailyQuizVariant } from "../daily/quiz.js";
+import { DAILY_QUIZ_VARIANTS, type DailyQuizVariant } from "../daily/config.js";
 
 export const DAILY_ARCHIVE_PAGE_SIZE = 20;
 
@@ -65,24 +66,69 @@ export async function listDailyQuizzes(
   return { items: rows.map((r) => mapRow(r, best)), total: count ?? 0 };
 }
 
-/**
- * Ensure today's daily quiz exists, building it on demand if the scheduled job
- * hasn't produced it yet (self-heal). It's one shared test for every user
- * (see daily/quiz.ts's doc comment — the scoreboard ranks everyone against
- * it), so this doesn't take a userId. Returns the test id, or null if there
- * were no questions to build from at all.
- */
-export async function ensureTodayQuiz(): Promise<string | null> {
-  const today = istToday();
-  const { data: existing, error } = await supabase()
+interface DailyQuizSummaryRow {
+  id: string;
+  slug: string | null;
+  title_i18n: BilingualText;
+  kind: TestKind;
+  paper_code: string | null;
+  duration_minutes: number | null;
+  total_marks: number | null;
+  test_questions: { count: number }[];
+}
+
+const DAILY_QUIZ_SUMMARY_COLUMNS =
+  "id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)";
+
+function toSummary(row: DailyQuizSummaryRow, best: { best: number; count: number } | undefined): TestSummary {
+  return {
+    id: row.id,
+    slug: row.slug,
+    title_i18n: row.title_i18n,
+    kind: row.kind,
+    paper_code: row.paper_code,
+    duration_minutes: row.duration_minutes,
+    total_marks: row.total_marks,
+    question_count: row.test_questions[0]?.count ?? 0,
+    best_score: best?.best ?? null,
+    attempts_count: best?.count ?? 0,
+    year: null,
+  };
+}
+
+/** Find one variant's daily-quiz test row for a date (paper-scoped), or null. */
+async function findDailyQuizRow(variant: DailyQuizVariant, date: string): Promise<DailyQuizSummaryRow | null> {
+  const { data, error } = await supabase()
     .from("tests")
-    .select("id")
+    .select(DAILY_QUIZ_SUMMARY_COLUMNS)
     .eq("kind", "daily_quiz")
-    .eq("scheduled_date", today)
+    .eq("is_published", true)
+    .eq("scheduled_date", date)
+    .eq("paper_code", variant.paperCode)
     .maybeSingle();
   if (error) throw new HttpError(500, `daily quiz lookup failed: ${error.message}`);
-  if (existing) return existing.id as string;
+  return (data as unknown as DailyQuizSummaryRow | null) ?? null;
+}
 
-  const built = await buildDailyQuiz({ date: today });
-  return built?.test_id ?? null;
+/**
+ * Ensure BOTH of today's daily quizzes (GS + CSAT) exist, building either on
+ * demand if the 5:00 AM IST job hasn't produced it yet (self-heal). Each is one
+ * shared test for the whole platform (see daily/quiz.ts's doc comment), so this
+ * doesn't take a userId. Returns a summary per variant, or null for a variant
+ * with genuinely no questions to build from.
+ */
+export async function ensureTodayQuizzes(): Promise<DailyQuizzesToday> {
+  const today = istToday();
+  const out: DailyQuizzesToday = { gs: null, csat: null };
+  for (const variant of DAILY_QUIZ_VARIANTS) {
+    let row = await findDailyQuizRow(variant, today);
+    if (!row) {
+      const built = await buildDailyQuizVariant(variant, { date: today });
+      if (built) row = await findDailyQuizRow(variant, today);
+    }
+    if (!row) continue;
+    const best = (await getBestScoresByTest([row.id])).get(row.id);
+    out[variant.key] = toSummary(row, best);
+  }
+  return out;
 }

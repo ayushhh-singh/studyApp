@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate } from "react-router";
-import { ChevronRight, Clock, Loader2, Newspaper, Sparkles } from "lucide-react";
-import type { DashboardToday } from "@neev/shared";
+import { BrainCircuit, ChevronRight, Clock, Loader2, Newspaper, Sparkles } from "lucide-react";
+import type { DashboardToday, TestSummary } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { useEnsureTodayQuiz } from "@/hooks/use-daily";
 import { useLocale } from "@/hooks/use-locale";
@@ -66,26 +66,57 @@ export function TodayCard({ data }: { data: DashboardToday }) {
   const navigate = useNavigate();
   const ensureTodayQuiz = useEnsureTodayQuiz();
 
-  function handleGenerateQuiz() {
+  /** Generate both quizzes, then jump into the one this row is for (or GS if it wasn't the target). */
+  function handleGenerateQuiz(target: "gs" | "csat") {
     ensureTodayQuiz.mutate(undefined, {
-      onSuccess: (test) => {
-        // A `null` result means there were genuinely no questions to build
-        // from yet — dashboardSummary is still invalidated, so the row will
-        // settle back to its normal empty state on refetch.
-        if (test) navigate(`/${locale}/practice/test/${test.id}`);
+      onSuccess: (quizzes) => {
+        // A `null` variant means there were genuinely no questions to build from
+        // yet — dashboardSummary is still invalidated, so the row settles back to
+        // its empty state on refetch. Prefer the row's own target, fall back to GS.
+        const quiz = quizzes[target] ?? quizzes.gs ?? quizzes.csat;
+        if (quiz) navigate(`/${locale}/practice/test/${quiz.id}`);
       },
     });
   }
 
-  const dailyQuizLabel = data.daily_quiz
-    ? data.daily_quiz.title_i18n[locale]
-    : ensureTodayQuiz.isPending
-      ? t("Dashboard.todayDailyQuizGenerating")
-      : ensureTodayQuiz.isError
-        ? t("Dashboard.todayDailyQuizError")
-        : ensureTodayQuiz.isSuccess
-          ? t("Dashboard.todayDailyQuizEmpty")
-          : t("Dashboard.todayDailyQuizNone");
+  /** One daily-quiz row (GS or CSAT) — links into the quiz, or self-heal-generates it. */
+  function QuizRow({
+    quiz,
+    paper,
+    icon,
+    shortLabel,
+  }: {
+    quiz: TestSummary | null;
+    paper: "gs" | "csat";
+    icon: typeof Sparkles;
+    shortLabel: string;
+  }) {
+    const label = quiz
+      ? shortLabel
+      : ensureTodayQuiz.isPending
+        ? t("Dashboard.todayDailyQuizGenerating")
+        : ensureTodayQuiz.isError
+          ? t("Dashboard.todayDailyQuizError")
+          : ensureTodayQuiz.isSuccess
+            ? t("Dashboard.todayDailyQuizEmpty")
+            : t("Dashboard.todayDailyQuizNone");
+    return (
+      <TodayRow
+        icon={icon}
+        label={label}
+        to={quiz ? `/${locale}/practice/test/${quiz.id}` : undefined}
+        onClick={quiz ? undefined : () => handleGenerateQuiz(paper)}
+        pending={!quiz && ensureTodayQuiz.isPending}
+        cta={
+          quiz
+            ? t("Dashboard.todayDailyQuizStartCta")
+            : ensureTodayQuiz.isPending
+              ? undefined
+              : t("Dashboard.todayDailyQuizGenerateCta")
+        }
+      />
+    );
+  }
 
   return (
     <SectionCard title={t("Dashboard.todayTitle")}>
@@ -110,19 +141,12 @@ export function TodayCard({ data }: { data: DashboardToday }) {
           to={`/${locale}/current-affairs`}
           cta={t("Dashboard.todayGoToCurrentAffairs")}
         />
-        <TodayRow
-          icon={Sparkles}
-          label={dailyQuizLabel}
-          to={data.daily_quiz ? `/${locale}/practice/test/${data.daily_quiz.id}` : undefined}
-          onClick={data.daily_quiz ? undefined : handleGenerateQuiz}
-          pending={!data.daily_quiz && ensureTodayQuiz.isPending}
-          cta={
-            data.daily_quiz
-              ? t("Dashboard.todayDailyQuizCta")
-              : ensureTodayQuiz.isPending
-                ? undefined
-                : t("Dashboard.todayDailyQuizGenerateCta")
-          }
+        <QuizRow quiz={data.daily_quiz_gs} paper="gs" icon={Sparkles} shortLabel={t("Dashboard.todayDailyQuizGs")} />
+        <QuizRow
+          quiz={data.daily_quiz_csat}
+          paper="csat"
+          icon={BrainCircuit}
+          shortLabel={t("Dashboard.todayDailyQuizCsat")}
         />
       </div>
     </SectionCard>

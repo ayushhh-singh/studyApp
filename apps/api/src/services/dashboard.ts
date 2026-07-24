@@ -16,6 +16,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
+import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { getBestScoresByTest } from "./tests.js";
 import { buildChecklist, getDailyProgress, type DailyProgress } from "./daily-progress.js";
@@ -211,20 +212,19 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
     .eq("date", today);
   if (caError) throw new HttpError(500, `current affairs today count failed: ${caError.message}`);
 
-  // order + limit(1) before maybeSingle() so a data slip (two daily_quiz
-  // tests accidentally sharing a scheduled_date — nothing but the partial
-  // unique index in 0024 prevents that) can't 500 the whole dashboard.
-  const { data: quiz, error: quizError } = await supabase()
+  // Today's two daily quizzes — GS (primary) + CSAT (secondary), paper-scoped.
+  // Legacy pre-split blended rows (paper_code NULL) are ignored. The
+  // (scheduled_date, paper_code) unique index (0078) makes each variant at most
+  // one row, so no order/limit dance is needed.
+  const { data: quizzes, error: quizError } = await supabase()
     .from("tests")
     .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)")
     .eq("kind", "daily_quiz")
     .eq("is_published", true)
     .eq("scheduled_date", today)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    .in("paper_code", [PRELIMS_GS1_PAPER_CODE, PRELIMS_CSAT_PAPER_CODE]);
   if (quizError) throw new HttpError(500, `daily quiz lookup failed: ${quizError.message}`);
-  const quizRow = quiz as {
+  const quizRows = (quizzes ?? []) as {
     id: string;
     slug: string | null;
     title_i18n: BilingualText;
@@ -233,24 +233,26 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
     duration_minutes: number | null;
     total_marks: number | null;
     test_questions: { count: number }[];
-  } | null;
-
-  const quizBestScore = quizRow ? (await getBestScoresByTest([quizRow.id])).get(quizRow.id) : undefined;
-  const dailyQuiz: TestSummary | null = quizRow
-    ? {
-        id: quizRow.id,
-        slug: quizRow.slug,
-        title_i18n: quizRow.title_i18n,
-        kind: quizRow.kind,
-        paper_code: quizRow.paper_code,
-        duration_minutes: quizRow.duration_minutes,
-        total_marks: quizRow.total_marks,
-        question_count: quizRow.test_questions[0]?.count ?? 0,
-        best_score: quizBestScore?.best ?? null,
-        attempts_count: quizBestScore?.count ?? 0,
-        year: null,
-      }
-    : null;
+  }[];
+  const best = quizRows.length > 0 ? await getBestScoresByTest(quizRows.map((r) => r.id)) : new Map();
+  const toSummary = (paperCode: string): TestSummary | null => {
+    const row = quizRows.find((r) => r.paper_code === paperCode);
+    if (!row) return null;
+    const b = best.get(row.id);
+    return {
+      id: row.id,
+      slug: row.slug,
+      title_i18n: row.title_i18n,
+      kind: row.kind,
+      paper_code: row.paper_code,
+      duration_minutes: row.duration_minutes,
+      total_marks: row.total_marks,
+      question_count: row.test_questions[0]?.count ?? 0,
+      best_score: b?.best ?? null,
+      attempts_count: b?.count ?? 0,
+      year: null,
+    };
+  };
 
   const checklist = buildChecklist(progress);
   const planTasks = await getTodayPlanTasks(userId, today);
@@ -258,7 +260,8 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
   return {
     srs_due_count: srsDue,
     current_affairs_today_count: caToday ?? 0,
-    daily_quiz: dailyQuiz,
+    daily_quiz_gs: toSummary(PRELIMS_GS1_PAPER_CODE),
+    daily_quiz_csat: toSummary(PRELIMS_CSAT_PAPER_CODE),
     checklist: checklist.items,
     checklist_completed: checklist.completed,
     checklist_total: checklist.total,
