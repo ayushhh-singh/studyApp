@@ -1,12 +1,10 @@
 import type { RouteObject } from "react-router";
 
 /**
- * The five tabs, lazy-loaded per page (same convention as router.tsx). Kept
- * separate from the shell's own path so this exact array is reusable at two
- * different mount points: /:locale/sukoon/* (integrated) and /* (standalone,
- * VITE_APP=sukoon) — see createSukoonRoute below and router.tsx.
+ * The five app tabs, lazy-loaded per page (same convention as router.tsx). They
+ * render inside shell.tsx's nav chrome, one level under the root layout.
  */
-const sukoonChildRoutes: RouteObject[] = [
+const sukoonAppRoutes: RouteObject[] = [
   { index: true, lazy: () => import("@/sukoon/pages/home") },
   { path: "saathi", lazy: () => import("@/sukoon/pages/saathi") },
   { path: "journal", lazy: () => import("@/sukoon/pages/journal") },
@@ -15,15 +13,26 @@ const sukoonChildRoutes: RouteObject[] = [
 ];
 
 /**
- * Builds the Sukoon layout route at an arbitrary mount path — "sukoon" when
+ * Builds the Sukoon route subtree at an arbitrary mount path — "sukoon" when
  * nested under /:locale (integrated), or "/" when it IS the router root
- * (standalone). All internal nav links are route-relative (sukoon/lib/nav.ts),
- * so the same shell + child routes work unchanged at either mount point.
+ * (standalone). Two layers:
+ *   - root.tsx  — the `.sukoon` theme + night mode + onboarding gate, wrapping
+ *     EVERYTHING so onboarding is themed too.
+ *   - onboarding — a full-screen sibling of the shell (no nav chrome).
+ *   - shell.tsx — the sidebar/bottom-nav chrome, wrapping the five app tabs.
+ * All internal nav is route-relative (sukoon/lib/nav.ts), so this works
+ * unchanged at either mount point.
  */
 export function createSukoonRoute(path: string): RouteObject {
   return {
     path,
-    lazy: () => import("@/sukoon/shell"),
-    children: sukoonChildRoutes,
+    lazy: () => import("@/sukoon/root"),
+    children: [
+      { path: "onboarding", lazy: () => import("@/sukoon/pages/onboarding") },
+      {
+        lazy: () => import("@/sukoon/shell"),
+        children: sukoonAppRoutes,
+      },
+    ],
   };
 }

@@ -19,6 +19,7 @@ export const queryKeys = {
   dashboardSummary: () => ["dashboard", "summary"] as const,
   profile: () => ["profile"] as const,
   profileAnalytics: () => ["profile", "analytics"] as const,
+  sukoonProfile: () => ["sukoon", "profile"] as const,
   drillRecommendation: () => ["drills", "recommendation"] as const,
   drillHistory: () => ["drills", "history"] as const,
   activePlan: () => ["study-plan", "active"] as const,
