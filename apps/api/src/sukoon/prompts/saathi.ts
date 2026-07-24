@@ -179,6 +179,26 @@ export function buildContextTail(ctx: SaathiContext): PromptSegment {
  * helpline names/numbers here mirror SUKOON_HELPLINES (shared) — kept literal so
  * the model can weave them into prose; the UI renders the localized card too.
  */
+/**
+ * The voice-mode addendum (blueprint F10) — appended as a final system segment
+ * ONLY on a voice turn (services/voice.ts). The reply is about to be spoken by
+ * a TTS engine, not read as text, so markdown/lists/emoji would either be read
+ * aloud literally or silently dropped — this keeps the reply speakable, and a
+ * little shorter than a typed reply since listening to a wall of speech is
+ * more taxing than reading one.
+ */
+export const VOICE_REPLY_DIRECTIVE: PromptSegment = {
+  text: [
+    "VOICE MODE: this reply will be SPOKEN aloud by a text-to-speech voice, not shown as text.",
+    "Write it exactly as you'd actually say it out loud: plain natural sentences only — no",
+    "markdown, no asterisks, no headings, no bullet points or numbered lists, no emoji. Keep it",
+    "a little shorter than usual — a couple of warm, spoken-feeling sentences, since a person is",
+    "listening in real time, not reading. The transcript you're replying to may contain a few",
+    "misheard words (it's a speech-to-text transcription) — respond to the likely intent rather",
+    "than fixating on an odd word.",
+  ].join("\n"),
+};
+
 export const MODERATE_CARE_DIRECTIVE: PromptSegment = {
   text: [
     "GENTLE-CARE MODE: This person may be carrying more than usual right now. Hold extra",

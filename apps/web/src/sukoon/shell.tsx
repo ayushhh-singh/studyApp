@@ -3,6 +3,7 @@ import { SukoonHeader } from "@/sukoon/components/sukoon-header";
 import { SukoonSidebar } from "@/sukoon/components/sukoon-sidebar";
 import { SukoonBottomNav } from "@/sukoon/components/sukoon-bottom-nav";
 import { NotTherapyFooter } from "@/sukoon/components/not-therapy-footer";
+import { SukoonPaywall } from "@/sukoon/components/sukoon-paywall";
 
 /**
  * Sukoon's in-app chrome — sidebar on desktop, bottom-nav on mobile,
@@ -24,6 +25,9 @@ export function Component() {
         </main>
       </div>
       <SukoonBottomNav />
+      {/* One paywall interstitial for the whole module (chat cap, reflections,
+          premium journeys, insights) — opened via useSukoonPaywallStore. */}
+      <SukoonPaywall />
     </div>
   );
 }

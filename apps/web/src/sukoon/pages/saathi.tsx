@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
-import { History, Loader2, Plus, Send, Sparkles, Wind } from "lucide-react";
+import { History, Loader2, Lock, Mic, Plus, Send, Sparkles, Wind } from "lucide-react";
 import type { SukoonCrisisLevel } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useSukoonProfile } from "@/sukoon/lib/use-sukoon-profile";
+import { useSukoonPaywallStore } from "@/sukoon/stores/sukoon-paywall-store";
 import { NotTherapyFooter } from "@/sukoon/components/not-therapy-footer";
 import { CrisisInlineCard } from "@/sukoon/components/crisis-inline-card";
 import { CrisisTakeover } from "@/sukoon/components/crisis-takeover";
@@ -22,6 +23,7 @@ import {
   useSaathiUsage,
   type SaathiSettled,
 } from "@/sukoon/lib/use-sukoon-chat";
+import { useVoiceUsage } from "@/sukoon/lib/use-sukoon-voice";
 
 interface ChatMsg {
   id: string;
@@ -51,6 +53,7 @@ function pickStarterKeys(hour: number, daysToExam: number | null): string[] {
 export function Component() {
   const { t, language: uiLang } = useSukoonLanguage();
   const { locale } = useParams<{ locale?: string }>();
+  const base = locale ? `/${locale}/sukoon` : "";
   const [searchParams, setSearchParams] = useSearchParams();
   const { session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
@@ -79,6 +82,7 @@ export function Component() {
   const historyQuery = useSaathiHistory(loadId, { enabled: canChat && !freshThread });
   const usageQuery = useSaathiUsage({ enabled: canChat });
   const conversationsQuery = useSaathiConversations({ enabled: canChat && drawerOpen });
+  const voiceUsageQuery = useVoiceUsage({ enabled: canChat });
   const stream = useSaathiStream();
 
   // Seed the message list from the loaded conversation (skip for a fresh thread).
@@ -104,6 +108,10 @@ export function Component() {
 
   const usage = usageQuery.data;
   const capReached = !!usage && usage.remaining <= 0;
+  const openPaywall = useSukoonPaywallStore((s) => s.openPaywall);
+  // A free/plus user can move to a higher tier for more daily messages; a Pro
+  // user is already at the top, so the cap banner stays a gentle notice for them.
+  const canUpgradeFromCap = capReached && usage?.tier !== "pro";
 
   const onDone = useCallback(
     (r: SaathiSettled) => {
@@ -228,6 +236,29 @@ export function Component() {
           <p className="text-sm text-muted-foreground">{t("Sukoon.saathiSub")}</p>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
+          {/* F10 Voice Mode entry point. Eligible (Pro) → a real link into the
+              full-screen voice screen; free/plus → a locked badge that opens
+              the shared upgrade sheet, same "with upsell" pattern as F6/F7's
+              premium content locks. Rendered only once the eligibility check
+              has actually resolved — no flash of the wrong state. */}
+          {voiceUsageQuery.data?.eligible ? (
+            <Button asChild variant="ghost" size="sm" className="gap-1.5">
+              <Link to={`${base}/saathi/voice`}>
+                <Mic className="size-4" aria-hidden />
+                <span className="hidden sm:inline">{t("Sukoon.saathi.voiceEntry")}</span>
+              </Link>
+            </Button>
+          ) : voiceUsageQuery.data && !voiceUsageQuery.data.eligible ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-muted-foreground"
+              onClick={() => openPaywall("voice")}
+            >
+              <Lock className="size-3.5" aria-hidden />
+              <span className="hidden sm:inline">{t("Sukoon.saathi.voiceEntry")}</span>
+            </Button>
+          ) : null}
           <Button variant="ghost" size="sm" className="gap-1.5" onClick={startNewChat}>
             <Plus className="size-4" aria-hidden />
             <span className="hidden sm:inline">{t("Sukoon.saathi.newChat")}</span>
@@ -321,6 +352,16 @@ export function Component() {
           <p className="mt-1 text-muted-foreground">
             {t("Sukoon.saathi.capBody", { limit: usage?.limit ?? 0 })}
           </p>
+          {canUpgradeFromCap ? (
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-3"
+              onClick={() => openPaywall("chat_cap")}
+            >
+              {t("Sukoon.paywall.seePlans")}
+            </Button>
+          ) : null}
         </div>
       ) : null}
 

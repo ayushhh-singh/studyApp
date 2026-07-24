@@ -3,6 +3,7 @@ import { CheckCircle2, Lock, Milestone } from "lucide-react";
 import type { SukoonJourney } from "@neev/shared";
 import { cn } from "@/lib/utils";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useSukoonPaywallStore } from "@/sukoon/stores/sukoon-paywall-store";
 import { ProgressRing } from "./progress-ring";
 
 /** Sukoon F7 — one catalog card: title/description, day count, a progress
@@ -10,6 +11,7 @@ import { ProgressRing } from "./progress-ring";
  *  locked badge when premium + free tier (mirrors ExerciseCard's pattern). */
 export function JourneyCard({ journey, base }: { journey: SukoonJourney; base: string }) {
   const { t, language } = useSukoonLanguage();
+  const openPaywall = useSukoonPaywallStore((s) => s.openPaywall);
   const title = language === "hi" ? journey.title_hi : journey.title_en;
   const description = language === "hi" ? journey.description_hi : journey.description_en;
   const done = !!journey.progress?.completed_at;
@@ -21,6 +23,14 @@ export function JourneyCard({ journey, base }: { journey: SukoonJourney; base: s
   return (
     <Link
       to={`${base}/journeys/${journey.slug}`}
+      onClick={(e) => {
+        // A premium journey on a free tier: don't navigate into a gated detail —
+        // open the calm paywall right here instead.
+        if (journey.locked) {
+          e.preventDefault();
+          openPaywall("journeys");
+        }
+      }}
       className={cn(
         "group flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 transition-colors duration-300",
         "hover:border-secondary/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",

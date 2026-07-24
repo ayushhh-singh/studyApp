@@ -13,6 +13,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { PageSeo } from "@/components/seo/page-seo";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
+import { SukoonBundleStrip } from "@/components/billing/sukoon-bundle-strip";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { cn } from "@/lib/utils";
 import { billingCopy as c, pick, planPeriodLabel, planMonths } from "@/lib/billing-copy";
@@ -217,6 +218,9 @@ export function Component() {
 
       {/* Free vs Pro comparison */}
       <ComparisonTable locale={locale} />
+
+      {/* Cross-sell: add the Sukoon wellness companion (40%-off bundle). */}
+      <SukoonBundleStrip />
       </div>
 
       <Footer />

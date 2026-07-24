@@ -50,6 +50,14 @@ export const sukoonProfileSchema = z.object({
   mood_reminder_enabled: z.boolean(),
   journey_reminder_enabled: z.boolean(),
   exam_eve_reminder_enabled: z.boolean(),
+  // F9 weekly insights (Plus+). `insights_opt_in` gates whether the Sunday job
+  // generates an insight at all (default on — it's a paid benefit the user
+  // asked for by subscribing, but honoured as opt-out). `deep_insights_opt_in`
+  // is the STRICTER, separate consent (Pro only) to let the model read
+  // decrypted journal bodies, not just metadata — default OFF, and meaningless
+  // unless the tier is pro (enforced server-side, never by trusting this flag).
+  insights_opt_in: z.boolean(),
+  deep_insights_opt_in: z.boolean(),
   onboarding_completed: z.boolean(),
   created_at: z.string(),
   updated_at: z.string(),
@@ -90,6 +98,13 @@ export const sukoonProfileUpdateBodySchema = z
     mood_reminder_enabled: z.boolean().optional(),
     journey_reminder_enabled: z.boolean().optional(),
     exam_eve_reminder_enabled: z.boolean().optional(),
+    // The insights + deep-insights consent toggles live in Settings (F9/F4).
+    // deep_insights_opt_in can be SET to true by any tier, but the Sunday job
+    // only honours it for pro (the tier check is the real gate — see
+    // services/insights.ts); persisting the preference for a plus user who
+    // later upgrades is fine and avoids re-asking.
+    insights_opt_in: z.boolean().optional(),
+    deep_insights_opt_in: z.boolean().optional(),
   })
   .refine((d) => Object.keys(d).length > 0, { message: "No fields to update" });
 export type SukoonProfileUpdateBody = z.infer<typeof sukoonProfileUpdateBodySchema>;
@@ -1241,6 +1256,379 @@ export type SukoonJourneyUpsertResponse = z.infer<typeof sukoonJourneyUpsertResp
 export const sukoonAdminStatusResponseSchema = apiEnvelopeSchema(z.object({ is_admin: z.boolean() }));
 export type SukoonAdminStatusResponse = z.infer<typeof sukoonAdminStatusResponseSchema>;
 
+// ---------------------------------------------------------------------------
+// F10 — Voice Mode (Sukoon Pro only). Half-duplex push-to-talk: the browser
+// records ONE turn (<=60s), the whole record→transcribe→crisis-check→reply→
+// speak round trip happens in a single POST (no SSE — see the backend
+// services/voice.ts header for why per-token streaming isn't used here), and
+// the response carries both transcripts + the reply audio so the player can
+// show captions immediately, and either provider (OpenAI/Sarvam) behind one
+// contract. Metering is in whole seconds against sukoon_voice_usage
+// (user_id, month 'YYYY-MM', seconds_used — table already exists, 0078/0079).
+// ---------------------------------------------------------------------------
+
+/** 60 minutes/month (blueprint F10). One place this constant is decided. */
+export const SUKOON_VOICE_MONTHLY_CAP_SECONDS = 60 * 60;
+/** Soft warning threshold — 50 of the 60 minutes used. */
+export const SUKOON_VOICE_WARNING_SECONDS = 50 * 60;
+/** Max length of one recorded turn — enforced by the recorder AND the server. */
+export const SUKOON_VOICE_MAX_TURN_SECONDS = 60;
+
+/**
+ * GET /voice/usage — works for EVERY tier (not just Pro) so the Saathi entry
+ * point can render a locked badge for free/plus without erroring. `eligible`
+ * is the one field the UI needs to decide lock vs meter; `warning` is true at
+ * >=50 of 60 minutes used (never true when ineligible).
+ */
+export const sukoonVoiceUsageSchema = z.object({
+  tier: sukoonTierSchema,
+  eligible: z.boolean(),
+  used_seconds: z.number().int(),
+  limit_seconds: z.number().int(),
+  remaining_seconds: z.number().int(),
+  warning: z.boolean(),
+});
+export type SukoonVoiceUsage = z.infer<typeof sukoonVoiceUsageSchema>;
+export const sukoonVoiceUsageResponseSchema = apiEnvelopeSchema(sukoonVoiceUsageSchema);
+export type SukoonVoiceUsageResponse = z.infer<typeof sukoonVoiceUsageResponseSchema>;
+
+/**
+ * Container/codec mime types accepted from MediaRecorder across real browsers
+ * — Chrome/Firefox/Edge default to webm or ogg (opus), Safari to mp4 (aac).
+ * OpenAI's transcription API accepts all of these directly, so the client
+ * just sends whatever `MediaRecorder.isTypeSupported` picked, no transcoding.
+ */
+export const SUKOON_VOICE_AUDIO_MIME_TYPES = [
+  "audio/webm",
+  "audio/ogg",
+  "audio/mp4",
+  "audio/mpeg",
+  "audio/wav",
+] as const;
+export const sukoonVoiceAudioMimeSchema = z.enum(SUKOON_VOICE_AUDIO_MIME_TYPES);
+export type SukoonVoiceAudioMime = z.infer<typeof sukoonVoiceAudioMimeSchema>;
+
+/**
+ * Base64 ceiling for the recorded clip: ~8MB raw audio (matches the
+ * answer-images bucket's own 8MB/file precedent), *4/3 for base64 expansion,
+ * rounded down a little to leave room for the rest of the JSON envelope
+ * under the route's raised body limit (see apps/api/src/index.ts).
+ */
+const SUKOON_VOICE_AUDIO_BASE64_MAX_CHARS = 11_000_000;
+
+/**
+ * POST /voice/turn body. `duration_seconds` is the CLIENT-measured recording
+ * length (the recorder's own start/stop timestamps, not derived from the
+ * blob) — clamped server-side to [0, 60] and used as the exact STT-side
+ * metering figure; the reply's TTS-side seconds are estimated server-side
+ * from the reply text length (no provider reports exact spoken duration
+ * before/without synthesizing, and estimating from text is the same
+ * character-rate approach TTS vendors themselves use for pre-flight cost
+ * quotes) — see services/voice.ts's `estimateSpeechSeconds`.
+ */
+export const sukoonVoiceTurnBodySchema = z.object({
+  conversation_id: z.string().uuid().nullable().optional(),
+  audio_base64: z.string().min(1).max(SUKOON_VOICE_AUDIO_BASE64_MAX_CHARS),
+  mime_type: sukoonVoiceAudioMimeSchema,
+  duration_seconds: z.number().min(0).max(SUKOON_VOICE_MAX_TURN_SECONDS),
+});
+export type SukoonVoiceTurnBody = z.infer<typeof sukoonVoiceTurnBodySchema>;
+
+/**
+ * POST /voice/turn response. `assistant_text`/`assistant_audio_base64` are
+ * null ONLY on a crisis takeover (high/critical — the AI never replies to a
+ * crisis, mirroring the chat SSE's takeover contract); `crisis` is null
+ * whenever the level is none/low (no UI reaction needed at that level).
+ * `conversation_id` is null ONLY for a takeover on a brand-new session (no
+ * conversation existed yet) — mirroring chat's own choice not to mint one for
+ * a lone crisis message (see services/voice.ts's header for why).
+ */
+export const sukoonVoiceTurnResultSchema = z.object({
+  conversation_id: z.string().uuid().nullable(),
+  user_transcript: z.string(),
+  assistant_text: z.string().nullable(),
+  assistant_audio_base64: z.string().nullable(),
+  assistant_audio_mime: z.string().nullable(),
+  crisis: sukoonChatCrisisEventSchema.nullable(),
+  usage: sukoonVoiceUsageSchema,
+});
+export type SukoonVoiceTurnResult = z.infer<typeof sukoonVoiceTurnResultSchema>;
+export const sukoonVoiceTurnResponseSchema = apiEnvelopeSchema(sukoonVoiceTurnResultSchema);
+export type SukoonVoiceTurnResponse = z.infer<typeof sukoonVoiceTurnResponseSchema>;
+
+// ===========================================================================
+// F8 — Wellbeing Check-ins (WHO-5 + custom Exam Stress Self-Check).
+//
+// SAFETY FRAMING (SUKOON_CONTEXT hard rules): these are SELF-REFLECTION tools,
+// never clinical screeners. No banned vocabulary (therapy/diagnosis/clinical/…)
+// appears in any item or result copy. The custom check is deliberately NOT a
+// PHQ/GAD-style instrument — it's authored, exam-aspirant-specific, gentle.
+//
+// The question COPY lives here (one source of truth for both the API — which
+// validates answer shape + scores server-side — and the FE, which renders it),
+// NOT seeded into the DB: sukoon_checkins stores only answers_json + score, so
+// re-wording an item is a code change, never a data migration.
+// ===========================================================================
+
+/** The two check-in kinds (mirrors sukoon_checkins.type CHECK constraint). */
+export const sukoonCheckinTypeSchema = z.enum(["who5", "stress_self_check"]);
+export type SukoonCheckinType = z.infer<typeof sukoonCheckinTypeSchema>;
+
+/** One selectable point on a check-in's frequency scale, bilingual. */
+export interface SukoonScaleOption {
+  value: number;
+  label_hi: string;
+  label_en: string;
+}
+
+/** One check-in item (a statement the user rates by frequency), bilingual. */
+export interface SukoonCheckinItem {
+  id: string;
+  text_hi: string;
+  text_en: string;
+  /**
+   * When true, the item is worded in the COPING/steadying direction, so a
+   * higher answer means LESS stress-load — the score flips it (max - answer).
+   * WHO-5 items are all positive-direction (never reversed).
+   */
+  reverse?: boolean;
+}
+
+/**
+ * WHO-5 Wellbeing Index (public domain). Five positively-worded domains rated
+ * "over the last two weeks", each 0 (at no time) … 5 (all of the time). Items
+ * are phrased as short feeling-states (not full first-person sentences) so they
+ * read cleanly on a rating card AND sidestep Hindi verb-gender agreement.
+ */
+export const SUKOON_WHO5_SCALE: readonly SukoonScaleOption[] = [
+  { value: 0, label_hi: "कभी नहीं", label_en: "At no time" },
+  { value: 1, label_hi: "कभी-कभार", label_en: "Some of the time" },
+  { value: 2, label_hi: "आधे से कम समय", label_en: "Less than half the time" },
+  { value: 3, label_hi: "आधे से ज़्यादा समय", label_en: "More than half the time" },
+  { value: 4, label_hi: "ज़्यादातर समय", label_en: "Most of the time" },
+  { value: 5, label_hi: "हर समय", label_en: "All of the time" },
+] as const;
+
+export const SUKOON_WHO5_ITEMS: readonly SukoonCheckinItem[] = [
+  { id: "cheerful", text_hi: "खुशी और अच्छा मन", text_en: "Cheerful and in good spirits" },
+  { id: "calm", text_hi: "शांति और तनावमुक्ति", text_en: "Calm and relaxed" },
+  { id: "active", text_hi: "सक्रियता और ऊर्जा", text_en: "Active and energetic" },
+  { id: "rested", text_hi: "सुबह तरोताज़ा और आराम भरी नींद", text_en: "Waking up fresh and rested" },
+  { id: "interested", text_hi: "दिन में रुचि जगाने वाली बातें", text_en: "Daily life filled with things that interest me" },
+] as const;
+
+/**
+ * Exam Stress Self-Check — AUTHORED, non-clinical, exam-aspirant-specific.
+ * Rated "over the last two weeks", each 0 (never) … 4 (almost always). Four
+ * items name common aspirant pressures; the fifth is a steadying/support item
+ * (reverse-scored) so the tool never reads as an all-negative checklist and the
+ * result can acknowledge what's already helping.
+ */
+export const SUKOON_STRESS_CHECK_SCALE: readonly SukoonScaleOption[] = [
+  { value: 0, label_hi: "कभी नहीं", label_en: "Never" },
+  { value: 1, label_hi: "कभी-कभार", label_en: "Rarely" },
+  { value: 2, label_hi: "कभी-कभी", label_en: "Sometimes" },
+  { value: 3, label_hi: "अक्सर", label_en: "Often" },
+  { value: 4, label_hi: "लगभग हमेशा", label_en: "Almost always" },
+] as const;
+
+export const SUKOON_STRESS_CHECK_ITEMS: readonly SukoonCheckinItem[] = [
+  {
+    id: "overwhelm",
+    text_hi: "पढ़ाई का बोझ संभाल पाने से ज़्यादा महसूस हुआ",
+    text_en: "Studies felt like more than I could handle",
+  },
+  {
+    id: "comparison",
+    text_hi: "दूसरों से अपनी तैयारी की तुलना करके खुद को पीछे महसूस किया",
+    text_en: "Comparing my preparation to others, I felt behind",
+  },
+  {
+    id: "result_worry",
+    text_hi: "नतीजे की चिंता ने ध्यान लगाना या आराम करना मुश्किल किया",
+    text_en: "Worry about the result made it hard to focus or rest",
+  },
+  {
+    id: "self_worth",
+    text_hi: "लगा कि मेरी अहमियत इस परीक्षा के नतीजे पर टिकी है",
+    text_en: "It felt like my worth depended on this exam's outcome",
+  },
+  {
+    id: "support",
+    text_hi: "मुश्किल पलों में कोई या कुछ था जिसने मुझे संभाला",
+    text_en: "In hard moments, I had someone or something that steadied me",
+    reverse: true,
+  },
+] as const;
+
+/** Per-type item + scale bundle, so the FE renders and the API validates from one place. */
+export const SUKOON_CHECKIN_DEFS: Record<
+  SukoonCheckinType,
+  { items: readonly SukoonCheckinItem[]; scale: readonly SukoonScaleOption[]; maxPerItem: number }
+> = {
+  who5: { items: SUKOON_WHO5_ITEMS, scale: SUKOON_WHO5_SCALE, maxPerItem: 5 },
+  stress_self_check: { items: SUKOON_STRESS_CHECK_ITEMS, scale: SUKOON_STRESS_CHECK_SCALE, maxPerItem: 4 },
+};
+
+/** Below this WHO-5 percentage, surface the gentle (non-alarm) suggestion card. */
+export const SUKOON_WHO5_LOW_THRESHOLD = 50;
+/** At/above this stress-load percentage, surface the same gentle suggestion card. */
+export const SUKOON_STRESS_HIGH_THRESHOLD = 60;
+
+/**
+ * Pure, deterministic scoring (0–100). Shared so the FE can preview a result
+ * instantly and the server can recompute authoritatively from the same rule —
+ * they can never disagree. WHO-5 is the standard Σ×4; the stress check reverses
+ * its coping item, sums to 0–20, then ×5. Answer arrays are assumed already
+ * length/range-validated (who5AnswersSchema / the API's stress schema).
+ */
+export function scoreWho5(answers: number[]): { raw: number; score: number } {
+  const raw = answers.reduce((s, a) => s + a, 0);
+  return { raw, score: raw * 4 };
+}
+export function scoreStressSelfCheck(answers: number[]): { raw: number; score: number } {
+  const max = SUKOON_CHECKIN_DEFS.stress_self_check.maxPerItem;
+  const raw = SUKOON_STRESS_CHECK_ITEMS.reduce(
+    (s, item, i) => s + (item.reverse ? max - answers[i] : answers[i]),
+    0,
+  );
+  // 5 items × 0–4 = 0–20 → ×5 → 0–100. Higher = more stress-load.
+  return { raw, score: raw * 5 };
+}
+
+/** Exactly-5 integer answers, each 0–4, for the stress self-check. */
+export const sukoonStressAnswersSchema = z.array(z.number().int().min(0).max(4)).length(5);
+export type SukoonStressAnswers = z.infer<typeof sukoonStressAnswersSchema>;
+
+/**
+ * POST /checkins — the client submits the type + raw answers only; the server
+ * scores it (never trusts a client-sent score) and stores the row. A
+ * discriminated union keeps each type's answer shape/scale correct.
+ */
+export const sukoonCheckinSubmitBodySchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("who5"), answers: who5AnswersSchema }),
+  z.object({ type: z.literal("stress_self_check"), answers: sukoonStressAnswersSchema }),
+]);
+export type SukoonCheckinSubmitBody = z.infer<typeof sukoonCheckinSubmitBodySchema>;
+
+/** One stored check-in as returned to the client (sukoon_checkins). */
+export const sukoonCheckinSchema = z.object({
+  id: z.string().uuid(),
+  type: sukoonCheckinTypeSchema,
+  score: z.number(),
+  created_at: z.string(),
+});
+export type SukoonCheckin = z.infer<typeof sukoonCheckinSchema>;
+
+/**
+ * POST /checkins response — the freshly-stored row plus a `low` flag that tells
+ * the FE whether to show the gentle suggestion card (WHO-5 < 50 OR stress ≥ 60).
+ * Deliberately NO diagnosis/label — just "is this a moment to offer support".
+ */
+export const sukoonCheckinSubmitResponseSchema = apiEnvelopeSchema(
+  z.object({ checkin: sukoonCheckinSchema, low: z.boolean() }),
+);
+export type SukoonCheckinSubmitResponse = z.infer<typeof sukoonCheckinSubmitResponseSchema>;
+
+/**
+ * GET /checkins/status — per-type: whether the user has ever taken it, when
+ * last, and whether a gentle monthly re-prompt is `due` (no check-in of that
+ * type in the last 30 days). Drives the Home/You "time for a check-in?" nudge.
+ */
+export const sukoonCheckinStatusItemSchema = z.object({
+  type: sukoonCheckinTypeSchema,
+  last_taken_at: z.string().nullable(),
+  last_score: z.number().nullable(),
+  due: z.boolean(),
+});
+export const sukoonCheckinStatusResponseSchema = apiEnvelopeSchema(
+  z.object({ items: z.array(sukoonCheckinStatusItemSchema) }),
+);
+export type SukoonCheckinStatusItem = z.infer<typeof sukoonCheckinStatusItemSchema>;
+export type SukoonCheckinStatusResponse = z.infer<typeof sukoonCheckinStatusResponseSchema>;
+
+/**
+ * GET /checkins/trend?type=who5 — the score history for one type (oldest→newest),
+ * for the trend chart on /sukoon/you. Points carry only date + score (no answers).
+ */
+export const sukoonCheckinTrendPointSchema = z.object({
+  date: isoDateSchema,
+  score: z.number(),
+});
+export const sukoonCheckinTrendResponseSchema = apiEnvelopeSchema(
+  z.object({
+    type: sukoonCheckinTypeSchema,
+    points: z.array(sukoonCheckinTrendPointSchema),
+  }),
+);
+export type SukoonCheckinTrendPoint = z.infer<typeof sukoonCheckinTrendPointSchema>;
+export type SukoonCheckinTrendResponse = z.infer<typeof sukoonCheckinTrendResponseSchema>;
+
+// ===========================================================================
+// F9 — Weekly Insights Report (Plus+). A warm ~150-word summary + one
+// suggestion + one journey recommendation, generated Sunday from the week's
+// mood/exercise/journey signals + journal METADATA (never bodies, unless the
+// Pro user has opted into deep insights). Stored in sukoon_insights; the model
+// output is structured (below) so the FE renders fields, not a blob.
+// ===========================================================================
+
+/** The structured shape the Sonnet call must return (see prompts/insights.ts). */
+export const sukoonInsightContentSchema = z.object({
+  /** The warm ~150-word reflective summary, in the user's language. */
+  summary: z.string(),
+  /** One gentle, concrete suggestion for the coming week. */
+  suggestion: z.string(),
+  /** The recommended journey's slug (from the published set), or null. */
+  journey_slug: z.string().nullable(),
+  /** One line on why that journey fits — empty when journey_slug is null. */
+  journey_reason: z.string(),
+});
+export type SukoonInsightContent = z.infer<typeof sukoonInsightContentSchema>;
+
+/** One weekly insight as returned to the client (sukoon_insights, enriched). */
+export const sukoonInsightSchema = z.object({
+  id: z.string().uuid(),
+  week_start: isoDateSchema,
+  content: sukoonInsightContentSchema,
+  /** Denormalised for the card: the recommended journey's titles (null if none / unpublished). */
+  journey_title_hi: z.string().nullable(),
+  journey_title_en: z.string().nullable(),
+  created_at: z.string(),
+});
+export type SukoonInsight = z.infer<typeof sukoonInsightSchema>;
+
+export const sukoonInsightsResponseSchema = apiEnvelopeSchema(
+  z.object({
+    /** Newest first. Empty for a free user, or a Plus+ user with no insight yet. */
+    insights: z.array(sukoonInsightSchema),
+    /** The viewer's tier — the FE shows the upsell/sample to free users. */
+    tier: sukoonTierSchema,
+    /** Whether insights are currently enabled for this user (opt-in + tier). */
+    enabled: z.boolean(),
+  }),
+);
+export type SukoonInsightsResponse = z.infer<typeof sukoonInsightsResponseSchema>;
+
+/**
+ * A fixed, hand-written SAMPLE insight (never model-generated, never stored) —
+ * the upsell preview a FREE user sees so they know what a real weekly insight
+ * feels like. Bilingual; the FE picks the field for the UI locale.
+ */
+export const SUKOON_SAMPLE_INSIGHT: {
+  summary_hi: string;
+  summary_en: string;
+  suggestion_hi: string;
+  suggestion_en: string;
+} = {
+  summary_hi:
+    "इस हफ़्ते आपने छह दिन अपना हाल दर्ज किया — यह अपने आप में एक अच्छी आदत है। मंगलवार और बुधवार को मन थोड़ा भारी रहा, अक्सर 'पढ़ाई' और 'तुलना' के साथ जुड़ा हुआ। पर हफ़्ते के आख़िर तक मूड फिर से संभला, और आपने तीन बार साँस वाले अभ्यास भी किए — जो असर छोड़ते हैं। याद रखिए, उतार-चढ़ाव तैयारी का हिस्सा हैं, कोई कमी नहीं।",
+  summary_en:
+    "This week you checked in on six days — a good habit in itself. Tuesday and Wednesday felt a little heavy, often alongside 'studies' and 'comparison'. But by the weekend your mood steadied again, and you did three breathing exercises too — those add up. Remember, ups and downs are part of preparation, not a shortcoming.",
+  suggestion_hi:
+    "अगले हफ़्ते, जिस दिन तुलना का मन भारी करे, दो मिनट का box breathing आज़माइए — मन को वापस ज़मीन पर लाने में मदद करता है।",
+  suggestion_en:
+    "Next week, on a day when comparison weighs on you, try two minutes of box breathing — it helps bring your mind back to solid ground.",
+};
 
 // ---------------------------------------------------------------------------
 // F11 — "Sukoon Garden" (reminders, streaks & gentle gamification). Shared

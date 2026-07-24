@@ -52,10 +52,13 @@ export type SukoonChatEmit = (event: string, data: unknown) => void;
 
 /** Reply length ceiling — Saathi is brief by design (a few short sentences). */
 const REPLY_MAX_TOKENS = 800;
-/** Word count above which a message is a "long emotional narrative" → Sonnet. */
-const LONG_MESSAGE_WORDS = 150;
-/** How many recent turns to carry as immediate context (the rolling summary covers the rest). */
-const RECENT_TURNS = 10;
+/** Word count above which a message is a "long emotional narrative" → Sonnet.
+ *  Exported so services/voice.ts applies the identical escalation rule to a
+ *  spoken transcript (blueprint F10: "same prompts/caps... as chat"). */
+export const LONG_MESSAGE_WORDS = 150;
+/** How many recent turns to carry as immediate context (the rolling summary covers the rest).
+ *  Exported for the same reuse reason as LONG_MESSAGE_WORDS. */
+export const RECENT_TURNS = 10;
 /** Regenerate the rolling per-user summary every N messages in a conversation. */
 const SUMMARY_EVERY = 10;
 
@@ -66,7 +69,9 @@ export interface ChatPlan {
   content: string;
 }
 
-function wordCount(text: string): number {
+/** Exported so services/voice.ts can apply the SAME "long message → escalate"
+ *  rule to a spoken transcript (blueprint F10: "same prompts/caps..."). */
+export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
@@ -89,43 +94,62 @@ export function releaseChatStream(userId: string): void {
   activeStreams.delete(userId);
 }
 
+export interface ConversationPreflight {
+  profile: SukoonProfile;
+  /** An EXISTING conversation to continue, or null to create one lazily in execute. */
+  conversationId: string | null;
+}
+
 /**
- * Pre-flight. Throws real HTTP errors (surfaced as JSON before the stream opens):
- * 404 if not onboarded, 403 if restricted (under-18: no open chat — the client
- * shows the tools screen, this is defense in depth), 404 if a supplied
- * conversation_id isn't the user's.
+ * Pre-flight shared by chat AND voice (blueprint F10: "same prompts/caps... as
+ * chat" — this is the ONE place onboarding/restricted/ownership are checked,
+ * so both call sites can never drift). Throws real HTTP errors (surfaced as
+ * JSON before the stream/turn starts): 404 if not onboarded, 403 if restricted
+ * (under-18: no open chat OR voice — the client shows the tools screen, this
+ * is defense in depth), 404 if a supplied conversation_id isn't the user's.
  *
  * A NEW conversation is NOT created here — only validated-if-supplied. Creation
  * is deferred to execute (after the cap check passes) so a first message that
  * hits the daily cap or errors never leaves an empty junk conversation.
  */
-export async function planChatMessage(
+export async function preflightConversation(
   userId: string,
-  body: SukoonChatStreamBody,
-): Promise<ChatPlan> {
+  conversationId: string | null | undefined,
+): Promise<ConversationPreflight> {
   const profile = await getSukoonProfile(userId);
   if (!profile) throw new HttpError(404, "Complete Sukoon onboarding first");
   if (profile.restricted_mode) {
     throw new HttpError(403, "Open chat unlocks at 18+. Explore the calming tools and journaling meanwhile.");
   }
 
-  if (body.conversation_id) {
+  if (conversationId) {
     const { data, error } = await supabase()
       .from("sukoon_conversations")
       .select("id")
-      .eq("id", body.conversation_id)
+      .eq("id", conversationId)
       .eq("user_id", userId)
       .maybeSingle();
     if (error) throw new HttpError(500, `conversation lookup failed: ${error.message}`);
     if (!data) throw new HttpError(404, "Conversation not found");
-    return { profile, conversationId: body.conversation_id, content: body.content };
+    return { profile, conversationId };
   }
 
-  return { profile, conversationId: null, content: body.content };
+  return { profile, conversationId: null };
 }
 
-/** Create a conversation, seeding its preview label from the opening message. */
-async function createConversation(userId: string, firstMessage: string): Promise<string> {
+/** Pre-flight for a typed chat message — see preflightConversation. */
+export async function planChatMessage(
+  userId: string,
+  body: SukoonChatStreamBody,
+): Promise<ChatPlan> {
+  const pre = await preflightConversation(userId, body.conversation_id);
+  return { ...pre, content: body.content };
+}
+
+/** Create a conversation, seeding its preview label from the opening message.
+ *  Exported so services/voice.ts creates one the same way (a voice turn's
+ *  transcript becomes the preview text exactly like a typed message's does). */
+export async function createConversation(userId: string, firstMessage: string): Promise<string> {
   const preview = firstMessage.trim().replace(/\s+/g, " ").slice(0, 80);
   const { data, error } = await supabase()
     .from("sukoon_conversations")
@@ -181,7 +205,7 @@ async function resolveLastMood(userId: string): Promise<string | null> {
 }
 
 /** Load the dynamic-tail context for a user (profile already in hand from the plan). */
-async function loadSaathiContext(userId: string, profile: SukoonProfile): Promise<SaathiContext> {
+export async function loadSaathiContext(userId: string, profile: SukoonProfile): Promise<SaathiContext> {
   const [name, lastMood, summaryRow] = await Promise.all([
     resolveName(userId),
     resolveLastMood(userId),
@@ -213,7 +237,7 @@ async function loadSaathiContext(userId: string, profile: SukoonProfile): Promis
  * Drop leading non-user turns; collapse any consecutive same-role run to its
  * latest turn.
  */
-function toAlternating(turns: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+export function toAlternating(turns: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
   let start = 0;
   while (start < turns.length && turns[start].role !== "user") start++;
   const out: Anthropic.MessageParam[] = [];
@@ -226,7 +250,7 @@ function toAlternating(turns: Anthropic.MessageParam[]): Anthropic.MessageParam[
 }
 
 /** Recent conversation turns (chronological) as Anthropic message params. */
-async function loadRecentTurns(conversationId: string): Promise<Anthropic.MessageParam[]> {
+export async function loadRecentTurns(conversationId: string): Promise<Anthropic.MessageParam[]> {
   const { data, error } = await supabase()
     .from("sukoon_messages")
     .select("role, content, created_at")
@@ -239,12 +263,15 @@ async function loadRecentTurns(conversationId: string): Promise<Anthropic.Messag
   return rows.map((r) => ({ role: r.role, content: r.content }));
 }
 
-/** Persist one turn; returns the new row id (best-effort — a null id never blocks the stream). */
-async function persistMessage(
+/** Persist one turn; returns the new row id (best-effort — a null id never
+ *  blocks the stream). `channel` defaults to the column's own 'text' default
+ *  (every existing chat call site) — voice.ts is the one caller that passes
+ *  'voice' explicitly (0089_sukoon_voice_channel.sql). */
+export async function persistMessage(
   conversationId: string,
   role: "user" | "assistant",
   content: string,
-  extra: { model_used?: string; crisis_level?: SukoonCrisisLevel },
+  extra: { model_used?: string; crisis_level?: SukoonCrisisLevel; channel?: "text" | "voice" },
 ): Promise<string | null> {
   const { data, error } = await supabase()
     .from("sukoon_messages")
@@ -254,6 +281,7 @@ async function persistMessage(
       content,
       model_used: extra.model_used ?? null,
       crisis_level: extra.crisis_level ?? null,
+      ...(extra.channel ? { channel: extra.channel } : {}),
     })
     .select("id")
     .single();
@@ -265,7 +293,7 @@ async function persistMessage(
 }
 
 /** Bump the conversation's last_message_at so the history list sorts correctly. */
-async function touchConversation(conversationId: string): Promise<void> {
+export async function touchConversation(conversationId: string): Promise<void> {
   const { error } = await supabase()
     .from("sukoon_conversations")
     .update({ last_message_at: new Date().toISOString() })
@@ -469,7 +497,7 @@ export async function executeChatStream(
 }
 
 /** Refresh the rolling summary once the conversation crosses a 10-message multiple. */
-async function maybeRefreshSummary(userId: string, conversationId: string): Promise<void> {
+export async function maybeRefreshSummary(userId: string, conversationId: string): Promise<void> {
   const { count, error } = await supabase()
     .from("sukoon_messages")
     .select("id", { count: "exact", head: true })

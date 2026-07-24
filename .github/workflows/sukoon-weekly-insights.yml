@@ -1,0 +1,62 @@
+name: Scheduled — Sukoon weekly insights
+
+# Sukoon F9: every Sunday evening IST, generate a warm weekly reflection
+# (Sonnet, cost-logged, idempotent per user+week) for each Plus+ user who has
+# insights_opt_in on and enough of a week to reflect on, then queue a push.
+# Runs `pnpm --filter api sukoon:weekly-insights` (scripts/sukoon-weekly-insights.ts).
+#
+# GitHub Actions schedule triggers are BEST-EFFORT (minutes of drift is normal)
+# and are auto-disabled after 60 days of repo inactivity — any push resets that
+# clock. The job is idempotent, so a late/retried run is safe.
+on:
+  schedule:
+    # 13:30 UTC = 19:00 IST every Sunday. (cron day-of-week 0 = Sunday.)
+    - cron: "30 13 * * 0"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Generate + log insights but do not persist or push"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sukoon-weekly-insights
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Sonnet calls are sequential and low-volume (one per eligible user, weekly);
+    # generous headroom for a growing beta cohort.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run sukoon:weekly-insights
+        run: pnpm --filter api sukoon:weekly-insights ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Sonnet generates the reflection (F9 = Sonnet, weekly low-volume).
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Deep-insights (Pro opt-in) decrypts a few journal excerpts just-in-time.
+          JOURNAL_ENC_KEY: ${{ secrets.JOURNAL_ENC_KEY }}
+          # Push delivery (best-effort; no-op if unset).
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}

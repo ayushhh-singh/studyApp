@@ -21,6 +21,8 @@ const sukoonAppRoutes: RouteObject[] = [
   { path: "tools/meditation/:exerciseId", lazy: () => import("@/sukoon/pages/tools-meditation") },
   { path: "tools/timer/:exerciseId", lazy: () => import("@/sukoon/pages/tools-timer") },
   { path: "you", lazy: () => import("@/sukoon/pages/you") },
+  { path: "checkin/:type", lazy: () => import("@/sukoon/pages/checkin") },
+  { path: "pricing", lazy: () => import("@/sukoon/pages/pricing") },
   // Static segments before :journeySlug so they aren't captured as a slug.
   { path: "journeys", lazy: () => import("@/sukoon/pages/journeys") },
   { path: "admin/journeys", lazy: () => import("@/sukoon/pages/admin-journeys") },
@@ -45,6 +47,10 @@ export function createSukoonRoute(path: string): RouteObject {
     lazy: () => import("@/sukoon/root"),
     children: [
       { path: "onboarding", lazy: () => import("@/sukoon/pages/onboarding") },
+      // F10 Voice Mode — a full-screen sibling of the shell (no sidebar/bottom-
+      // nav chrome), same rationale as Neev's own test-player/revision-session:
+      // a calm, distraction-free surface with its own minimal header instead.
+      { path: "saathi/voice", lazy: () => import("@/sukoon/pages/saathi-voice") },
       // Hidden dev-only crisis probe (blueprint F3) — present only in dev
       // builds; the matching /dev/crisis/assess API route is likewise gated. A
       // full-screen sibling of the shell (no nav chrome), like onboarding.

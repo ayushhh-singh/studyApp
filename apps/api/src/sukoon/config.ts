@@ -41,8 +41,22 @@ export function journalEncKey(): string | undefined {
   return k && k.length > 0 ? k : undefined;
 }
 
+export type SukoonTtsProvider = "openai" | "sarvam";
+
+/**
+ * F10 Voice Mode's TTS vendor (blueprint: "TTS via provider abstraction
+ * (env-selected: openai gpt-4o-mini-tts | sarvam bulbul)"). Defaults to
+ * openai — it's the one this repo already has real credentials for
+ * (OPENAI_API_KEY); switching to sarvam additionally needs SARVAM_API_KEY
+ * (see lib/tts.ts / apps/api/.env.example).
+ */
+function readTtsProvider(): SukoonTtsProvider {
+  return process.env.SUKOON_TTS_PROVIDER === "sarvam" ? "sarvam" : "openai";
+}
+
 export const sukoonConfig = {
   mode: readMode(),
   enabled: readEnabled(),
   devTools: readDevTools(),
+  ttsProvider: readTtsProvider(),
 };

@@ -12,6 +12,7 @@ import { Markdown } from "@/components/ui-x/markdown";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useSukoonPaywallStore } from "@/sukoon/stores/sukoon-paywall-store";
 import {
   useJournalEntry,
   useDeleteJournalEntry,
@@ -159,6 +160,7 @@ export function Component() {
 
 function ReflectionPanel({ entry }: { entry: SukoonJournalEntry }) {
   const { t } = useSukoonLanguage();
+  const openPaywall = useSukoonPaywallStore((s) => s.openPaywall);
   const usageQuery = useReflectionUsage({ enabled: true });
   const { text, status, error, run } = useReflectionStream();
 
@@ -201,11 +203,25 @@ function ReflectionPanel({ entry }: { entry: SukoonJournalEntry }) {
         {!hasBody ? (
           <p className="text-xs text-muted-foreground">{t("Sukoon.journal.reflectNeedsBody")}</p>
         ) : spent && !hasReflection ? (
-          <p className="text-xs text-muted-foreground">
-            {usage?.scope === "lifetime"
-              ? t("Sukoon.journal.reflectFreeSpent")
-              : t("Sukoon.journal.reflectDailySpent")}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p className="text-xs text-muted-foreground">
+              {usage?.scope === "lifetime"
+                ? t("Sukoon.journal.reflectFreeSpent")
+                : t("Sukoon.journal.reflectDailySpent")}
+            </p>
+            {/* Only the free lifetime budget upsells — a plus/pro daily budget is
+                fair-use and just resets tomorrow. */}
+            {usage?.scope === "lifetime" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                className="self-start"
+                onClick={() => openPaywall("reflections")}
+              >
+                {t("Sukoon.paywall.seePlans")}
+              </Button>
+            ) : null}
+          </div>
         ) : (
           <Button
             variant={hasReflection ? "outline" : "default"}

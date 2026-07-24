@@ -38,6 +38,7 @@ import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./rout
 import { pushRouter } from "./routes/push.js";
 import { tourRouter } from "./routes/tour.js";
 import { sukoonRouter } from "./sukoon/routes/index.js";
+import { sukoonBillingWebhookRouter } from "./sukoon/routes/billing.js";
 import { sukoonConfig } from "./sukoon/config.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
@@ -98,6 +99,21 @@ app.use(pinoHttp({ logger }));
 // express.json() consumes and re-serializes the stream. It is public (no auth):
 // Razorpay authenticates via the signature, not a Supabase JWT.
 app.use("/api/v1", billingWebhookRouter);
+// Sukoon's Razorpay webhook — same raw-body-before-json requirement (its own
+// HMAC-verified handler over sukoon_ tables). On a shared Razorpay account both
+// this and Neev's webhook receive every event; each ignores the other's.
+if (sukoonConfig.enabled) {
+  app.use("/api/sukoon", sukoonBillingWebhookRouter);
+}
+
+// F10 Voice Mode's recorded-clip upload needs a bigger body than the default
+// express.json() limit (100kb) allows — a base64-encoded <=60s audio clip can
+// run several MB. Mounted on this exact path BEFORE the generic express.json()
+// below, same "body parser that needs non-default behaviour goes first"
+// pattern as the webhook raw-body parsers above: body-parser skips re-parsing
+// once `req.body` is already set, so the generic parser below is a no-op for
+// this one path and unchanged (100kb) for everything else.
+app.use("/api/sukoon/voice/turn", express.json({ limit: "12mb" }));
 
 app.use(express.json());
 

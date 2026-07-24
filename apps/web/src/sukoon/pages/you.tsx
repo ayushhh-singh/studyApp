@@ -8,6 +8,11 @@ import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { MoodTrends } from "@/sukoon/components/mood-trends";
 import { useSukoonAdminStatus } from "@/sukoon/lib/use-sukoon-admin-journeys";
 import { NotificationPrefsCard } from "@/sukoon/components/settings/notification-prefs-card";
+import { InsightsPrefsCard } from "@/sukoon/components/settings/insights-prefs-card";
+import { SubscriptionCard } from "@/sukoon/components/you/subscription-card";
+import { CheckinCard } from "@/sukoon/components/checkin/checkin-card";
+import { CheckinTrendCard } from "@/sukoon/components/checkin/checkin-trend-card";
+import { InsightsFeed } from "@/sukoon/components/insights/insights-feed";
 
 export function Component() {
   const { t } = useSukoonLanguage();
@@ -35,7 +40,12 @@ export function Component() {
         <SignInPrompt locale={locale} />
       ) : (
         <>
+          <SubscriptionCard />
+          <CheckinCard />
+          <InsightsFeed />
           <MoodTrends />
+          <CheckinTrendCard />
+          <InsightsPrefsCard />
           <NotificationPrefsCard />
           <EmptyState
             icon={CircleUser}

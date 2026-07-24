@@ -6,10 +6,25 @@
  * (Session 10) isn't wired yet, so sukoon_subscriptions is empty today and every
  * user resolves to `free` — the caps still enforce correctly.
  */
-import type { SukoonReflectionUsage, SukoonTier } from "@neev/shared";
+import {
+  SUKOON_VOICE_MONTHLY_CAP_SECONDS,
+  SUKOON_VOICE_WARNING_SECONDS,
+  type SukoonEntitlements,
+  type SukoonFeatureFlags,
+  type SukoonReflectionUsage,
+  type SukoonTier,
+  type SukoonTierSource,
+  type SukoonVoiceUsage,
+} from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { istToday } from "../../lib/ist.js";
+import { hasActivePaidNeevPlan } from "../lib/neev-bridge.js";
+
+/** The headline Neev-bundle discount (blueprint §4) — the copy number shown in
+ *  the UI. The amount ACTUALLY applied at order time is each plan's own
+ *  bundle_discount_pct column (data), so this is only the marketing headline. */
+export const SUKOON_BUNDLE_DISCOUNT_PCT = 40;
 
 /** Daily chat-message caps per tier (blueprint F2). Code constants, not data. */
 export const SUKOON_CHAT_CAPS: Record<SukoonTier, number> = {
@@ -29,36 +44,91 @@ export const SUKOON_REFLECTION_DAILY_CAPS: Record<Exclude<SukoonTier, "free">, n
   pro: 30,
 };
 
-/** A tier row counts if the subscription is currently usable. */
-const ACTIVE_STATUSES = ["active", "trialing"] as const;
+/**
+ * A tier row counts if the subscription is currently usable. `cancelled` is
+ * INCLUDED: a cancelled-but-in-period subscription keeps its tier until the
+ * period ends (end-of-period access — F13/blueprint; mirrors Neev, where a
+ * cancelled paid user keeps Pro until plan_expires_at). The period-end check in
+ * loadSukoonSubContext then drops it to free once it lapses.
+ */
+const ACTIVE_STATUSES = ["active", "trialing", "cancelled"] as const;
+
+/** The effective Sukoon subscription context — tier + where it comes from. */
+interface SukoonSubContext {
+  tier: SukoonTier;
+  source: SukoonTierSource;
+  currentPeriodEnd: string | null;
+}
+
+const FREE_CONTEXT: SukoonSubContext = { tier: "free", source: "free", currentPeriodEnd: null };
+
+/** Tier rank for "best of what the user currently holds" (pro > plus > free). */
+function tierRank(tier: string): number {
+  return tier === "pro" ? 2 : tier === "plus" ? 1 : 0;
+}
 
 /**
- * The user's effective Sukoon tier. Reads the most recent usable
- * sukoon_subscriptions row; defaults to `free` on no row or any error (a lookup
- * failure must never grant more than free, and must never fail the chat).
+ * The user's effective Sukoon subscription context: the BEST currently-valid
+ * (active/trialing/cancelled AND period not lapsed) sukoon_subscriptions row —
+ * highest tier, then the one whose access lasts longest — resolved to a tier +
+ * its SOURCE (paid vs the 7-day trial). Defaults to `free` on no usable row or
+ * any error — a lookup failure must never grant more than free, and must never
+ * fail the chat. This is the ONE place the tier is resolved (getSukoonTier and
+ * getSukoonEntitlements both delegate here).
+ *
+ * NOTE: it fetches ALL currently-valid rows and picks the best in memory, rather
+ * than "newest row, lazy-expire it". The stateless lazy downgrade is the
+ * `current_period_end > now` filter itself (Sukoon has no persisted plan flag to
+ * flip, unlike Neev's users_profile.plan). Fetching all rows is what makes a
+ * newer-but-SHORTER purchase (e.g. a monthly bought while a yearly is still
+ * running, then the monthly expires first) never hide the older-but-still-valid
+ * subscription and wrongly drop a paying user to free.
  */
-export async function getSukoonTier(userId: string): Promise<SukoonTier> {
+async function loadSukoonSubContext(userId: string): Promise<SukoonSubContext> {
+  const nowIso = new Date().toISOString();
   const { data, error } = await supabase()
     .from("sukoon_subscriptions")
-    .select("tier, status, current_period_end")
+    .select("tier, is_trial, current_period_end")
     .eq("user_id", userId)
     .in("status", ACTIVE_STATUSES)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+    // Currently-valid only. PostgREST .gt excludes NULLs, but every
+    // active/trialing/cancelled row always has current_period_end set
+    // (activate()/startSukoonTrial()/renew() all set it), so nothing valid is
+    // dropped — a NULL here would be a data anomaly we correctly ignore.
+    .gt("current_period_end", nowIso);
 
   if (error) {
     logger.warn({ err: error.message, userId }, "sukoon tier lookup failed; defaulting to free");
-    return "free";
+    return FREE_CONTEXT;
   }
-  if (!data) return "free";
+  const rows = (data ?? []) as { tier: SukoonTier; is_trial: boolean; current_period_end: string | null }[];
 
-  // A period end in the past means the row hasn't been reconciled yet — treat as free.
-  const end = (data as { current_period_end: string | null }).current_period_end;
-  if (end && new Date(end) <= new Date()) return "free";
+  let best: (typeof rows)[number] | null = null;
+  for (const r of rows) {
+    if (tierRank(r.tier) === 0) continue; // a 'free'-tier row shouldn't exist; ignore it
+    if (
+      !best ||
+      tierRank(r.tier) > tierRank(best.tier) ||
+      (tierRank(r.tier) === tierRank(best.tier) &&
+        new Date(r.current_period_end ?? 0) > new Date(best.current_period_end ?? 0))
+    ) {
+      best = r;
+    }
+  }
+  if (!best) return FREE_CONTEXT;
 
-  const tier = (data as { tier: SukoonTier }).tier;
-  return tier === "plus" || tier === "pro" ? tier : "free";
+  const tier = best.tier === "plus" || best.tier === "pro" ? best.tier : "free";
+  if (tier === "free") return FREE_CONTEXT;
+  return { tier, source: best.is_trial ? "trial" : "paid", currentPeriodEnd: best.current_period_end };
+}
+
+/**
+ * The user's effective Sukoon tier. Defaults to `free` on no usable row or any
+ * error. Consumed by chat caps, reflections, journeys/exercise premium locks,
+ * insights and (future) voice.
+ */
+export async function getSukoonTier(userId: string): Promise<SukoonTier> {
+  return (await loadSukoonSubContext(userId)).tier;
 }
 
 export interface ChatUsage {
@@ -193,4 +263,151 @@ export async function consumeReflection(
   }
   const used = usage.used + 1;
   return { allowed: true, usage: { ...usage, used, remaining: Math.max(0, usage.limit - used) } };
+}
+
+// ---------------------------------------------------------------------------
+// F10 — Voice Mode (Sukoon Pro only). Metered in whole seconds against
+// sukoon_voice_usage, keyed by calendar month ('YYYY-MM', IST) — a single
+// counter for the whole month rather than a daily one, since the blueprint's
+// cap is monthly (60 min/mo), not daily.
+// ---------------------------------------------------------------------------
+
+/** The current IST calendar month, 'YYYY-MM' (matches sukoon_voice_usage.month). */
+function currentVoiceMonth(): string {
+  return istToday().slice(0, 7);
+}
+
+/**
+ * The voice-minutes meter (read-only — see consumeVoiceSeconds). Works for
+ * EVERY tier: `eligible` is the field callers gate on (free/plus always read
+ * `eligible:false` with a full, untouched budget — there's nothing to meter
+ * for a tier that can't use the feature at all).
+ */
+export async function getVoiceUsage(userId: string): Promise<SukoonVoiceUsage> {
+  const tier = await getSukoonTier(userId);
+  const eligible = tier === "pro";
+
+  const { data, error } = await supabase()
+    .from("sukoon_voice_usage")
+    .select("seconds_used")
+    .eq("user_id", userId)
+    .eq("month", currentVoiceMonth())
+    .maybeSingle();
+  if (error) {
+    logger.warn({ err: error.message, userId }, "sukoon voice usage read failed; assuming 0 used");
+  }
+  const used = (data as { seconds_used: number } | null)?.seconds_used ?? 0;
+  const limit = SUKOON_VOICE_MONTHLY_CAP_SECONDS;
+  return {
+    tier,
+    eligible,
+    used_seconds: used,
+    limit_seconds: limit,
+    remaining_seconds: Math.max(0, limit - used),
+    warning: eligible && used >= SUKOON_VOICE_WARNING_SECONDS,
+  };
+}
+
+/**
+ * Adds `seconds` (a completed turn's actual STT+TTS duration) to this month's
+ * counter and returns the fresh meter. Called ONCE per turn, AFTER the reply
+ * has already been generated and spoken — a turn that's already happened must
+ * never be un-happened by a counter-write failure, so this fails OPEN (logs,
+ * still returns a best-guess usage) exactly like consumeChatMessage/
+ * consumeReflection above. The pre-turn gate (remaining_seconds <= 0) is the
+ * caller's job (services/voice.ts), same "check before, add after" split as
+ * the chat/reflection caps — the ±(one turn's seconds) overshoot this permits
+ * under concurrency is an acceptable soft-cap tolerance, not a billing gate.
+ */
+export async function consumeVoiceSeconds(userId: string, seconds: number): Promise<SukoonVoiceUsage> {
+  const before = await getVoiceUsage(userId);
+  const added = Math.max(0, Math.round(seconds));
+  const next = before.used_seconds + added;
+
+  const { error } = await supabase()
+    .from("sukoon_voice_usage")
+    .upsert(
+      { user_id: userId, month: currentVoiceMonth(), seconds_used: next },
+      { onConflict: "user_id,month" },
+    );
+  if (error) {
+    logger.error({ err: error.message, userId }, "sukoon voice usage increment failed");
+  }
+  const limit = SUKOON_VOICE_MONTHLY_CAP_SECONDS;
+  return {
+    ...before,
+    used_seconds: next,
+    remaining_seconds: Math.max(0, limit - next),
+    warning: before.eligible && next >= SUKOON_VOICE_WARNING_SECONDS,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// F13 — unified entitlements snapshot (tier + trial + bundle + caps + features).
+// This is the ONE object the Sukoon UI reads for its plan row, paywall copy, and
+// every premium gate. getSukoonTier stays the cheap read used on the hot chat
+// path; this richer snapshot is for /billing/entitlements and /billing/subscription.
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the user has EVER started a Sukoon trial (one trial per user, per the
+ * "separate Sukoon trial" decision). Reads for any is_trial row regardless of
+ * status/expiry so a lapsed trial still counts. Fails CLOSED (true = "already
+ * used") — a lookup failure must never hand out a second trial.
+ */
+export async function hasUsedSukoonTrial(userId: string): Promise<boolean> {
+  const { count, error } = await supabase()
+    .from("sukoon_subscriptions")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("is_trial", true);
+  if (error) {
+    logger.warn({ err: error.message, userId }, "sukoon trial-usage check failed; treating as used");
+    return true;
+  }
+  return (count ?? 0) > 0;
+}
+
+/** Premium feature gates resolved from the effective tier (blueprint §4). */
+export function sukoonFeatureFlags(tier: SukoonTier): SukoonFeatureFlags {
+  const plus = tier === "plus" || tier === "pro";
+  const pro = tier === "pro";
+  return {
+    ai_reflections: plus,
+    all_journeys: plus,
+    weekly_insights: plus,
+    meditation_library: plus,
+    voice_note_journal: plus,
+    voice_mode: pro,
+    deep_insights: pro,
+    priority_conversations: pro,
+  };
+}
+
+/**
+ * The full Sukoon entitlements snapshot. Runs the tier/context read, the two
+ * usage meters, the trial-usage check, and the Neev-bundle eligibility check
+ * concurrently. Never throws for a billing-state reason — the worst case is a
+ * free snapshot (fail-safe, matching every meter here).
+ */
+export async function getSukoonEntitlements(userId: string): Promise<SukoonEntitlements> {
+  const [ctx, chat, reflections, usedTrial, bundleEligible] = await Promise.all([
+    loadSukoonSubContext(userId),
+    getChatUsage(userId),
+    getReflectionUsage(userId),
+    hasUsedSukoonTrial(userId),
+    hasActivePaidNeevPlan(userId),
+  ]);
+  return {
+    tier: ctx.tier,
+    tier_source: ctx.source,
+    is_on_trial: ctx.source === "trial",
+    current_period_end: ctx.currentPeriodEnd,
+    trial_eligible: !usedTrial,
+    bundle_eligible: bundleEligible,
+    bundle_discount_pct: SUKOON_BUNDLE_DISCOUNT_PCT,
+    chat,
+    reflections,
+    features: sukoonFeatureFlags(ctx.tier),
+  };
 }

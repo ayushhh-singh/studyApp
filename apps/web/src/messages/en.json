@@ -1573,6 +1573,107 @@
     "saathiTitle": "Saathi",
     "saathiSub": "A warm, judgment-free companion to talk things through.",
     "saathiComingSoon": "Chat with Saathi is coming soon.",
+    "pricing": {
+      "title": "Sukoon plans",
+      "subtitle": "Calm support for the ups and downs of preparation — pick what fits.",
+      "interval_monthly": "Monthly",
+      "interval_quarterly": "3 months",
+      "interval_yearly": "Yearly",
+      "perMonth": "≈ ₹{{amount}}/mo",
+      "choosePlan": "Choose",
+      "currentPlan": "Current",
+      "seePlans": "See plans",
+      "starting": "Opening…",
+      "activating": "Confirming your plan… this takes a moment.",
+      "paymentCancelled": "Payment cancelled — no charge was made.",
+      "orderError": "Something went wrong opening checkout. Please try again.",
+      "bundlePrice": "with your Neev plan",
+      "bundleStrip": "You're on a Neev plan — Sukoon Plus & Pro are {{pct}}% off, applied at checkout.",
+      "trialTitle": "Try Pro free for 7 days",
+      "trialBody": "Full Sukoon Pro — no card needed. It gently reverts to Free after.",
+      "startTrial": "Start free trial",
+      "trialStarted": "Your 7-day Pro trial has started. Enjoy Sukoon.",
+      "trialError": "Couldn't start the trial — you may have used it already.",
+      "trialActive": "Pro trial active",
+      "free": {
+        "name": "Free",
+        "features": [
+          "15 Saathi messages a day",
+          "All breathing & grounding exercises",
+          "Journaling & mood tracking",
+          "One guided journey",
+          "WHO-5 wellbeing check-in"
+        ]
+      },
+      "plus": {
+        "name": "Plus",
+        "features": [
+          "100 Saathi messages a day",
+          "AI journal reflections",
+          "All guided journeys",
+          "Weekly insights",
+          "Full meditation library",
+          "Voice-note journal"
+        ]
+      },
+      "pro": {
+        "name": "Pro",
+        "features": [
+          "Everything in Plus",
+          "Voice Mode (60 min / month)",
+          "Priority deep conversations",
+          "Deep insights (opt-in)",
+          "200 Saathi messages a day"
+        ]
+      },
+      "privacy1": "Your journal is private and encrypted.",
+      "privacy2": "We never sell your data, and your reflections are never used for ads. Cancel anytime — your entries always stay yours.",
+      "notTherapyNote": "Sukoon is a wellness companion, not a substitute for professional mental health care."
+    },
+    "paywall": {
+      "seePlans": "See plans",
+      "startTrial": "Start 7-day free trial",
+      "starting": "Starting…",
+      "notNow": "Not now",
+      "bundleStrip": "You're on a Neev plan — Sukoon Plus & Pro are {{pct}}% off.",
+      "privacyNote": "Your journal stays private and encrypted.",
+      "chat_cap": {
+        "title": "More time with Saathi",
+        "body": "You've used today's free messages. Plus and Pro give you far more each day — the calming tools stay free either way."
+      },
+      "reflections": {
+        "title": "AI journal reflections",
+        "body": "You've used your free reflections. Plus and Pro add a gentle reflection and question to your entries, whenever you want one."
+      },
+      "journeys": {
+        "title": "Guided journeys",
+        "body": "This journey is part of Plus. Unlock every guided program — exam stress, comparison, sleep and more."
+      },
+      "insights": {
+        "title": "Weekly insights",
+        "body": "Plus brings a warm weekly summary of your moods and habits, with one gentle suggestion for the week ahead."
+      },
+      "voice": {
+        "title": "Voice Mode",
+        "body": "Talk things through out loud with Saathi. Voice Mode is part of Sukoon Pro."
+      },
+      "generic": {
+        "title": "A little more Sukoon",
+        "body": "This is part of Sukoon Plus. Explore the plans whenever you're ready — no pressure."
+      }
+    },
+    "manage": {
+      "trialStatus": "Pro trial · {{days}} days left",
+      "paidStatus": "Active until {{date}}",
+      "cancelledStatus": "Access until {{date}} · won't renew",
+      "freeStatus": "You're on the free plan.",
+      "changePlan": "Change plan",
+      "cancel": "Cancel plan",
+      "confirmCancel": "Tap again to confirm",
+      "cancelling": "Cancelling…",
+      "cancelledNote": "Cancelled — you keep full access until your period ends.",
+      "dataSafeNote": "Downgrading never deletes anything — your journal, moods and journeys always stay with you."
+    },
     "saathi": {
       "newChat": "New chat",
       "history": "History",
@@ -1591,6 +1692,7 @@
       "restrictedBody": "Open chat with Saathi is for 18 and older. But the calming tools and journal are all yours — a great place to breathe, ground, and write things out.",
       "restrictedTools": "Explore calming tools",
       "restrictedJournal": "Open the journal",
+      "voiceEntry": "Voice",
       "starters": {
         "examTomorrow": "My exam is almost here and the nerves are really getting to me.",
         "examSoon": "The exam is coming up soon and I'm feeling the pressure.",
@@ -1601,6 +1703,35 @@
         "general1": "I've been feeling stressed lately and don't know why.",
         "general2": "I keep comparing myself to others and it's getting to me."
       }
+    },
+    "voice": {
+      "title": "Voice mode",
+      "statusIdle": "Hold the mic and tell me what's on your mind.",
+      "statusListening": "Listening…",
+      "statusThinking": "Saathi is thinking…",
+      "statusSlow": "Still thinking — check your connection?",
+      "statusSpeaking": "Saathi is speaking…",
+      "stopSpeaking": "Stop",
+      "youSaid": "You said",
+      "holdToTalk": "Hold to talk",
+      "releaseToSend": "Release to send",
+      "holdHint": "Hold the button and speak",
+      "tapHint": "Tap once to start, tap again to send",
+      "switchToTap": "Prefer tap-to-talk?",
+      "switchToHold": "Switch to hold-to-talk",
+      "showCaptions": "Show captions",
+      "hideCaptions": "Hide captions",
+      "ambient": "Ambient rain",
+      "minutesLeft": "{{count}} min left",
+      "lockedTitle": "Voice Mode is a Sukoon Pro feature",
+      "lockedBody": "Talk things through out loud with Saathi — Voice Mode is part of Sukoon Pro, with 60 minutes a month.",
+      "seePlans": "See plans",
+      "unsupportedTitle": "Voice mode isn't available here",
+      "unsupportedBody": "This browser or connection doesn't support microphone recording. Typed chat with Saathi always works.",
+      "permissionDenied": "Microphone access is blocked. Enable it in your browser's site settings, then try again.",
+      "offlineNotice": "You're offline — voice mode needs an internet connection.",
+      "errorGeneric": "That didn't go through — please try again.",
+      "useTypedChat": "Use typed chat instead"
     },
     "journalTitle": "Journal",
     "journalSub": "Write freely, or follow a gentle daily prompt.",
@@ -2048,6 +2179,71 @@
         "previewTitle": "Preview (Hindi / English)",
         "noFields": "No text fields on this step."
       }
+    },
+    "checkin": {
+      "framing": "This is a moment of self-reflection, not a medical assessment. There are no right or wrong answers.",
+      "instruction": "Thinking about the last two weeks, how often did each feel true?",
+      "progress": "{{done}} of {{total}} answered",
+      "submit": "See my reflection",
+      "submitting": "Saving…",
+      "error": "Couldn't save your check-in. Please try again.",
+      "resultTitle": "Thanks for checking in",
+      "resultNote": "This is a snapshot of one moment — it will shift, and that's okay.",
+      "viewTrends": "See my check-in history",
+      "title": {
+        "who5": "Wellbeing Check-in",
+        "stress_self_check": "Exam Stress Self-Check"
+      },
+      "subtitle": {
+        "who5": "Five quick reflections on how you've been feeling.",
+        "stress_self_check": "Five gentle questions about exam-time pressure."
+      },
+      "band": {
+        "who5Ok": "It sounds like things have felt fairly steady lately. Keep tending to what's working for you.",
+        "who5Low": "It sounds like these two weeks have felt heavy. That's real, and you don't have to carry it alone.",
+        "stressOk": "Exam pressure seems manageable for you right now. Keep making room for small breaks.",
+        "stressHigh": "It sounds like the exam is weighing heavily right now. That's a very human response to a hard season."
+      },
+      "support": {
+        "title": "A gentle next step",
+        "body": "When things feel heavy, a short calming journey can help — and talking to someone always helps more. Free, confidential support is available anytime.",
+        "exploreJourneys": "Explore journeys",
+        "helpline": "Call Tele-MANAS 14416"
+      },
+      "cardTitle": "Check-ins",
+      "cardSub": "Gentle self-reflections, whenever you'd like.",
+      "lastTaken": "Last taken {{date}}",
+      "neverTaken": "Not taken yet",
+      "dueBadge": "A good time",
+      "trendTitle": "Check-in history",
+      "trendSub": "How your reflections have shifted over time — a picture, never a verdict.",
+      "trendTab": {
+        "who5": "Wellbeing",
+        "stress_self_check": "Exam stress"
+      },
+      "trendEmptyTitle": "No check-ins yet",
+      "trendEmptyDescription": "Take a check-in and your reflections over time will appear here.",
+      "trendLatest": "Most recent: {{score}} on {{date}}",
+      "trendOnePoint": "one check-in so far"
+    },
+    "insights": {
+      "title": "Weekly reflection",
+      "upsellSub": "A warm summary of your week, every Sunday — with Sukoon Plus.",
+      "sampleBadge": "Sample",
+      "suggestionLabel": "A gentle idea",
+      "upsellCta": "See Sukoon Plus",
+      "optedOut": "Weekly reflections are turned off. You can turn them back on anytime in settings.",
+      "turnOn": "Turn on in settings",
+      "pending": "Your first weekly reflection will arrive this Sunday. Keep checking in through the week — even a little helps it feel like you.",
+      "feedSub": "A warm look back at each week — self-reflection, never a verdict.",
+      "weekOf": "Week of {{date}}",
+      "journeyLabel": "A journey that might help",
+      "settingsTitle": "Weekly reflections",
+      "settingsSub": "Choose what your Sunday reflection is based on.",
+      "optInLabel": "Weekly reflection",
+      "optInDesc": "A warm summary of your week, delivered every Sunday.",
+      "deepLabel": "Deeper reflection",
+      "deepDesc": "Let your reflection also draw on your journal entries, not just your mood and activity. Your entries stay private and are never stored in the reflection."
     }
   }
 }
