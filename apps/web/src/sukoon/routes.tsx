@@ -15,6 +15,11 @@ const sukoonAppRoutes: RouteObject[] = [
   { path: "journal/:entryId", lazy: () => import("@/sukoon/pages/journal-entry") },
   { path: "journal/:entryId/edit", lazy: () => import("@/sukoon/pages/journal-editor") },
   { path: "tools", lazy: () => import("@/sukoon/pages/tools") },
+  { path: "tools/breathing/:exerciseId", lazy: () => import("@/sukoon/pages/tools-breathing") },
+  { path: "tools/grounding/:exerciseId", lazy: () => import("@/sukoon/pages/tools-grounding") },
+  { path: "tools/pmr/:exerciseId", lazy: () => import("@/sukoon/pages/tools-pmr") },
+  { path: "tools/meditation/:exerciseId", lazy: () => import("@/sukoon/pages/tools-meditation") },
+  { path: "tools/timer/:exerciseId", lazy: () => import("@/sukoon/pages/tools-timer") },
   { path: "you", lazy: () => import("@/sukoon/pages/you") },
 ];
 

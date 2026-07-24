@@ -1717,6 +1717,101 @@
     "toolsTitle": "Tools",
     "toolsSub": "Breathing, grounding, and calming exercises for exam stress.",
     "toolsComingSoon": "Breathing exercises, grounding, and guided meditations are coming soon.",
+    "tools": {
+      "filter": {
+        "all": "All",
+        "breathing": "Breathing",
+        "grounding": "Grounding",
+        "pmr": "PMR",
+        "meditation": "Meditation",
+        "timer": "Timer"
+      },
+      "type": {
+        "breathing": "Breathing exercise",
+        "grounding": "Grounding",
+        "pmr": "Muscle relaxation",
+        "meditation": "Guided meditation",
+        "timer": "Meditation timer"
+      },
+      "premiumBadge": "Plus/Pro",
+      "loadErrorTitle": "Couldn't load the tools",
+      "loadErrorBody": "Something went wrong loading the exercise library. Try again in a moment.",
+      "emptyTitle": "Nothing here yet",
+      "emptyBody": "No exercises match this filter right now.",
+      "notFoundTitle": "Exercise not found",
+      "notFoundBody": "This exercise may have moved. Head back to the tools grid.",
+      "offlineUnavailableTitle": "You're offline",
+      "offlineUnavailableBody": "This exercise isn't available without a connection yet.",
+      "lockedTitle": "This needs Sukoon Plus or Pro",
+      "lockedBody": "The core breathing, grounding, and timer tools stay free forever — this one's part of the fuller meditation library.",
+      "backToTools": "Back to Tools",
+      "offlineBanner": "You're offline — the tools grid still works; pinned audio plays, everything else needs a connection.",
+      "start": "Start",
+      "pause": "Pause",
+      "resume": "Resume",
+      "stop": "Stop",
+      "doAgain": "Do it again",
+      "duration": "Duration",
+      "minutesShort": "min",
+      "playBackgroundSound": "Play a quiet background sound",
+      "pinOffline": "Pin for offline",
+      "unpinOffline": "Remove offline copy",
+      "stats": {
+        "cycles": "Cycles",
+        "minutes": "Minutes"
+      },
+      "breathing": {
+        "phase": {
+          "inhale": "Breathe in",
+          "hold1": "Hold",
+          "exhale": "Breathe out",
+          "hold2": "Hold"
+        },
+        "cycleProgress": "Cycle {{current}} of {{total}}",
+        "doneTitle": "Well done",
+        "doneBody": "That's a full round of breathing — notice how you feel right now."
+      },
+      "grounding": {
+        "intro": "This is a short walk through your five senses to bring you back to right now — no rush, one step at a time.",
+        "notePlaceholder": "Write a word or two, if you'd like (optional)",
+        "next": "Next",
+        "finish": "Finish",
+        "doneTitle": "You're here, now",
+        "doneBody": "That's the full 5-4-3-2-1 — a gentle reminder that you're grounded in this moment."
+      },
+      "pmr": {
+        "intro": "We'll move through each muscle group one at a time — tense gently, then let go.",
+        "segmentProgress": "{{current}} of {{total}}",
+        "doneTitle": "Fully relaxed",
+        "doneBody": "You've moved through your whole body — notice the difference from where you started."
+      },
+      "meditation": {
+        "notUploadedTitle": "Audio not ready yet",
+        "notUploadedBody": "This meditation's recording hasn't been uploaded for this language yet — check back soon.",
+        "pinHint": "Pin this meditation while you're online to listen offline later.",
+        "category": {
+          "sleep": "Sleep",
+          "exam_day": "Exam day",
+          "anxiety": "Anxiety",
+          "body_scan": "Body scan",
+          "quick_reset": "Quick reset",
+          "self_compassion": "Self-compassion",
+          "focus": "Focus",
+          "gratitude": "Gratitude",
+          "breath_awareness": "Breath awareness",
+          "post_result": "After the result"
+        }
+      },
+      "timer": {
+        "remaining": "remaining",
+        "doneTitle": "Session complete",
+        "doneBody": "You sat with yourself for a while — that's worth something."
+      },
+      "ambient": {
+        "title": "Ambient sounds",
+        "stopAll": "Stop all"
+      }
+    },
     "youTitle": "You",
     "youSub": "Your check-ins, streaks, and privacy settings.",
     "youComingSoon": "Wellbeing check-ins and privacy settings are coming soon.",

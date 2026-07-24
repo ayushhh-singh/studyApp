@@ -738,3 +738,175 @@ export const sukoonMoodAggregatesSchema = z.object({
 export type SukoonMoodAggregates = z.infer<typeof sukoonMoodAggregatesSchema>;
 export const sukoonMoodAggregatesResponseSchema = apiEnvelopeSchema(sukoonMoodAggregatesSchema);
 export type SukoonMoodAggregatesResponse = z.infer<typeof sukoonMoodAggregatesResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// F6 — Exercise library (breathing, grounding, PMR, meditation timers, guided
+// meditations). Shared because the tools grid, every player, and the backend
+// content pipeline all need the same vocabulary. RUNTIME IS A STATIC CATALOG
+// (blueprint: "nothing generates content at runtime that can be
+// pre-generated") — sukoon_exercises rows are seeded/reviewed content, never
+// authored live. `config_json` per row is one of the per-type shapes below;
+// the discriminated union on the exercise schema itself is what lets the
+// player pick the right UI without a second lookup.
+// ---------------------------------------------------------------------------
+
+export const SUKOON_EXERCISE_TYPES = ["breathing", "grounding", "pmr", "meditation", "timer"] as const;
+export const sukoonExerciseTypeSchema = z.enum(SUKOON_EXERCISE_TYPES);
+export type SukoonExerciseType = z.infer<typeof sukoonExerciseTypeSchema>;
+
+// Ambient mixer catalog — a fixed, non-DB set (mirrors SUKOON_EMOTIONS' id-array
+// + labeled-def pattern), declared here (before the configs that reference it)
+// since a breathing/timer exercise can name a default/allowed ambient sound.
+// Real loop files are optional per id; a missing one falls back to a
+// client-side synthesized placeholder (Web Audio), so the mixer works today
+// and upgrades silently the moment a real file is uploaded to the
+// sukoon-audio bucket under `ambient/<id>.mp3` — no code change needed.
+export const SUKOON_AMBIENT_IDS = ["rain", "tanpura", "crickets", "fan"] as const;
+export const sukoonAmbientIdSchema = z.enum(SUKOON_AMBIENT_IDS);
+export type SukoonAmbientId = z.infer<typeof sukoonAmbientIdSchema>;
+
+export interface SukoonAmbientDef {
+  id: SukoonAmbientId;
+  label_hi: string;
+  label_en: string;
+}
+export const SUKOON_AMBIENT_SOUNDS: readonly SukoonAmbientDef[] = [
+  { id: "rain", label_hi: "बारिश", label_en: "Rain" },
+  { id: "tanpura", label_hi: "तानपूरा", label_en: "Tanpura" },
+  { id: "crickets", label_hi: "रात की झींगुर", label_en: "Night crickets" },
+  { id: "fan", label_hi: "पंखा", label_en: "Fan" },
+] as const;
+
+/** One phase of a breathing cycle. `seconds: 0` means the phase is skipped in
+ *  the player (e.g. 4-7-8 has no second hold) rather than omitted from the
+ *  array, so `haptics_pattern_ms` can stay index-aligned with `phases`. */
+export const sukoonBreathPhaseIdSchema = z.enum(["inhale", "hold1", "exhale", "hold2"]);
+export type SukoonBreathPhaseId = z.infer<typeof sukoonBreathPhaseIdSchema>;
+
+export const sukoonBreathPhaseSchema = z.object({
+  id: sukoonBreathPhaseIdSchema,
+  seconds: z.number().min(0).max(30),
+});
+export type SukoonBreathPhase = z.infer<typeof sukoonBreathPhaseSchema>;
+
+export const sukoonBreathingConfigSchema = z.object({
+  phases: z.array(sukoonBreathPhaseSchema).min(2).max(4),
+  default_cycles: z.number().int().min(1).max(60),
+  /** Vibration-API pattern (ms), one entry per `phases` index — a phase
+   *  transition fires `navigator.vibrate([ms])`; `0` = no buzz for that phase. */
+  haptics_pattern_ms: z.array(z.number().int().min(0).max(2000)),
+  /** An ambient sound id (see SUKOON_AMBIENT_SOUNDS) offered as a default bed, or null. */
+  default_ambient: sukoonAmbientIdSchema.nullable(),
+});
+export type SukoonBreathingConfig = z.infer<typeof sukoonBreathingConfigSchema>;
+
+export const sukoonGroundingStepSchema = z.object({
+  sense: z.enum(["see", "touch", "hear", "smell", "taste"]),
+  count: z.number().int().min(1).max(5),
+  prompt_hi: z.string(),
+  prompt_en: z.string(),
+});
+export type SukoonGroundingStep = z.infer<typeof sukoonGroundingStepSchema>;
+
+export const sukoonGroundingConfigSchema = z.object({
+  steps: z.array(sukoonGroundingStepSchema).length(5),
+  /** Whether the player offers an optional one-line text box per step (blueprint F6). */
+  allow_text_input: z.boolean(),
+});
+export type SukoonGroundingConfig = z.infer<typeof sukoonGroundingConfigSchema>;
+
+export const sukoonPmrSegmentSchema = z.object({
+  id: z.string(),
+  name_hi: z.string(),
+  name_en: z.string(),
+  seconds: z.number().int().min(5).max(300),
+});
+export type SukoonPmrSegment = z.infer<typeof sukoonPmrSegmentSchema>;
+
+export const sukoonPmrConfigSchema = z.object({
+  segments: z.array(sukoonPmrSegmentSchema).min(1),
+});
+export type SukoonPmrConfig = z.infer<typeof sukoonPmrConfigSchema>;
+
+export const sukoonTimerConfigSchema = z.object({
+  duration_options_min: z.array(z.number().int().min(1).max(60)).min(1),
+  default_duration_min: z.number().int().min(1).max(60),
+  chime: z.literal("singing_bowl"),
+  ambient_options: z.array(sukoonAmbientIdSchema),
+});
+export type SukoonTimerConfig = z.infer<typeof sukoonTimerConfigSchema>;
+
+export const sukoonMeditationConfigSchema = z.object({
+  category: z.string(),
+  duration_min: z.number().int().min(1).max(60),
+});
+export type SukoonMeditationConfig = z.infer<typeof sukoonMeditationConfigSchema>;
+
+/** GET /exercises/ambient/:id/audio-url and /exercises/:id/audio-url both return this shape. */
+export const sukoonAudioUrlResponseSchema = apiEnvelopeSchema(
+  z.object({ url: z.string(), expires_at: z.string() }),
+);
+export type SukoonAudioUrlResponse = z.infer<typeof sukoonAudioUrlResponseSchema>;
+export const sukoonExerciseAudioLangSchema = z.enum(["hi", "en"]);
+export type SukoonExerciseAudioLang = z.infer<typeof sukoonExerciseAudioLangSchema>;
+
+/**
+ * A catalog row (sukoon_exercises) as returned to the client — `config` is
+ * narrowed per `type` via the discriminated union, so a player never has to
+ * runtime-guess its own config shape. `locked` is resolved SERVER-SIDE from
+ * the caller's tier (never trust a client-computed lock state for a paywall).
+ */
+const exerciseCommonFields = {
+  id: z.string().uuid(),
+  title_hi: z.string(),
+  title_en: z.string(),
+  has_audio_hi: z.boolean(),
+  has_audio_en: z.boolean(),
+  premium: z.boolean(),
+  locked: z.boolean(),
+  sort: z.number().int(),
+};
+
+export const sukoonExerciseSchema = z.discriminatedUnion("type", [
+  z.object({ type: z.literal("breathing"), config: sukoonBreathingConfigSchema, ...exerciseCommonFields }),
+  z.object({ type: z.literal("grounding"), config: sukoonGroundingConfigSchema, ...exerciseCommonFields }),
+  z.object({ type: z.literal("pmr"), config: sukoonPmrConfigSchema, ...exerciseCommonFields }),
+  z.object({ type: z.literal("timer"), config: sukoonTimerConfigSchema, ...exerciseCommonFields }),
+  z.object({ type: z.literal("meditation"), config: sukoonMeditationConfigSchema, ...exerciseCommonFields }),
+]);
+export type SukoonExercise = z.infer<typeof sukoonExerciseSchema>;
+
+export const sukoonExercisesResponseSchema = apiEnvelopeSchema(
+  z.object({ exercises: z.array(sukoonExerciseSchema) }),
+);
+export type SukoonExercisesResponse = z.infer<typeof sukoonExercisesResponseSchema>;
+
+// --- Session logging (start / complete, duration) ---------------------------
+
+export const sukoonExerciseSessionSchema = z.object({
+  id: z.string().uuid(),
+  exercise_id: z.string().uuid().nullable(),
+  duration_s: z.number().int().nullable(),
+  completed: z.boolean(),
+  created_at: z.string(),
+});
+export type SukoonExerciseSession = z.infer<typeof sukoonExerciseSessionSchema>;
+
+/** POST /exercises/sessions — starts a session; `exercise_id` is nullable
+ *  (a freeform unguided-timer run not tied to one catalog row is still logged). */
+export const sukoonExerciseSessionStartBodySchema = z.object({
+  exercise_id: z.string().uuid().nullable().optional(),
+});
+export type SukoonExerciseSessionStartBody = z.infer<typeof sukoonExerciseSessionStartBodySchema>;
+
+/** PATCH /exercises/sessions/:id — marks it complete with the actual elapsed duration. */
+export const sukoonExerciseSessionCompleteBodySchema = z.object({
+  duration_s: z.number().int().min(0).max(24 * 3600),
+  completed: z.boolean().default(true),
+});
+export type SukoonExerciseSessionCompleteBody = z.infer<typeof sukoonExerciseSessionCompleteBodySchema>;
+
+export const sukoonExerciseSessionResponseSchema = apiEnvelopeSchema(
+  z.object({ session: sukoonExerciseSessionSchema }),
+);
+export type SukoonExerciseSessionResponse = z.infer<typeof sukoonExerciseSessionResponseSchema>;

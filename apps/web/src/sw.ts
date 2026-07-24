@@ -52,6 +52,21 @@ registerRoute(
   }),
 );
 
+// Sukoon F6 exercise catalog (config_json — never the audio bytes, which are
+// signed-URL'd separately and handled by the app's own pinned-audio Cache
+// Storage layer, sukoon-audio-cache.ts) — same stale-while-revalidate shape
+// so the tools grid renders from cache the moment the app opens offline.
+registerRoute(
+  ({ url, request }) => request.method === "GET" && url.pathname === "/api/sukoon/exercises",
+  new StaleWhileRevalidate({
+    cacheName: "sukoon-exercise-catalog",
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 1, maxAgeSeconds: 24 * 60 * 60 }),
+    ],
+  }),
+);
+
 // Last resort: a document request that failed both the network AND the
 // "pages" runtime cache (first-ever offline visit before anything else was
 // cached) gets the precached app shell, or failing that the static offline
