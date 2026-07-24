@@ -32,6 +32,12 @@ jobs:
       - name: Typecheck API
         run: pnpm --filter api typecheck
 
+      # Safety-critical: the Sukoon crisis detector's deterministic keyword layer
+      # must pass its adversarial red-team suite (blueprint F3) on every PR. Pure,
+      # no DB/model/env — the classifier (--live) pass is deliberately excluded.
+      - name: Crisis red-team suite (Sukoon F3)
+        run: pnpm --filter api test:crisis
+
       - name: Typecheck + build web
         run: pnpm --filter web build
 

@@ -30,11 +30,15 @@ const IS_STANDALONE = import.meta.env.VITE_APP === "sukoon";
 function SukoonOnboardingGate({ children }: { children: ReactNode }) {
   const { session, loading } = useAuth();
   const location = useLocation();
-  const isOnboardingRoute = location.pathname.replace(/\/+$/, "").endsWith("/onboarding");
+  const normalizedPath = location.pathname.replace(/\/+$/, "");
+  const isOnboardingRoute = normalizedPath.endsWith("/onboarding");
+  // Dev-only tooling (e.g. /sukoon/dev/crisis) is exempt from the onboarding
+  // redirect so it stays usable without first completing onboarding.
+  const isDevRoute = normalizedPath.includes("/dev/");
 
   const profileQuery = useSukoonProfile({ enabled: !!session && !loading });
 
-  if (loading || !session || isOnboardingRoute) return <>{children}</>;
+  if (loading || !session || isOnboardingRoute || isDevRoute) return <>{children}</>;
   if (profileQuery.isPending) {
     return (
       <div className="flex min-h-svh items-center justify-center">

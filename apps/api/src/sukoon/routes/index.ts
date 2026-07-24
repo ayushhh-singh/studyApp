@@ -2,6 +2,7 @@ import { Router } from "express";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { sukoonConfig } from "../config.js";
 import { sukoonProfileRouter } from "./profile.js";
+import { sukoonDevRouter } from "./dev.js";
 
 // Mounted directly at /api/sukoon (not /api/v1) — Sukoon is a self-contained
 // module (CLAUDE.md's Sukoon architecture rules) that must stay mountable
@@ -18,3 +19,9 @@ sukoonRouter.get(
 );
 
 sukoonRouter.use(sukoonProfileRouter);
+
+// Dev-only crisis probe — mounted ONLY when devTools is on (never in a plain
+// production boot). Kept last so its /dev/* paths don't shadow anything.
+if (sukoonConfig.devTools) {
+  sukoonRouter.use(sukoonDevRouter);
+}

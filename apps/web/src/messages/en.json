@@ -1641,6 +1641,36 @@
       "s3": "More than half the time",
       "s4": "Most of the time",
       "s5": "All of the time"
+    },
+    "crisis": {
+      "takeoverTitle": "It's important to talk to a real person right now",
+      "takeoverBody": "What you're feeling matters, and you don't have to carry it alone. Please reach out to someone who can help right now — it's free, confidential, and here for you.",
+      "helplinesTitle": "Talk to someone now",
+      "callNow": "Call",
+      "groundingToggle": "Not ready to call? Try this first",
+      "groundingTitle": "Right now, in this moment",
+      "groundingIntro": "This takes about a minute. Go slowly.",
+      "groundingStep1": "Feel your feet on the floor. Breathe in slowly for 4 counts.",
+      "groundingStep2": "Hold gently for 4, then breathe out slowly for 6.",
+      "groundingStep3": "Name 5 things you can see, 4 you can touch, 3 you can hear.",
+      "groundingStep4": "This feeling is real, but it will pass. You are not alone.",
+      "acknowledge": "I've read this — continue",
+      "acknowledgeNote": "Nothing continues until you're ready.",
+      "inlineTitle": "You don't have to go through this alone",
+      "inlineBody": "It sounds like things feel really heavy right now. Talking to someone can help — these lines are free and confidential.",
+      "devTitle": "Crisis engine — live assessment",
+      "devSub": "Dev-only. Type a message to see the detector's live verdict. Each check runs the real engine and logs an event.",
+      "devPlaceholder": "Type a message to assess…",
+      "devAssess": "Assess",
+      "devAssessing": "Assessing…",
+      "devLevel": "Level",
+      "devLayer": "Decided by",
+      "devReason": "Reason",
+      "devRateLimited": "Rate-limited (anti-doom-loop)",
+      "devSurface": "UI surface",
+      "devPreviewTakeover": "Preview takeover",
+      "devPreviewInline": "Preview inline card",
+      "devError": "Assessment failed. Are you signed in?"
     }
   }
 }

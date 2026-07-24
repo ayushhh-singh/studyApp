@@ -29,6 +29,12 @@ export function createSukoonRoute(path: string): RouteObject {
     lazy: () => import("@/sukoon/root"),
     children: [
       { path: "onboarding", lazy: () => import("@/sukoon/pages/onboarding") },
+      // Hidden dev-only crisis probe (blueprint F3) — present only in dev
+      // builds; the matching /dev/crisis/assess API route is likewise gated. A
+      // full-screen sibling of the shell (no nav chrome), like onboarding.
+      ...(import.meta.env.DEV
+        ? [{ path: "dev/crisis", lazy: () => import("@/sukoon/pages/dev-crisis") }]
+        : []),
       {
         lazy: () => import("@/sukoon/shell"),
         children: sukoonAppRoutes,

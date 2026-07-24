@@ -18,7 +18,20 @@ function readEnabled(): boolean {
   return process.env.SUKOON_ENABLED !== "false";
 }
 
+/**
+ * Dev-only tooling (the /dev/crisis assessment probe, blueprint F3). ON when
+ * SUKOON_DEV_TOOLS=true OR whenever we're not in production — so it's available
+ * for local/staging testing but a plain production boot never exposes it unless
+ * explicitly asked. The matching frontend route is gated by import.meta.env.DEV.
+ */
+function readDevTools(): boolean {
+  if (process.env.SUKOON_DEV_TOOLS === "true") return true;
+  if (process.env.SUKOON_DEV_TOOLS === "false") return false;
+  return process.env.NODE_ENV !== "production";
+}
+
 export const sukoonConfig = {
   mode: readMode(),
   enabled: readEnabled(),
+  devTools: readDevTools(),
 };

@@ -98,3 +98,139 @@ export type SukoonProfileResponse = z.infer<typeof sukoonProfileResponseSchema>;
 /** POST /onboarding and PATCH /profile both return the freshly-written profile. */
 export const sukoonProfileWriteResponseSchema = apiEnvelopeSchema(sukoonProfileSchema);
 export type SukoonProfileWriteResponse = z.infer<typeof sukoonProfileWriteResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// F3 — Crisis detection & escalation (safety spine). Shared because BOTH the
+// backend engine (which returns an assessment) and the frontend (which must
+// decide takeover vs inline card from the level) need the same vocabulary. The
+// DB constraint on sukoon_crisis_events.level is the moderate+low+high+critical
+// subset — `none` here is the "no signal" case that is never written to the
+// table (see the engine).
+// ---------------------------------------------------------------------------
+
+/** Crisis severity, lowest → highest. `none` = no signal (never logged). */
+export const sukoonCrisisLevelSchema = z.enum(["none", "low", "moderate", "high", "critical"]);
+export type SukoonCrisisLevel = z.infer<typeof sukoonCrisisLevelSchema>;
+
+/** Which detection layer produced the FINAL (max) level. `none` when level is none. */
+export const sukoonCrisisLayerSchema = z.enum(["keyword", "classifier", "none"]);
+export type SukoonCrisisLayer = z.infer<typeof sukoonCrisisLayerSchema>;
+
+/**
+ * The ONE ordered list — every comparison (`max of both layers`, "never below
+ * the keyword result") derives from this, so a level's rank is defined in
+ * exactly one place. Index === rank.
+ */
+export const SUKOON_CRISIS_LEVELS = ["none", "low", "moderate", "high", "critical"] as const;
+
+/** Numeric rank of a level (0 = none … 4 = critical). */
+export function crisisLevelRank(level: SukoonCrisisLevel): number {
+  return SUKOON_CRISIS_LEVELS.indexOf(level);
+}
+
+/** The more severe of two levels — the engine's "final = max(keyword, classifier)". */
+export function maxCrisisLevel(a: SukoonCrisisLevel, b: SukoonCrisisLevel): SukoonCrisisLevel {
+  return crisisLevelRank(a) >= crisisLevelRank(b) ? a : b;
+}
+
+/**
+ * How the UI must react to a level (the blueprint's escalation ladder):
+ *   none/low  → "none"     — no interruption (low only softens Saathi's tone).
+ *   moderate  → "inline"   — an inline resource card woven into the reply.
+ *   high/crit → "takeover" — a full-screen, acknowledge-to-continue takeover.
+ */
+export type SukoonCrisisSurface = "none" | "inline" | "takeover";
+export function crisisSurface(level: SukoonCrisisLevel): SukoonCrisisSurface {
+  if (level === "high" || level === "critical") return "takeover";
+  if (level === "moderate") return "inline";
+  return "none";
+}
+
+/**
+ * The helpline directory shown by the crisis UI — a single, bilingual source of
+ * truth (Tele-MANAS 14416 ALWAYS first per the safety rules; 112 emergency
+ * last). `tel` is the dialable form for a `tel:` link; `phone` is the
+ * human-readable form. These are public national helpline numbers, not secrets.
+ */
+export interface SukoonHelpline {
+  id: string;
+  name_hi: string;
+  name_en: string;
+  /** Human-readable, e.g. "1860-2662-345". */
+  phone: string;
+  /** Dialable digits for `tel:` (no spaces/dashes). */
+  tel: string;
+  note_hi?: string;
+  note_en?: string;
+}
+
+export const SUKOON_HELPLINES: readonly SukoonHelpline[] = [
+  {
+    id: "tele_manas",
+    name_hi: "टेली-मानस (सरकारी हेल्पलाइन)",
+    name_en: "Tele-MANAS (Govt. helpline)",
+    phone: "14416",
+    tel: "14416",
+    note_hi: "24×7 · निःशुल्क · कई भारतीय भाषाएँ",
+    note_en: "24×7 · free · many Indian languages",
+  },
+  {
+    id: "vandrevala",
+    name_hi: "वंद्रेवाला फ़ाउंडेशन",
+    name_en: "Vandrevala Foundation",
+    phone: "1860-2662-345",
+    tel: "18602662345",
+    note_hi: "24×7 · कॉल और व्हाट्सएप",
+    note_en: "24×7 · call & WhatsApp",
+  },
+  {
+    id: "icall",
+    name_hi: "iCALL (टीआईएसएस)",
+    name_en: "iCALL (TISS)",
+    phone: "9152987821",
+    tel: "9152987821",
+    note_hi: "सोम–शनि · सुबह 10 – रात 8",
+    note_en: "Mon–Sat · 10am – 8pm",
+  },
+  {
+    id: "aasra",
+    name_hi: "आसरा",
+    name_en: "AASRA",
+    phone: "9820466726",
+    tel: "9820466726",
+    note_hi: "24×7",
+    note_en: "24×7",
+  },
+  {
+    id: "emergency",
+    name_hi: "आपातकालीन सेवाएँ",
+    name_en: "Emergency services",
+    phone: "112",
+    tel: "112",
+    note_hi: "तुरंत ख़तरे में",
+    note_en: "immediate danger",
+  },
+] as const;
+
+/**
+ * The engine's verdict for one message — returned by the future chat pipeline
+ * and by the dev test endpoint. `reason` is a short machine/human note (why the
+ * level was assigned); `rate_limited` is the anti-doom-loop flag (3+ high/
+ * critical events in the last 24h → chat should pivot to static resources).
+ */
+export const sukoonCrisisAssessmentSchema = z.object({
+  level: sukoonCrisisLevelSchema,
+  reason: z.string(),
+  layer: sukoonCrisisLayerSchema,
+  rate_limited: z.boolean(),
+});
+export type SukoonCrisisAssessment = z.infer<typeof sukoonCrisisAssessmentSchema>;
+
+/** POST /dev/crisis/assess — a dev-only probe: text in, live assessment out. */
+export const sukoonCrisisAssessBodySchema = z.object({
+  text: z.string().trim().min(1).max(4000),
+});
+export type SukoonCrisisAssessBody = z.infer<typeof sukoonCrisisAssessBodySchema>;
+
+export const sukoonCrisisAssessResponseSchema = apiEnvelopeSchema(sukoonCrisisAssessmentSchema);
+export type SukoonCrisisAssessResponse = z.infer<typeof sukoonCrisisAssessResponseSchema>;
