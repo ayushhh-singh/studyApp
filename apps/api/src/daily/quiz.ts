@@ -35,6 +35,7 @@ import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { DEFAULT_MCQ_MARKS, roundMarks } from "../lib/marks.js";
+import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import {
   DAILY_QUIZ_CONFIG,
   SLICE_FILL_ORDER,
@@ -77,19 +78,32 @@ const MCQ_COLUMNS = "id, marks";
 
 /**
  * Leaf topics the platform as a whole answers below `threshold` accuracy on,
- * weakest first — aggregated across every user's graded attempts, not any
- * one individual's (see the module doc comment: this is a shared quiz).
+ * returned in PRIORITY order — aggregated across every user's graded attempts,
+ * not any one individual's (see the module doc comment: this is a shared quiz).
+ *
+ * Priority is a COMBINED weak-AND-heavily-tested score, not accuracy alone:
+ * a topic that's weak AND asked often by UPPSC ranks above one that's equally
+ * weak but rarely asked. Both signals are normalized to [0,1] and summed
+ * (equal weight):
+ *   weakness  = 1 - accuracy                       (higher = weaker)
+ *   weightage = hotness / maxHotness               (recency-weighted PYQ freq)
+ * This is a reordering, not a filter — every below-threshold topic is still
+ * returned; the generated slice just serves the high-priority ones first.
+ *
  * Paginated (selectAll) since attempt_answers is unbounded and PostgREST caps
  * a single select at 1000 rows.
  */
 async function globalWeakNodeIds(threshold: number): Promise<string[]> {
-  const rows = await selectAll<{ is_correct: boolean | null; questions: { syllabus_node_id: string | null } | null }>(
-    () =>
+  const [rows, weightage] = await Promise.all([
+    selectAll<{ is_correct: boolean | null; questions: { syllabus_node_id: string | null } | null }>(() =>
       supabase()
         .from("attempt_answers")
         .select("is_correct, questions!inner(syllabus_node_id)")
         .not("is_correct", "is", null),
-  );
+    ),
+    loadNodeWeightage(),
+  ]);
+  const year = currentExamYear();
   const byNode = new Map<string, { correct: number; total: number }>();
   for (const row of rows) {
     const nodeId = row.questions?.syllabus_node_id;
@@ -99,10 +113,29 @@ async function globalWeakNodeIds(threshold: number): Promise<string[]> {
     if (row.is_correct) b.correct += 1;
     byNode.set(nodeId, b);
   }
-  return [...byNode.entries()]
+  const entries = [...byNode.entries()]
     .filter(([, b]) => b.total > 0 && b.correct / b.total < threshold)
-    .sort((a, b) => a[1].correct / a[1].total - b[1].correct / b[1].total)
-    .map(([id]) => id);
+    .map(([id, b]) => ({
+      id,
+      weakness: 1 - b.correct / b.total,
+      hot: hotnessRaw(weightage.get(id)?.byYear ?? new Map(), year),
+    }));
+  return rankWeakNodes(entries);
+}
+
+/**
+ * Order below-threshold weak nodes by a COMBINED weak-AND-heavily-tested score.
+ * Pure (no I/O) so the "weak-but-rare vs weak-and-common" prioritization is
+ * directly testable. `weakness` and `hot` are both normalized to [0,1] and
+ * summed (equal weight); a topic that's weak AND hot outranks one that's equally
+ * weak but rarely asked. Not a filter — every input node is returned, reordered.
+ */
+export function rankWeakNodes(entries: { id: string; weakness: number; hot: number }[]): string[] {
+  const maxHot = entries.reduce((m, w) => (w.hot > m ? w.hot : m), 0) || 1;
+  return entries
+    .map((w) => ({ id: w.id, score: w.weakness + w.hot / maxHot }))
+    .sort((a, b) => b.score - a.score)
+    .map((w) => w.id);
 }
 
 /**
@@ -151,11 +184,17 @@ async function generatedPool(weakNodes: string[], seen: Set<string>): Promise<Po
       .order("id", { ascending: true }),
   );
   const rows = data.filter((r) => !seen.has(r.id));
-  const weak = new Set(weakNodes);
-  const onWeak = rows.filter((r) => r.syllabus_node_id && weak.has(r.syllabus_node_id));
-  const rest = rows.filter((r) => !(r.syllabus_node_id && weak.has(r.syllabus_node_id)));
-  // Weak-topic questions first (the point of this slice), then the rest as depth.
-  return [...shuffle(onWeak), ...shuffle(rest)].map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
+  // `weakNodes` is already priority-ordered (weak AND heavily-tested first —
+  // see globalWeakNodeIds). Serve weak-topic questions in THAT node order, so a
+  // weak-and-common topic's questions come before a weak-but-rare one's, then
+  // the rest as depth. Questions within the same node are shuffled for variety.
+  const rank = new Map(weakNodes.map((id, i) => [id, i]));
+  const onWeak = rows.filter((r) => r.syllabus_node_id && rank.has(r.syllabus_node_id));
+  const rest = rows.filter((r) => !(r.syllabus_node_id && rank.has(r.syllabus_node_id)));
+  const byNode = new Map<string, typeof onWeak>();
+  for (const r of shuffle(onWeak)) (byNode.get(r.syllabus_node_id!) ?? byNode.set(r.syllabus_node_id!, []).get(r.syllabus_node_id!)!).push(r);
+  const orderedWeak = weakNodes.flatMap((id) => byNode.get(id) ?? []);
+  return [...orderedWeak, ...shuffle(rest)].map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
 async function pyqPool(seen: Set<string>): Promise<PoolItem[]> {
