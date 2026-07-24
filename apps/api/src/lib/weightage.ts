@@ -10,6 +10,7 @@
  */
 import type { ExamCode, NodeWeightage } from "@neev/shared";
 import { supabase } from "./supabase.js";
+import { selectAll } from "./paginate.js";
 import { HttpError } from "./http-error.js";
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
@@ -34,13 +35,25 @@ export interface OwnWeightage {
  * `exam` scopes to a single exam; omit to combine all exams.
  */
 export async function loadNodeWeightage(exam?: ExamCode): Promise<Map<string, OwnWeightage>> {
-  let query = supabase().from("mv_node_weightage").select("node_id, exam_code, year, q_count");
-  if (exam) query = query.eq("exam_code", exam);
-  const { data, error } = await query;
-  if (error) throw new HttpError(500, `weightage lookup failed: ${error.message}`);
+  // Paged (selectAll + stable order): mv_node_weightage is per (node_id,
+  // exam_code, year), so it grows with every ingested paper-year and already
+  // sits near PostgREST's 1000-row cap — an unpaginated select would silently
+  // truncate once it crosses, spuriously zeroing the hotness of the dropped
+  // nodes for EVERY consumer (mocks, daily, CA, sectional, qgen/topup, magazine,
+  // deepdive, /learn bars). The (node_id, exam_code, year) key is a total order.
+  const data = await selectAll<{ node_id: string; year: number; q_count: number }>(() => {
+    let query = supabase()
+      .from("mv_node_weightage")
+      .select("node_id, exam_code, year, q_count")
+      .order("node_id", { ascending: true })
+      .order("exam_code", { ascending: true })
+      .order("year", { ascending: true });
+    if (exam) query = query.eq("exam_code", exam);
+    return query;
+  });
 
   const out = new Map<string, OwnWeightage>();
-  for (const row of (data ?? []) as { node_id: string; year: number; q_count: number }[]) {
+  for (const row of data as { node_id: string; year: number; q_count: number }[]) {
     const cur = out.get(row.node_id) ?? { byYear: new Map<number, number>(), total: 0 };
     cur.byYear.set(row.year, (cur.byYear.get(row.year) ?? 0) + row.q_count);
     cur.total += row.q_count;
