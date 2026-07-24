@@ -197,7 +197,13 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
               variant="ghost"
               className="text-destructive hover:text-destructive"
               onClick={() => {
-                session.complete(cycleSeconds * (state.cycle - 1));
+                // Full completed cycles + progress within the current
+                // (incomplete) one — a Stop mid-phase previously reported 0s
+                // for the whole in-progress cycle, undercounting real elapsed time.
+                const inCurrentCycle =
+                  activePhases.slice(0, state.phaseIdx).reduce((sum, p) => sum + p.seconds, 0) +
+                  ((activePhases[state.phaseIdx]?.seconds ?? 0) - state.remaining);
+                session.complete(cycleSeconds * (state.cycle - 1) + inCurrentCycle);
                 setState({ phaseIdx: 0, cycle: 1, remaining: activePhases[0]?.seconds ?? 0, running: false, done: false });
                 setAmbientOn(false);
               }}

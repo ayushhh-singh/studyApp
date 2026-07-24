@@ -10,8 +10,16 @@ import {
   type SukoonExerciseAudioLang,
   type SukoonExerciseSessionCompleteBody,
 } from "@neev/shared";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+
+/** Retries a signed-URL fetch only on a transient (5xx/network) failure, up to
+ *  2 extra times — a 402/404 (locked, or audio genuinely not uploaded) is a
+ *  real, stable answer and retrying it would just delay showing that state. */
+function retryOnServerErrorOnly(failureCount: number, error: unknown): boolean {
+  if (failureCount >= 2) return false;
+  return !(error instanceof ApiError) || error.status >= 500;
+}
 
 export function useExercises(options?: { enabled?: boolean }) {
   return useQuery({
@@ -40,7 +48,7 @@ export function useExerciseAudioUrl(
       api.get(`/api/sukoon/exercises/${exerciseId}/audio-url`, sukoonAudioUrlResponseSchema, { lang }),
     enabled: !!exerciseId && (options?.enabled ?? true),
     staleTime: 50 * 60_000,
-    retry: false,
+    retry: retryOnServerErrorOnly,
   });
 }
 
@@ -51,6 +59,10 @@ export function useAmbientAudioUrl(id: string | null, options?: { enabled?: bool
       api.get(`/api/sukoon/exercises/ambient/${id}/audio-url`, sukoonAudioUrlResponseSchema),
     enabled: !!id && (options?.enabled ?? true),
     staleTime: 50 * 60_000,
+    // Deliberately no retry, unlike useExerciseAudioUrl above — the ambient
+    // mixer's whole design is "fall back to a synthesized loop fast" (see
+    // use-ambient-channel.ts), and a 404 here almost always just means the
+    // real file hasn't been uploaded yet, not a transient failure.
     retry: false,
   });
 }

@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from "react";
 import { Link, useParams } from "react-router";
-import { Lock, Wifi } from "lucide-react";
+import { Lock, Wifi, AlertTriangle } from "lucide-react";
 import type { SukoonExercise } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -41,6 +41,28 @@ export function ToolPlayerFrame<T extends SukoonExercise["type"]>({
       <div className="mx-auto flex max-w-lg flex-col gap-4">
         <Skeleton className="h-8 w-1/2" />
         <Skeleton className="h-64 w-full rounded-2xl" />
+      </div>
+    );
+  }
+
+  // A genuine load failure (server error, since offline is handled below via
+  // its own branch) must never be presented as "this exercise doesn't exist"
+  // — that reads as a dead link rather than "try again", and query.data being
+  // undefined on error would otherwise fall straight into the not-found path.
+  if (query.isError && online) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col gap-6">
+        <PageHeader title={t("Sukoon.toolsTitle")} />
+        <EmptyState
+          icon={AlertTriangle}
+          title={t("Sukoon.tools.loadErrorTitle")}
+          description={t("Sukoon.tools.loadErrorBody")}
+          action={
+            <Link to={`${base}/tools`} className="text-sm font-medium text-secondary hover:underline">
+              {t("Sukoon.tools.backToTools")}
+            </Link>
+          }
+        />
       </div>
     );
   }
