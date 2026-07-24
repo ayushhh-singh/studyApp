@@ -33,10 +33,25 @@ import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { daysBetween, istToday } from "../lib/ist.js";
 import { selectAll } from "../lib/paginate.js";
+import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import { getTestDetail } from "../services/tests.js";
 
 const PRELIMS_MAX = 20;
 const MAINS_MAX = 5;
+
+/**
+ * Ranking constants, mirroring the magazine curation's importance score
+ * (services/magazine-curation.ts): a whole relevance tier dominates, and
+ * syllabus weightage (recency-weighted PYQ hotness) ranks items WITHIN a tier
+ * — capped so a many-node item can't jump a relevance tier. Applied to BOTH
+ * weekly sets so each is the top-ranked slice of its pool, not a random slice.
+ */
+const REL_TIER = 1000;
+const WEIGHT_CAP = 400;
+/** Descriptive CA questions are all generated at mains_relevance === 3 (the pipeline's gate), so relevance is uniform among them and weightage is the differentiator. */
+const DESCRIPTIVE_RELEVANCE = 3;
+/** MCQs come from prelims_relevance >= 2 items; default a missing reverse-link to the gate minimum. */
+const PRELIMS_RELEVANCE_FLOOR = 2;
 
 /** Below this many approved questions at the normal cutoff, fall back to a wider window rather than ship a thin/empty quiz. */
 const MIN_POOL: Record<"mcq" | "descriptive", number> = { mcq: 10, descriptive: 3 };
@@ -63,21 +78,72 @@ async function findTestIdBySlug(slug: string): Promise<string | null> {
   return (data?.id as string) ?? null;
 }
 
+interface CaPoolQ {
+  id: string;
+  marks: number | null;
+  syllabus_node_id: string | null;
+}
+
 /** Approved CA questions of the given type dated within the last `days` days. */
-async function approvedCaQuestionIds(type: "mcq" | "descriptive", days: number): Promise<{ id: string; marks: number | null }[]> {
+async function approvedCaQuestionIds(type: "mcq" | "descriptive", days: number): Promise<CaPoolQ[]> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   // Paged: the 14-day fallback window already matches >1000 rows, so an
   // unranged select silently dropped approved questions from the quiz pool.
-  return await selectAll<{ id: string; marks: number | null }>(() =>
+  return await selectAll<CaPoolQ & { created_at: string }>(() =>
     supabase()
       .from("questions")
-      .select("id, marks, created_at")
+      .select("id, marks, syllabus_node_id, created_at")
       .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
       .eq("type", type)
       .gte("created_at", cutoff)
       .or(questionVisibilityOrFilter("catalog"))
       .order("id", { ascending: true }),
   );
+}
+
+/**
+ * question_id -> prelims_relevance, reverse-mapped from the source current-
+ * affairs items' `mcq_question_ids` over the widest window a build might use.
+ * (Descriptive CA questions carry no such reverse array and are uniformly
+ * mains_relevance 3, so they need no equivalent — see DESCRIPTIVE_RELEVANCE.)
+ */
+async function prelimsRelevanceByQuestion(days: number): Promise<Map<string, number>> {
+  const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  const rows = await selectAll<{ mcq_question_ids: string[] | null; prelims_relevance: number | null }>(() =>
+    supabase()
+      .from("current_affairs_items")
+      .select("id, mcq_question_ids, prelims_relevance")
+      .eq("is_published", true)
+      .gte("date", cutoff)
+      .order("id", { ascending: true }),
+  );
+  const out = new Map<string, number>();
+  for (const r of rows) {
+    const rel = r.prelims_relevance ?? PRELIMS_RELEVANCE_FLOOR;
+    for (const qid of r.mcq_question_ids ?? []) out.set(qid, Math.max(out.get(qid) ?? 0, rel));
+  }
+  return out;
+}
+
+/**
+ * Rank a CA pool by relevance tier (dominant) then rolled-up syllabus weightage
+ * within the tier — the same importance ordering the magazine editions use — so
+ * `.slice(0, max)` keeps the week's MOST exam-worthy questions rather than a
+ * random subset. Applied identically to BOTH the prelims quiz and the mains set.
+ */
+export function rankCaPool(
+  pool: CaPoolQ[],
+  relevanceOf: (id: string) => number,
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+): CaPoolQ[] {
+  return [...pool]
+    .map((q) => {
+      const hot = hotnessRaw(weightage.get(q.syllabus_node_id ?? "")?.byYear ?? new Map(), year);
+      return { q, score: relevanceOf(q.id) * REL_TIER + Math.min(hot, WEIGHT_CAP) };
+    })
+    .sort((a, b) => b.score - a.score)
+    .map((x) => x.q);
 }
 
 interface AssembleSpec {
@@ -89,7 +155,12 @@ interface AssembleSpec {
   metaSource: string;
 }
 
-async function assemble(spec: AssembleSpec, days: number): Promise<string | null> {
+async function assemble(
+  spec: AssembleSpec,
+  days: number,
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+): Promise<string | null> {
   const existing = await findTestIdBySlug(spec.slug);
   if (existing) return existing;
 
@@ -105,7 +176,15 @@ async function assemble(spec: AssembleSpec, days: number): Promise<string | null
   }
   if (pool.length === 0) return null;
 
-  const selected = shuffled(pool).slice(0, spec.max);
+  // Relevance per question: prelims MCQs reverse-map to their source item's
+  // prelims_relevance (loaded over the widest window a build might use, so it
+  // covers a widened pool too); descriptive CA is uniformly mains_relevance 3.
+  const relMap = spec.type === "mcq" ? await prelimsRelevanceByQuestion(FALLBACK_DAYS) : null;
+  const relevanceOf = (id: string) => (relMap ? relMap.get(id) ?? PRELIMS_RELEVANCE_FLOOR : DESCRIPTIVE_RELEVANCE);
+
+  // Rank the pool by relevance + weightage, then cap — for BOTH sets. Shuffle
+  // first so equal-relevance/equal-weightage ties vary across weeks.
+  const selected = rankCaPool(shuffled(pool), relevanceOf, weightage, year).slice(0, spec.max);
   const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
@@ -154,6 +233,9 @@ export interface WeeklyAssemblyResult {
 /** Build (or return the existing) weekly Prelims Quiz + Mains Set for the current IST week. */
 export async function assembleWeeklySets(days = 7): Promise<WeeklyAssemblyResult> {
   const week = istWeekNumber();
+  // Load the weightage matview once and rank BOTH sets against it.
+  const weightage = await loadNodeWeightage();
+  const year = currentExamYear();
   const prelimsTestId = await assemble(
     {
       slug: `ca-prelims-w${week}`,
@@ -164,6 +246,8 @@ export async function assembleWeeklySets(days = 7): Promise<WeeklyAssemblyResult
       metaSource: "ca_weekly_prelims",
     },
     days,
+    weightage,
+    year,
   );
   const mainsTestId = await assemble(
     {
@@ -175,6 +259,8 @@ export async function assembleWeeklySets(days = 7): Promise<WeeklyAssemblyResult
       metaSource: "ca_weekly_mains",
     },
     days,
+    weightage,
+    year,
   );
   return { week, prelimsTestId, mainsTestId };
 }
