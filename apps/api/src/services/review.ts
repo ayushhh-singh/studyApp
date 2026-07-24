@@ -168,7 +168,26 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
     .order("created_at", { ascending: false })
     .order("id", { ascending: true })
     .range(from, to);
-  if (error) throw new HttpError(500, `review queue query failed: ${error.message}`);
+  if (error) {
+    // PGRST103 = the requested page is past the end of the data. This is a
+    // reachable state, not a server fault: the reviewer approves/rejects the
+    // last items on the final page (shrinking the tab's total), a concurrent
+    // reviewer drains it, or a stale ?page= URL is opened. Return an empty page
+    // with the current total (PostgREST leaves count null on this error, so
+    // re-count) instead of 500ing the whole queue.
+    if (error.code === "PGRST103") {
+      const { count: total, error: countError } = await applyTab(
+        supabase().from("questions").select("id", { count: "exact", head: true }),
+        tab,
+      );
+      // If even the re-count fails, that's a genuine DB fault (not a benign
+      // over-range) — surface it as a 500 rather than masking it as total:0,
+      // which would make the UI show an empty queue when there is really data.
+      if (countError) throw new HttpError(500, `review queue query failed: ${countError.message}`);
+      return { items: [], total: total ?? 0 };
+    }
+    throw new HttpError(500, `review queue query failed: ${error.message}`);
+  }
   const rows = (data ?? []) as unknown as ReviewRow[];
   const similar = await resolveSimilar(rows);
   return { items: rows.map((r) => mapRow(r, similar.get(r.id) ?? [])), total: count ?? 0 };
