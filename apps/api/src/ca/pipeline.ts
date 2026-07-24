@@ -57,7 +57,8 @@ import {
   submitBatch,
 } from "../lib/anthropic.js";
 import { MODELS } from "../lib/models.js";
-import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION } from "../qgen/prompts.js";
+import { loadFewShot, loadNodeContext } from "../qgen/generate.js";
+import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION, type FewShotQuestion } from "../qgen/prompts.js";
 import { CandidatePrefilter, PREFILTER_TOP_K, PREFILTER_TOP_K_DEVANAGARI } from "./candidate-prefilter.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import type {
@@ -303,16 +304,43 @@ function buildNodeSignificance(
   return Object.keys(record).length > 0 ? record : null;
 }
 
+/**
+ * Real published UPPSC PYQs for the node a CA MCQ will be placed on, to few-shot
+ * the generator on genuine exam style (reuses qgen's shared loadFewShot; the CA
+ * exclusion in that loader keeps a pooled-node lookup from few-shotting on prior
+ * CA output). Best-effort: any lookup failure yields no examples, and
+ * fewShotBlock([]) degrades to the generic "follow general UPPSC style" text.
+ */
+async function loadMcqFewShot(
+  nodeId: string,
+  log: (msg: string) => void,
+): Promise<FewShotQuestion[]> {
+  try {
+    const node = await loadNodeContext(nodeId);
+    return await loadFewShot(node, "mcq");
+  } catch (err) {
+    log(`few-shot load failed for node ${nodeId}: ${err instanceof Error ? err.message : err}`);
+    return [];
+  }
+}
+
 async function insertMcqsForItem(opts: {
   syllabusNodeId: string | null;
   title: string;
   facts: string[];
   onUsage: (u: LlmUsage) => void;
+  log: (msg: string) => void;
 }): Promise<string[]> {
+  // Few-shot on real PYQs for the placed node (the pooled "Current Events" node
+  // when the item has no better topical fit) so the generator writes in genuine
+  // UPPSC style. syllabusNodeId is always resolved (never null) by the caller.
+  const examples = opts.syllabusNodeId ? await loadMcqFewShot(opts.syllabusNodeId, opts.log) : [];
   // onUsage MUST be forwarded — without it every CA MCQ generation call was
   // silently missing from the run's reported cost (the mains sibling below
-  // has always passed it).
-  const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts, onUsage: opts.onUsage });
+  // has always passed it). generateMcqs now returns 0-2 questions (only the
+  // exam-worthy facts earn one), so an empty result is the expected outcome for
+  // a colour-only item, not a failure — the early return below handles it.
+  const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts, examples, onUsage: opts.onUsage });
   if (mcqs.length === 0) return [];
 
   // No inline blind-verify here (deliberately): ca:run is already close to
@@ -1142,6 +1170,7 @@ export async function processTriagedItem(
         title: enrich.title_i18n.en,
         facts: factsEn,
         onUsage,
+        log,
       });
       if (mcqIds.length > 0) {
         await supabase().from("current_affairs_items").update({ mcq_question_ids: mcqIds }).eq("id", itemId);

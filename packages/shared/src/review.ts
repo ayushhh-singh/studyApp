@@ -73,6 +73,20 @@ export const generationMetaSchema = z
       })
       .optional(),
     batch_id: z.string().uuid().optional(),
+    /**
+     * Set by the retroactive CA MCQ re-review sweep (scripts/ca-flag-low-quality-mcqs.ts).
+     * A LIVE (is_published, approved) CA MCQ generated before the exam-worthiness
+     * filter existed, flipped back to needs_review for a human's second look
+     * WITHOUT unpublishing. `reason` says why it was flagged (e.g. its source
+     * item had no anchored fact); present-ness alone marks it pending re-review.
+     */
+    re_review: z
+      .object({
+        reason: z.string(),
+        flagged_at: z.string(),
+        source_item_id: z.string().uuid().optional(),
+      })
+      .optional(),
   })
   .passthrough();
 export type GenerationMeta = z.infer<typeof generationMetaSchema>;
@@ -127,6 +141,10 @@ export function isHighConfidenceQuestion(q: {
   publish_gate_ok: boolean;
   generation_meta: GenerationMeta | null;
 }): boolean {
+  // A row flagged for a second human look (the retroactive CA re-review sweep)
+  // is NEVER bulk-approvable — the whole point is that a human makes the call,
+  // so it must not be swept back to approved by "approve all high-confidence".
+  if (q.generation_meta?.re_review) return false;
   const flags = q.generation_meta?.critic?.factual_red_flags?.length ?? 0;
   return q.publish_gate_ok && flags === 0 && (q.type !== "mcq" || q.generation_meta?.verify_result?.matches_key === true);
 }

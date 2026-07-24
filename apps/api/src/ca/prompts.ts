@@ -48,6 +48,7 @@
  * CLAUDE.md's "Extended-TTL prompt caching investigated" session note.
  */
 import { MODELS, structuredJson, type LlmUsage, type StructuredParams } from "../lib/anthropic.js";
+import { fewShotBlock, type FewShotQuestion } from "../qgen/prompts.js";
 import type {
   CurrentAffairsCategory,
   CurrentAffairsFact,
@@ -290,9 +291,20 @@ export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
       "This item has these active exam lives: fill ONLY those; leave every field of an INACTIVE life empty " +
       "(empty string / empty array).\n" +
       "- title_i18n + summary_i18n: ALWAYS fill (a 1-2 sentence card summary).\n" +
-      "- prelims_facts (prelims life): 3-6 boxed, standalone facts a student memorizes. Each has fact_i18n, a `kind` " +
-      "(scheme/report_index/place/org/species/appointment/day_theme/misc), and `extras` (fill ministry/publisher/" +
-      "rank/location ONLY when applicable, else omit the key). Prefer crisp who/what/when/how-much facts.\n" +
+      "- prelims_facts (prelims life): the standalone, memorizable facts a student would revise from this item. Emit " +
+      "as many as the item GENUINELY supports (typically 2-6; fewer — even one — is correct when only one fact is " +
+      "worth it; NEVER pad to a count). Each has fact_i18n, a `kind` (scheme/report_index/place/org/species/" +
+      "appointment/day_theme/misc), and `extras` (fill ministry/publisher/rank/location ONLY when applicable, else " +
+      "omit the key). Prefer crisp who/what/when/how-much facts anchored on a NAMED, examinable entity.\n" +
+      "  EXAM-WORTHINESS BAR — apply to EVERY fact before writing it: ask 'would a real UPPSC prelims paper plausibly " +
+      "ask this, or is it just colour/context from the news story?'. A named scheme, report/index (+rank), " +
+      "appointment, place/monument/river/park, organisation, species, treaty, book/award, or day/theme clears the " +
+      "bar easily. The `misc` kind is a LAST RESORT held to a MATERIALLY HIGHER bar than every other kind: use it " +
+      "ONLY for a genuinely high-yield fact that fits no better kind, NEVER for an incidental detail that merely " +
+      "happened to appear in the article — a headcount (e.g. how many students live in a hostel), a date mentioned " +
+      "in passing, an unremarkable one-off statistic, or a procedural aside. When a detail would only be a `misc` " +
+      "fact of that trivial sort, PREFER TO SKIP IT ENTIRELY — omitting a fact is always better than boxing story " +
+      "trivia a real exam would never test.\n" +
       "- mains_brief (mains life): why_in_news_i18n, background_i18n (1-2 lines), and these bilingual arrays (same " +
       "length + order across hi/en): significance_i18n (2-4 points), challenges_i18n (2-4), way_forward_i18n (2-4), " +
       "keywords_i18n (3-6 value-addition phrases/data points an examiner rewards), case_examples_i18n (1-3 concrete " +
@@ -410,9 +422,24 @@ export interface GeneratedMcq {
   difficulty: "easy" | "medium" | "hard";
 }
 
+/**
+ * Prelims practice MCQs for a CA item. `examples` are real published UPPSC PYQs
+ * for the item's placed syllabus node (loaded by ca/pipeline.ts via qgen's
+ * shared loadFewShot) — few-shotting the generator on genuine exam questions is
+ * what gives it a concrete sense of UPPSC style, instead of an abstract "write
+ * UPPSC-style" instruction. Returns 0-2 questions: only facts that clear the
+ * exam-relevance filter get a question, so a colour-only item yields none.
+ */
 export async function generateMcqs(opts: {
   title: string;
   facts: string[];
+  /**
+   * Real published UPPSC PYQs to condition style. Optional — the ca:run pipeline
+   * passes the placed node's PYQs; the mentor's ephemeral teach-mode quick-check
+   * has no node to draw from and passes none, in which case fewShotBlock([])
+   * degrades to the generic "follow general UPPSC style" instruction.
+   */
+  examples?: FewShotQuestion[];
   onUsage?: (u: LlmUsage) => void;
 }): Promise<GeneratedMcq[]> {
   const out = await structuredJson<{ questions: GeneratedMcq[] }>({
@@ -420,11 +447,24 @@ export async function generateMcqs(opts: {
     purpose: "ca_mcq_gen",
     onUsage: opts.onUsage,
     system:
-      "You write UPPSC-prelims-style objective questions (bilingual, Hindi Devanagari + English) testing a " +
-      "current-affairs item. Generate exactly 2 distinct questions, each with exactly 4 options keyed A/B/C/D, " +
-      "exactly one correct, and a short explanation. Base questions ONLY on the facts given below — never invent " +
-      "facts not present in them. Plain text only, no markdown.",
-    content: `Title: ${opts.title}\nKey facts:\n${opts.facts.map((f) => `- ${f}`).join("\n")}`,
+      "You write UPPSC-Prelims objective questions (bilingual, Hindi Devanagari + English) to test a current-affairs " +
+      "item, in the style of the REAL past-year UPPSC questions shown below. Rules:\n" +
+      "- Each question has exactly 4 options keyed A/B/C/D, exactly one unambiguously correct, three plausible-but-" +
+      "wrong distractors, and a short explanation. Base every question ONLY on the facts given — never invent a fact " +
+      "not present in them. Plain text only, no markdown.\n" +
+      "- EXAM-RELEVANCE FILTER (the important part): write a question for a fact ONLY if a real UPPSC prelims paper " +
+      "would plausibly test it — a named scheme, report/index (+rank), appointment, place, organisation, species, " +
+      "treaty, award, or a significant first/location. DO NOT build a question around an incidental detail that " +
+      "merely appeared in the story (a headcount, a date mentioned in passing, an unremarkable statistic, " +
+      "who-said-what) — those are NOT examinable, however factually accurate. Match the difficulty, framing, and " +
+      "trap patterns of the real examples below, not a generic quiz.\n" +
+      "- QUANTITY IS NOT A TARGET: return 0, 1, or 2 questions — ONLY for facts that clear the filter above. If none " +
+      "of the facts is genuinely exam-worthy, return an EMPTY `questions` array. Never pad with a weak question to " +
+      "reach a count: one strong question beats two mediocre ones, and zero beats one a real paper would never ask.",
+    content:
+      `${fewShotBlock(opts.examples ?? [])}\n\n` +
+      `CURRENT-AFFAIRS ITEM TO TEST\nTitle: ${opts.title}\nFacts:\n${opts.facts.map((f) => `- ${f}`).join("\n")}\n\n` +
+      `Write 0-2 UPPSC-Prelims MCQs, ONLY for the exam-worthy facts, in the style of the examples above.`,
     schema: {
       type: "object",
       additionalProperties: false,

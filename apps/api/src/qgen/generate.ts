@@ -22,6 +22,7 @@ import {
   type LlmUsage,
 } from "../lib/anthropic.js";
 import { embeddings } from "../lib/embeddings.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
 import { dedupCandidates, type DedupResult } from "./dedup.js";
 import {
@@ -118,8 +119,20 @@ export async function loadNodeContext(nodeId: string): Promise<NodeContext> {
   };
 }
 
-/** 5-8 real published PYQs to condition style: node-scoped first, then paper-level. */
-async function loadFewShot(node: NodeContext, type: QuestionType): Promise<FewShotQuestion[]> {
+/**
+ * 5-8 real published PYQs to condition style: node-scoped first, then paper-level.
+ * Exported (also used by ca/pipeline.ts to style CA practice MCQs on real UPPSC
+ * questions instead of an abstract "write UPPSC-style" instruction).
+ *
+ * The node-level query EXCLUDES CURRENT_AFFAIRS-coded rows so few-shot examples
+ * are always real PYQs (or the vetted PYQ bank), never our own ca:run-generated
+ * MCQs. This matters most when the node IS the pooled "Current Events" node,
+ * whose only questions are prior CA MCQs — without the guard, CA generation would
+ * few-shot on its own output (circular, and the whole reason it drifts off UPPSC
+ * style). The paper-level fallback already excludes CA (it filters
+ * `paper_code = <a PRE_/MAINS_ paper>`, never CURRENT_AFFAIRS).
+ */
+export async function loadFewShot(node: NodeContext, type: QuestionType): Promise<FewShotQuestion[]> {
   const cols = "stem_i18n, options_i18n, correct_option_key, year, difficulty";
   const map = (rows: unknown[]): FewShotQuestion[] =>
     (rows as FewShotQuestion[]).map((r) => ({
@@ -136,6 +149,7 @@ async function loadFewShot(node: NodeContext, type: QuestionType): Promise<FewSh
     .eq("syllabus_node_id", node.id)
     .eq("type", type)
     .eq("is_published", true)
+    .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
     .limit(8);
   let examples = map(nodeRows ?? []);
   if (examples.length < 5) {

@@ -53,7 +53,15 @@ function applyTab(query: any, tab: ReviewTab): any {
     case "generated_descriptive":
       return query.eq("review_state", "needs_review").eq("source", "generated").eq("type", "descriptive");
     case "current_affairs":
-      return query.eq("review_state", "needs_review").eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+      // Fresh ca:run output (needs_review) OR a LIVE (approved) CA MCQ flagged
+      // for a second pass by the retroactive re-review sweep
+      // (generation_meta.re_review, stamped by scripts/ca-flag-low-quality-mcqs.ts).
+      // The flagged rows stay approved+published — surfacing them here is metadata
+      // only, it does not change what any user sees; the reviewer keeps (Approve,
+      // which clears the flag) or removes (Reject) each one.
+      return query
+        .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+        .or("review_state.eq.needs_review,generation_meta->re_review.not.is.null");
     case "machine_translated":
       return query
         .eq("meta->>machine_translated", "true")
@@ -152,10 +160,34 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
   const to = from + REVIEW_PAGE_SIZE - 1;
   const base = supabase().from("questions").select(REVIEW_COLUMNS, { count: "exact" });
   const { data, error, count } = await applyTab(base, tab)
+    // re_review-flagged rows first (the retroactive CA sweep's live-content
+    // second-pass batch — otherwise their OLD created_at buries them behind
+    // fresh needs_review output). A no-op for every other tab, where no row
+    // carries generation_meta.re_review, so the created_at order below stands.
+    .order("generation_meta->re_review->>flagged_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false })
     .order("id", { ascending: true })
     .range(from, to);
-  if (error) throw new HttpError(500, `review queue query failed: ${error.message}`);
+  if (error) {
+    // PGRST103 = the requested page is past the end of the data. This is a
+    // reachable state, not a server fault: the reviewer approves/rejects the
+    // last items on the final page (shrinking the tab's total), a concurrent
+    // reviewer drains it, or a stale ?page= URL is opened. Return an empty page
+    // with the current total (PostgREST leaves count null on this error, so
+    // re-count) instead of 500ing the whole queue.
+    if (error.code === "PGRST103") {
+      const { count: total, error: countError } = await applyTab(
+        supabase().from("questions").select("id", { count: "exact", head: true }),
+        tab,
+      );
+      // If even the re-count fails, that's a genuine DB fault (not a benign
+      // over-range) — surface it as a 500 rather than masking it as total:0,
+      // which would make the UI show an empty queue when there is really data.
+      if (countError) throw new HttpError(500, `review queue query failed: ${countError.message}`);
+      return { items: [], total: total ?? 0 };
+    }
+    throw new HttpError(500, `review queue query failed: ${error.message}`);
+  }
   const rows = (data ?? []) as unknown as ReviewRow[];
   const similar = await resolveSimilar(rows);
   return { items: rows.map((r) => mapRow(r, similar.get(r.id) ?? [])), total: count ?? 0 };
@@ -196,12 +228,13 @@ interface DecisionRow {
   publish_gate_ok: boolean;
   is_published: boolean;
   meta: Record<string, unknown> | null;
+  generation_meta: Record<string, unknown> | null;
 }
 
 async function fetchDecisionRow(id: string): Promise<DecisionRow> {
   const { data, error } = await supabase()
     .from("questions")
-    .select("id, publish_gate_ok, is_published, meta")
+    .select("id, publish_gate_ok, is_published, meta, generation_meta")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
@@ -209,16 +242,36 @@ async function fetchDecisionRow(id: string): Promise<DecisionRow> {
   return data as DecisionRow;
 }
 
-/** Approve: review_state='approved' + is_published iff the bilingual gate passes. Idempotently stamps human_verified for machine-translated audit rows. */
+/**
+ * generation_meta with the re_review flag stripped — the value to write when a
+ * reviewer ACTS on a flagged row (approve or reject), so it stops matching the
+ * CA tab's re_review .or() clause. Returns undefined when there was nothing to
+ * strip (so the caller can skip touching generation_meta entirely).
+ */
+function generationMetaWithoutReReview(
+  gm: Record<string, unknown> | null,
+): Record<string, unknown> | undefined {
+  if (!gm?.re_review) return undefined;
+  const { re_review: _drop, ...rest } = gm;
+  return rest;
+}
+
+/**
+ * Approve: review_state='approved' + is_published iff the bilingual gate passes.
+ * Idempotently stamps human_verified for machine-translated audit rows, and
+ * CLEARS a re_review flag (the retroactive CA re-review sweep) — approving a
+ * flagged live row is the reviewer's "keep it, it's fine" verdict, so the flag
+ * must drop off (otherwise it would keep re-appearing in the CA tab forever).
+ */
 export async function approveQuestion(id: string): Promise<ReviewActionResult> {
   const row = await fetchDecisionRow(id);
   const publish = row.publish_gate_ok;
   const meta = (row.meta ?? {}) as Record<string, unknown>;
   const nextMeta = meta.machine_translated ? { ...meta, human_verified: true } : meta;
-  const { error } = await supabase()
-    .from("questions")
-    .update({ review_state: "approved", is_published: publish, meta: nextMeta })
-    .eq("id", id);
+  const update: Record<string, unknown> = { review_state: "approved", is_published: publish, meta: nextMeta };
+  const clearedGm = generationMetaWithoutReReview(row.generation_meta);
+  if (clearedGm) update.generation_meta = clearedGm;
+  const { error } = await supabase().from("questions").update(update).eq("id", id);
   if (error) throw new HttpError(500, `approve failed: ${error.message}`);
   return { id, review_state: "approved", is_published: publish };
 }
@@ -226,9 +279,14 @@ export async function approveQuestion(id: string): Promise<ReviewActionResult> {
 export async function rejectQuestion(id: string, reason?: string): Promise<ReviewActionResult> {
   const row = await fetchDecisionRow(id);
   const meta = { ...((row.meta ?? {}) as Record<string, unknown>), ...(reason ? { reject_reason: reason } : {}) };
+  // Symmetric with approveQuestion: clear a re_review flag so a rejected row
+  // doesn't keep matching the CA tab's re_review .or() clause and stubbornly
+  // re-appear in the re-review surface after the reviewer has already acted.
+  const clearedGm = generationMetaWithoutReReview(row.generation_meta);
+  const gmUpdate = clearedGm ? { generation_meta: clearedGm } : {};
   const { error } = await supabase()
     .from("questions")
-    .update({ review_state: "rejected", is_published: false, meta })
+    .update({ review_state: "rejected", is_published: false, meta, ...gmUpdate })
     .eq("id", id);
   if (error) throw new HttpError(500, `reject failed: ${error.message}`);
   return { id, review_state: "rejected", is_published: false };
