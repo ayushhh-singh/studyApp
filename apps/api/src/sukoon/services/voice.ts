@@ -152,7 +152,13 @@ export async function executeVoiceTurn(
   const inputSeconds = Math.min(SUKOON_VOICE_MAX_TURN_SECONDS, Math.max(0, Math.round(body.duration_seconds)));
 
   // 1) Transcribe.
-  const { text: transcript } = await transcribeVoiceTurn({ audio, mimeType: body.mime_type, language, userId });
+  const { text: transcript } = await transcribeVoiceTurn({
+    audio,
+    mimeType: body.mime_type,
+    language,
+    userId,
+    signal,
+  });
   if (!transcript.trim()) {
     throw new HttpError(400, "Didn't catch that — please try again.", { feature: "sukoon_voice_empty" });
   }
@@ -238,9 +244,30 @@ export async function executeVoiceTurn(
     modelUsed = model;
   }
 
-  // 6) TTS the reply.
+  // 6) TTS the reply — degrade to a TEXT-ONLY reply on a TTS failure rather
+  //    than discarding an already-generated (already-billed) reply outright:
+  //    the client already renders assistant_text as a caption card even with
+  //    no audio to play, so a transient TTS hiccup costs the user nothing but
+  //    the spoken half of this one turn. An ABORT (the caller disconnected)
+  //    still propagates — there is no one left to degrade gracefully FOR.
+  //    Only counts reply-seconds against the cap when audio was ACTUALLY
+  //    produced (no voice minutes for a voice that never spoke).
   const provider = getTtsProvider();
-  const { audioBase64, mimeType } = await provider.synthesize({ text: replyText, language, userId });
+  let audioBase64: string | null = null;
+  let mimeType: string | null = null;
+  let replySeconds = 0;
+  try {
+    const speech = await provider.synthesize({ text: replyText, language, userId, signal });
+    audioBase64 = speech.audioBase64;
+    mimeType = speech.mimeType;
+    replySeconds = estimateSpeechSeconds(replyText);
+  } catch (err) {
+    if (signal.aborted) throw err;
+    logger.warn(
+      { err: err instanceof Error ? err.message : err, userId, provider: provider.name },
+      "sukoon voice: TTS failed; degrading to a text-only reply",
+    );
+  }
 
   // 7) Persist, meter, refresh summary.
   await persistMessage(conversationId, "assistant", replyText, {
@@ -250,13 +277,12 @@ export async function executeVoiceTurn(
   });
   await touchConversation(conversationId);
 
-  const replySeconds = estimateSpeechSeconds(replyText);
   const usage = await consumeVoiceSeconds(userId, inputSeconds + replySeconds);
 
   void maybeRefreshSummary(userId, conversationId);
 
   logger.info(
-    { userId, conversationId, inputSeconds, replySeconds, provider: provider.name },
+    { userId, conversationId, inputSeconds, replySeconds, provider: provider.name, hadAudio: !!audioBase64 },
     "sukoon voice: turn complete",
   );
 

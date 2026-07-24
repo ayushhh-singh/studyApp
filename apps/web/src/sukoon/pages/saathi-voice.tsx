@@ -262,10 +262,24 @@ export function Component() {
   const orbMode: VoiceOrbMode =
     recorder.state === "recording" ? "listening" : phase === "processing" ? "thinking" : isSpeaking ? "speaking" : "idle";
 
+  // "denied" is NOT included in `disabled` below — the copy explicitly tells
+  // the person to fix it in browser settings "then try again", so the button
+  // must stay tappable for that retry (getUserMedia is re-attempted on every
+  // press regardless of the last outcome) or that instruction would be a
+  // dead end. "unsupported" has no such fix (no setting adds MediaRecorder to
+  // a browser that lacks it), so that one genuinely disables the button.
   const permissionBlocked: RecorderPermission | null =
     recorder.permission === "denied" || recorder.permission === "unsupported" ? recorder.permission : null;
+  const permissionHardBlocked = recorder.permission === "unsupported";
 
+  // "Expected" states (hit their limit, mic caught nothing, or — the rare
+  // stale-cache case — tier changed mid-session) get the same calm, neutral
+  // treatment as everywhere else in Sukoon (no alarm colors for a non-alarm
+  // event); only a genuinely unexpected failure (network/server error) uses
+  // the destructive style.
   const capReached = errorFeature === "sukoon_voice_cap";
+  const proRequired = errorFeature === "sukoon_voice_pro";
+  const expectedOutcome = capReached || proRequired || errorFeature === "sukoon_voice_empty";
 
   return (
     <VoiceScreenShell
@@ -345,7 +359,7 @@ export function Component() {
                 role="alert"
                 className={cn(
                   "rounded-2xl border px-4 py-3 text-sm leading-relaxed",
-                  capReached
+                  expectedOutcome
                     ? "border-border bg-muted text-muted-foreground"
                     : "border-destructive/40 bg-destructive/10 text-destructive",
                 )}
@@ -354,6 +368,11 @@ export function Component() {
                 {capReached ? (
                   <Link to={`${base}/saathi`} className="mt-2 inline-block text-xs font-medium text-secondary underline-offset-2 hover:underline">
                     {t("Sukoon.voice.useTypedChat")}
+                  </Link>
+                ) : null}
+                {proRequired ? (
+                  <Link to={`${base}/pricing`} className="mt-2 inline-block text-xs font-medium text-secondary underline-offset-2 hover:underline">
+                    {t("Sukoon.voice.seePlans")}
                   </Link>
                 ) : null}
               </div>
@@ -373,7 +392,7 @@ export function Component() {
             type="button"
             aria-pressed={recorder.state === "recording"}
             aria-label={recorder.state === "recording" ? t("Sukoon.voice.releaseToSend") : t("Sukoon.voice.holdToTalk")}
-            disabled={busy || !!permissionBlocked || !online}
+            disabled={busy || permissionHardBlocked || !online}
             onPointerDown={handlePress}
             onPointerUp={handleRelease}
             onPointerLeave={handleRelease}
@@ -436,8 +455,12 @@ export function Component() {
       <CrisisTakeover
         open={takeoverOpen}
         onAcknowledge={() => {
+          // Close the modal only — keep the transcript/crisis card visible
+          // (a fresh recording attempt is what clears it, via resetTurnState
+          // in handlePress/handleTap). Clearing it here would blank the
+          // screen the instant someone in distress taps through, which reads
+          // as the app abruptly moving on rather than staying present.
           setTakeoverOpen(false);
-          resetTurnState();
         }}
       />
     </VoiceScreenShell>

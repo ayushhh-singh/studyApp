@@ -66,17 +66,21 @@ async function transcribeWith(
   mimeType: string,
   language: SukoonChatLanguage,
   userId?: string,
+  signal?: AbortSignal,
 ): Promise<string> {
   const file = await toFile(audio, `turn.${extensionFor(mimeType)}`, { type: mimeType });
   const hint = languageHint(language);
-  const transcription = await openai().audio.transcriptions.create({
-    file,
-    model,
-    ...(hint ? { language: hint } : {}),
-    // Nudges the model toward the wellness-chat domain and away from
-    // transcribing filler/hesitation as if it were meaningful punctuation.
-    prompt: "A short, casual voice message to a wellbeing companion app, possibly in Hindi, English, or a Hindi-English mix.",
-  });
+  const transcription = await openai().audio.transcriptions.create(
+    {
+      file,
+      model,
+      ...(hint ? { language: hint } : {}),
+      // Nudges the model toward the wellness-chat domain and away from
+      // transcribing filler/hesitation as if it were meaningful punctuation.
+      prompt: "A short, casual voice message to a wellbeing companion app, possibly in Hindi, English, or a Hindi-English mix.",
+    },
+    signal ? { signal } : undefined,
+  );
   void userId; // no per-call cost ledger for OpenAI audio calls (see file header) — kept for a future one.
   return transcription.text ?? "";
 }
@@ -85,22 +89,44 @@ async function transcribeWith(
  * Transcribe one voice turn. Never throws for a model-side failure on the
  * PRIMARY call — it retries once on the mini model; only a totally broken
  * pipeline (both calls fail, e.g. OPENAI_API_KEY missing/invalid) propagates.
+ *
+ * An ABORT (the caller disconnected) is the one failure that must NOT trigger
+ * the fallback retry — retrying an already-abandoned request would spend a
+ * second OpenAI call on a turn nobody is waiting for anymore. `signal.aborted`
+ * is checked directly (not an `instanceof` on the SDK's abort error class) —
+ * same pattern as the crisis classifier's own abort check.
  */
 export async function transcribeVoiceTurn(params: {
   audio: Buffer;
   mimeType: string;
   language: SukoonChatLanguage;
   userId?: string;
+  signal?: AbortSignal;
 }): Promise<SttResult> {
   try {
-    const text = await transcribeWith(PRIMARY_MODEL, params.audio, params.mimeType, params.language, params.userId);
+    const text = await transcribeWith(
+      PRIMARY_MODEL,
+      params.audio,
+      params.mimeType,
+      params.language,
+      params.userId,
+      params.signal,
+    );
     return { text: text.trim() };
   } catch (err) {
+    if (params.signal?.aborted) throw err;
     logger.warn(
       { err: err instanceof Error ? err.message : err, userId: params.userId },
       "sukoon voice: primary STT model failed; retrying on the cost-fallback model",
     );
-    const text = await transcribeWith(FALLBACK_MODEL, params.audio, params.mimeType, params.language, params.userId);
+    const text = await transcribeWith(
+      FALLBACK_MODEL,
+      params.audio,
+      params.mimeType,
+      params.language,
+      params.userId,
+      params.signal,
+    );
     return { text: text.trim() };
   }
 }

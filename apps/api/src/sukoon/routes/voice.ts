@@ -52,7 +52,18 @@ sukoonVoiceRouter.post(
     try {
       const plan = await planVoiceTurn(userId, body.conversation_id ?? null);
       const result = await executeVoiceTurn(userId, plan, body, abort.signal);
-      res.json(sukoonVoiceTurnResponseSchema.parse({ data: result, error: null }));
+      if (!res.writableEnded) {
+        res.json(sukoonVoiceTurnResponseSchema.parse({ data: result, error: null }));
+      }
+    } catch (err) {
+      // A mid-processing disconnect (the user closed the voice screen while
+      // Saathi was still transcribing/thinking/speaking) surfaces as a plain
+      // abort error from whichever call was in flight — expected, not a real
+      // failure, so it must not hit the global error handler (which logs at
+      // ERROR + reports to Sentry for anything without an HttpError status).
+      // There's also no client left to respond to, so this simply returns.
+      if (abort.signal.aborted) return;
+      throw err;
     } finally {
       releaseVoiceTurn(userId);
     }

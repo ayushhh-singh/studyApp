@@ -60,6 +60,10 @@ export function useVoiceRecorder(onComplete: (result: VoiceRecordingResult) => v
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
   const baseMimeRef = useRef<SukoonVoiceAudioMime>("audio/webm");
+  // Bumped by cancel()/unmount so an in-flight start() can tell it's been
+  // superseded once its getUserMedia() await resolves — see the race this
+  // guards against in start()'s own comment below.
+  const generationRef = useRef(0);
 
   const stopLevelLoop = useCallback(() => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
@@ -116,12 +120,28 @@ export function useVoiceRecorder(onComplete: (result: VoiceRecordingResult) => v
       return;
     }
 
+    // getUserMedia() can hang for as long as the OS/browser permission prompt
+    // stays open (real seconds, not milliseconds) — if cancel() or an unmount
+    // fires while it's pending, this closure resolves LATER against a
+    // generation nothing is listening to anymore. Without this guard the
+    // continuation below would still wire up a live mic stream/MediaRecorder/
+    // AudioContext with no component left alive to ever call cancel() again —
+    // a real dangling-microphone leak, not just a stale-state no-op.
+    const myGeneration = ++generationRef.current;
+
     let stream: MediaStream;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch (err) {
+      if (generationRef.current !== myGeneration) return;
       const name = err instanceof DOMException ? err.name : "";
       setPermission(name === "NotFoundError" || name === "NotSupportedError" ? "unsupported" : "denied");
+      return;
+    }
+    if (generationRef.current !== myGeneration) {
+      // Superseded while awaiting permission — release the stream immediately
+      // and do nothing else (no refs to set, no recorder to build).
+      stream.getTracks().forEach((t) => t.stop());
       return;
     }
     setPermission("granted");
@@ -179,8 +199,11 @@ export function useVoiceRecorder(onComplete: (result: VoiceRecordingResult) => v
   }, [state, runLevelLoop, teardownStream, stop]);
 
   /** Abandon a recording in progress without delivering it (e.g. the user
-   *  navigates away mid-hold, or a crisis takeover interrupts). */
+   *  navigates away mid-hold, or a crisis takeover interrupts). Also
+   *  invalidates any start() still awaiting getUserMedia() permission — see
+   *  the comment in start() for why that matters. */
   const cancel = useCallback(() => {
+    generationRef.current++;
     const recorder = recorderRef.current;
     if (recorder && recorder.state !== "inactive") {
       recorder.onstop = null;

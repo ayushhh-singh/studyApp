@@ -30,7 +30,12 @@ export interface TtsResult {
 
 export interface TtsProvider {
   name: string;
-  synthesize(params: { text: string; language: SukoonChatLanguage; userId?: string }): Promise<TtsResult>;
+  synthesize(params: {
+    text: string;
+    language: SukoonChatLanguage;
+    userId?: string;
+    signal?: AbortSignal;
+  }): Promise<TtsResult>;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,15 +76,18 @@ const OPENAI_VOICE_CONFIG: Record<SukoonChatLanguage, { voice: string; instructi
 
 export const openAiTtsProvider: TtsProvider = {
   name: "openai:gpt-4o-mini-tts",
-  async synthesize({ text, language }): Promise<TtsResult> {
+  async synthesize({ text, language, signal }): Promise<TtsResult> {
     const cfg = OPENAI_VOICE_CONFIG[language];
-    const res = await openai().audio.speech.create({
-      model: "gpt-4o-mini-tts",
-      voice: cfg.voice,
-      input: text,
-      instructions: cfg.instructions,
-      response_format: "mp3",
-    });
+    const res = await openai().audio.speech.create(
+      {
+        model: "gpt-4o-mini-tts",
+        voice: cfg.voice,
+        input: text,
+        instructions: cfg.instructions,
+        response_format: "mp3",
+      },
+      signal ? { signal } : undefined,
+    );
     const buffer = Buffer.from(await res.arrayBuffer());
     return { audioBase64: buffer.toString("base64"), mimeType: "audio/mpeg" };
   },
@@ -114,7 +122,7 @@ interface SarvamTtsResponse {
 
 export const sarvamTtsProvider: TtsProvider = {
   name: "sarvam:bulbul-v2",
-  async synthesize({ text, language }): Promise<TtsResult> {
+  async synthesize({ text, language, signal }): Promise<TtsResult> {
     const apiKey = process.env.SARVAM_API_KEY;
     if (!apiKey) {
       throw new Error("SARVAM_API_KEY is not set (apps/api/.env) — required when SUKOON_TTS_PROVIDER=sarvam");
@@ -132,6 +140,7 @@ export const sarvamTtsProvider: TtsProvider = {
         speaker: SARVAM_SPEAKER,
         output_audio_codec: "wav",
       }),
+      signal,
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");
