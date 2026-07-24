@@ -330,3 +330,226 @@ export const sukoonChatCrisisEventSchema = z.object({
   surface: z.enum(["inline", "takeover"]),
 });
 export type SukoonChatCrisisEvent = z.infer<typeof sukoonChatCrisisEventSchema>;
+
+// ---------------------------------------------------------------------------
+// F4 — Journaling. Shared because the editor, prompt picker, list/heatmap
+// filters, entry view (with AI reflection), export flow and streak chip all
+// need the same vocabulary as the backend. HARD privacy rule (blueprint F4):
+// entry BODIES are encrypted at rest and only ever cross the wire on the
+// single-entry fetch/detail path — the list/search/heatmap surfaces are
+// METADATA ONLY (no body), which the schemas below encode by simply omitting
+// `body` from the list row.
+// ---------------------------------------------------------------------------
+
+/** Guided-prompt categories (mirror sukoon_journal_prompts.category, 0082). */
+export const sukoonPromptCategorySchema = z.enum([
+  "reflection",
+  "gratitude",
+  "worry_dump",
+  "mock_review",
+  "result_feelings",
+  "comparison",
+  "parental",
+  "self_compassion",
+  "letter_future",
+]);
+export type SukoonPromptCategory = z.infer<typeof sukoonPromptCategorySchema>;
+
+/** Exam phase a prompt is tuned for (mirror sukoon_journal_prompts.exam_phase). */
+export const sukoonExamPhaseSchema = z.enum(["routine", "pre_exam", "post_result"]);
+export type SukoonExamPhase = z.infer<typeof sukoonExamPhaseSchema>;
+
+/** A guided journal prompt (sukoon_journal_prompts) as returned to the client. */
+export const sukoonJournalPromptSchema = z.object({
+  id: z.string().uuid(),
+  text_hi: z.string(),
+  text_en: z.string(),
+  /** Free-text in the DB; a seeded prompt is always one of the known values. */
+  category: z.string().nullable(),
+  exam_phase: z.string().nullable(),
+});
+export type SukoonJournalPrompt = z.infer<typeof sukoonJournalPromptSchema>;
+
+/** GET /journal/prompts?category=&exam_phase= — the guided-prompt picker list. */
+export const sukoonJournalPromptsResponseSchema = apiEnvelopeSchema(
+  z.object({ prompts: z.array(sukoonJournalPromptSchema) }),
+);
+export type SukoonJournalPromptsResponse = z.infer<typeof sukoonJournalPromptsResponseSchema>;
+
+/**
+ * A journal LIST row — METADATA ONLY. There is deliberately NO `body`: bodies
+ * stay encrypted and are never decrypted for a list/search (the documented
+ * privacy tradeoff — a card shows date/mood/tags/prompt, never a text preview).
+ * `prompt` is the guided prompt this entry was written to, if any (joined), so
+ * the card has human context without touching the body.
+ */
+export const sukoonJournalListItemSchema = z.object({
+  id: z.string().uuid(),
+  mood: z.number().int().min(1).max(5).nullable(),
+  tags: z.array(z.string()),
+  prompt: sukoonJournalPromptSchema.nullable(),
+  /** Whether an AI reflection has been generated (drives the ✨ badge) — not the text. */
+  has_reflection: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type SukoonJournalListItem = z.infer<typeof sukoonJournalListItemSchema>;
+
+/**
+ * A single journal entry with its DECRYPTED body + reflection — the ONLY shape
+ * that carries plaintext, returned solely on GET /journal/entries/:id (the
+ * user reading their own entry). `body` is null for a mood-only/voice-only entry.
+ */
+export const sukoonJournalEntrySchema = sukoonJournalListItemSchema.extend({
+  body: z.string().nullable(),
+  reflection: z.string().nullable(),
+  reflection_at: z.string().nullable(),
+});
+export type SukoonJournalEntry = z.infer<typeof sukoonJournalEntrySchema>;
+
+/** Body of a journal entry — rich-text-lite is stored as markdown plaintext. */
+const journalBodySchema = z.string().max(20_000);
+const journalMoodSchema = z.number().int().min(1).max(5);
+/** Tags: short labels, deduped/trimmed server-side; capped to keep cards sane. */
+const journalTagsSchema = z.array(z.string().trim().min(1).max(40)).max(12);
+
+/**
+ * POST /journal/entries. A valid entry needs SOMETHING — a body or a mood — so
+ * an empty save is rejected (an all-null row is meaningless). prompt_id links
+ * the guided prompt it answers, if any.
+ */
+export const sukoonJournalCreateBodySchema = z
+  .object({
+    body: journalBodySchema.optional(),
+    mood: journalMoodSchema.nullable().optional(),
+    tags: journalTagsSchema.optional(),
+    prompt_id: z.string().uuid().nullable().optional(),
+  })
+  .refine((d) => (d.body && d.body.trim().length > 0) || d.mood != null, {
+    message: "An entry needs a body or a mood",
+  });
+export type SukoonJournalCreateBody = z.infer<typeof sukoonJournalCreateBodySchema>;
+
+/** PATCH /journal/entries/:id — same shape as create (prompt link is immutable). */
+export const sukoonJournalUpdateBodySchema = z
+  .object({
+    body: journalBodySchema.optional(),
+    mood: journalMoodSchema.nullable().optional(),
+    tags: journalTagsSchema.optional(),
+  })
+  .refine((d) => (d.body && d.body.trim().length > 0) || d.mood != null, {
+    message: "An entry needs a body or a mood",
+  });
+export type SukoonJournalUpdateBody = z.infer<typeof sukoonJournalUpdateBodySchema>;
+
+/**
+ * GET /journal/entries — metadata-only, filterable search (blueprint F4: search
+ * by tags, mood, date range, prompt category — bodies stay encrypted, so this is
+ * a METADATA search only). All filters optional; `from`/`to` are inclusive
+ * IST calendar dates.
+ */
+export const sukoonJournalListQuerySchema = z.object({
+  tag: z.string().trim().min(1).max(40).optional(),
+  mood: z.coerce.number().int().min(1).max(5).optional(),
+  category: sukoonPromptCategorySchema.optional(),
+  from: isoDateSchema.optional(),
+  to: isoDateSchema.optional(),
+  page: z.coerce.number().int().min(1).default(1),
+});
+export type SukoonJournalListQuery = z.infer<typeof sukoonJournalListQuerySchema>;
+
+/**
+ * GET /journal — the list response: a page of metadata rows + the distinct tag
+ * set (for the filter chips) + the streak. `total` is the filtered count; the
+ * page size is a server constant.
+ */
+export const sukoonJournalListResponseSchema = apiEnvelopeSchema(
+  z.object({
+    entries: z.array(sukoonJournalListItemSchema),
+    total: z.number().int(),
+    page: z.number().int(),
+    page_size: z.number().int(),
+    all_tags: z.array(z.string()),
+  }),
+);
+export type SukoonJournalListResponse = z.infer<typeof sukoonJournalListResponseSchema>;
+
+/** GET /journal/entries/:id — the decrypted single entry. */
+export const sukoonJournalEntryResponseSchema = apiEnvelopeSchema(
+  z.object({ entry: sukoonJournalEntrySchema }),
+);
+export type SukoonJournalEntryResponse = z.infer<typeof sukoonJournalEntryResponseSchema>;
+
+/** DELETE /journal/entries/:id — a soft delete acknowledgement. */
+export const sukoonJournalDeleteResponseSchema = apiEnvelopeSchema(
+  z.object({ ok: z.literal(true) }),
+);
+export type SukoonJournalDeleteResponse = z.infer<typeof sukoonJournalDeleteResponseSchema>;
+
+/** POST/PATCH /journal/entries[/:id] return the freshly-written entry. */
+export const sukoonJournalWriteResponseSchema = sukoonJournalEntryResponseSchema;
+export type SukoonJournalWriteResponse = SukoonJournalEntryResponse;
+
+/**
+ * GET /journal/heatmap?month=YYYY-MM — per-IST-day activity for a calendar month
+ * (metadata only). `mood` is the day's average mood (null if no mood that day);
+ * `count` is entries that day. Drives the calendar heatmap.
+ */
+export const sukoonJournalHeatmapDaySchema = z.object({
+  date: isoDateSchema,
+  count: z.number().int(),
+  mood: z.number().nullable(),
+});
+export type SukoonJournalHeatmapDay = z.infer<typeof sukoonJournalHeatmapDaySchema>;
+
+export const sukoonJournalHeatmapResponseSchema = apiEnvelopeSchema(
+  z.object({ month: z.string(), days: z.array(sukoonJournalHeatmapDaySchema) }),
+);
+export type SukoonJournalHeatmapResponse = z.infer<typeof sukoonJournalHeatmapResponseSchema>;
+
+/**
+ * The gentle "self-care days" streak (blueprint F4 — NO loss-aversion). A day
+ * counts if the user journaled that IST day; up to 1 skipped day per trailing
+ * 7-day window is forgiven so a single miss never resets the count.
+ */
+export const sukoonJournalStreakSchema = z.object({
+  current: z.number().int(),
+  longest: z.number().int(),
+  /** True if the user has already journaled today (drives "done for today"). */
+  active_today: z.boolean(),
+  /** Whether a free weekly skip was used to keep the streak alive (gentle notice). */
+  skip_used: z.boolean(),
+});
+export type SukoonJournalStreak = z.infer<typeof sukoonJournalStreakSchema>;
+
+/**
+ * GET /journal/reflection/usage — the reflection allowance meter. free = a
+ * LIFETIME budget of 3 (scope "lifetime"); plus/pro = a daily budget
+ * (scope "daily"). The composer/entry view reads this to show "N left" and to
+ * gate the ✨ button before a doomed request.
+ */
+export const sukoonReflectionUsageSchema = z.object({
+  tier: sukoonTierSchema,
+  scope: z.enum(["lifetime", "daily"]),
+  used: z.number().int(),
+  limit: z.number().int(),
+  remaining: z.number().int(),
+});
+export type SukoonReflectionUsage = z.infer<typeof sukoonReflectionUsageSchema>;
+export const sukoonReflectionUsageResponseSchema = apiEnvelopeSchema(sukoonReflectionUsageSchema);
+export type SukoonReflectionUsageResponse = z.infer<typeof sukoonReflectionUsageResponseSchema>;
+
+/**
+ * GET /journal/export?from=&to= — decrypted entries for a date range, for the
+ * print-to-PDF export (the existing Neev print-styled-route approach). Carries
+ * plaintext (the user exporting their own journal), same as the single-entry
+ * detail path. Reuses the full entry shape.
+ */
+export const sukoonJournalExportResponseSchema = apiEnvelopeSchema(
+  z.object({
+    from: isoDateSchema,
+    to: isoDateSchema,
+    entries: z.array(sukoonJournalEntrySchema),
+  }),
+);
+export type SukoonJournalExportResponse = z.infer<typeof sukoonJournalExportResponseSchema>;

@@ -24,6 +24,20 @@ export const queryKeys = {
   sukoonConversations: () => ["sukoon", "chat", "conversations"] as const,
   sukoonChatHistory: (conversationId?: string) =>
     ["sukoon", "chat", "history", conversationId ?? "latest"] as const,
+  sukoonJournalList: (filters?: {
+    tag?: string;
+    mood?: number;
+    category?: string;
+    from?: string;
+    to?: string;
+    page?: number;
+  }) => ["sukoon", "journal", "list", filters ?? {}] as const,
+  sukoonJournalEntry: (id: string) => ["sukoon", "journal", "entry", id] as const,
+  sukoonJournalPrompts: (filters?: { category?: string; exam_phase?: string }) =>
+    ["sukoon", "journal", "prompts", filters ?? {}] as const,
+  sukoonJournalHeatmap: (month: string) => ["sukoon", "journal", "heatmap", month] as const,
+  sukoonJournalStreak: () => ["sukoon", "journal", "streak"] as const,
+  sukoonReflectionUsage: () => ["sukoon", "journal", "reflection-usage"] as const,
   drillRecommendation: () => ["drills", "recommendation"] as const,
   drillHistory: () => ["drills", "history"] as const,
   activePlan: () => ["study-plan", "active"] as const,

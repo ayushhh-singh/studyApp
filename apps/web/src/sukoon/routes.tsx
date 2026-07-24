@@ -8,6 +8,11 @@ const sukoonAppRoutes: RouteObject[] = [
   { index: true, lazy: () => import("@/sukoon/pages/home") },
   { path: "saathi", lazy: () => import("@/sukoon/pages/saathi") },
   { path: "journal", lazy: () => import("@/sukoon/pages/journal") },
+  // Static segments before the :entryId param so they aren't captured as ids
+  // (React Router ranks static > dynamic, but keep them ordered for clarity).
+  { path: "journal/new", lazy: () => import("@/sukoon/pages/journal-editor") },
+  { path: "journal/:entryId", lazy: () => import("@/sukoon/pages/journal-entry") },
+  { path: "journal/:entryId/edit", lazy: () => import("@/sukoon/pages/journal-editor") },
   { path: "tools", lazy: () => import("@/sukoon/pages/tools") },
   { path: "you", lazy: () => import("@/sukoon/pages/you") },
 ];

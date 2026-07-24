@@ -30,6 +30,17 @@ function readDevTools(): boolean {
   return process.env.NODE_ENV !== "production";
 }
 
+/**
+ * F4 journal encryption key (pgcrypto pgp_sym_encrypt). Read lazily, not at
+ * boot — an unset key must not crash the whole API (other Sukoon features still
+ * work); the journal service throws a clear 500 the first time a journal op is
+ * attempted without it.
+ */
+export function journalEncKey(): string | undefined {
+  const k = process.env.JOURNAL_ENC_KEY;
+  return k && k.length > 0 ? k : undefined;
+}
+
 export const sukoonConfig = {
   mode: readMode(),
   enabled: readEnabled(),
