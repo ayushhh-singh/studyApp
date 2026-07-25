@@ -471,6 +471,41 @@ worth paying for headroom:
   On an alert, run the audits below and triage the Reported-questions tab. Update
   `lib/models.ts`'s `standard` pricing once Anthropic publishes real post-intro
   prices (still a placeholder — see CLAUDE.md TODO list).
+- **Sukoon cost check**: `GET /api/sukoon/admin/cost?days=7` (`is_admin`-gated,
+  same pattern as Neev's own admin routes) — `apps/api/src/sukoon/services/cost.ts`.
+  Same discipline as the Neev `cost:report` bullet above, applied to Sukoon's own
+  `sukoon_%`-prefixed rows in the shared `llm_calls` ledger: check the
+  **`by_purpose`** array every week (it collapses each purpose's calls across
+  model splits — e.g. `sukoon_saathi_chat`'s haiku/sonnet escalation — into one
+  row per purpose, `{purpose, calls, cache_hit_rate, cache_read_tokens,
+  cache_write_tokens, cost_usd, share_of_total_cost}`, mirroring
+  `reportCacheHitRateByPurpose` in `apps/api/scripts/cost-report.ts`) for a
+  cache-hit-rate that's dropped from its usual level or gone to 0% where it used
+  to hit. **Known baseline, so a future 0% doesn't need re-diagnosing from
+  scratch**: only `sukoon_meditation_script` (`MEDITATION_SYSTEM`, ~4.8k-token
+  head) and `sukoon_weekly_insight` (`INSIGHTS_SYSTEM`) have a REAL cache today.
+  `sukoon_saathi_chat` and `sukoon_crisis_classify` both set `cache: true` on
+  their system head but sit under the model's minimum cacheable prefix
+  (claude-haiku-4-5 needs ~4096 tokens, sonnet ~1024) for most calls — see the
+  comments in `prompts/saathi.ts` and `services/crisis/classifier.ts` — so a
+  low/0% rate there is expected, NOT automatically a bug; it only becomes real
+  caching once one of those heads grows past its model's floor (which does
+  already happen for `sukoon_saathi_chat` on sonnet-escalated turns — watch for
+  `cache_write_tokens > 0` with `cache_read_tokens` staying at 0 over a longer
+  window, which would mean escalated turns are writing the cache but never
+  landing close enough together in time to read it back inside the 5-minute TTL).
+  This check exists because Neev's own history has already been bitten by this
+  exact class of silent caching blind spot more than once — a `cache: true`
+  head sitting under a model's minimum cacheable prefix and quietly costing the
+  1.25x write premium for zero read benefit (CLAUDE.md's Session 13 note on the
+  shared feedback block landing at ~1000 tokens, just under Sonnet's 1024
+  floor), and a since-rejected CA-pipeline change that would have looked like a
+  cost win on paper while degrading real output quality (CLAUDE.md's
+  "CA-pipeline prompt caching investigated and REJECTED"). Sukoon has the exact
+  same shape of risk today (see the known-baseline paragraph above) — the same
+  discipline of actually reading the numbers weekly, instead of trusting that a
+  `cache: true` flag in the code means caching is happening, is what catches it
+  before an invoice does.
 - **Question-bank trust audits** (run monthly, or when a quality alert fires):
   - `pnpm --filter api audit:consistency [--hide]` — every published MCQ:
     structural/bilingual integrity + an explanation-vs-key check (haiku, Batch

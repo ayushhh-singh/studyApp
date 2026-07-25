@@ -2108,13 +2108,22 @@ export type SukoonAccountStateResponse = z.infer<typeof sukoonAccountStateRespon
 // read from the shared llm_calls ledger (purpose LIKE 'sukoon_%'). Admin-only.
 // ---------------------------------------------------------------------------
 
-/** One (purpose, model) rollup over the window. */
+/**
+ * One (purpose, model) rollup over the window. Cache fields mirror Neev's
+ * `cost:report` (apps/api/scripts/cost-report.ts) Bucket shape — raw
+ * cache_read/cache_write token totals plus calls_with_cache_hit (a call
+ * counts as a hit iff cache_read_tokens > 0), so a hit-rate regression is
+ * computable from the row instead of re-deriving it from stored `cost_usd`.
+ */
 export const sukoonCostRowSchema = z.object({
   purpose: z.string(),
   model: z.string(),
   calls: z.number().int().min(0),
+  calls_with_cache_hit: z.number().int().min(0),
   input_tokens: z.number().int().min(0),
   output_tokens: z.number().int().min(0),
+  cache_read_tokens: z.number().int().min(0),
+  cache_write_tokens: z.number().int().min(0),
   cost_usd: z.number().min(0),
 });
 export type SukoonCostRow = z.infer<typeof sukoonCostRowSchema>;
@@ -2127,12 +2136,34 @@ export const sukoonCostDaySchema = z.object({
 });
 export type SukoonCostDay = z.infer<typeof sukoonCostDaySchema>;
 
+/**
+ * One purpose's cache hit-rate, COLLAPSED across every model it runs on
+ * (e.g. `sukoon_saathi_chat` splits haiku/sonnet by the escalation rule in
+ * services/chat.ts) — mirrors Neev's `reportCacheHitRateByPurpose`: the
+ * per-(purpose,model) table above can spread one purpose's calls across
+ * several rows, hiding a regression in mental arithmetic; this is the
+ * single-glance version. `cache_hit_rate` is null when the purpose has made
+ * no calls in the window (nothing to divide by).
+ */
+export const sukoonCostByPurposeSchema = z.object({
+  purpose: z.string(),
+  calls: z.number().int().min(0),
+  calls_with_cache_hit: z.number().int().min(0),
+  cache_hit_rate: z.number().min(0).max(1).nullable(),
+  cache_read_tokens: z.number().int().min(0),
+  cache_write_tokens: z.number().int().min(0),
+  cost_usd: z.number().min(0),
+  share_of_total_cost: z.number().min(0).max(1).nullable(),
+});
+export type SukoonCostByPurpose = z.infer<typeof sukoonCostByPurposeSchema>;
+
 export const sukoonCostSummarySchema = z.object({
   days: z.number().int().min(1),
   since: z.string(),
   total_cost_usd: z.number().min(0),
   total_calls: z.number().int().min(0),
   by_purpose_model: z.array(sukoonCostRowSchema),
+  by_purpose: z.array(sukoonCostByPurposeSchema),
   daily: z.array(sukoonCostDaySchema),
 });
 export type SukoonCostSummary = z.infer<typeof sukoonCostSummarySchema>;
