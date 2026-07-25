@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { breathHapticFor, hapticsSupported, stopVibration, vibrate } from "@/sukoon/lib/sukoon-haptics";
+import { playBreathCue } from "@/sukoon/lib/sukoon-audio-cues";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
 import { useAmbientChannel } from "@/sukoon/lib/use-ambient-channel";
 import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
@@ -61,6 +62,9 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
   // user is never shown a switch that silently does nothing. Default on.
   const hapticsAvail = useMemo(() => hapticsSupported(), []);
   const [hapticsOn, setHapticsOn] = useState(true);
+  // Soft audio cues per phase. Default OFF (opt-in) — aspirants often practise
+  // in a shared/quiet space, so sound must never start unprompted.
+  const [cuesOn, setCuesOn] = useState(false);
   const [scale, setScale] = useState(0.55);
   const [state, setState] = useState<PlayerState>({
     phaseIdx: 0,
@@ -101,8 +105,11 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
     // Distinct texture per phase (rising taps to inhale, one long soft buzz to
     // exhale) via the shared util — feature-detected + swallow-throwing inside.
     if (hapticsOn) vibrate(breathHapticFor(phase.id, phase.haptics));
+    // A soft paced audio cue (real bundled file, synth fallback) — rising for
+    // inhale, falling for exhale, a gentle tap for either hold.
+    if (cuesOn) playBreathCue(phase.id === "inhale" ? "inhale" : phase.id === "exhale" ? "exhale" : "hold");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phaseIdx, state.running, hapticsOn]);
+  }, [state.phaseIdx, state.running, hapticsOn, cuesOn]);
 
   useEffect(() => {
     if (state.done) session.complete(totalCycles * cycleSeconds);
@@ -209,6 +216,17 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
               />
             </div>
           ) : null}
+          <div className="flex items-center justify-between gap-3">
+            <span className="flex flex-col">
+              <span className="text-sm text-foreground">{t("Sukoon.tools.breathing.soundCues")}</span>
+              <span className="text-xs text-muted-foreground">{t("Sukoon.tools.breathing.soundCuesSub")}</span>
+            </span>
+            <Switch
+              checked={cuesOn}
+              onCheckedChange={setCuesOn}
+              aria-label={t("Sukoon.tools.breathing.soundCues")}
+            />
+          </div>
           <Button onClick={start} size="lg" className="min-h-11">
             {t("Sukoon.tools.start")}
           </Button>

@@ -2010,7 +2010,9 @@
         "doneTitle": "Well done",
         "doneBody": "That's a full round of breathing — notice how you feel right now.",
         "haptics": "Gentle vibration",
-        "hapticsSub": "Your phone pulses softly with each breath"
+        "hapticsSub": "Your phone pulses softly with each breath",
+        "soundCues": "Gentle sound cues",
+        "soundCuesSub": "A soft tone marks each breath"
       },
       "grounding": {
         "intro": "This is a short walk through your five senses to bring you back to right now — no rush, one step at a time.",
@@ -2047,7 +2049,8 @@
           "setback": "After a setback",
           "morning_intention": "Morning intention",
           "racing_thoughts": "Racing mind",
-          "loving_kindness": "Loving-kindness"
+          "loving_kindness": "Loving-kindness",
+          "soundscape": "Soundscape"
         }
       },
       "timer": {

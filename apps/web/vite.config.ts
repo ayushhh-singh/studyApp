@@ -75,8 +75,12 @@ export default defineConfig(({ mode }) => {
       injectManifest: {
         // Precache the app shell + hashed JS/CSS/font assets. Fonts are
         // Fontsource woff2 files bundled as hashed assets by Vite, so they're
-        // covered by the default asset globs already emitted to dist.
-        globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest}'],
+        // covered by the default asset globs already emitted to dist. `mp3`
+        // covers Sukoon's tiny bundled cue set (singing-bowl chime + breath
+        // cues in public/sukoon/audio, ~230 KB total) so they play instantly
+        // and work offline; the large ambient/meditation files are NOT bundled
+        // — they live in the private sukoon-audio bucket and load lazily.
+        globPatterns: ['**/*.{js,css,html,woff2,svg,png,webmanifest,mp3}'],
         maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
       },
       manifest: isSukoon ? SUKOON_MANIFEST : NEEV_MANIFEST,

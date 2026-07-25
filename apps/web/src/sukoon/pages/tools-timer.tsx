@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
 import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
-import { playSingingBowlChime } from "@/sukoon/lib/sukoon-audio-synth";
+import { playChime } from "@/sukoon/lib/sukoon-audio-cues";
 import { ToolPlayerFrame } from "@/sukoon/components/tools/tool-player-frame";
 import { AmbientMixer } from "@/sukoon/components/tools/ambient-mixer";
 import { CompletionScreen } from "@/sukoon/components/tools/completion-screen";
@@ -54,7 +54,7 @@ function TimerPlayer({ exercise }: { exercise: Extract<SukoonExercise, { type: "
   useEffect(() => {
     if (started && !running && remaining === 0 && !done) {
       setDone(true);
-      playSingingBowlChime();
+      playChime();
       session.complete(minutes * 60);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -62,7 +62,7 @@ function TimerPlayer({ exercise }: { exercise: Extract<SukoonExercise, { type: "
 
   const start = () => {
     session.start();
-    playSingingBowlChime();
+    playChime();
     setRemaining(minutes * 60);
     setRunning(true);
     setStarted(true);

@@ -50,6 +50,49 @@ export function playSingingBowlChime(destination?: AudioNode, volume = 0.5): voi
   }
 }
 
+/** Synth fallback for a breathing-phase cue, used only if the real bundled cue
+ *  file (public/sukoon/audio/breath-*.mp3) fails to load — a soft tone that
+ *  rises for inhale, falls for exhale, and taps twice for a hold. Mirrors the
+ *  ambient beds' real-file-with-synth-fallback contract. */
+export function playSynthBreathCue(kind: "inhale" | "exhale" | "hold", volume = 0.4): void {
+  const audioCtx = getAudioContext();
+  const now = audioCtx.currentTime;
+  const gain = audioCtx.createGain();
+  gain.connect(audioCtx.destination);
+
+  if (kind === "hold") {
+    for (const [i, f] of [523.25, 783.99].entries()) {
+      const osc = audioCtx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.value = f;
+      const g = audioCtx.createGain();
+      const start = now + i * 0.14;
+      g.gain.setValueAtTime(0, start);
+      g.gain.linearRampToValueAtTime(volume * (i === 0 ? 0.5 : 0.28), start + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, start + 0.5);
+      osc.connect(g);
+      g.connect(gain);
+      osc.start(start);
+      osc.stop(start + 0.6);
+    }
+    return;
+  }
+
+  const dur = kind === "inhale" ? 3.4 : 4.0;
+  const [f0, f1] = kind === "inhale" ? [196, 262] : [262, 196];
+  const osc = audioCtx.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(f0, now);
+  osc.frequency.linearRampToValueAtTime(f1, now + dur);
+  // one gentle swell in and out across the phase
+  gain.gain.setValueAtTime(0, now);
+  gain.gain.linearRampToValueAtTime(volume, now + dur * 0.4);
+  gain.gain.linearRampToValueAtTime(0.0001, now + dur);
+  osc.connect(gain);
+  osc.start(now);
+  osc.stop(now + dur + 0.05);
+}
+
 export interface AmbientVoice {
   setVolume(v: number): void;
   stop(): void;

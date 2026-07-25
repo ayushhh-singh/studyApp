@@ -1,0 +1,2 @@
+# Generated audio — bucket is source of truth for large files; tiny cues live in apps/web/public/sukoon/audio
+build/
