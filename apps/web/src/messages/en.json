@@ -1556,6 +1556,105 @@
     "support": "Support"
   },
   "Sukoon": {
+    "privacy": {
+      "navLink": "Privacy & data",
+      "title": "Privacy & data",
+      "subtitle": "See what's stored, download it, or delete your account.",
+      "scheduledTitle": "Your account is scheduled for deletion",
+      "scheduledBody": "Everything will be permanently erased on {{date}}. You can restore your account anytime before then.",
+      "restore": "Restore my account",
+      "restoring": "Restoring…",
+      "stored": {
+        "title": "What's stored",
+        "subtitle": "Everything Sukoon keeps for you — and nothing more.",
+        "cat": {
+          "journal_entries": "Journal entries",
+          "conversations": "Saathi conversations",
+          "chat_messages": "Chat messages",
+          "mood_entries": "Mood check-ins",
+          "checkins": "Wellbeing check-ins",
+          "exercise_sessions": "Exercise sessions",
+          "journey_progress": "Journeys in progress",
+          "insights": "Weekly reflections",
+          "crisis_events": "Safety check-ins"
+        }
+      },
+      "aiSees": {
+        "title": "What the AI sees",
+        "body1": "Your journal is encrypted. Saathi never reads your journal entries, and they are never used in your weekly reflection — unless you turn on Deep Insights yourself.",
+        "body2": "Your chat messages are sent to the AI only so Saathi can reply to you. Your words are never sold and are never used for ads.",
+        "body3": "Every message is checked so that, if you might be in danger, Sukoon can gently point you to a real person who can help."
+      },
+      "consent": {
+        "title": "Your consent",
+        "subtitle": "You agreed to Sukoon's wellness-companion terms.",
+        "on": "Agreed on {{date}}",
+        "current": "Up to date",
+        "outdated": "Please review again",
+        "withdraw": "Withdraw consent",
+        "withdrawNote": "Withdrawing consent deactivates your Sukoon account and starts the same 7-day deletion process."
+      },
+      "export": {
+        "title": "Export your data",
+        "subtitle": "Download a copy of everything, for yourself.",
+        "note": "We'll prepare a file with all your Sukoon data, plus your journal as a print-ready page you can save as a PDF.",
+        "request": "Prepare my export",
+        "requesting": "Starting…",
+        "processing": "Preparing your export…",
+        "ready": "Your export is ready — {{count}} journal entries included.",
+        "failed": "Something went wrong preparing your export. Please try again.",
+        "downloadData": "Download data (JSON)",
+        "downloadJournal": "Download journal",
+        "expiresNote": "These download links stay valid for a limited time. You can prepare a fresh export anytime.",
+        "refresh": "Prepare a fresh export"
+      },
+      "delete": {
+        "title": "Delete your account",
+        "subtitle": "Permanently erase your Sukoon data.",
+        "scopeNote": "This deletes only your Sukoon data — your Neev study account and progress stay untouched. You'll have 7 days to change your mind before anything is erased for good.",
+        "button": "Delete my Sukoon account",
+        "dialogTitle": "Delete your Sukoon account?",
+        "dialogBody": "Your journal, conversations, moods and everything else will be scheduled for permanent deletion. You can restore your account within 7 days; after that it's gone for good. Your Neev account is not affected.",
+        "confirmWord": "DELETE",
+        "typePrompt": "Type {{word}} to confirm",
+        "cancel": "Cancel",
+        "confirm": "Delete my account",
+        "deleting": "Deleting…"
+      },
+      "recent": {
+        "title": "Recent privacy activity",
+        "action": {
+          "export_requested": "You requested a data export",
+          "export_ready": "Your data export was ready",
+          "export_failed": "A data export could not be prepared",
+          "delete_requested": "You asked to delete your account",
+          "delete_cancelled": "You restored your account",
+          "consent_withdrawn": "You withdrew your consent",
+          "account_purged": "Your account was erased"
+        }
+      },
+      "aboutLink": "About Sukoon & disclaimer"
+    },
+    "about": {
+      "navLink": "About & disclaimer",
+      "title": "About Sukoon",
+      "subtitle": "What Sukoon is — and what it isn't.",
+      "what": {
+        "title": "A companion for the exam journey",
+        "body": "Sukoon (सुकून) is a warm space to talk, write, track how you feel, and calm down when exam stress builds up. It's built for aspirants, in Hindi and English."
+      },
+      "isnt": {
+        "title": "Sukoon is not a substitute for professional help",
+        "body": "Sukoon is a wellness companion, not a medical or mental-health service. It does not give medical advice and cannot help in an emergency."
+      },
+      "disclaimer": "Sukoon is a wellness companion for exam aspirants. It offers supportive conversations, journaling, mood tracking and calming exercises. It is not a medical or mental-health service, and it is not a substitute for care from a qualified professional. In an emergency, or if you or someone you know may be in danger, please reach out to a real person or a helpline such as Tele-MANAS (14416).",
+      "crisis": {
+        "title": "If you need urgent help",
+        "body": "Talking to a real person can help. These lines are free and confidential."
+      },
+      "privacyLink": "Privacy & your data",
+      "version": "Sukoon · version {{version}}"
+    },
     "brand": "Sukoon",
     "navLabel": "Sukoon sections",
     "navHome": "Home",

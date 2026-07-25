@@ -26,6 +26,12 @@ jobs:
       - name: Portability guard (no hardcoded local paths)
         run: node scripts/check-portable-paths.mjs
 
+      # Fast, dependency-free guard: fail before install if Sukoon copy/prompts/
+      # i18n drift into clinical language (SUKOON_CONTEXT hard rule; blueprint
+      # risk #2). Negation-aware — disclaimers ("does not diagnose") are fine.
+      - name: Sukoon clinical-language guard
+        run: node scripts/check-sukoon-clinical-words.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

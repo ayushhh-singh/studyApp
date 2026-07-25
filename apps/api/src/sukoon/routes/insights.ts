@@ -11,12 +11,14 @@ import { sukoonInsightsResponseSchema } from "@neev/shared";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import { insightsEnabled, listInsights } from "../services/insights.js";
 import { getSukoonTier } from "../services/entitlements.js";
 
 export const sukoonInsightsRouter = Router();
 sukoonInsightsRouter.use(requireAuth);
+sukoonInsightsRouter.use(requireActiveSukoonAccount);
 sukoonInsightsRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
 
 // --- Feed (+ tier & enabled, so the FE shows the sample/upsell to free users) --

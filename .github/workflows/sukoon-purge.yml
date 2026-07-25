@@ -1,0 +1,57 @@
+name: Scheduled — Sukoon privacy purge
+
+# Sukoon's nightly DPDP purge (blueprint F12): void expired data-export
+# artifacts, and IRREVERSIBLY erase accounts whose 7-day deletion grace has
+# elapsed. Runs `pnpm sukoon:purge` — see apps/api/src/sukoon/services/purge.ts.
+#
+# Erasure scope follows SUKOON_MODE: integrated (default) erases only sukoon_
+# rows (the auth user + all Neev data survive); standalone deletes the whole
+# auth user. workflow_dispatch exposes a dry_run toggle to preview safely.
+#
+# Deliberately its OWN workflow (Sukoon isolation rules). GitHub Actions cron is
+# best-effort and auto-disabled after 60 days of repo inactivity.
+on:
+  schedule:
+    # 19:05 UTC = 00:35 IST — nightly, just after the day's activity settles
+    # (same slot family as Neev's nightly-settle). A day's slack on a 7-day
+    # grace window is immaterial.
+    - cron: "5 19 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Log what would be purged without erasing anything"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sukoon-purge
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.0.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (api + its workspace deps only)
+        run: pnpm install --frozen-lockfile --filter api...
+
+      - name: Run sukoon:purge
+        run: pnpm --filter api sukoon:purge ${{ (github.event_name == 'workflow_dispatch' && inputs.dry_run) && '--dry-run' || '' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUKOON_MODE: ${{ vars.SUKOON_MODE }}

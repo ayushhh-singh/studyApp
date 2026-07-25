@@ -27,6 +27,7 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import { createSseConnection } from "../../lib/sse.js";
 import {
@@ -45,6 +46,7 @@ import { planReflection, executeReflection } from "../services/reflection.js";
 
 export const sukoonJournalRouter = Router();
 sukoonJournalRouter.use(requireAuth);
+sukoonJournalRouter.use(requireActiveSukoonAccount);
 // Journal traffic is modest and per-user; a wide window keeps a normal editing
 // session (autosave, tag edits) comfortably under the cap.
 sukoonJournalRouter.use(rateLimit({ windowMs: 60_000, max: 90 }));

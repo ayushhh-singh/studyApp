@@ -18,11 +18,13 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import { createEntry, updateEntry, deleteEntry, getToday, heatmap, aggregates } from "../services/mood.js";
 
 export const sukoonMoodRouter = Router();
 sukoonMoodRouter.use(requireAuth);
+sukoonMoodRouter.use(requireActiveSukoonAccount);
 // A check-in is a single small form, occasionally an extra one the same day —
 // a wide window comfortably covers normal use without gating the flow.
 sukoonMoodRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));

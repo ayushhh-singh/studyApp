@@ -18,6 +18,7 @@ import {
   sukoonJourneyUpsertBodySchema,
   sukoonJourneyUpsertResponseSchema,
   sukoonJourneySlugSchema,
+  sukoonCostSummaryResponseSchema,
 } from "@neev/shared";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
@@ -32,6 +33,7 @@ import {
   publishJourney,
   unpublishJourney,
 } from "../services/journeys-admin.js";
+import { getSukoonCostSummary } from "../services/cost.js";
 
 export const sukoonAdminRouter = Router();
 sukoonAdminRouter.use(requireAuth);
@@ -49,6 +51,23 @@ sukoonAdminRouter.get(
 );
 
 sukoonAdminRouter.use("/admin/journeys", requireAdmin, rateLimit({ windowMs: 60_000, max: 120 }));
+
+// Cost dashboard (Session 13 hardening) — per-model daily Sukoon spend from the
+// shared llm_calls ledger. Admin-only, same gate as the journeys queue.
+const costQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(180).optional().default(30),
+});
+
+sukoonAdminRouter.get(
+  "/admin/cost",
+  requireAdmin,
+  rateLimit({ windowMs: 60_000, max: 60 }),
+  asyncHandler(async (req, res) => {
+    const { days } = parse(costQuerySchema, req.query);
+    const summary = await getSukoonCostSummary(days);
+    res.json(sukoonCostSummaryResponseSchema.parse({ data: summary, error: null }));
+  }),
+);
 
 const slugParamSchema = z.object({ slug: sukoonJourneySlugSchema });
 

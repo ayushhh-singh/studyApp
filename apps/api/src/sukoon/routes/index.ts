@@ -12,6 +12,7 @@ import { sukoonJourneysRouter } from "./journeys.js";
 import { sukoonGardenRouter } from "./garden.js";
 import { sukoonBillingRouter } from "./billing.js";
 import { sukoonVoiceRouter } from "./voice.js";
+import { sukoonPrivacyRouter } from "./privacy.js";
 import { sukoonAdminRouter } from "./admin.js";
 import { sukoonDevRouter } from "./dev.js";
 
@@ -40,6 +41,7 @@ sukoonRouter.use(sukoonJourneysRouter);
 sukoonRouter.use(sukoonGardenRouter);
 sukoonRouter.use(sukoonBillingRouter);
 sukoonRouter.use(sukoonVoiceRouter);
+sukoonRouter.use(sukoonPrivacyRouter);
 sukoonRouter.use(sukoonAdminRouter);
 
 // Dev-only crisis probe — mounted ONLY when devTools is on (never in a plain

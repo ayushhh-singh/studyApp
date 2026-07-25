@@ -1683,3 +1683,185 @@ export const sukoonGardenStateSchema = z.object({
 export type SukoonGardenState = z.infer<typeof sukoonGardenStateSchema>;
 export const sukoonGardenResponseSchema = apiEnvelopeSchema(sukoonGardenStateSchema);
 export type SukoonGardenResponse = z.infer<typeof sukoonGardenResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// F12 — Privacy Center & DPDP (Session 13). The one contract shared by the
+// Privacy Center UI and the /api/sukoon/privacy backend: what's stored, consent
+// history, account-deletion lifecycle, and the async data-export job. Deliberately
+// exposes NO storage paths or raw ciphertext — only counts, statuses, and
+// short-lived download URLs the server mints on demand.
+// ---------------------------------------------------------------------------
+
+/**
+ * A single "what's stored about you" line: a stable category key (the UI maps
+ * it to bilingual copy) + how many rows that category holds for this user. The
+ * key set is fixed here so the client never has to know table names.
+ */
+export const sukoonPrivacyCategorySchema = z.enum([
+  "journal_entries",
+  "conversations",
+  "chat_messages",
+  "mood_entries",
+  "checkins",
+  "exercise_sessions",
+  "journey_progress",
+  "insights",
+  "crisis_events",
+]);
+export type SukoonPrivacyCategory = z.infer<typeof sukoonPrivacyCategorySchema>;
+
+export const sukoonPrivacyDataCountSchema = z.object({
+  key: sukoonPrivacyCategorySchema,
+  count: z.number().int().min(0),
+});
+export type SukoonPrivacyDataCount = z.infer<typeof sukoonPrivacyDataCountSchema>;
+
+/** One versioned consent the user has given (append-only history). */
+export const sukoonConsentRecordSchema = z.object({
+  consent_version: z.string(),
+  consented_at: z.string(),
+});
+export type SukoonConsentRecord = z.infer<typeof sukoonConsentRecordSchema>;
+
+/**
+ * Account-deletion lifecycle. `active` is the normal state; `scheduled_deletion`
+ * means the user asked to delete (or withdrew consent) and the account is in the
+ * grace window — restorable until `purge_after`, after which the nightly cron
+ * hard-erases everything.
+ */
+export const sukoonAccountStatusSchema = z.enum(["active", "scheduled_deletion"]);
+export type SukoonAccountStatus = z.infer<typeof sukoonAccountStatusSchema>;
+
+export const sukoonAccountStateSchema = z.object({
+  status: sukoonAccountStatusSchema,
+  deleted_at: z.string().nullable(),
+  /** Hard-purge deadline; the UI shows a countdown + Restore until this passes. */
+  purge_after: z.string().nullable(),
+  deletion_reason: z.enum(["user_request", "consent_withdrawn"]).nullable(),
+});
+export type SukoonAccountState = z.infer<typeof sukoonAccountStateSchema>;
+
+/**
+ * Async export job status (F12). No storage paths are exposed — the client polls
+ * this, and once `status === "ready"` (and not past `expires_at`) fetches a fresh
+ * signed URL per artifact from the download endpoint.
+ */
+export const sukoonExportStatusSchema = z.enum([
+  "pending",
+  "processing",
+  "ready",
+  "failed",
+  "expired",
+]);
+export type SukoonExportStatus = z.infer<typeof sukoonExportStatusSchema>;
+
+export const sukoonExportJobSchema = z.object({
+  id: z.string().uuid(),
+  status: sukoonExportStatusSchema,
+  /** Populated only when status === "failed" (a short, non-sensitive reason). */
+  error: z.string().nullable(),
+  entry_count: z.number().int().nullable(),
+  has_json: z.boolean(),
+  has_journal: z.boolean(),
+  requested_at: z.string(),
+  completed_at: z.string().nullable(),
+  expires_at: z.string().nullable(),
+});
+export type SukoonExportJob = z.infer<typeof sukoonExportJobSchema>;
+
+/** One line of the user-visible privacy-action audit trail. */
+export const sukoonPrivacyAuditItemSchema = z.object({
+  action: z.enum([
+    "export_requested",
+    "export_ready",
+    "export_failed",
+    "delete_requested",
+    "delete_cancelled",
+    "consent_withdrawn",
+    "account_purged",
+  ]),
+  created_at: z.string(),
+});
+export type SukoonPrivacyAuditItem = z.infer<typeof sukoonPrivacyAuditItemSchema>;
+
+/** GET /privacy/summary — everything the Privacy Center needs in one read. */
+export const sukoonPrivacySummarySchema = z.object({
+  data_counts: z.array(sukoonPrivacyDataCountSchema),
+  consents: z.array(sukoonConsentRecordSchema),
+  /** The server's CURRENT consent version + whether the user is on it. */
+  current_consent_version: z.string(),
+  consent_current: z.boolean(),
+  account: sukoonAccountStateSchema,
+  /** The user's most recent export job, if any (drives the export card). */
+  latest_export: sukoonExportJobSchema.nullable(),
+  recent_actions: z.array(sukoonPrivacyAuditItemSchema),
+});
+export type SukoonPrivacySummary = z.infer<typeof sukoonPrivacySummarySchema>;
+export const sukoonPrivacySummaryResponseSchema = apiEnvelopeSchema(sukoonPrivacySummarySchema);
+export type SukoonPrivacySummaryResponse = z.infer<typeof sukoonPrivacySummaryResponseSchema>;
+
+/** POST /privacy/export and GET /privacy/export both return the job. */
+export const sukoonExportJobResponseSchema = apiEnvelopeSchema(sukoonExportJobSchema);
+export type SukoonExportJobResponse = z.infer<typeof sukoonExportJobResponseSchema>;
+
+/** Which artifact of a ready export to download. */
+export const sukoonExportArtifactSchema = z.enum(["json", "journal"]);
+export type SukoonExportArtifact = z.infer<typeof sukoonExportArtifactSchema>;
+
+/** GET /privacy/export/:id/download → a fresh, short-lived signed URL. */
+export const sukoonExportDownloadSchema = z.object({
+  url: z.string().url(),
+  expires_at: z.string(),
+});
+export const sukoonExportDownloadResponseSchema = apiEnvelopeSchema(sukoonExportDownloadSchema);
+export type SukoonExportDownloadResponse = z.infer<typeof sukoonExportDownloadResponseSchema>;
+
+/**
+ * POST /privacy/delete and /privacy/consent/withdraw. The typed-to-confirm guard
+ * ("type DELETE") is a UI affordance; the server just requires an explicit
+ * `confirm: true` so a request can never soft-delete an account by accident.
+ */
+export const sukoonDeleteAccountBodySchema = z.object({
+  confirm: z.literal(true),
+});
+export type SukoonDeleteAccountBody = z.infer<typeof sukoonDeleteAccountBodySchema>;
+
+/** Delete / cancel-delete / withdraw all return the fresh account state. */
+export const sukoonAccountStateResponseSchema = apiEnvelopeSchema(sukoonAccountStateSchema);
+export type SukoonAccountStateResponse = z.infer<typeof sukoonAccountStateResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Admin cost dashboard (Session 13 hardening) — per-model daily Sukoon spend,
+// read from the shared llm_calls ledger (purpose LIKE 'sukoon_%'). Admin-only.
+// ---------------------------------------------------------------------------
+
+/** One (purpose, model) rollup over the window. */
+export const sukoonCostRowSchema = z.object({
+  purpose: z.string(),
+  model: z.string(),
+  calls: z.number().int().min(0),
+  input_tokens: z.number().int().min(0),
+  output_tokens: z.number().int().min(0),
+  cost_usd: z.number().min(0),
+});
+export type SukoonCostRow = z.infer<typeof sukoonCostRowSchema>;
+
+/** One calendar day's total Sukoon spend (for the daily-trend view). */
+export const sukoonCostDaySchema = z.object({
+  date: z.string(),
+  cost_usd: z.number().min(0),
+  calls: z.number().int().min(0),
+});
+export type SukoonCostDay = z.infer<typeof sukoonCostDaySchema>;
+
+export const sukoonCostSummarySchema = z.object({
+  days: z.number().int().min(1),
+  since: z.string(),
+  total_cost_usd: z.number().min(0),
+  total_calls: z.number().int().min(0),
+  by_purpose_model: z.array(sukoonCostRowSchema),
+  daily: z.array(sukoonCostDaySchema),
+});
+export type SukoonCostSummary = z.infer<typeof sukoonCostSummarySchema>;
+export const sukoonCostSummaryResponseSchema = apiEnvelopeSchema(sukoonCostSummarySchema);
+export type SukoonCostSummaryResponse = z.infer<typeof sukoonCostSummaryResponseSchema>;

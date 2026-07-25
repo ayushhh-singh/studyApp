@@ -15,11 +15,13 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import { getCheckinStatus, getCheckinTrend, submitCheckin } from "../services/checkins.js";
 
 export const sukoonCheckinsRouter = Router();
 sukoonCheckinsRouter.use(requireAuth);
+sukoonCheckinsRouter.use(requireActiveSukoonAccount);
 // A check-in is monthly-ish; a wide window comfortably covers real use.
 sukoonCheckinsRouter.use(rateLimit({ windowMs: 60_000, max: 30 }));
 

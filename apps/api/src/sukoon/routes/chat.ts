@@ -11,6 +11,7 @@ import { parse } from "../../lib/validation.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { HttpError } from "../../lib/http-error.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import { createSseConnection } from "../../lib/sse.js";
 import { getChatUsage } from "../services/entitlements.js";
@@ -31,6 +32,7 @@ import {
  */
 export const sukoonChatRouter = Router();
 sukoonChatRouter.use(requireAuth);
+sukoonChatRouter.use(requireActiveSukoonAccount);
 
 const historyQuerySchema = z.object({ conversation_id: z.string().uuid().optional() });
 

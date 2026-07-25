@@ -21,7 +21,7 @@
  *
  * HARD RULE (SUKOON_CONTEXT + blueprint §9, CI-linted): this prompt text itself
  * must never contain the banned clinical words (therapy/therapist/psychologist/
- * treatment/diagnosis/patient/medication/cure/clinical). The safety rules below
+ * treatment/diagnosis/patient/medication/cure/clinical). The safety rules below  (clinical-words-allow: lists the banned vocab)
  * are phrased around them deliberately.
  */
 import type { PromptSegment } from "../../lib/anthropic.js";

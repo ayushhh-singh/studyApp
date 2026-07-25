@@ -1,7 +1,6 @@
-import { CircleUser, ShieldCheck } from "lucide-react";
+import { ShieldCheck, Lock, Info } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { PageHeader } from "@/components/ui-x/page-header";
-import { EmptyState } from "@/components/ui-x/empty-state";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
@@ -47,11 +46,20 @@ export function Component() {
           <CheckinTrendCard />
           <InsightsPrefsCard />
           <NotificationPrefsCard />
-          <EmptyState
-            icon={CircleUser}
-            title={t("Sukoon.comingSoonTitle")}
-            description={t("Sukoon.youComingSoon")}
-          />
+          <Link
+            to={`${base}/you/privacy`}
+            className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors duration-300 hover:border-secondary/50"
+          >
+            <Lock className="size-4 text-secondary" aria-hidden />
+            {t("Sukoon.privacy.navLink")}
+          </Link>
+          <Link
+            to={`${base}/you/about`}
+            className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors duration-300 hover:border-secondary/50"
+          >
+            <Info className="size-4 text-secondary" aria-hidden />
+            {t("Sukoon.about.navLink")}
+          </Link>
           {adminStatus.data?.is_admin ? (
             <Link
               to={`${base}/admin/journeys`}

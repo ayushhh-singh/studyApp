@@ -9,7 +9,7 @@ import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
  * per the safety rules) so a tap dials on mobile. Bilingual name/note come from
  * the single SUKOON_HELPLINES source in @neev/shared.
  *
- * `emphasizeFirst` gives Tele-MANAS the primary treatment (the takeover uses
+ * `emphasizeFirst` gives Tele-MANAS the primary visual treatment (the takeover uses  clinical-words-allow: UI styling sense, not clinical
  * it); `limit` trims the list (the compact inline card shows the top few).
  */
 export function CrisisHelplineList({

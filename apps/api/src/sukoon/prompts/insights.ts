@@ -6,7 +6,7 @@
  * HARD SAFETY RULES (SUKOON_CONTEXT — enforced in the prompt AND by the fact
  * that the caller only ever passes aggregate signals):
  *  - NEVER the banned vocabulary: therapy, therapist, psychologist, treatment,
- *    diagnosis, patient, medication, cure, clinical. This is a wellness
+ *    diagnosis, patient, medication, cure, clinical. This is a wellness  (clinical-words-allow: lists the banned vocab)
  *    companion, not a health service.
  *  - Self-reflection framing only. Never label, score, or diagnose the person.
  *  - Never alarm. A hard week is met with warmth + a gentle next step, never

@@ -5,6 +5,7 @@ import { parse } from "../../lib/validation.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { HttpError } from "../../lib/http-error.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import { getVoiceUsage } from "../services/entitlements.js";
 import { acquireVoiceTurn, executeVoiceTurn, planVoiceTurn, releaseVoiceTurn } from "../services/voice.js";
@@ -19,6 +20,7 @@ import { acquireVoiceTurn, executeVoiceTurn, planVoiceTurn, releaseVoiceTurn } f
  */
 export const sukoonVoiceRouter = Router();
 sukoonVoiceRouter.use(requireAuth);
+sukoonVoiceRouter.use(requireActiveSukoonAccount);
 
 sukoonVoiceRouter.get(
   "/voice/usage",

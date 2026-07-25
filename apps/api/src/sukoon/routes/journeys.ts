@@ -20,6 +20,7 @@ import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
 import { rateLimit } from "../../lib/rate-limit.js";
 import { requireAuth } from "../../middleware/require-auth.js";
+import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
 import {
   listJourneys,
@@ -32,6 +33,7 @@ import {
 
 export const sukoonJourneysRouter = Router();
 sukoonJourneysRouter.use(requireAuth);
+sukoonJourneysRouter.use(requireActiveSukoonAccount);
 sukoonJourneysRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
 
 const slugParamSchema = z.object({ slug: sukoonJourneySlugSchema });
