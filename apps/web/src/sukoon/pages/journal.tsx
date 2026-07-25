@@ -196,19 +196,24 @@ function StreakChip({
 }) {
   const { t } = useSukoonLanguage();
   if (streak.current === 0) {
+    // No streak yet — a quiet, neutral invitation. No warmth to earn back.
     return (
       <div className="rounded-2xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
         {t("Sukoon.journal.streakStart")}
       </div>
     );
   }
+  // A live streak IS a positive moment, so it takes the warm joy accent — but
+  // only the gentle wash/tint version (a chip, not a full celebration). The
+  // day count glows in the warm -strong shade; everything else stays calm.
   return (
-    <div className="flex items-center gap-3 rounded-2xl border border-secondary/30 bg-secondary/10 px-4 py-3">
+    <div className="relative flex items-center gap-3 overflow-hidden rounded-2xl border px-4 py-3 sukoon-joy-wash"
+      style={{ borderColor: "var(--sukoon-joy-soft)" }}>
       <span className="text-2xl" aria-hidden>
         🌱
       </span>
       <div className="min-w-0">
-        <p className="text-sm font-semibold text-foreground">
+        <p className="text-sm font-semibold" style={{ color: "var(--sukoon-joy-strong)" }}>
           {t("Sukoon.journal.streakCount", { days: streak.current })}
         </p>
         <p className="text-xs text-muted-foreground">

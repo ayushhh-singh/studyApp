@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { breathHapticFor, hapticsSupported, stopVibration, vibrate } from "@/sukoon/lib/sukoon-haptics";
 import { useExerciseSession } from "@/sukoon/lib/use-exercise-session";
 import { useAmbientChannel } from "@/sukoon/lib/use-ambient-channel";
 import { useToolReturnTo } from "@/sukoon/lib/use-tool-return-to";
@@ -55,6 +56,11 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
 
   const [totalCycles, setTotalCycles] = useState(config.default_cycles);
   const [ambientOn, setAmbientOn] = useState(false);
+  // Haptics are an ENHANCEMENT (see sukoon-haptics.ts) — only offer the toggle
+  // where the platform could actually honour it (Android/Chrome), so an iPhone
+  // user is never shown a switch that silently does nothing. Default on.
+  const hapticsAvail = useMemo(() => hapticsSupported(), []);
+  const [hapticsOn, setHapticsOn] = useState(true);
   const [scale, setScale] = useState(0.55);
   const [state, setState] = useState<PlayerState>({
     phaseIdx: 0,
@@ -92,20 +98,28 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
     const phase = activePhases[state.phaseIdx];
     if (!phase) return;
     setScale((prev) => targetScaleFor(phase.id, prev));
-    if (phase.haptics > 0 && "vibrate" in navigator) navigator.vibrate(phase.haptics);
+    // Distinct texture per phase (rising taps to inhale, one long soft buzz to
+    // exhale) via the shared util — feature-detected + swallow-throwing inside.
+    if (hapticsOn) vibrate(breathHapticFor(phase.id, phase.haptics));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.phaseIdx, state.running]);
+  }, [state.phaseIdx, state.running, hapticsOn]);
 
   useEffect(() => {
     if (state.done) session.complete(totalCycles * cycleSeconds);
   }, [state.done]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Never leave a vibration running past the player (pause handled below).
+  useEffect(() => () => stopVibration(), []);
 
   const start = () => {
     session.start();
     setScale(0.55);
     setState({ phaseIdx: 0, cycle: 1, remaining: activePhases[0]?.seconds ?? 0, running: true, done: false });
   };
-  const pause = () => setState((prev) => ({ ...prev, running: false }));
+  const pause = () => {
+    stopVibration();
+    setState((prev) => ({ ...prev, running: false }));
+  };
   const resume = () => setState((prev) => ({ ...prev, running: true }));
   const restart = () => {
     setAmbientOn(false);
@@ -180,7 +194,22 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
               <Switch checked={ambientOn} onCheckedChange={setAmbientOn} />
             </div>
           ) : null}
-          <Button onClick={start} size="lg">
+          {/* Only shown where the device can actually vibrate (Android/Chrome) —
+              hidden on iOS/desktop rather than offering a switch that lies. */}
+          {hapticsAvail ? (
+            <div className="flex items-center justify-between gap-3">
+              <span className="flex flex-col">
+                <span className="text-sm text-foreground">{t("Sukoon.tools.breathing.haptics")}</span>
+                <span className="text-xs text-muted-foreground">{t("Sukoon.tools.breathing.hapticsSub")}</span>
+              </span>
+              <Switch
+                checked={hapticsOn}
+                onCheckedChange={setHapticsOn}
+                aria-label={t("Sukoon.tools.breathing.haptics")}
+              />
+            </div>
+          ) : null}
+          <Button onClick={start} size="lg" className="min-h-11">
             {t("Sukoon.tools.start")}
           </Button>
         </div>
@@ -196,13 +225,14 @@ function BreathingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
             {t("Sukoon.tools.breathing.cycleProgress", { current: state.cycle, total: totalCycles })}
           </p>
           <div className="flex gap-3">
-            <Button variant="outline" onClick={state.running ? pause : resume}>
+            <Button variant="outline" className="min-h-11" onClick={state.running ? pause : resume}>
               {state.running ? t("Sukoon.tools.pause") : t("Sukoon.tools.resume")}
             </Button>
             <Button
               variant="ghost"
-              className="text-destructive hover:text-destructive"
+              className="min-h-11 text-destructive hover:text-destructive"
               onClick={() => {
+                stopVibration();
                 // Full completed cycles + progress within the current
                 // (incomplete) one — a Stop mid-phase previously reported 0s
                 // for the whole in-progress cycle, undercounting real elapsed time.

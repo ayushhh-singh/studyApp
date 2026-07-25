@@ -2008,7 +2008,9 @@
         },
         "cycleProgress": "Cycle {{current}} of {{total}}",
         "doneTitle": "Well done",
-        "doneBody": "That's a full round of breathing — notice how you feel right now."
+        "doneBody": "That's a full round of breathing — notice how you feel right now.",
+        "haptics": "Gentle vibration",
+        "hapticsSub": "Your phone pulses softly with each breath"
       },
       "grounding": {
         "intro": "This is a short walk through your five senses to bring you back to right now — no rush, one step at a time.",
@@ -2382,6 +2384,20 @@
       "bannerText": "You're in the Sukoon beta.",
       "bannerLink": "Give feedback",
       "bannerDismiss": "Dismiss"
+    },
+    "home": {
+      "greetMorning": "Good morning",
+      "greetAfternoon": "Good afternoon",
+      "greetEvening": "Good evening",
+      "greetNight": "Winding down for the night",
+      "quickActionsLabel": "Quick actions",
+      "quickCheckIn": "Check in",
+      "quickCheckInSub": "How are you feeling right now?",
+      "quickBreathe": "Breathe",
+      "quickBreatheSub": "A minute to slow down",
+      "quickSaathi": "Talk to Saathi",
+      "quickSaathiSub": "Say what's on your mind",
+      "yourSpace": "Your space"
     }
   }
 }

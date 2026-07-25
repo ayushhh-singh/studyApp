@@ -6,12 +6,26 @@
  * etc.), so re-declaring the variables here is enough to give the whole
  * Sukoon subtree its own look while Neev's :root/.dark stay untouched.
  *
- * Palette: deep indigo #2E2A5E, soft teal #4FB3A9, warm sand #F4EDE3.
- * `.sukoon-dark` is Sukoon's OWN dark variant (see use-sukoon-night-mode.ts,
- * auto after 9pm local) — deliberately a different class from Neev's global
- * `.dark`, so it never depends on or fights the user's manual Neev toggle.
- * Larger --radius + more breathing room than Neev's 0.75rem, per the calmer/
- * slower motion direction in the design brief.
+ * Palette (calm base, unchanged): deep indigo #2E2A5E, soft teal #4FB3A9,
+ * warm sand #F4EDE3. `.sukoon-dark` is Sukoon's OWN dark variant (see
+ * use-sukoon-night-mode.ts, auto after 9pm local) — deliberately a different
+ * class from Neev's global `.dark`, so it never depends on or fights the
+ * user's manual Neev toggle. Larger --radius + more breathing room than Neev's
+ * 0.75rem, per the calmer/slower motion direction in the design brief.
+ *
+ * STATE-AWARE VIBRANCY (design overhaul):
+ *   Everything above (indigo/teal/sand) is the CALM layer — the default for
+ *   the whole app, and the ONLY palette allowed on check-ins, mood logging,
+ *   crisis-adjacent surfaces, and difficult journaling. It never brightens
+ *   based on how the rest of the app looks.
+ *
+ *   The `--sukoon-joy-*` tokens below are a SEPARATE, warm, saturated coral
+ *   accent used as ambient "lighting" (soft radial glows + warm gradients,
+ *   never a flat block) that is reserved for genuinely POSITIVE moments only:
+ *   exercise completion, an active journaling streak, a voice-session end,
+ *   milestones. This is deliberate — a wellness app that celebrates a LOW
+ *   mood with a burst of colour is an emotional-tone mismatch. Vibrancy here
+ *   is opt-in per moment, never a global coat of paint. See docs/sukoon-design.md.
  */
 
 .sukoon {
@@ -53,6 +67,22 @@
   --sidebar-accent-foreground: #1f5952;
   --sidebar-border: #e4dac9;
   --sidebar-ring: #357f79;
+
+  /* --- Joy accent (POSITIVE moments only — see the header note) --- */
+  /* Warm coral. `--sukoon-joy` is decorative-scale only (large icons, the
+     gradient ring); `--sukoon-joy-strong` is the text/small-icon shade that
+     clears WCAG AA for normal text (#b23a22 = 5.1:1 on sand, 6.0:1 on white,
+     5.0:1 on the accent tint) — always use -strong for anything a screen has
+     to READ, -joy only for large/decorative. `--sukoon-joy-foreground` is a
+     deep warm glyph colour for a checkmark sitting ON the coral→apricot
+     gradient (6.8–9.9:1 there — a legible dark mark, not a washed-out white). */
+  --sukoon-joy: #ef6a4d;
+  --sukoon-joy-strong: #b23a22;
+  --sukoon-joy-foreground: #2a1410;
+  --sukoon-joy-from: #ff7a5c;
+  --sukoon-joy-to: #ffb27a;
+  --sukoon-joy-soft: rgba(239, 106, 77, 0.12);
+  --sukoon-joy-glow: rgba(239, 106, 77, 0.32);
 }
 
 .sukoon.sukoon-dark {
@@ -86,11 +116,122 @@
   --sidebar-accent-foreground: #cdede7;
   --sidebar-border: #362f55;
   --sidebar-ring: #4fb3a9;
+
+  /* --- Joy accent (dark) — brighter coral so it reads against deep indigo;
+     -strong is a light coral (~7:1 on the #1b1830 background) for text. --- */
+  --sukoon-joy: #ff8a70;
+  --sukoon-joy-strong: #ffb3a0;
+  --sukoon-joy-foreground: #2a1410;
+  --sukoon-joy-from: #ff8a6e;
+  --sukoon-joy-to: #ffc48c;
+  --sukoon-joy-soft: rgba(255, 138, 112, 0.16);
+  --sukoon-joy-glow: rgba(255, 138, 112, 0.34);
 }
 
 /* Slow, breathing-paced motion — no snappy gamified transitions here. */
 .sukoon {
   --sukoon-transition-slow: 700ms;
+}
+
+/* ------------------------------------------------------------------ *
+ *  Microinteractions — soft, slow, wellness-paced (design overhaul).
+ *  Every keyframe below is an `animation`, so index.css's global
+ *  prefers-reduced-motion rule (animation-duration: 0.01ms) neutralises
+ *  it automatically; the one transition-based effect (button press) is
+ *  additionally wrapped in a no-preference guard.
+ * ------------------------------------------------------------------ */
+
+/* Gentle content entrance — a slow fade + small rise, not a slide/pop.
+   Applied deliberately (hero, completion), never blanket, to avoid churn. */
+@keyframes sukoon-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.sukoon-rise {
+  animation: sukoon-rise var(--sukoon-transition-slow) cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.sukoon-rise-slow {
+  animation: sukoon-rise 1100ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Calming completion "bloom" — the checkmark eases open and settles, a soft
+   overshoot to 1.04 then rest at 1. Deliberately NOT a confetti burst: a
+   wellness completion should feel like an exhale, not a slot-machine win. */
+@keyframes sukoon-bloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.sukoon-bloom {
+  animation: sukoon-bloom 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The warm ambient glow behind a positive moment — a single slow, breathing-
+   paced pulse loop (4.5s), so the "lighting" feels alive but never busy. */
+@keyframes sukoon-glow-breathe {
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.06);
+  }
+}
+.sukoon-glow-breathe {
+  animation: sukoon-glow-breathe 4.5s ease-in-out infinite;
+}
+
+/* Gentle button-press feedback across the whole Sukoon subtree — softens the
+   app-standard instant transition to a slower one and adds a subtle settle on
+   press. Reduced-motion users get neither (transforms aren't covered by the
+   global animation-duration override, so this needs its own guard). */
+@media (prefers-reduced-motion: no-preference) {
+  .sukoon [data-slot="button"] {
+    transition-duration: 260ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .sukoon [data-slot="button"]:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+}
+
+/* ------------------------------------------------------------------ *
+ *  Ambient "lighting" surfaces for POSITIVE moments (see header note).
+ *  Warm radial glow + warm gradient — never a flat coral fill. Use these
+ *  ONLY on completion/streak/milestone surfaces, never on a check-in,
+ *  mood log, difficult journal entry, or any crisis-adjacent screen.
+ * ------------------------------------------------------------------ */
+
+/* Soft radial glow, e.g. sitting behind a completion checkmark. */
+.sukoon-joy-glow {
+  background: radial-gradient(60% 60% at 50% 45%, var(--sukoon-joy-glow), transparent 72%);
+}
+
+/* Warm coral→apricot gradient for a celebratory ring/fill. */
+.sukoon-joy-gradient {
+  background-image: linear-gradient(135deg, var(--sukoon-joy-from), var(--sukoon-joy-to));
+}
+
+/* A faint warm wash from the top of a positive card/panel — the "lighting"
+   spilling in, not a solid tint. */
+.sukoon-joy-wash {
+  background-image: radial-gradient(130% 90% at 50% -20%, var(--sukoon-joy-soft), transparent 62%);
 }
 
 /* F11 Sukoon Garden: a single, slow sway on the plant's leafy stages — the

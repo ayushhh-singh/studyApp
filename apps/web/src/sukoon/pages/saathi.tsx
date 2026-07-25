@@ -314,7 +314,10 @@ export function Component() {
         ) : null}
 
         {showStarters ? (
-          <div className="flex flex-col items-center gap-5 py-8 text-center">
+          // Chat is a CALM surface (it can turn crisis-adjacent), so it keeps
+          // the teal accent and never the warm joy one — only a slow, gentle
+          // entrance is added, nothing celebratory.
+          <div className="sukoon-rise flex flex-col items-center gap-5 py-8 text-center">
             <span className="flex size-14 items-center justify-center rounded-full bg-secondary/15 text-secondary" aria-hidden>
               <Sparkles className="size-7" />
             </span>
