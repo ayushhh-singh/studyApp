@@ -33,12 +33,15 @@ export function PageSeo({
   path,
   title,
   description,
+  structuredData,
 }: {
   locale: Locale;
   /** Path WITHOUT the locale prefix, e.g. "" for the landing page, "/pricing" for pricing. */
   path: string;
   title: string;
   description: string;
+  /** Optional JSON-LD object (e.g. a FAQPage schema) rendered as a <script type="application/ld+json">. */
+  structuredData?: object;
 }) {
   const canonical = `${SITE_URL}/${locale}${path}`;
   const ogImage = `${SITE_URL}/og-default-${locale}.png`;
@@ -74,6 +77,7 @@ export function PageSeo({
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />
       <meta name="twitter:image" content={ogImage} />
+      {structuredData && <script type="application/ld+json">{JSON.stringify(structuredData)}</script>}
     </Helmet>
   );
 }

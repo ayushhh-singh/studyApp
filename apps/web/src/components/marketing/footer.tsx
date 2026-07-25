@@ -24,6 +24,9 @@ export function Footer() {
             <BrandMark />
           </Link>
           <nav aria-label={t("Footer.navLabel")} className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2.5">
+            <Link to={`/${locale}/features`} className="transition-colors hover:text-foreground">
+              {t("Footer.features")}
+            </Link>
             <Link to={`/${locale}/about`} className="transition-colors hover:text-foreground">
               {t("Footer.about")}
             </Link>

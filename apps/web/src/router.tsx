@@ -35,6 +35,11 @@ export const router = createBrowserRouter([
       // Public marketing page — pricing must be reachable signed-out (and is
       // reviewed as such by Razorpay's live-mode approval).
       { path: "pricing", lazy: () => import("@/routes/pricing") },
+      // Public marketing pages — one dedicated, indexable SEO page per
+      // flagship feature, plus a hub linking to all of them. See lib/features.ts
+      // for the feature list; feature-detail's own loader 404s an unknown slug.
+      { path: "features", lazy: () => import("@/routes/features-hub") },
+      { path: "features/:slug", lazy: () => import("@/routes/feature-detail") },
       // Public marketing pages — trust/accuracy story and support surfaces,
       // reachable signed-out from the landing/app-shell footer.
       { path: "about", lazy: () => import("@/routes/about") },

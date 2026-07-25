@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, PenLine, Target, BookOpen, BarChart3, Check, Sparkles } from "lucide-react";
+import { ArrowRight, PenLine, Target, BookOpen, BarChart3, Check, Sparkles, ChevronRight } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,10 @@ import { PageSeo } from "@/components/seo/page-seo";
 import { cn } from "@/lib/utils";
 
 const FEATURE_ICONS = [PenLine, Target, BookOpen, BarChart3] as const;
+// Matches lib/features.ts's slugs for these same four features — kept as a
+// small local list (not importing FEATURES) since this teaser's order/copy
+// is landing-page-specific, not driven by the feature config.
+const FEATURE_SLUGS = ["answer-evaluation", "pyq-practice", "notes", "revision"] as const;
 
 export function Component() {
   const { t } = useTranslation();
@@ -26,6 +30,7 @@ export function Component() {
     body: t(`Landing.feature${i + 1}Body`),
     img: ["evaluation", "practice", "notes", "revision"][i],
     tint: ["primary", "marigold", "tulsi", "coral"][i],
+    slug: FEATURE_SLUGS[i],
   }));
 
   return (
@@ -128,6 +133,13 @@ export function Component() {
                   </span>
                   <h3 className="mt-4 text-2xl font-bold tracking-tight">{f.title}</h3>
                   <p className="mt-3 text-base leading-relaxed text-muted-foreground">{f.body}</p>
+                  <Link
+                    to={`/${locale}/features/${f.slug}`}
+                    className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-primary hover:underline"
+                  >
+                    {t("Common.learnMore")}
+                    <ChevronRight className="size-4" aria-hidden />
+                  </Link>
                 </div>
                 <Screenshot src={`/marketing/${f.img}.png`} alt={f.title} />
               </div>

@@ -113,4 +113,149 @@
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
+  <url>
+    <loc>https://neevstudy.com/en/features</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/answer-evaluation</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/answer-evaluation" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/answer-evaluation" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/answer-evaluation" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/answer-evaluation</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/answer-evaluation" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/answer-evaluation" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/answer-evaluation" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/pyq-practice</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/pyq-practice" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/pyq-practice" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/pyq-practice" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/pyq-practice</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/pyq-practice" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/pyq-practice" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/pyq-practice" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/current-affairs</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/current-affairs" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/current-affairs" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/current-affairs" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/current-affairs</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/current-affairs" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/current-affairs" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/current-affairs" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/notes</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/notes" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/notes" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/notes" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/notes</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/notes" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/notes" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/notes" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/revision</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/revision" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/revision" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/revision" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/revision</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/revision" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/revision" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/revision" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/mentor</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/mentor" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/mentor" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/mentor" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/mentor</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/mentor" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/mentor" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/mentor" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/gamified-practice</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/gamified-practice" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/gamified-practice" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/gamified-practice" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/gamified-practice</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/gamified-practice" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/gamified-practice" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/gamified-practice" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/features/community</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/community" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/community" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/community" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/features/community</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/features/community" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/features/community" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/features/community" />
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>
+

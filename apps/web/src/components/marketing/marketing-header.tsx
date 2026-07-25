@@ -29,6 +29,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
   }
 
   const links = [
+    { to: `/${locale}/features`, label: t("Footer.features") },
     { to: `/${locale}/about`, label: t("Footer.about") },
     { to: `/${locale}/faq`, label: t("Footer.faq") },
     { to: `/${locale}/pricing`, label: t("Footer.pricing") },

@@ -50,4 +50,12 @@ Allow: /en/refund/$
 Allow: /hi/refund$
 Allow: /hi/refund/$
 
+# The dedicated per-feature SEO pages + their hub — a prefix rule (like
+# /pwa/ and /marketing/ above) rather than one exact-match line per slug,
+# since this is a real directory of pages that will likely grow.
+Allow: /en/features$
+Allow: /en/features/
+Allow: /hi/features$
+Allow: /hi/features/
+
 Sitemap: https://neevstudy.com/sitemap.xml
