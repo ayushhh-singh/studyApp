@@ -97,10 +97,33 @@ Run it locally before pushing anything that touches a script or a path:
 
 ### Cloudflare Pages (web)
 
-- **Build command**: `pnpm --filter web build:ci` (changed 2026-07-26 from plain
-  `pnpm --filter web build` — see "Prerendering" below; the site was shipping
-  zero prerendered HTML to crawlers before this, which is the confirmed root
-  cause of Google discoverability failing entirely up to that point).
+- **Build command**: `pnpm --filter web build` — deliberately still the plain
+  command, not `build:ci`. **CORRECTION, 2026-07-26 (later the same day):**
+  this line previously claimed the dashboard's Build command had been changed
+  to `build:ci`. That claim was never actually verified against live
+  production and turned out to be false — a direct live check (real browser,
+  not just an HTTP status code) confirmed EVERY public page, including ones
+  that had supposedly been prerendered for a while, was still serving the
+  generic un-prerendered app shell as its raw HTML. Whoever/whatever wrote
+  that line evidently never re-checked it against the actual deployed site.
+  **Lesson: never mark a Cloudflare Pages dashboard-only change as done
+  without a live content check (raw HTML, not just a 200 status) after the
+  next deploy — a 200 only proves the SPA fallback served *something*, not
+  that the specific fix landed.**
+  Fixed properly instead of re-attempting the same "ask for a manual dashboard
+  click" approach: `apps/web/scripts/postbuild.mjs`, chained onto the END of
+  the plain `build` script itself, detects Cloudflare's own `CF_PAGES=1`
+  system env var (documented as the reliable "this is really a Pages build"
+  flag) and runs the chromium-install + prerender steps ONLY when it's set.
+  Neither GitHub Actions CI nor the dormant `vercel.json` config set
+  `CF_PAGES`, so both are completely unaffected — this makes the
+  ALREADY-configured plain `build` command self-sufficient on Cloudflare with
+  zero dashboard access needed, instead of depending on a manual setting
+  nobody with account access had actually applied (or that was applied and is
+  silently failing — see the open risk noted below, still unresolved).
+  `build:ci` still exists, now simplified to `CF_PAGES=1 pnpm build`, as a
+  manual local way to force the full pipeline without needing a real
+  Cloudflare environment.
 - **Build output directory**: `apps/web/dist`
 - **Root directory**: repo root (NOT `apps/web`) — this is a pnpm workspace;
   Cloudflare needs to run `pnpm install` at the monorepo root so
@@ -115,21 +138,33 @@ Run it locally before pushing anything that touches a script or a path:
   won't necessarily match this repo's pinned `packageManager: pnpm@9.0.0`
   (root `package.json`); an unpinned newer major version could parse or
   regenerate the lockfile differently.
-- **Prerendering is now the default on this host** — `build:ci` chains
-  `pnpm build` → `playwright install --with-deps chromium` → `pnpm prerender`
-  as one command, so the `playwright` browser download happens at build time
-  on Cloudflare's own image rather than needing a separate CI job you control.
-  `playwright` was added as a real (not temporary-only) `apps/web` devDependency
-  for exactly this — the npm `playwright` package ships no postinstall hook of
-  its own (confirmed against the published package metadata), so without an
-  explicit `playwright install` step in the build command this silently never
-  downloads a browser and `prerender.mjs` throws `ERR_MODULE_NOT_FOUND`/fails to
-  launch. Verified locally end-to-end from a **fully fresh** Playwright browser
-  cache (real network download, not a locally-cached shortcut) — see
-  "Prerendering" below for exactly how Cloudflare serves the resulting
-  snapshots and the one open risk (`--with-deps`' system-package install needs
-  root, unverified against Cloudflare's actual Linux build image — watch the
-  first real deploy's build log for it).
+- **Prerendering is wired into the plain `build` command itself now** — see
+  the correction above. `apps/web/scripts/postbuild.mjs` runs
+  `playwright install --with-deps chromium` → `pnpm prerender` when
+  `CF_PAGES` is set, so the `playwright` browser download happens at build
+  time on Cloudflare's own image with no separate CI job or dashboard change
+  needed. `playwright` is a real (not temporary-only) `apps/web`
+  devDependency for exactly this — the npm `playwright` package ships no
+  postinstall hook of its own (confirmed against the published package
+  metadata), so without an explicit `playwright install` step this silently
+  never downloads a browser and `prerender.mjs` throws
+  `ERR_MODULE_NOT_FOUND`/fails to launch. Verified locally end-to-end
+  (`CF_PAGES=1 pnpm --filter web build` produces real prerendered HTML for
+  all 32 routes; a plain `pnpm --filter web build` with no `CF_PAGES` set
+  produces none, confirming CI/local dev stay exactly as fast as before) —
+  see "Prerendering" below for exactly how Cloudflare serves the resulting
+  snapshots and the **one still-open, still-unverified risk**: `--with-deps`'
+  system-package install needs root on whatever Debian/Ubuntu-based image
+  Cloudflare's build runs on, and this has never actually been confirmed
+  against Cloudflare's real build environment (only against a local dev
+  machine and a `wrangler pages dev` LOCAL preview, neither of which proves
+  anything about the real remote build sandbox's permissions). **If, after
+  this fix's next deploy, a live content check (see the correction above for
+  why a live check and not just a status code) STILL shows no prerendered
+  content, this permission risk is the prime remaining suspect** — the fix
+  can only be confirmed by watching that real deploy's build log, which
+  needs actual Cloudflare dashboard/account access this assistant does not
+  have in any environment it runs in.
 
 #### Verified against `wrangler pages dev` (live, not assumed)
 
@@ -544,36 +579,51 @@ worth paying for headroom:
   succeeded (Actions tab) and that `BACKUP_PASSPHRASE` is still recoverable
   from your password manager — an untested backup is not a backup.
 
-## Prerendering (wired into Cloudflare Pages' default build since 2026-07-26; still opt-in on Vercel)
+## Prerendering (self-triggering on Cloudflare Pages via CF_PAGES since 2026-07-26; still opt-in on Vercel)
 
-`apps/web/scripts/prerender.mjs` snapshots every public route (`/en`, `/hi`,
-`/en/pricing`, `/hi/pricing`, `/en/about`, `/hi/about`, `/en/faq`, `/hi/faq`,
-`/en/terms`, `/hi/terms`, `/en/privacy`, `/hi/privacy`, `/en/refund`,
-`/hi/refund`) via a real headless Chromium after the build — genuinely useful
-for SEO/OG tags and crawler discoverability, but it needs a Playwright
-Chromium binary present at build time, which is a real risk on a managed
-build image you don't control (missing system libs, no root for `apt-get`,
-etc.). `apps/web`'s `build:ci` script (`pnpm build && playwright install
---with-deps chromium && pnpm prerender`) handles this by installing the
-browser (with its Linux system-dependency package, on a Debian/Ubuntu-based
-image) as part of the same command, and `playwright` is a real `apps/web`
-devDependency for exactly this reason (see the Cloudflare Pages section
-above). **This was the confirmed root cause of zero Google discoverability**
-up to 2026-07-26: the Cloudflare Pages build command ran plain `pnpm --filter
-web build` (no prerender step), so the live site's raw HTML — what a crawler
-actually reads — was always an empty `<div id="root">` with no content,
-title, or meta description; only a JS-executing browser ever saw real copy.
-Verified locally end-to-end from a genuinely fresh Playwright browser cache
-(forced a real network chromium download, not a locally-cached shortcut) —
-`build:ci` produces real, substantial hero/feature/legal copy and correct
-per-page `<title>`/canonical/hreflang/OG tags in the raw HTML for all 14
-routes. **Vercel's `vercel.json` still deliberately does NOT run it** — that
-path is the documented paid-tier fallback, not the current deploy target (see
-its own file comment), and its more locked-down managed image made this a
-real risk when it was last evaluated; flip `buildCommand` to `npx playwright
-install --with-deps chromium && pnpm run build:ci` there too if it's ever
-promoted back to the live target — test it fresh, the same way, before
-trusting it.
+`apps/web/scripts/prerender.mjs` snapshots every public route (landing,
+pricing, about, faq, terms, privacy, refund, the `/features` hub, and all 8
+`/features/<slug>` pages — 32 URLs across both locales as of this write-up,
+grep `ROUTES` in the script for the exact current list) via a real headless
+Chromium after the build — genuinely useful for SEO/OG tags and crawler
+discoverability, but it needs a Playwright Chromium binary present at build
+time, which is a real risk on a managed build image you don't control
+(missing system libs, no root for `apt-get`, etc.). `apps/web/scripts/postbuild.mjs`,
+chained onto the end of the plain `build` script, handles getting the browser
+installed (with its Linux system-dependency package, on a Debian/Ubuntu-based
+image) as part of the same command **whenever `CF_PAGES` is set** (Cloudflare
+Pages' own documented "this is a real Pages build" flag) — see the Cloudflare
+Pages section above for the full history of why this is gated on that env var
+specifically, rather than either always running (slows down CI/local builds
+for no reason) or depending on a dashboard-only "Build command" setting this
+assistant cannot change. `playwright` is a real `apps/web` devDependency for
+exactly this reason.
+
+**Root cause of zero Google discoverability, confirmed via a live check on
+2026-07-26 (a real browser hitting production, not just an HTTP status
+code):** the Cloudflare Pages build was running plain `pnpm --filter web
+build` (no prerender step) — this was true both before AND after an earlier
+same-day doc edit incorrectly claimed it had been fixed by a dashboard change
+(see the correction in the Cloudflare Pages section above) — so the live
+site's raw HTML, what a crawler that doesn't execute JS actually reads, was
+always the generic empty-shell `<title>`/meta with no page-specific content;
+only a JS-executing browser ever saw the real copy. Verified locally
+end-to-end (`CF_PAGES=1 pnpm --filter web build` produces real, substantial
+per-page HTML — e.g. the AI Mentor feature page's prerendered snapshot is
+33,252 bytes with its correct `<title>`, canonical/hreflang/OG tags, and
+FAQPage JSON-LD baked into the raw HTML, versus the 1,694-byte generic shell
+a plain build produces) — **but this local/`wrangler pages dev` verification
+was ALSO true of the previous `build:ci`-based fix attempt, and that one
+still didn't work live**, so treat this as fixed-and-deployed but
+**NOT YET CONFIRMED against real production** until someone re-runs the live
+content check (real browser, check raw `<title>`/JSON-LD, not just status
+code) after the next Cloudflare deploy completes. **Vercel's `vercel.json`
+still deliberately does NOT run it** — that path is the documented paid-tier
+fallback, not the current deploy target (see its own file comment), and its
+more locked-down managed image made this a real risk when it was last
+evaluated; flip `buildCommand` to `npx playwright install --with-deps
+chromium && pnpm run build:ci` there too if it's ever promoted back to the
+live target — test it fresh, the same way, before trusting it.
 
 Serving behavior differs by host (both verified live, see the Cloudflare
 Pages section above for the `wrangler pages dev` session):
