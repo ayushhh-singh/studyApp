@@ -482,27 +482,33 @@ export async function executeChatStream(
   const lang = profile.language as SukoonChatLanguage;
   const ctx = await loadSaathiContext(userId, profile);
 
+  // Kick off the semantic-cache lookup (non-moderate turns only) and the RAG
+  // memory retrieval CONCURRENTLY — both embed THIS message, so overlapping them
+  // avoids a sequential double round-trip before the first token. On a cache hit
+  // the memory result is simply unused (a cheap embedding, no model call). Both
+  // are best-effort and never reject. Memory excludes the current conversation
+  // (its turns are already live in the window + rolling summary) and lands only
+  // in the dynamic tail, never the cached persona head (see prompts/saathi.ts).
+  const cachedPromise: Promise<string | null> =
+    surface !== "inline" ? matchSukoonFaq(content, lang, ctx.name) : Promise.resolve(null);
+  const memoriesPromise = retrieveMemory(userId, content, conversationId);
+
   // 6) Semantic-cache read — only for non-moderate turns (a moderate turn must
   //    always get a fresh, helpline-woven reply, never a generic cached one).
-  if (surface !== "inline") {
-    const cached = await matchSukoonFaq(content, lang, ctx.name);
-    if (cached) {
-      emit("source", { from_cache: true });
-      emit("delta", { text: cached });
-      const assistantId = await persistMessage(conversationId, "assistant", cached, { model_used: "cache" });
-      await touchConversation(conversationId);
-      emit("done", { message_id: assistantId, crisis_level: level });
-      void maybeRefreshSummary(userId, conversationId);
-      return;
-    }
+  const cached = await cachedPromise;
+  if (cached) {
+    void memoriesPromise; // in-flight retrieval isn't needed on a cache hit; let it settle
+    emit("source", { from_cache: true });
+    emit("delta", { text: cached });
+    const assistantId = await persistMessage(conversationId, "assistant", cached, { model_used: "cache" });
+    await touchConversation(conversationId);
+    emit("done", { message_id: assistantId, crisis_level: level });
+    void maybeRefreshSummary(userId, conversationId);
+    return;
   }
 
   // 7) Model reply. Escalate to Sonnet on moderate or a long emotional narrative.
-  // Retrieve related past moments (RAG) driven by THIS message, excluding the
-  // current conversation (its turns are already live in the window + summary).
-  // Best-effort → [] on any failure, so a reply is never blocked. This lands in
-  // the dynamic tail only (never the cached persona head — see prompts/saathi.ts).
-  const memories = await retrieveMemory(userId, content, conversationId);
+  const memories = await memoriesPromise;
   const escalate = surface === "inline" || wordCount(content) > LONG_MESSAGE_WORDS;
   const model = escalate ? MODELS.sonnet : MODELS.haiku;
   const system: PromptSegment[] = [

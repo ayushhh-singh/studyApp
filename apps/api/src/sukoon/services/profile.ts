@@ -7,6 +7,7 @@ import { supabase } from "../../lib/supabase.js";
 import { HttpError } from "../../lib/http-error.js";
 import { SUKOON_CONSENT_VERSION } from "../consent.js";
 import { recordSukoonEvent } from "./analytics.js";
+import { purgeJournalMemory } from "./memory.js";
 
 const PROFILE_COLUMNS =
   "user_id, language, exam, exam_attempt, exam_date, restricted_mode, voice_pref, " +
@@ -113,5 +114,13 @@ export async function updateSukoonProfile(
     .maybeSingle();
   if (error) throw new HttpError(500, `sukoon profile update failed: ${error.message}`);
   if (!data) throw new HttpError(404, "Sukoon profile not found — complete onboarding first");
+
+  // Consent withdrawal: turning OFF the deep-journal-AI consent purges all
+  // journal-derived Saathi memory immediately (chat memory, which isn't read
+  // from journals, is untouched). Awaited (a single delete) so the withdrawal
+  // takes effect before we return; purgeJournalMemory is best-effort internally.
+  if (patch.deep_insights_opt_in === false) {
+    await purgeJournalMemory(userId);
+  }
   return data as unknown as SukoonProfile;
 }

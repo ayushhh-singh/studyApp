@@ -34,6 +34,7 @@ import { logger } from "../../lib/logger.js";
 import { MODELS } from "../../lib/models.js";
 import { structuredJson, type PromptSegment } from "../../lib/anthropic.js";
 import { daysBetween, istDateString, istToday } from "../../lib/ist.js";
+import { getSukoonTier } from "./entitlements.js";
 import type { SaathiMemory } from "../prompts/saathi.js";
 
 export type MemorySourceKind = "chat" | "journal";
@@ -134,11 +135,62 @@ export async function deleteMemoryForSource(
 }
 
 /**
+ * Erase ALL of a user's JOURNAL-derived memory (chat memory untouched). Called
+ * when the user withdraws the deep-journal-AI consent (deep_insights_opt_in →
+ * false, services/profile.ts) so Saathi immediately stops recalling anything
+ * ever read from their journals. Best-effort; never throws (so it can be awaited
+ * from the profile update without risking the update itself).
+ */
+export async function purgeJournalMemory(userId: string): Promise<void> {
+  const { error } = await supabase()
+    .from("sukoon_memory_items")
+    .delete()
+    .eq("user_id", userId)
+    .eq("source_kind", "journal");
+  if (error) logger.warn({ err: error.message, userId }, "sukoon memory: journal purge failed");
+}
+
+/**
+ * May we read this user's decrypted journal bodies with a model to build memory?
+ * Mirrors EXACTLY the gate the deep-insights path uses before reading a body
+ * (services/insights.ts): Pro tier AND the explicit, default-OFF
+ * deep_insights_opt_in consent — plus a hard skip for restricted (under-18)
+ * accounts (they can't use the chat/voice that would ever surface memory, and we
+ * don't build derived emotional data for a minor). Chat memory has no such gate
+ * (chat is plaintext at rest, not the encrypted journal). Fails CLOSED — any
+ * lookup error denies journal reading. Targeted query (not getSukoonProfile) so
+ * this module doesn't import profile.ts (avoids a profile↔memory cycle).
+ */
+async function journalMemoryAllowed(userId: string): Promise<boolean> {
+  try {
+    const [{ data, error }, tier] = await Promise.all([
+      supabase()
+        .from("sukoon_profiles")
+        .select("restricted_mode, deep_insights_opt_in")
+        .eq("user_id", userId)
+        .maybeSingle(),
+      getSukoonTier(userId),
+    ]);
+    if (error || !data) return false;
+    const row = data as { restricted_mode: boolean; deep_insights_opt_in: boolean };
+    return !row.restricted_mode && tier === "pro" && row.deep_insights_opt_in === true;
+  } catch (err) {
+    logger.warn({ err: err instanceof Error ? err.message : err, userId }, "sukoon memory: journal-consent check failed");
+    return false;
+  }
+}
+
+/**
  * Distill a journal entry into ONE gentle, non-verbatim emotional-theme note and
  * store it as memory. Called from the journal create/update paths, where the
- * plaintext body is in hand (it is NEVER decrypted elsewhere for this). Skips
- * silently on a thin/empty body or when the distiller declines (safety-sensitive
- * content → empty). Fire-and-forget; never throws.
+ * plaintext body is in hand (it is NEVER decrypted elsewhere for this).
+ *
+ * GATED on the deep-journal-AI consent (journalMemoryAllowed) — this is the one
+ * place in the memory feature that reads a decrypted journal body with a model,
+ * so it obeys the SAME Pro+opt-in gate the deep-insights path does. Without that
+ * consent (or for a restricted account) it stores nothing and clears any item
+ * left from when consent WAS granted. Also skips a thin body or when the
+ * distiller declines (safety-sensitive → empty). Fire-and-forget; never throws.
  */
 export async function distillAndStoreJournalMemory(opts: {
   userId: string;
@@ -147,6 +199,12 @@ export async function distillAndStoreJournalMemory(opts: {
   occurredAt: string;
   lang?: SukoonChatLanguage | null;
 }): Promise<void> {
+  // Consent gate FIRST — never send a journal body to the model without it, and
+  // clear any prior item so losing consent/tier stops future recall of this entry.
+  if (!(await journalMemoryAllowed(opts.userId))) {
+    await deleteMemoryForSource(opts.userId, "journal", opts.entryId);
+    return;
+  }
   const body = (opts.body ?? "").trim();
   // Too thin to hold a meaningful theme — clear any stale item and stop.
   if (body.length < 40) {
