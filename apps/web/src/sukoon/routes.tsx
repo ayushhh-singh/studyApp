@@ -20,6 +20,7 @@ const sukoonAppRoutes: RouteObject[] = [
   { path: "tools/pmr/:exerciseId", lazy: () => import("@/sukoon/pages/tools-pmr") },
   { path: "tools/meditation/:exerciseId", lazy: () => import("@/sukoon/pages/tools-meditation") },
   { path: "tools/timer/:exerciseId", lazy: () => import("@/sukoon/pages/tools-timer") },
+  { path: "tools/reflection/:exerciseId", lazy: () => import("@/sukoon/pages/tools-reflection") },
   { path: "you", lazy: () => import("@/sukoon/pages/you") },
   { path: "you/privacy", lazy: () => import("@/sukoon/pages/you-privacy") },
   { path: "you/about", lazy: () => import("@/sukoon/pages/you-about") },

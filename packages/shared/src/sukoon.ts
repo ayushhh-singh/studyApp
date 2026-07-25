@@ -775,7 +775,13 @@ export type SukoonMoodAggregatesResponse = z.infer<typeof sukoonMoodAggregatesRe
 // player pick the right UI without a second lookup.
 // ---------------------------------------------------------------------------
 
-export const SUKOON_EXERCISE_TYPES = ["breathing", "grounding", "pmr", "meditation", "timer"] as const;
+// `reflection` — a family of self-guided thinking tools (thought-reframing, a
+// values check-in, a worry-time container). Practical coping SKILLS framed in
+// plain language, never a clinical modality: the user reflects at their own
+// pace, nothing is scored, nothing is sent to an AI, and — like grounding's
+// per-step notes — anything they type stays in local component state and is
+// never persisted or transmitted (self-guided, not AI-diagnostic).
+export const SUKOON_EXERCISE_TYPES = ["breathing", "grounding", "pmr", "meditation", "timer", "reflection"] as const;
 export const sukoonExerciseTypeSchema = z.enum(SUKOON_EXERCISE_TYPES);
 export type SukoonExerciseType = z.infer<typeof sukoonExerciseTypeSchema>;
 
@@ -923,6 +929,53 @@ export const sukoonMeditationConfigSchema = z.object({
 });
 export type SukoonMeditationConfig = z.infer<typeof sukoonMeditationConfigSchema>;
 
+// --- Reflection tools (self-guided thinking skills) -------------------------
+// One flexible config expresses all three launch tools (and any future one) as
+// a short sequence of prompt CARDS the player steps through — the same
+// steps-array shape grounding uses, generalised so a card can carry an optional
+// text box or a tap-to-pick chip set. Every string is bilingual (hi/en); the
+// player renders the right one for the active language. Deliberately NOT audio
+// or timer based — a reflection tool is read-and-think, not listen-along.
+
+/** What a card offers below its prompt. `none` = read-and-reflect only;
+ *  `short`/`long` = an optional text box (never saved — see the type note
+ *  above); `chips` = a small tap-to-select set (multi-select), for the values
+ *  check-in. */
+export const sukoonReflectionInputSchema = z.enum(["none", "short", "long", "chips"]);
+export type SukoonReflectionInput = z.infer<typeof sukoonReflectionInputSchema>;
+
+export const sukoonReflectionChipSchema = z.object({
+  id: z.string(),
+  label_hi: z.string(),
+  label_en: z.string(),
+});
+export type SukoonReflectionChip = z.infer<typeof sukoonReflectionChipSchema>;
+
+export const sukoonReflectionStepSchema = z.object({
+  id: z.string(),
+  prompt_hi: z.string(),
+  prompt_en: z.string(),
+  /** Optional gentle sub-text under the prompt (an example, a softening note). */
+  helper_hi: z.string().nullable().optional(),
+  helper_en: z.string().nullable().optional(),
+  input: sukoonReflectionInputSchema,
+  placeholder_hi: z.string().nullable().optional(),
+  placeholder_en: z.string().nullable().optional(),
+  /** Present only when `input === "chips"`. */
+  chips: z.array(sukoonReflectionChipSchema).optional(),
+});
+export type SukoonReflectionStep = z.infer<typeof sukoonReflectionStepSchema>;
+
+export const sukoonReflectionConfigSchema = z.object({
+  intro_hi: z.string(),
+  intro_en: z.string(),
+  steps: z.array(sukoonReflectionStepSchema).min(1).max(8),
+  /** The warm closing note shown on the completion screen. */
+  closing_hi: z.string(),
+  closing_en: z.string(),
+});
+export type SukoonReflectionConfig = z.infer<typeof sukoonReflectionConfigSchema>;
+
 /** GET /exercises/ambient/:id/audio-url and /exercises/:id/audio-url both return this shape. */
 export const sukoonAudioUrlResponseSchema = apiEnvelopeSchema(
   z.object({ url: z.string(), expires_at: z.string() }),
@@ -957,6 +1010,7 @@ export const sukoonExerciseSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("pmr"), config: sukoonPmrConfigSchema, ...exerciseCommonFields }),
   z.object({ type: z.literal("timer"), config: sukoonTimerConfigSchema, ...exerciseCommonFields }),
   z.object({ type: z.literal("meditation"), config: sukoonMeditationConfigSchema, ...exerciseCommonFields }),
+  z.object({ type: z.literal("reflection"), config: sukoonReflectionConfigSchema, ...exerciseCommonFields }),
 ]);
 export type SukoonExercise = z.infer<typeof sukoonExerciseSchema>;
 
@@ -2019,3 +2073,171 @@ export const sukoonBetaStatusSchema = z.object({
 export type SukoonBetaStatus = z.infer<typeof sukoonBetaStatusSchema>;
 export const sukoonBetaStatusResponseSchema = apiEnvelopeSchema(sukoonBetaStatusSchema);
 export type SukoonBetaStatusResponse = z.infer<typeof sukoonBetaStatusResponseSchema>;
+
+// ===========================================================================
+// Personalized guided meditations (extends F6). A SHORT AI-generated guided
+// meditation SCRIPT that addresses what a person just talked about with Saathi
+// (F2) or how they just checked in on their mood (F5) — narrated via the same
+// TTS provider as Voice Mode (F10) and played over a real ambient bed (S2's
+// sukoon-audio soundscapes). Unlike the static F6 meditation library (seeded,
+// generic), this ONE meditation is authored live from the person's own recent
+// context, then CACHED (script + rendered audio) so a replay never regenerates.
+//
+// SAFETY FRAMING (SUKOON_CONTEXT hard rules): a meditation is a calming tool,
+// never therapy. The script never diagnoses, never uses banned clinical
+// vocabulary, never probes or re-opens a hard topic — it acknowledges the theme
+// gently and guides toward settling. The generation prompt carries these rules
+// in its cached instructional head (server-only, prompts/meditation.ts).
+// ---------------------------------------------------------------------------
+
+/**
+ * Focus areas a meditation can centre on. Auto-SUGGESTED from the person's
+ * recent context (see /meditation/context), but always user-overridable — the
+ * setup screen shows all of these as chips. Kept a small, closed, wellness-safe
+ * set (no clinical framings); the server prompt has a per-focus playbook.
+ */
+export const SUKOON_MEDITATION_FOCUSES = [
+  "unwind", // let the day/study session go, general decompression
+  "sleep", // wind down toward rest
+  "ease_worry", // soften anxious, racing, "what if" energy
+  "self_kindness", // after a setback/low mock — meet yourself gently
+  "refocus", // clear the mind to return to studying, calm alertness
+  "confidence", // steady, grounded reassurance before a test/attempt
+] as const;
+export const sukoonMeditationFocusSchema = z.enum(SUKOON_MEDITATION_FOCUSES);
+export type SukoonMeditationFocus = z.infer<typeof sukoonMeditationFocusSchema>;
+
+/** Duration options (minutes) the setup screen offers. Bounds the script
+ *  length AND the one-time TTS render cost. */
+export const SUKOON_MEDITATION_DURATIONS_MIN = [3, 5, 10] as const;
+export const sukoonMeditationDurationSchema = z.union([
+  z.literal(3),
+  z.literal(5),
+  z.literal(10),
+]);
+export type SukoonMeditationDuration = z.infer<typeof sukoonMeditationDurationSchema>;
+
+/**
+ * TTS voice choices (the "voice" control). Kept provider-neutral: each id maps
+ * to a real per-provider speaker server-side (lib/tts.ts), defaulting to the
+ * language's warm default when a provider can't honour the pick. `warm` is the
+ * default (matches Voice Mode's `shimmer`).
+ */
+export const SUKOON_MEDITATION_VOICES = ["warm", "calm", "bright"] as const;
+export const sukoonMeditationVoiceSchema = z.enum(SUKOON_MEDITATION_VOICES);
+export type SukoonMeditationVoice = z.infer<typeof sukoonMeditationVoiceSchema>;
+
+/** Where a meditation was seeded from (drives the acknowledged-theme context). */
+export const SUKOON_MEDITATION_SOURCES = ["chat", "mood", "manual"] as const;
+export const sukoonMeditationSourceSchema = z.enum(SUKOON_MEDITATION_SOURCES);
+export type SukoonMeditationSource = z.infer<typeof sukoonMeditationSourceSchema>;
+
+/**
+ * Per-tier daily allowance for GENERATING a personalized meditation (a real
+ * LLM + one-time TTS render). free gets a small LIFETIME taste (like F4
+ * reflections); plus/pro get a generous DAILY budget. A REPLAY of an already
+ * generated meditation (cached script + audio) is always free and never metered.
+ */
+export const SUKOON_FREE_MEDITATION_LIFETIME = 3;
+export const SUKOON_MEDITATION_DAILY_CAPS = { plus: 10, pro: 30 } as const;
+
+export const sukoonMeditationUsageSchema = z.object({
+  tier: sukoonTierSchema,
+  scope: z.enum(["lifetime", "daily"]),
+  used: z.number().int(),
+  limit: z.number().int(),
+  remaining: z.number().int(),
+});
+export type SukoonMeditationUsage = z.infer<typeof sukoonMeditationUsageSchema>;
+export const sukoonMeditationUsageResponseSchema = apiEnvelopeSchema(sukoonMeditationUsageSchema);
+export type SukoonMeditationUsageResponse = z.infer<typeof sukoonMeditationUsageResponseSchema>;
+
+/**
+ * GET /meditation/context — the setup screen's smart defaults. Reads the
+ * person's most recent Saathi conversation / mood check-in and suggests a focus
+ * + a short, gentle human label for the theme it noticed ("the pressure you
+ * mentioned earlier"), or nulls when there's nothing recent to seed from. NEVER
+ * returns raw chat/mood text — only a suggested focus + a soft label.
+ */
+export const sukoonMeditationContextSchema = z.object({
+  /** The source it would seed from, or null if there's nothing recent. */
+  source: sukoonMeditationSourceSchema.nullable(),
+  /** An existing conversation id to attribute a chat-seeded meditation to. */
+  conversation_id: z.string().uuid().nullable(),
+  /** The suggested focus chip (defaults to "unwind" when nothing is inferred). */
+  suggested_focus: sukoonMeditationFocusSchema,
+  /** A gentle one-line label of the noticed theme, or null. Safe, non-clinical. */
+  theme_label_hi: z.string().nullable(),
+  theme_label_en: z.string().nullable(),
+});
+export type SukoonMeditationContext = z.infer<typeof sukoonMeditationContextSchema>;
+export const sukoonMeditationContextResponseSchema = apiEnvelopeSchema(sukoonMeditationContextSchema);
+export type SukoonMeditationContextResponse = z.infer<typeof sukoonMeditationContextResponseSchema>;
+
+/**
+ * POST /meditation/generate body. `conversation_id` optionally attributes a
+ * chat-seeded meditation (so the server can read that thread's rolling summary
+ * for context); `source` tells the server which recent signal to acknowledge.
+ * All the "controls" (focus/duration/language/voice/ambient) are explicit so
+ * the same request is fully reproducible → cacheable.
+ */
+export const sukoonMeditationGenerateBodySchema = z.object({
+  source: sukoonMeditationSourceSchema,
+  conversation_id: z.string().uuid().nullable().optional(),
+  focus: sukoonMeditationFocusSchema,
+  duration_min: sukoonMeditationDurationSchema,
+  language: sukoonChatLanguageSchema,
+  voice: sukoonMeditationVoiceSchema,
+  /** The ambient bed to layer under the narration (client plays it); the server
+   *  only records the choice. null = narration only (no bed). */
+  ambient: sukoonAmbientIdSchema.nullable(),
+});
+export type SukoonMeditationGenerateBody = z.infer<typeof sukoonMeditationGenerateBodySchema>;
+
+/**
+ * A generated meditation as returned to the client. `audio_url` is a freshly
+ * signed, short-lived URL for the rendered narration (null ONLY when the TTS
+ * render failed — the client can still read/scroll the `script` and play the
+ * ambient bed). `from_cache` is true when this exact request replayed a stored
+ * meditation (no LLM/TTS spend, no allowance consumed).
+ */
+export const sukoonMeditationSchema = z.object({
+  id: z.string().uuid(),
+  source: sukoonMeditationSourceSchema,
+  focus: sukoonMeditationFocusSchema,
+  duration_min: z.number().int(),
+  language: sukoonChatLanguageSchema,
+  voice: sukoonMeditationVoiceSchema,
+  ambient: sukoonAmbientIdSchema.nullable(),
+  /** The full narration script (speakable prose; also shown as a transcript). */
+  script: z.string(),
+  audio_url: z.string().nullable(),
+  audio_expires_at: z.string().nullable(),
+  from_cache: z.boolean(),
+  created_at: z.string(),
+});
+export type SukoonMeditation = z.infer<typeof sukoonMeditationSchema>;
+export const sukoonMeditationResponseSchema = apiEnvelopeSchema(
+  z.object({ meditation: sukoonMeditationSchema, usage: sukoonMeditationUsageSchema }),
+);
+export type SukoonMeditationResponse = z.infer<typeof sukoonMeditationResponseSchema>;
+
+/** GET /meditation/:id — replay one (re-signs a fresh audio URL, no regen). */
+export const sukoonMeditationDetailResponseSchema = apiEnvelopeSchema(
+  z.object({ meditation: sukoonMeditationSchema }),
+);
+export type SukoonMeditationDetailResponse = z.infer<typeof sukoonMeditationDetailResponseSchema>;
+
+/** GET /meditation — the person's recent meditations (for a small "again" list). */
+export const sukoonMeditationListItemSchema = z.object({
+  id: z.string().uuid(),
+  focus: sukoonMeditationFocusSchema,
+  duration_min: z.number().int(),
+  language: sukoonChatLanguageSchema,
+  created_at: z.string(),
+});
+export type SukoonMeditationListItem = z.infer<typeof sukoonMeditationListItemSchema>;
+export const sukoonMeditationListResponseSchema = apiEnvelopeSchema(
+  z.object({ meditations: z.array(sukoonMeditationListItemSchema) }),
+);
+export type SukoonMeditationListResponse = z.infer<typeof sukoonMeditationListResponseSchema>;

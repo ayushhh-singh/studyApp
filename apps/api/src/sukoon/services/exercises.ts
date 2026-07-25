@@ -12,6 +12,7 @@ import {
   sukoonPmrConfigSchema,
   sukoonTimerConfigSchema,
   sukoonMeditationConfigSchema,
+  sukoonReflectionConfigSchema,
   SUKOON_AMBIENT_SOUNDS,
   type SukoonAmbientId,
   type SukoonExercise,
@@ -66,6 +67,13 @@ function parseConfig(row: ExerciseRow): SukoonExercise {
       return {
         type: "meditation",
         config: sukoonMeditationConfigSchema.parse(row.config_json),
+        locked: false,
+        ...common,
+      };
+    case "reflection":
+      return {
+        type: "reflection",
+        config: sukoonReflectionConfigSchema.parse(row.config_json),
         locked: false,
         ...common,
       };

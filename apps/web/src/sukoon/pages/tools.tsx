@@ -17,7 +17,7 @@ import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { ExerciseCard } from "@/sukoon/components/tools/exercise-card";
 import { OfflineIndicator } from "@/sukoon/components/tools/offline-indicator";
 
-const FILTERS: (SukoonExerciseType | "all")[] = ["all", "breathing", "grounding", "pmr", "meditation", "timer"];
+const FILTERS: (SukoonExerciseType | "all")[] = ["all", "breathing", "grounding", "reflection", "pmr", "meditation", "timer"];
 
 function FilterChip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (

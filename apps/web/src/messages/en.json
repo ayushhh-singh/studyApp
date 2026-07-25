@@ -1980,6 +1980,7 @@
         "all": "All",
         "breathing": "Breathing",
         "grounding": "Grounding",
+        "reflection": "Reflection",
         "pmr": "PMR",
         "meditation": "Meditation",
         "timer": "Timer"
@@ -1987,6 +1988,7 @@
       "type": {
         "breathing": "Breathing exercise",
         "grounding": "Grounding",
+        "reflection": "Reflection tool",
         "pmr": "Muscle relaxation",
         "meditation": "Guided meditation",
         "timer": "Meditation timer"
@@ -2041,6 +2043,14 @@
         "finish": "Finish",
         "doneTitle": "You're here, now",
         "doneBody": "That's the full 5-4-3-2-1 — a gentle reminder that you're grounded in this moment."
+      },
+      "reflection": {
+        "privacyNote": "This is just for you — nothing you write here is saved or shared.",
+        "optionalNote": "Writing anything is optional — reflecting is enough.",
+        "next": "Next",
+        "back": "Back",
+        "finish": "Finish",
+        "doneTitle": "Take that with you"
       },
       "pmr": {
         "intro": "We'll move through each muscle group one at a time — tense gently, then let go.",

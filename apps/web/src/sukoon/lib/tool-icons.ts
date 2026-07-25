@@ -1,4 +1,4 @@
-import { Wind, Compass, Waves, Timer as TimerIcon, Moon, type LucideIcon } from "lucide-react";
+import { Wind, Compass, Waves, Timer as TimerIcon, Moon, Lightbulb, type LucideIcon } from "lucide-react";
 import type { SukoonExerciseType } from "@neev/shared";
 
 export const SUKOON_TOOL_ICONS: Record<SukoonExerciseType, LucideIcon> = {
@@ -7,6 +7,7 @@ export const SUKOON_TOOL_ICONS: Record<SukoonExerciseType, LucideIcon> = {
   pmr: Waves,
   timer: TimerIcon,
   meditation: Moon,
+  reflection: Lightbulb,
 };
 
 /** The player route each exercise type opens into (see routes.tsx). */
