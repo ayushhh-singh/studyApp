@@ -52,6 +52,7 @@ import { MODELS } from "../../lib/models.js";
 import { streamChat, type PromptSegment } from "../../lib/anthropic.js";
 import { assessMessage } from "./crisis/engine.js";
 import { matchSukoonFaq } from "./semantic-cache.js";
+import { retrieveMemory } from "./memory.js";
 import { consumeVoiceSeconds, getVoiceUsage, getSukoonTier } from "./entitlements.js";
 import { recordSukoonEvent } from "./analytics.js";
 import { transcribeVoiceTurn } from "../lib/stt.js";
@@ -226,11 +227,14 @@ export async function executeVoiceTurn(
     replyText = await matchSukoonFaq(transcript, language, ctx.name);
   }
   if (replyText === null) {
+    // Related past moments (RAG), driven by this transcript — same as chat, so
+    // the two surfaces don't drift. Best-effort → [], dynamic tail only.
+    const memories = await retrieveMemory(userId, transcript, conversationId);
     const escalate = surface === "inline" || wordCount(transcript) > LONG_MESSAGE_WORDS;
     const model = escalate ? MODELS.sonnet : MODELS.haiku;
     const system: PromptSegment[] = [
       ...SAATHI_PERSONA,
-      buildContextTail(ctx),
+      buildContextTail({ ...ctx, memories }),
       ...(surface === "inline" ? [MODERATE_CARE_DIRECTIVE] : []),
       VOICE_REPLY_DIRECTIVE,
     ];

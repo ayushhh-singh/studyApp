@@ -24,6 +24,7 @@ import { supabase } from "../../lib/supabase.js";
 import { HttpError } from "../../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../../lib/ist.js";
 import { journalEncKey } from "../config.js";
+import { distillAndStoreJournalMemory, deleteMemoryForSource } from "./memory.js";
 
 export const JOURNAL_PAGE_SIZE = 20;
 /** Bound the metadata scans that back tag-cloud + streak (a heavy journaler). */
@@ -171,7 +172,18 @@ export async function createEntry(
     p_key: key,
   });
   if (error) throw new HttpError(500, `journal create failed: ${error.message}`);
-  return getEntry(userId, data as string);
+  const entry = await getEntry(userId, data as string);
+  // RAG memory (blueprint F2): distil a gentle, non-verbatim theme note from the
+  // decrypted body ALREADY in hand (no extra decryption) so Saathi can recall
+  // this later. Fire-and-forget + best-effort inside — never blocks the save,
+  // and the raw body stays encrypted at rest (see services/memory.ts).
+  void distillAndStoreJournalMemory({
+    userId,
+    entryId: entry.id,
+    body: entry.body,
+    occurredAt: entry.created_at,
+  });
+  return entry;
 }
 
 export async function updateEntry(
@@ -190,7 +202,17 @@ export async function updateEntry(
   });
   if (error) throw new HttpError(500, `journal update failed: ${error.message}`);
   if ((data as number) === 0) throw new HttpError(404, "Entry not found");
-  return getEntry(userId, id);
+  const entry = await getEntry(userId, id);
+  // Re-distil memory from the CURRENT persisted body (an emptied body clears the
+  // memory item, keeping it in sync). Same fire-and-forget/encryption posture as
+  // create above.
+  void distillAndStoreJournalMemory({
+    userId,
+    entryId: entry.id,
+    body: entry.body,
+    occurredAt: entry.created_at,
+  });
+  return entry;
 }
 
 /** Soft delete (blueprint F12: deleted_at now, purged later). Owner-scoped. */
@@ -204,6 +226,9 @@ export async function deleteEntry(userId: string, id: string): Promise<void> {
     .select("id");
   if (error) throw new HttpError(500, `journal delete failed: ${error.message}`);
   if (!data || data.length === 0) throw new HttpError(404, "Entry not found");
+  // A deleted entry's distilled memory goes with it (best-effort) — a soft-
+  // deleted journal must never keep resurfacing through Saathi's recall.
+  void deleteMemoryForSource(userId, "journal", id);
 }
 
 // ---------------------------------------------------------------------------

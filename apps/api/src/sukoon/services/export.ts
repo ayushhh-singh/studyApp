@@ -257,6 +257,7 @@ async function buildExportBundle(
     consents,
     conversations,
     chatSummary,
+    memoryItems,
     crisisEvents,
     moods,
     checkins,
@@ -275,6 +276,15 @@ async function buildExportBundle(
     rows(db.from("sukoon_consents").select("consent_version, consented_at").eq("user_id", userId)),
     rows(db.from("sukoon_conversations").select("*").eq("user_id", userId)),
     one(db.from("sukoon_chat_summaries").select("summary, updated_at").eq("user_id", userId).maybeSingle()),
+    // Distilled RAG memory notes (services/memory.ts) — the note + metadata, not
+    // the raw embedding vector (a 1536-float array is derived data, not portable
+    // content for the user).
+    rows(
+      db
+        .from("sukoon_memory_items")
+        .select("source_kind, note, lang, occurred_at, created_at")
+        .eq("user_id", userId),
+    ),
     rows(db.from("sukoon_crisis_events").select("level, layer, created_at").eq("user_id", userId)),
     rows(db.from("sukoon_mood_entries").select("*").eq("user_id", userId)),
     rows(db.from("sukoon_checkins").select("*").eq("user_id", userId)),
@@ -331,6 +341,7 @@ async function buildExportBundle(
     conversations,
     chat_messages: messages,
     chat_summary: chatSummary,
+    memory_items: memoryItems,
     crisis_events: crisisEvents,
     journal_entries: entries,
     mood_entries: moods,

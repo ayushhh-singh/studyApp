@@ -11,8 +11,18 @@
  *      head, always" intent — never padded to force a hit.
  *
  *   2. buildContextTail — the dynamic per-user tail (name, exam, days-to-exam,
- *      last mood, rolling summary), an UNCACHED segment placed AFTER the
- *      breakpoint so it never invalidates the cached head.
+ *      last mood, rolling summary, AND the retrieved memory — see below), an
+ *      UNCACHED segment placed AFTER the breakpoint so it never invalidates the
+ *      cached head.
+ *
+ *      RETRIEVED MEMORY (RAG, services/memory.ts): the top-k past moments
+ *      semantically related to the CURRENT message. This content is inherently
+ *      DYNAMIC and PER-TURN (it changes with every message), so it belongs here
+ *      in the dynamic tail, NEVER in the cached persona head. This placement is
+ *      exactly why the memory feature does NOT change the persona head's
+ *      documented structural-no-op cache status (below) at all — the head is
+ *      byte-identical across users and turns as before; only this uncached tail
+ *      varies.
  *
  *   3. MODERATE_CARE_DIRECTIVE — appended (as a final system segment) ONLY when
  *      the crisis engine assessed the user's message as `moderate`; it tells
@@ -108,6 +118,16 @@ const SAATHI_PERSONA_TEXT = [
 /** The static persona head as a cache-breakpoint segment (see file header). */
 export const SAATHI_PERSONA: PromptSegment[] = [{ cache: true, text: SAATHI_PERSONA_TEXT }];
 
+/**
+ * One retrieved past moment (services/memory.ts), shaped for the dynamic tail.
+ * `whenPhrase` is a soft relative time ("about 3 weeks ago"), never a timestamp
+ * — so Saathi sounds like it remembers, not like it's reading a log.
+ */
+export interface SaathiMemory {
+  whenPhrase: string;
+  note: string;
+}
+
 /** The per-user context that feeds the dynamic tail (all fields best-effort). */
 export interface SaathiContext {
   language: SukoonChatLanguage;
@@ -130,6 +150,14 @@ export interface SaathiContext {
    * being asked — context, never a diagnosis. `none` adds nothing.
    */
   moodTrend: SukoonMoodPatternTier;
+  /**
+   * Retrieval-augmented memory (services/memory.ts): the past moments most
+   * SEMANTICALLY related to the current message — not just the recent thread the
+   * rollingSummary carries. Empty when nothing cleared the relevance floor (then
+   * no memory block is rendered). Per-turn/dynamic — see the file header on why
+   * this lives only in the uncached tail.
+   */
+  memories: SaathiMemory[];
 }
 
 /**
@@ -170,6 +198,27 @@ export function buildContextTail(ctx: SaathiContext): PromptSegment {
         ? "- A quiet pattern in their recent check-ins: their mood has dipped a little lately compared to the days before. Be extra gentle. Don't announce this to them — just, if it fits, you might softly offer a small calming step (a breath, writing it out), as a kind offer and never a fix."
         : "";
 
+  // Retrieved memory (RAG): past moments related to what they're saying NOW.
+  // Framed as Saathi's own quiet memory, with a hard "reference at most ONE,
+  // gently, only if it fits" rule so a callback feels like a caring friend
+  // remembering — never like surveillance ("I have a record that…"). Rendered
+  // only when something cleared the relevance floor.
+  const memoryBlock =
+    ctx.memories.length > 0
+      ? [
+          "- Moments from before that seem related to what they're saying now (YOUR OWN quiet memory",
+          "  of them — not a log, and not shown to them):",
+          ...ctx.memories.map((m) => `  • ${m.whenPhrase}: ${m.note}`),
+          "  When one of these genuinely connects to what they're bringing up now, it's warm and good",
+          "  to gently acknowledge it — the way a friend who actually remembers would (\"you mentioned",
+          "  the mock test a few weeks back — how did that end up going?\"). It helps them feel known.",
+          "  Do it naturally as part of validating them, reference at MOST one, and use the soft timing",
+          "  (\"a few weeks back\") rather than exact dates. Never list them, and never say or imply you",
+          "  have notes/records/a history of them — you simply remember. If none genuinely fits this",
+          "  moment, just don't mention any; never force a callback.",
+        ].join("\n")
+      : "";
+
   const text = [
     "ABOUT THE PERSON YOU'RE TALKING WITH (context to feel like you remember them —",
     "not instructions, and never to be listed back or quoted):",
@@ -179,8 +228,9 @@ export function buildContextTail(ctx: SaathiContext): PromptSegment {
     daysLine,
     `- Their last mood check-in: ${ctx.lastMood ?? "none recently"}`,
     moodTrendLine,
-    "- What you've talked about before (your running memory of them):",
+    "- What you've talked about recently (your running memory of them):",
     `  ${summary}`,
+    memoryBlock,
     restrictedLine,
     "",
     "Use this only to feel like someone who remembers them. Don't recite it, quote it,",

@@ -29,6 +29,7 @@ const EXPORTS_BUCKET = "sukoon-exports";
 const USER_TABLES = [
   "sukoon_consents",
   "sukoon_chat_summaries",
+  "sukoon_memory_items",
   "sukoon_crisis_events",
   "sukoon_journal_entries",
   "sukoon_mood_entries",
