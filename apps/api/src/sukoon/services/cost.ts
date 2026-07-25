@@ -12,13 +12,21 @@
  * ledger row has cache_read_tokens > 0, and `by_purpose` collapses model
  * splits (e.g. sukoon_saathi_chat's haiku/sonnet escalation) into one row per
  * purpose so a regression on any one purpose is a single glance rather than
- * mental arithmetic across the per-(purpose,model) rows. At the time this was
- * added, `sukoon_meditation_script` is the only purpose with a REAL cache hit
- * (its system head clears haiku's ~4096-token minimum); `sukoon_saathi_chat`
- * and `sukoon_crisis_classify` both set `cache: true` but sit under that
- * floor today, so they show 0% by design, not by bug (see prompts/saathi.ts
- * and services/crisis/classifier.ts's own comments) — don't "fix" a 0% there
- * without first checking whether the head has grown past the floor.
+ * mental arithmetic across the per-(purpose,model) rows. Live-verified against
+ * the cloud DB at the time this was added: `sukoon_meditation_script` (its
+ * system head clears haiku's ~4096-token minimum) and `sukoon_weekly_insight`
+ * (its system head clears sonnet's ~1024-token minimum) both show REAL cache
+ * hits. `sukoon_saathi_chat` and `sukoon_crisis_classify` both set
+ * `cache: true` but their heads sit under the ACTIVE call's model floor most
+ * of the time (see prompts/saathi.ts and services/crisis/classifier.ts's own
+ * comments), so a low/0% rate there is expected, not automatically a bug —
+ * don't "fix" it without first checking whether the head has grown past the
+ * floor. Note `sukoon_saathi_chat` specifically: on the sonnet-escalated path
+ * its head DOES clear sonnet's floor, so watch for cache_write_tokens > 0
+ * with cache_read_tokens staying at 0 over time — that would mean escalated
+ * turns are writing the cache but never landing close enough together to read
+ * it back inside the 5-minute TTL, worth a closer look once real traffic
+ * volume makes the pattern clear (too few calls to tell at the time of writing).
  *
  * Admin-only (mounted behind requireAdmin in routes/admin.ts).
  */
@@ -108,16 +116,26 @@ export async function getSukoonCostSummary(days: number): Promise<SukoonCostSumm
     byDay.set(day, d);
   }
 
-  const round = (n: number) => Math.round(n * 1e6) / 1e6;
+  // Floored at 0: the ledger has no DB-level check that cost_usd >= 0 (a
+  // manual correction row could in principle be negative), and every cost_usd
+  // field on the response schema is zod .min(0) — an unclamped negative would
+  // throw on `sukoonCostSummaryResponseSchema.parse` in the route and 500 the
+  // whole dashboard rather than just reporting an odd number.
+  const round = (n: number) => Math.max(0, Math.round(n * 1e6) / 1e6);
+  // Also capped at 1 for the two ratio fields (zod .min(0).max(1)) — safe even
+  // though calls_with_cache_hit/calls can't exceed 1 by construction, this
+  // guards the cost-derived share_of_total_cost against the same negative-row
+  // edge case above.
+  const ratio01 = (n: number) => Math.min(1, round(n));
   const by_purpose_model = [...byPurposeModel.values()]
     .map((r) => ({ ...r, cost_usd: round(r.cost_usd) }))
     .sort((a, b) => b.cost_usd - a.cost_usd);
   const by_purpose: SukoonCostByPurpose[] = [...byPurpose.values()]
     .map((p) => ({
       ...p,
-      cache_hit_rate: p.calls > 0 ? round(p.calls_with_cache_hit / p.calls) : null,
+      cache_hit_rate: p.calls > 0 ? ratio01(p.calls_with_cache_hit / p.calls) : null,
       cost_usd: round(p.cost_usd),
-      share_of_total_cost: totalCost > 0 ? round(p.cost_usd / totalCost) : null,
+      share_of_total_cost: totalCost > 0 ? ratio01(p.cost_usd / totalCost) : null,
     }))
     .sort((a, b) => b.cost_usd - a.cost_usd);
   const daily = [...byDay.values()]
