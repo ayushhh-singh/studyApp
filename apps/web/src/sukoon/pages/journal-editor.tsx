@@ -148,6 +148,23 @@ export function Component() {
       saveJournal({ queueKey: entryId, op: "update", entryId, body: payload });
       navigate(journeyReturnTo ?? `${base}/journal/${entryId}`, { replace: true });
     } else {
+      // Defensive: the effect below adopts a resolved create's real id
+      // asynchronously (after a status change re-renders), so there's a
+      // narrow window right after a create syncs where editingId hasn't
+      // updated yet. Checking the cache directly here means an immediate
+      // re-click in that window still resolves to an update against the
+      // real id, never a second create under the same pending key.
+      const alreadyCreated = getResolvedCreate(pendingCreateKeyRef.current);
+      if (alreadyCreated) {
+        queryClient.setQueryData<SukoonJournalEntry>(
+          queryKeys.sukoonJournalEntry(alreadyCreated.id),
+          (prev) =>
+            prev ? { ...prev, body: payload.body ?? null, mood: payload.mood, tags: payload.tags } : prev,
+        );
+        saveJournal({ queueKey: alreadyCreated.id, op: "update", entryId: alreadyCreated.id, body: payload });
+        navigate(journeyReturnTo ?? `${base}/journal/${alreadyCreated.id}`, { replace: true });
+        return;
+      }
       // No id exists yet — stay on the editor until the create actually
       // reaches the server (near-instant when online; deferred, but never
       // lost, when offline) and the effect below picks up the real id.
@@ -296,6 +313,11 @@ export function Component() {
           onChange={(e) => setBody(e.target.value)}
           placeholder={t("Sukoon.journal.editorPlaceholder")}
           rows={10}
+          // Matches journalBodySchema's server-side cap (packages/shared/src/sukoon.ts).
+          // A save that clears this would 400 permanently — since a queued write
+          // now retries indefinitely rather than surfacing that error once, an
+          // over-limit body must never be reachable in the first place.
+          maxLength={20_000}
           className="min-h-[220px] w-full resize-y bg-transparent px-4 py-3 text-[15px] leading-[1.9] outline-none placeholder:text-muted-foreground"
         />
       </div>

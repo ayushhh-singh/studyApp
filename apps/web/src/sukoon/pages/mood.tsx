@@ -144,8 +144,16 @@ export function Component() {
   const handleSave = () => {
     if (score == null) return;
     const body = { score, emotions, factors, note: note.trim() || undefined };
-    if (editingId) {
-      saveMood({ queueKey: editingId, op: "update", entryId: editingId, body });
+    // Defensive: the effect above adopts a resolved create's real id
+    // asynchronously (after a status change re-renders), so there's a narrow
+    // window right after a create syncs where editingId hasn't updated yet.
+    // Checking the cache directly here means an immediate re-click in that
+    // window still resolves to an update against the real id, never a
+    // second create under the same pending key.
+    const resolvedId = editingId ?? getResolvedCreate(pendingCreateKeyRef.current)?.id ?? null;
+    if (resolvedId) {
+      if (!editingId) setEditingId(resolvedId);
+      saveMood({ queueKey: resolvedId, op: "update", entryId: resolvedId, body });
     } else {
       // Re-saving before the previous attempt has synced overwrites the SAME
       // queued snapshot (same pendingCreateKeyRef) — never a second entry.

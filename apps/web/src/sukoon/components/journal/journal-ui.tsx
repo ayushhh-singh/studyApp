@@ -120,7 +120,11 @@ export function TagInput({
   const [draft, setDraft] = useState("");
 
   const add = (raw: string) => {
-    const v = raw.trim().replace(/,$/, "").trim();
+    // Matches journalTagsSchema's server-side per-tag cap (packages/shared/src/sukoon.ts)
+    // — a tag over this would 400 permanently, and a queued write now retries
+    // indefinitely rather than surfacing that error once, so it must never
+    // be reachable in the first place.
+    const v = raw.trim().replace(/,$/, "").trim().slice(0, 40);
     if (!v) return;
     if (tags.some((x) => x.toLowerCase() === v.toLowerCase())) {
       setDraft("");
@@ -163,6 +167,7 @@ export function TagInput({
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={onKeyDown}
         onBlur={() => add(draft)}
+        maxLength={40}
         placeholder={t("Sukoon.journal.tagsPlaceholder")}
         className="min-w-[8rem] flex-1 bg-transparent py-1 text-sm outline-none placeholder:text-muted-foreground"
       />

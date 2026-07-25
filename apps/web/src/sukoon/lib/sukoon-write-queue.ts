@@ -23,21 +23,34 @@
  * the ledger. Only once every item in a flush attempt is done (or was already
  * done) does the wrapped `send()` resolve, letting the outer queue clear them
  * all out for good.
+ *
+ * The ledger maps key -> a signature of the CONTENT last successfully sent
+ * under that key, not just the bare key. That distinction matters: a create
+ * and a later edit of the SAME entry can share a key (an update's key is the
+ * entry's own id), and if the create already reached the server while a
+ * sibling item in the same batch is still stuck failing, the outer queue
+ * won't have removed the create yet either. If the user then edits the entry
+ * again before that batch clears, `enqueue()` overwrites the SAME key with
+ * the new content — a bare "this key is done" flag would silently skip
+ * sending it (the ledger would still match on key alone), quietly dropping
+ * the edit while the UI reports everything as synced. Keying the ledger on
+ * key+content instead means a changed payload is never mistaken for one
+ * that was already delivered.
  */
 import { createOfflineQueue, type OfflineQueue } from "@/lib/offline-queue";
 
-function readLedger(ledgerKey: string): Set<string> {
+function readLedger(ledgerKey: string): Record<string, string> {
   try {
     const raw = localStorage.getItem(ledgerKey);
-    return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
   } catch {
-    return new Set();
+    return {};
   }
 }
 
-function writeLedger(ledgerKey: string, keys: Set<string>): void {
+function writeLedger(ledgerKey: string, ledger: Record<string, string>): void {
   try {
-    localStorage.setItem(ledgerKey, JSON.stringify([...keys]));
+    localStorage.setItem(ledgerKey, JSON.stringify(ledger));
   } catch {
     // best-effort — worst case a just-completed item is attempted once more
     // next retry, which sendOne must already tolerate being asked to no-op on.
@@ -58,15 +71,18 @@ export function createSukoonWriteQueue<T>(opts: {
     dedupeKey: opts.dedupeKey,
     retryDelayMs: opts.retryDelayMs,
     send: async (items) => {
-      const done = readLedger(ledgerKey);
+      const ledger = readLedger(ledgerKey);
       let anyFailed = false;
       for (const item of items) {
         const key = opts.dedupeKey(item);
-        if (done.has(key)) continue; // already reached the server in an earlier partial attempt
+        const signature = JSON.stringify(item);
+        // Skip only if THIS EXACT content already reached the server — a
+        // changed payload under the same key (a re-edit) always gets sent.
+        if (ledger[key] === signature) continue;
         try {
           await opts.sendOne(item);
-          done.add(key);
-          writeLedger(ledgerKey, done);
+          ledger[key] = signature;
+          writeLedger(ledgerKey, ledger);
         } catch {
           anyFailed = true;
         }
@@ -76,8 +92,8 @@ export function createSukoonWriteQueue<T>(opts: {
       }
       // Whole batch done — the outer queue is about to remove every item it
       // handed us, so the ledger has nothing left to protect for these keys.
-      for (const item of items) done.delete(opts.dedupeKey(item));
-      writeLedger(ledgerKey, done);
+      for (const item of items) delete ledger[opts.dedupeKey(item)];
+      writeLedger(ledgerKey, ledger);
     },
   });
 }
