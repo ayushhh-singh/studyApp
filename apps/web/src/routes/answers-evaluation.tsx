@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
 import { EvaluationDimensions } from "@/components/answers/evaluation-dimensions";
 import { EvaluationScoreHero } from "@/components/answers/evaluation-score-hero";
+import { SukoonCheckinNudge } from "@/components/answers/sukoon-checkin-nudge";
 import { EvaluationFeedback } from "@/components/answers/evaluation-feedback";
 import { EvaluationAnalysisNotes } from "@/components/answers/evaluation-analysis-notes";
 import { EvaluationModelAnswer } from "@/components/answers/evaluation-model-answer";
@@ -172,6 +173,15 @@ export function Component() {
           maxScore={stream.analysis.max_score}
           isOffTopic={stream.analysis.is_off_topic}
           overallComment={stream.analysis.overall_comment}
+        />
+      )}
+
+      {stream.done && stream.analysis && (
+        <SukoonCheckinNudge
+          submissionId={submissionId}
+          overallScore={stream.analysis.overall_score}
+          maxScore={stream.analysis.max_score}
+          isOffTopic={stream.analysis.is_off_topic}
         />
       )}
 
