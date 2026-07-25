@@ -1,6 +1,20 @@
 User-agent: *
 Disallow: /
 
+# Static build assets referenced BY the public pages below (JS/CSS bundles,
+# fonts, icons, manifest, marketing screenshots, OG images) — these carry no
+# per-user/auth-gated content (the SPA bundle is one shared build regardless
+# of sign-in state), and Google explicitly recommends against blocking assets
+# a crawler needs to render a page: https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt#blocking-css-js
+Allow: /assets/
+Allow: /favicon.svg
+Allow: /manifest.webmanifest
+Allow: /manifest.hi.webmanifest
+Allow: /pwa/
+Allow: /marketing/
+Allow: /og-default-en.png
+Allow: /og-default-hi.png
+
 Allow: /en$
 Allow: /en/$
 Allow: /hi$
