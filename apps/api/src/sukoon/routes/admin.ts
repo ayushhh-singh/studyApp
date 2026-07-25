@@ -19,6 +19,7 @@ import {
   sukoonJourneyUpsertResponseSchema,
   sukoonJourneySlugSchema,
   sukoonCostSummaryResponseSchema,
+  sukoonFeedbackAdminListResponseSchema,
 } from "@neev/shared";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
@@ -34,6 +35,7 @@ import {
   unpublishJourney,
 } from "../services/journeys-admin.js";
 import { getSukoonCostSummary } from "../services/cost.js";
+import { listSukoonFeedback } from "../services/feedback.js";
 
 export const sukoonAdminRouter = Router();
 sukoonAdminRouter.use(requireAuth);
@@ -66,6 +68,24 @@ sukoonAdminRouter.get(
     const { days } = parse(costQuerySchema, req.query);
     const summary = await getSukoonCostSummary(days);
     res.json(sukoonCostSummaryResponseSchema.parse({ data: summary, error: null }));
+  }),
+);
+
+// Session 14 — beta feedback list (thumbs + notes from the feedback widget).
+// Same admin gate as the journeys queue / cost dashboard.
+const feedbackQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).optional().default(1),
+  page_size: z.coerce.number().int().min(1).max(100).optional().default(30),
+});
+
+sukoonAdminRouter.get(
+  "/admin/feedback",
+  requireAdmin,
+  rateLimit({ windowMs: 60_000, max: 60 }),
+  asyncHandler(async (req, res) => {
+    const { page, page_size } = parse(feedbackQuerySchema, req.query);
+    const result = await listSukoonFeedback(page, page_size);
+    res.json(sukoonFeedbackAdminListResponseSchema.parse({ data: result, error: null }));
   }),
 );
 

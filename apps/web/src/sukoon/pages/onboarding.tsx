@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, Navigate, useLocation, useNavigate, useParams } from "react-router";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { ArrowLeft, ArrowRight, Bell, BellRing, Check, Heart, Loader2 } from "lucide-react";
 import type { SukoonChatLanguage, SukoonOnboardingBody } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
@@ -8,7 +9,10 @@ import { Input } from "@/components/ui/input";
 import { NotTherapyFooter } from "@/sukoon/components/not-therapy-footer";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useCompleteSukoonOnboarding, useSukoonProfile } from "@/sukoon/lib/use-sukoon-profile";
+import { useRecordSukoonEvent } from "@/sukoon/lib/use-sukoon-analytics";
 import { cn } from "@/lib/utils";
+
+const STEP_KEYS = ["language", "consent", "age", "who5", "exam", "reminder"] as const;
 
 const TOTAL_STEPS = 6;
 const LANGUAGES: SukoonChatLanguage[] = ["hi", "hinglish", "en"];
@@ -31,8 +35,17 @@ export function Component() {
 
   const profileQuery = useSukoonProfile({ enabled: !!session });
   const onboard = useCompleteSukoonOnboarding();
+  const reduceMotion = useReducedMotion();
+  const recordEvent = useRecordSukoonEvent();
 
   const [step, setStep] = useState(1);
+  // +1 = advancing (Next), -1 = retreating (Back) — drives which side the
+  // step-transition slide comes in from.
+  const [direction, setDirection] = useState(1);
+  const goToStep = (next: number) => {
+    setDirection(next > step ? 1 : -1);
+    setStep(next);
+  };
   const [chatLang, setChatLang] = useState<SukoonChatLanguage | null>(null);
   const [consentScrolled, setConsentScrolled] = useState(false);
   const [consentAccepted, setConsentAccepted] = useState(false);
@@ -54,6 +67,13 @@ export function Component() {
     const el = consentRef.current;
     if (el && el.scrollHeight <= el.clientHeight + 4) setConsentScrolled(true);
   }, [step]);
+
+  // Session 14 — activation funnel: one ping per step actually reached.
+  useEffect(() => {
+    if (!session) return;
+    recordEvent("onboarding_step_viewed", { step, step_key: STEP_KEYS[step - 1] ?? "unknown" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, session]);
 
   // Already onboarded (hit /onboarding directly) → into the app.
   if (session && profileQuery.data?.profile?.onboarding_completed) {
@@ -153,7 +173,15 @@ export function Component() {
           {t("Sukoon.onboarding.stepProgress", { current: step, total: TOTAL_STEPS })}
         </p>
 
-        <div className="flex-1 rounded-2xl border border-border bg-card p-6 shadow-sm" lang={uiLang}>
+        <div className="flex-1 overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm" lang={uiLang}>
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={step}
+              initial={reduceMotion ? false : { x: direction * 24, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={reduceMotion ? undefined : { x: direction * -24, opacity: 0 }}
+              transition={{ duration: reduceMotion ? 0 : 0.22, ease: "easeOut" }}
+            >
           {step === 1 ? (
             <Step title={t("Sukoon.onboarding.langTitle")} sub={t("Sukoon.onboarding.langSub")}>
               <div className="space-y-2.5">
@@ -371,6 +399,8 @@ export function Component() {
               </div>
             </Step>
           ) : null}
+            </motion.div>
+          </AnimatePresence>
 
           {error ? (
             <p
@@ -385,7 +415,7 @@ export function Component() {
         {/* Nav */}
         <div className="mt-6 flex items-center justify-between gap-3">
           {step > 1 ? (
-            <Button type="button" variant="ghost" onClick={() => setStep((s) => s - 1)}>
+            <Button type="button" variant="ghost" onClick={() => goToStep(step - 1)}>
               <ArrowLeft className="size-4" /> {t("Sukoon.onboarding.back")}
             </Button>
           ) : (
@@ -393,12 +423,12 @@ export function Component() {
           )}
           <div className="flex items-center gap-2">
             {step === 4 || step === 5 ? (
-              <Button type="button" variant="ghost" onClick={() => setStep((s) => s + 1)}>
+              <Button type="button" variant="ghost" onClick={() => goToStep(step + 1)}>
                 {t("Sukoon.onboarding.skip")}
               </Button>
             ) : null}
             {step < TOTAL_STEPS ? (
-              <Button type="button" onClick={() => setStep((s) => s + 1)} disabled={!canAdvance}>
+              <Button type="button" onClick={() => goToStep(step + 1)} disabled={!canAdvance}>
                 {t("Sukoon.onboarding.next")} <ArrowRight className="size-4" />
               </Button>
             ) : (

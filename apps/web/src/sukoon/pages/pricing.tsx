@@ -5,6 +5,7 @@ import { applyBundleDiscount, sukoonPaiseToRupees, sukoonPlanMonths } from "@nee
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui-x/page-header";
+import { Skeleton } from "@/components/ui-x/skeleton";
 import { openRazorpayCheckout } from "@/lib/razorpay-checkout";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import {
@@ -133,6 +134,33 @@ export function Component() {
   };
 
   const activating = status === "activating";
+
+  if (plansQuery.isPending) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-6">
+        <PageHeader title={t("Sukoon.pricing.title")} description={t("Sukoon.pricing.subtitle")} />
+        <div className="grid gap-4 sm:grid-cols-3">
+          {Array.from({ length: 3 }, (_, i) => (
+            <Skeleton key={i} className="h-72 w-full rounded-2xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (plansQuery.isError) {
+    return (
+      <div className="mx-auto flex max-w-3xl flex-col gap-4">
+        <PageHeader title={t("Sukoon.pricing.title")} description={t("Sukoon.pricing.subtitle")} />
+        <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {t("Sukoon.pricing.loadError")}
+        </p>
+        <Button variant="outline" onClick={() => void plansQuery.refetch()} className="self-start">
+          {t("Sukoon.pricing.retry")}
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto flex max-w-3xl flex-col gap-6">

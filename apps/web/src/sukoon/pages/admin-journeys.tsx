@@ -52,6 +52,19 @@ export function Component() {
     );
   }
 
+  // A network/429 failure here is NOT "not an admin" — showing the denied
+  // EmptyState would wrongly tell a real admin they lack access.
+  if (statusQuery.isError) {
+    return (
+      <div className="mx-auto flex max-w-lg flex-col gap-6">
+        <PageHeader title={t("Sukoon.admin.journeys.title")} />
+        <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive">
+          {t("Sukoon.admin.journeys.loadError")}
+        </p>
+      </div>
+    );
+  }
+
   if (!statusQuery.data?.is_admin) {
     return (
       <div className="mx-auto flex max-w-lg flex-col gap-6">

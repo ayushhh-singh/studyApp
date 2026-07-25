@@ -27,7 +27,13 @@ export function BreathingCircle({
         }}
       >
         <div className="flex flex-col items-center gap-1">
-          <span className="text-base font-semibold text-secondary">{label}</span>
+          {/* aria-live on the PHASE label only (inhale/hold/exhale — changes a
+              few times per cycle) — the countdown number is deliberately
+              outside any live region, same convention as the test-player's
+              countdown timer, so per-second ticks don't spam a screen reader. */}
+          <span aria-live="polite" className="text-base font-semibold text-secondary">
+            {label}
+          </span>
           <span className="text-2xl font-bold tabular-nums text-secondary">{seconds_remaining}</span>
         </div>
       </div>

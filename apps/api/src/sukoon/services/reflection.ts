@@ -16,6 +16,7 @@ import { streamText } from "../../lib/anthropic.js";
 import { getReflectionUsage, consumeReflection } from "./entitlements.js";
 import { getEntry, persistReflection } from "./journal.js";
 import { REFLECTION_SYSTEM, buildReflectionContent } from "../prompts/reflection.js";
+import { recordSukoonEvent } from "./analytics.js";
 
 export interface ReflectionPlan {
   entryId: string;
@@ -35,6 +36,7 @@ export async function planReflection(userId: string, entryId: string): Promise<R
   }
   const usage = await getReflectionUsage(userId);
   if (usage.remaining <= 0) {
+    void recordSukoonEvent(userId, "cap_hit", { feature: "reflection", tier: usage.tier });
     throw new HttpError(402, "You've used all your reflections", { feature: "reflection_cap" });
   }
   return { entryId, body };

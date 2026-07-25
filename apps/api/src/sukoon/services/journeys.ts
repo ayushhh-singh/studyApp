@@ -28,6 +28,7 @@ import { supabase } from "../../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";
 import { istDateString, istToday, daysBetween, shiftDate, istClockUtc } from "../../lib/ist.js";
 import { getSukoonTier } from "./entitlements.js";
+import { recordSukoonEvent } from "./analytics.js";
 import {
   getJourneyRowBySlug,
   listStepsForJourney,
@@ -211,6 +212,7 @@ export async function startJourney(userId: string, slug: string): Promise<Sukoon
   if (journey.premium) {
     const tier = await getSukoonTier(userId);
     if (tier === "free") {
+      void recordSukoonEvent(userId, "cap_hit", { feature: "journey_premium", tier });
       throw new HttpError(402, "This journey needs Sukoon Plus or Pro", { feature: "sukoon_journey_premium" });
     }
   }
@@ -333,6 +335,9 @@ export async function completeJourneyStep(
       .select(PROGRESS_COLUMNS)
       .single();
     if (error) throw new HttpError(500, `sukoon journey step-complete failed: ${error.message}`);
+    if (allDone) {
+      void recordSukoonEvent(userId, "journey_completed", { journey_slug: slug, days: journey.days });
+    }
     return computeState(steps, data as unknown as ProgressRow, journey.days);
   }
   return computeState(steps, progressRow, journey.days);

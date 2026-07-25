@@ -41,6 +41,15 @@ const USER_TABLES = [
   "sukoon_notification_log",
   "sukoon_export_jobs",
   "sukoon_privacy_audit",
+  // Session 14 — analytics/feedback are personal data too (usage-pattern +
+  // the user's own submitted opinions), so an integrated-mode erase covers
+  // them the same as everything else above. sukoon_beta_cohort deliberately
+  // excluded: it's ops allow-list metadata about the launch process, not
+  // Sukoon content the user generated — it still gets erased on a WHOLE
+  // Neev-account deletion via the auth.users cascade (0093), just not by this
+  // narrower "erase my Sukoon data, keep my Neev account" path.
+  "sukoon_analytics_events",
+  "sukoon_feedback",
 ] as const;
 
 export interface PurgeResult {

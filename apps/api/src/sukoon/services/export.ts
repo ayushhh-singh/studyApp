@@ -269,6 +269,7 @@ async function buildExportBundle(
     notificationLog,
     privacyAudit,
     garden,
+    feedback,
   ] = await Promise.all([
     one(db.from("sukoon_profiles").select("*").eq("user_id", userId).maybeSingle()),
     rows(db.from("sukoon_consents").select("consent_version, consented_at").eq("user_id", userId)),
@@ -286,6 +287,12 @@ async function buildExportBundle(
     rows(db.from("sukoon_notification_log").select("type, day, created_at").eq("user_id", userId)),
     rows(db.from("sukoon_privacy_audit").select("action, detail, created_at").eq("user_id", userId)),
     getGardenState(userId).catch(() => null),
+    rows(
+      db
+        .from("sukoon_feedback")
+        .select("target_type, target_id, rating, body_text, created_at")
+        .eq("user_id", userId),
+    ),
   ]);
 
   // Chat messages: the user's own conversation transcripts (their data). Fetch
@@ -337,6 +344,7 @@ async function buildExportBundle(
     notification_log: notificationLog,
     garden,
     privacy_audit: privacyAudit,
+    feedback,
   };
 
   return { bundle, entries };

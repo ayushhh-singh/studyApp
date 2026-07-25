@@ -6,6 +6,7 @@ import type { SyllabusNode } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 import { useSyllabusTree } from "@/hooks/use-syllabus-tree";
 import { useAdminStatus } from "@/hooks/use-review";
+import { useSukoonBetaVisible } from "@/sukoon/lib/use-sukoon-beta";
 import { visibleNav } from "@/lib/nav";
 import { useCommandPaletteStore } from "@/stores/command-palette-store";
 
@@ -28,7 +29,8 @@ export function CommandPalette() {
   const navigate = useNavigate();
   const { data: syllabus } = useSyllabusTree();
   const { data: admin } = useAdminStatus();
-  const navItems = visibleNav(admin?.admin_mode ?? false);
+  const sukoonBetaVisible = useSukoonBetaVisible();
+  const navItems = visibleNav(admin?.admin_mode ?? false, sukoonBetaVisible);
 
   const syllabusResults = useMemo(
     // depth 0 rows are paper roots, not real topics — surfaced via the Learn

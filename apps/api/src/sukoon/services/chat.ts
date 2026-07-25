@@ -40,6 +40,7 @@ import { assessMessage } from "./crisis/engine.js";
 import { getSukoonProfile } from "./profile.js";
 import { consumeChatMessage } from "./entitlements.js";
 import { matchSukoonFaq } from "./semantic-cache.js";
+import { recordSukoonEvent } from "./analytics.js";
 import {
   SAATHI_PERSONA,
   MODERATE_CARE_DIRECTIVE,
@@ -381,6 +382,13 @@ export async function executeChatStream(
   const assessment = await assessMessage(userId, content, { signal });
   const level = assessment.level;
   const surface = crisisSurface(level);
+  // Session 14 — aggregate-only crisis-level analytics (never the message
+  // itself): every non-"none" assessment, on every channel, so a safety event
+  // is always counted even when the anti-doom-loop or a downstream throw
+  // short-circuits the rest of this turn.
+  if (level !== "none") {
+    void recordSukoonEvent(userId, "crisis_detected", { level, surface, channel: "text" });
+  }
   // Hand off to humans (no model reply) when EITHER this message is high/critical
   // (the AI never manages a crisis) OR the anti-doom-loop tripped: 3+ high/
   // critical events in the last 24h (assessment.rate_limited, blueprint F3) →
@@ -394,6 +402,7 @@ export async function executeChatStream(
   if (!handoff) {
     const cap = await consumeChatMessage(userId);
     if (!cap.allowed) {
+      void recordSukoonEvent(userId, "cap_hit", { feature: "chat", tier: cap.usage.tier });
       emit("cap", { tier: cap.usage.tier, limit: cap.usage.limit });
       return;
     }

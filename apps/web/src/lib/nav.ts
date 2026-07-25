@@ -25,6 +25,9 @@ export interface NavItem {
   mobilePrimary?: boolean;
   /** Only shown when ADMIN_MODE is on (the question Review Queue). */
   adminOnly?: boolean;
+  /** Only shown while the user is in the SUKOON_BETA_COHORT beta (or it's
+   *  been opened to everyone) — see useSukoonBetaVisible. */
+  betaGated?: boolean;
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -47,7 +50,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
   // Sukoon has its own shell (src/sukoon/shell.tsx) — this just routes there;
   // it's a real Neev nav item, not nested app-shell content.
-  { id: "wellness", to: "sukoon", labelKey: "Nav.wellness", icon: HeartHandshake },
+  { id: "wellness", to: "sukoon", labelKey: "Nav.wellness", icon: HeartHandshake, betaGated: true },
   // The tour's permanent discovery surface — deliberately a real nav item
   // (not buried in Settings) so it's trivially findable on demand at any time.
   { id: "explore", to: "explore", labelKey: "Nav.explore", icon: Compass },
@@ -55,9 +58,9 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "profile", to: "profile", labelKey: "Nav.profile", icon: User },
 ];
 
-/** NAV_ITEMS filtered by admin visibility — pass the resolved ADMIN_MODE flag. */
-export function visibleNav(adminMode: boolean): NavItem[] {
-  return NAV_ITEMS.filter((item) => !item.adminOnly || adminMode);
+/** NAV_ITEMS filtered by admin + Sukoon-beta visibility. */
+export function visibleNav(adminMode: boolean, sukoonBetaVisible = true): NavItem[] {
+  return NAV_ITEMS.filter((item) => (!item.adminOnly || adminMode) && (!item.betaGated || sukoonBetaVisible));
 }
 
 export const MOBILE_PRIMARY_NAV = NAV_ITEMS.filter((item) => item.mobilePrimary);

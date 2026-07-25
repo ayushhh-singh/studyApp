@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import { useJourneys } from "@/sukoon/lib/use-sukoon-journeys";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { JourneyCard } from "@/sukoon/components/journeys/journey-card";
@@ -16,6 +17,7 @@ import { JourneyCard } from "@/sukoon/components/journeys/journey-card";
 export function Component() {
   const { t } = useSukoonLanguage();
   const { session, loading: authLoading } = useAuth();
+  useTrackSukoonFeatureView("journeys");
   const { locale } = useParams<{ locale?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
 

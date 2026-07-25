@@ -28,8 +28,11 @@ const sukoonAppRoutes: RouteObject[] = [
   // Static segments before :journeySlug so they aren't captured as a slug.
   { path: "journeys", lazy: () => import("@/sukoon/pages/journeys") },
   { path: "admin/journeys", lazy: () => import("@/sukoon/pages/admin-journeys") },
+  { path: "admin/feedback", lazy: () => import("@/sukoon/pages/admin-feedback") },
   { path: "journeys/:journeySlug", lazy: () => import("@/sukoon/pages/journey-detail") },
   { path: "journeys/:journeySlug/day", lazy: () => import("@/sukoon/pages/journey-day") },
+  // Session 14 — general app feedback (the beta banner's link + a You settings link).
+  { path: "feedback", lazy: () => import("@/sukoon/pages/feedback") },
 ];
 
 /**

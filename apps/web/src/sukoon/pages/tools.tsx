@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import { useExercises } from "@/sukoon/lib/use-sukoon-exercises";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { ExerciseCard } from "@/sukoon/components/tools/exercise-card";
@@ -39,6 +40,7 @@ function FilterChip({ active, onClick, children }: { active: boolean; onClick: (
 export function Component() {
   const { t } = useSukoonLanguage();
   const { session, loading: authLoading } = useAuth();
+  useTrackSukoonFeatureView("tools");
   const { locale } = useParams<{ locale?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
   const [filter, setFilter] = useState<(typeof FILTERS)[number]>("all");

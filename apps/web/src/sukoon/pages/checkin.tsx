@@ -8,12 +8,14 @@ import { sukoonCheckinTypeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { CheckinFlow } from "@/sukoon/components/checkin/checkin-flow";
 
 export function Component() {
   const { t } = useSukoonLanguage();
   const { session, loading: authLoading } = useAuth();
+  useTrackSukoonFeatureView("checkin");
   const { locale, type } = useParams<{ locale?: string; type?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
 

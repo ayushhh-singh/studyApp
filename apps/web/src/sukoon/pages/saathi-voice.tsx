@@ -19,6 +19,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { ApiError } from "@/lib/api";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import { useSukoonProfile } from "@/sukoon/lib/use-sukoon-profile";
 import { useSukoonOnline } from "@/sukoon/lib/use-sukoon-online";
 import { useAmbientChannel } from "@/sukoon/lib/use-ambient-channel";
@@ -45,6 +46,7 @@ export function Component() {
   const { locale } = useParams<{ locale?: string }>();
   const navigate = useNavigate();
   const { session, loading: authLoading } = useAuth();
+  useTrackSukoonFeatureView("voice");
   const online = useSukoonOnline();
   const base = locale ? `/${locale}/sukoon` : "";
 
@@ -234,6 +236,31 @@ export function Component() {
       </VoiceScreenShell>
     );
   }
+  // A load failure here previously fell through every branch below to a
+  // silent blank screen (`!canUseVoice || !usage` → return null) — usage/
+  // profile can't be assumed present just because isLoading flipped false.
+  if (usageQuery.isError || profileQuery.isError) {
+    return (
+      <VoiceScreenShell base={base} title={t("Sukoon.voice.title")}>
+        <EmptyMessage
+          icon={WifiOff}
+          title={t("Sukoon.voice.loadErrorTitle")}
+          body={t("Sukoon.voice.loadErrorBody")}
+          action={
+            <Button
+              variant="outline"
+              onClick={() => {
+                void usageQuery.refetch();
+                void profileQuery.refetch();
+              }}
+            >
+              {t("Sukoon.pricing.retry")}
+            </Button>
+          }
+        />
+      </VoiceScreenShell>
+    );
+  }
   if (usage && !usage.eligible) {
     return (
       <VoiceScreenShell base={base} title={t("Sukoon.voice.title")}>
@@ -305,7 +332,10 @@ export function Component() {
         <div className="flex w-full flex-1 flex-col items-center justify-center gap-6">
           <VoiceOrb mode={orbMode} level={recorder.level} />
 
-          <div className="flex min-h-8 flex-col items-center gap-1 text-center text-sm font-medium text-muted-foreground">
+          <div
+            className="flex min-h-8 flex-col items-center gap-1 text-center text-sm font-medium text-muted-foreground"
+            aria-live="polite"
+          >
             <span>
               {recorder.state === "recording"
                 ? t("Sukoon.voice.statusListening")

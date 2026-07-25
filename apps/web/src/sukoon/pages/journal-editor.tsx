@@ -285,7 +285,13 @@ export function Component() {
       </div>
 
       {(createMut.isError || updateMut.isError) && (
-        <p className="text-sm text-destructive">{t("Sukoon.journal.needBodyOrMood")}</p>
+        // The save button is already disabled unless canSave (body or mood
+        // present), so a mutation error reaching here is never a validation
+        // failure — it's a real network/server error, and must say so rather
+        // than the stale-copy "write something or pick a mood" message.
+        <p role="alert" className="text-sm text-destructive">
+          {t("Sukoon.journal.saveError")}
+        </p>
       )}
     </div>
   );

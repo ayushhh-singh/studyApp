@@ -15,7 +15,9 @@ import { NotTherapyFooter } from "@/sukoon/components/not-therapy-footer";
 import { CrisisInlineCard } from "@/sukoon/components/crisis-inline-card";
 import { CrisisTakeover } from "@/sukoon/components/crisis-takeover";
 import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
+import { SukoonFeedbackWidget } from "@/sukoon/components/sukoon-feedback-widget";
 import { daysUntil } from "@/sukoon/lib/days-until";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import {
   useSaathiConversations,
   useSaathiHistory,
@@ -57,6 +59,7 @@ export function Component() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { session, loading: authLoading } = useAuth();
   const queryClient = useQueryClient();
+  useTrackSukoonFeatureView("saathi");
 
   const profileQuery = useSukoonProfile({ enabled: !!session });
   const profile = profileQuery.data?.profile ?? null;
@@ -223,8 +226,13 @@ export function Component() {
   // fresh thread — never spins forever: isPending stays true for a disabled
   // query, isLoading is true only while actually fetching.
   const historyLoading = historyQuery.isLoading;
+  // A load failure must never be masked as "start a new chat" — without the
+  // isError guard, an errored historyQuery still flips historyLoading false
+  // with zero messages, which showStarters previously read as a genuinely
+  // fresh/empty thread.
+  const historyFailed = historyQuery.isError && !freshThread;
   const showStarters =
-    messages.length === 0 && !stream.isStreaming && !stream.reply && !historyLoading;
+    messages.length === 0 && !stream.isStreaming && !stream.reply && !historyLoading && !historyFailed;
   const composerDisabled = stream.isStreaming || capReached;
 
   return (
@@ -296,6 +304,15 @@ export function Component() {
           </div>
         ) : null}
 
+        {historyFailed ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="max-w-xs text-sm text-destructive">{t("Sukoon.saathi.historyLoadError")}</p>
+            <Button variant="outline" size="sm" onClick={() => void historyQuery.refetch()}>
+              {t("Sukoon.pricing.retry")}
+            </Button>
+          </div>
+        ) : null}
+
         {showStarters ? (
           <div className="flex flex-col items-center gap-5 py-8 text-center">
             <span className="flex size-14 items-center justify-center rounded-full bg-secondary/15 text-secondary" aria-hidden>
@@ -321,9 +338,16 @@ export function Component() {
 
         {messages.map((m) =>
           m.role === "assistant" ? (
-            <div key={m.id} className="space-y-3">
+            <div key={m.id} className="space-y-2">
               {m.crisis_level === "moderate" ? <CrisisInlineCard /> : null}
               <AssistantBubble text={m.content} />
+              {/* Session 14 — thumbs feedback on every REAL (persisted) reply;
+                  the synthetic "a-<timestamp>" fallback id never round-tripped
+                  to a real message row, so skip it rather than feedback that
+                  can't attach to anything server-side. */}
+              {!m.id.startsWith("a-") ? (
+                <SukoonFeedbackWidget targetType="message" targetId={m.id} className="pl-1" />
+              ) : null}
             </div>
           ) : (
             <UserBubble key={m.id} text={m.content} />

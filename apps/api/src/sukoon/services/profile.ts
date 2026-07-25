@@ -6,6 +6,7 @@ import type {
 import { supabase } from "../../lib/supabase.js";
 import { HttpError } from "../../lib/http-error.js";
 import { SUKOON_CONSENT_VERSION } from "../consent.js";
+import { recordSukoonEvent } from "./analytics.js";
 
 const PROFILE_COLUMNS =
   "user_id, language, exam, exam_attempt, exam_date, restricted_mode, voice_pref, " +
@@ -89,6 +90,12 @@ export async function completeSukoonOnboarding(
     });
     if (checkinError) throw new HttpError(500, `sukoon baseline write failed: ${checkinError.message}`);
   }
+
+  void recordSukoonEvent(userId, "onboarding_completed", {
+    language: body.language,
+    has_who5_baseline: !!body.who5,
+    restricted_mode: !body.age_confirmed_18,
+  });
 
   return data as unknown as SukoonProfile;
 }

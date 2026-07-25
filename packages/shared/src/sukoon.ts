@@ -1865,3 +1865,101 @@ export const sukoonCostSummarySchema = z.object({
 export type SukoonCostSummary = z.infer<typeof sukoonCostSummarySchema>;
 export const sukoonCostSummaryResponseSchema = apiEnvelopeSchema(sukoonCostSummarySchema);
 export type SukoonCostSummaryResponse = z.infer<typeof sukoonCostSummaryResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Session 14 — privacy-aware product analytics (blueprint §7 Session 14). A
+// CLOSED set of event names, never a free-form string — this is what makes the
+// "no journal/chat content ever" rule enforceable at the schema layer rather
+// than by convention alone. Props are validated further server-side
+// (apps/api/src/sukoon/services/analytics.ts sanitizeProps): every value is
+// capped to a short primitive before it reaches sukoon_analytics_events.
+// ---------------------------------------------------------------------------
+
+export const sukoonAnalyticsEventNameSchema = z.enum([
+  "onboarding_step_viewed",
+  "onboarding_completed",
+  "feature_viewed",
+  "cap_hit",
+  "paywall_viewed",
+  "paywall_cta_clicked",
+  "trial_started",
+  "subscription_activated",
+  "crisis_detected",
+  "journey_completed",
+  "feedback_submitted",
+]);
+export type SukoonAnalyticsEventName = z.infer<typeof sukoonAnalyticsEventNameSchema>;
+
+/** A prop value is always a short primitive — never an object/array, never free text. */
+const sukoonAnalyticsPropValueSchema = z.union([z.string().max(80), z.number(), z.boolean(), z.null()]);
+
+export const sukoonAnalyticsEventBodySchema = z.object({
+  name: sukoonAnalyticsEventNameSchema,
+  props: z.record(z.string(), sukoonAnalyticsPropValueSchema).optional().default({}),
+});
+export type SukoonAnalyticsEventBody = z.infer<typeof sukoonAnalyticsEventBodySchema>;
+
+export const sukoonAnalyticsEventResponseSchema = apiEnvelopeSchema(z.object({ ok: z.boolean() }));
+export type SukoonAnalyticsEventResponse = z.infer<typeof sukoonAnalyticsEventResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Session 14 — feedback (thumbs + optional short note) on a Saathi reply, a
+// completed journey, or general app feedback (the beta banner's link).
+// ---------------------------------------------------------------------------
+
+export const sukoonFeedbackTargetTypeSchema = z.enum(["message", "journey", "general"]);
+export type SukoonFeedbackTargetType = z.infer<typeof sukoonFeedbackTargetTypeSchema>;
+
+export const sukoonFeedbackRatingSchema = z.enum(["up", "down"]);
+export type SukoonFeedbackRating = z.infer<typeof sukoonFeedbackRatingSchema>;
+
+export const sukoonFeedbackSubmitBodySchema = z
+  .object({
+    target_type: sukoonFeedbackTargetTypeSchema,
+    target_id: z.string().trim().min(1).max(200).nullable().optional(),
+    rating: sukoonFeedbackRatingSchema.nullable().optional(),
+    body_text: z.string().trim().max(1000).nullable().optional(),
+  })
+  .refine((v) => !!v.rating || !!(v.body_text && v.body_text.length > 0), {
+    message: "Provide a rating or a note",
+  })
+  .refine((v) => v.target_type === "general" || !!v.target_id, {
+    message: "target_id is required for message/journey feedback",
+  });
+export type SukoonFeedbackSubmitBody = z.infer<typeof sukoonFeedbackSubmitBodySchema>;
+
+export const sukoonFeedbackItemSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  target_type: sukoonFeedbackTargetTypeSchema,
+  target_id: z.string().nullable(),
+  rating: sukoonFeedbackRatingSchema.nullable(),
+  body_text: z.string().nullable(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
+export type SukoonFeedbackItem = z.infer<typeof sukoonFeedbackItemSchema>;
+
+export const sukoonFeedbackSubmitResponseSchema = apiEnvelopeSchema(sukoonFeedbackItemSchema);
+export type SukoonFeedbackSubmitResponse = z.infer<typeof sukoonFeedbackSubmitResponseSchema>;
+
+export const sukoonFeedbackAdminListResponseSchema = apiEnvelopeSchema(
+  z.object({
+    items: z.array(sukoonFeedbackItemSchema),
+    total: z.number().int().min(0),
+  }),
+);
+export type SukoonFeedbackAdminListResponse = z.infer<typeof sukoonFeedbackAdminListResponseSchema>;
+
+// ---------------------------------------------------------------------------
+// Session 14 — SUKOON_BETA_COHORT gating. `gating_enabled=false` means the ops
+// kill-switch has been flipped (full launch) — every user reads as in_cohort.
+// ---------------------------------------------------------------------------
+
+export const sukoonBetaStatusSchema = z.object({
+  gating_enabled: z.boolean(),
+  in_cohort: z.boolean(),
+});
+export type SukoonBetaStatus = z.infer<typeof sukoonBetaStatusSchema>;
+export const sukoonBetaStatusResponseSchema = apiEnvelopeSchema(sukoonBetaStatusSchema);
+export type SukoonBetaStatusResponse = z.infer<typeof sukoonBetaStatusResponseSchema>;

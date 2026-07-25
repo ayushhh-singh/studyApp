@@ -12,6 +12,7 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { cn } from "@/lib/utils";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import {
@@ -50,6 +51,7 @@ function currentMonth(): string {
 export function Component() {
   const { t, language } = useSukoonLanguage();
   const { session, loading: authLoading } = useAuth();
+  useTrackSukoonFeatureView("journal");
   // :locale is present in integrated mode (/:locale/sukoon), absent in standalone.
   const { locale } = useParams<{ locale?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
@@ -132,6 +134,17 @@ export function Component() {
 
       {listQuery.isPending ? (
         <ListSkeleton />
+      ) : listQuery.isError ? (
+        <EmptyState
+          icon={NotebookPen}
+          title={t("Sukoon.journal.listLoadErrorTitle")}
+          description={t("Sukoon.journal.listLoadErrorDesc")}
+          action={
+            <Button variant="outline" size="sm" onClick={() => void listQuery.refetch()}>
+              {t("Sukoon.pricing.retry")}
+            </Button>
+          }
+        />
       ) : data && data.entries.length > 0 ? (
         <>
           <div className="space-y-2.5">

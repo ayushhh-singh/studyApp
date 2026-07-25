@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { visibleNav } from "@/lib/nav";
 import { useLocale } from "@/hooks/use-locale";
 import { useAdminStatus } from "@/hooks/use-review";
+import { useSukoonBetaVisible } from "@/sukoon/lib/use-sukoon-beta";
 import { BrandMark } from "@/components/marketing/brand-mark";
 import { cn } from "@/lib/utils";
 
@@ -10,7 +11,8 @@ export function Sidebar() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { data: admin } = useAdminStatus();
-  const navItems = visibleNav(admin?.admin_mode ?? false);
+  const sukoonBetaVisible = useSukoonBetaVisible();
+  const navItems = visibleNav(admin?.admin_mode ?? false, sukoonBetaVisible);
 
   return (
     <nav

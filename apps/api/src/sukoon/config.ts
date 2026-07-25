@@ -19,6 +19,19 @@ function readEnabled(): boolean {
 }
 
 /**
+ * Session 14 launch gate: while true (the default — a fresh beta launch),
+ * only users in sukoon_beta_cohort (or a Neev admin) see the Wellness nav item
+ * / homepage card and are treated as `in_cohort` by GET /beta/status. Ops
+ * flips SUKOON_BETA_COHORT=false once the beta graduates to a full rollout —
+ * at that point every user reads as in_cohort, with no code change or table
+ * edit needed (mirrors SUKOON_ENABLED's "off unless explicitly disabled" shape,
+ * just inverted: this one is "gated unless explicitly opened").
+ */
+function readBetaCohortGating(): boolean {
+  return process.env.SUKOON_BETA_COHORT !== "false";
+}
+
+/**
  * Dev-only tooling (the /dev/crisis assessment probe, blueprint F3). ON when
  * SUKOON_DEV_TOOLS=true OR whenever we're not in production — so it's available
  * for local/staging testing but a plain production boot never exposes it unless
@@ -59,4 +72,5 @@ export const sukoonConfig = {
   enabled: readEnabled(),
   devTools: readDevTools(),
   ttsProvider: readTtsProvider(),
+  betaCohortGating: readBetaCohortGating(),
 };

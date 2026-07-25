@@ -7,6 +7,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useAdminStatus } from "@/hooks/use-review";
 import { useSrsStats } from "@/hooks/use-srs";
+import { useSukoonBetaVisible } from "@/sukoon/lib/use-sukoon-beta";
 import { MOBILE_MORE_NAV, MOBILE_PRIMARY_NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
@@ -37,7 +38,10 @@ export function BottomTabBar() {
   // there. matches Tailwind's own `md` breakpoint (768px) exactly.
   const isMobile = useMediaQuery("(max-width: 767px)");
   const { data: srsStats } = useSrsStats({ enabled: isMobile });
-  const moreItems = MOBILE_MORE_NAV.filter((item) => !item.adminOnly || admin?.admin_mode);
+  const sukoonBetaVisible = useSukoonBetaVisible();
+  const moreItems = MOBILE_MORE_NAV.filter(
+    (item) => (!item.adminOnly || admin?.admin_mode) && (!item.betaGated || sukoonBetaVisible),
+  );
 
   const moreActive = moreItems.some((item) => location.pathname.includes(`/${item.to}`));
 

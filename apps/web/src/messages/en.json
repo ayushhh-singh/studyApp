@@ -1686,6 +1686,8 @@
       "activating": "Confirming your plan… this takes a moment.",
       "paymentCancelled": "Payment cancelled — no charge was made.",
       "orderError": "Something went wrong opening checkout. Please try again.",
+      "loadError": "Couldn't load plans — please check your connection and try again.",
+      "retry": "Try again",
       "bundlePrice": "with your Neev plan",
       "bundleStrip": "You're on a Neev plan — Sukoon Plus & Pro are {{pct}}% off, applied at checkout.",
       "trialTitle": "Try Pro free for 7 days",
@@ -1777,6 +1779,7 @@
       "newChat": "New chat",
       "history": "History",
       "historyEmpty": "No past chats yet.",
+      "historyLoadError": "Couldn't load this chat — please try again.",
       "untitledChat": "New chat",
       "loading": "Loading",
       "welcome": "I'm here whenever you want to talk. What's on your mind?",
@@ -1827,6 +1830,8 @@
       "seePlans": "See plans",
       "unsupportedTitle": "Voice mode isn't available here",
       "unsupportedBody": "This browser or connection doesn't support microphone recording. Typed chat with Saathi always works.",
+      "loadErrorTitle": "Couldn't load voice mode",
+      "loadErrorBody": "Something went wrong loading your voice minutes. Please check your connection and try again.",
       "permissionDenied": "Microphone access is blocked. Enable it in your browser's site settings, then try again.",
       "offlineNotice": "You're offline — voice mode needs an internet connection.",
       "errorGeneric": "That didn't go through — please try again.",
@@ -1888,6 +1893,8 @@
       },
       "listEmptyTitle": "Your journal is empty",
       "listEmptyDesc": "Write your first entry — a line is enough.",
+      "listLoadErrorTitle": "Couldn't load your journal",
+      "listLoadErrorDesc": "Please check your connection and try again.",
       "listEmptyFilteredTitle": "Nothing matches these filters",
       "listEmptyFilteredDesc": "Try clearing a filter to see more.",
       "filters": "Filters",
@@ -1942,6 +1949,7 @@
       "exportGeneratedOn": "Exported {{date}}",
       "emptyBody": "(mood-only entry)",
       "needBodyOrMood": "Write something or pick a mood to save.",
+      "saveError": "Couldn't save your entry — please check your connection and try again.",
       "reflectNeedsBody": "Write a little first, then Saathi can reflect."
     },
     "toolsTitle": "Tools",
@@ -2083,6 +2091,7 @@
       "subtitle": "A 10-second check-in. Everything past the mood scale is optional.",
       "homeTitle": "Today's check-in",
       "viewTrends": "See trends",
+      "todayLoadError": "Couldn't check today's entry — saving now might create a duplicate.",
       "scoreLabel": "Your mood right now",
       "addMoreDetail": "Add more detail (optional)",
       "emotionsLabel": "What's behind it?",
@@ -2259,6 +2268,7 @@
         "navLink": "Manage guided journeys",
         "deniedTitle": "Admins only",
         "deniedBody": "You don't have access to this page.",
+        "loadError": "Couldn't check admin access — please try again.",
         "queueTitle": "All journeys",
         "newJourney": "New journey",
         "emptyQueue": "No journeys yet — paste one below to create the first.",
@@ -2277,6 +2287,17 @@
         "issuesTitle": "Issues found",
         "previewTitle": "Preview (Hindi / English)",
         "noFields": "No text fields on this step."
+      },
+      "feedback": {
+        "title": "Beta feedback",
+        "sub": "{{count}} responses from the feedback widget.",
+        "navLink": "View beta feedback",
+        "loadError": "Couldn't load feedback — please try again.",
+        "emptyTitle": "No feedback yet",
+        "emptyBody": "Thumbs and notes from Saathi replies, journeys and the feedback page will show up here.",
+        "target_message": "Saathi reply",
+        "target_journey": "Journey",
+        "target_general": "General"
       }
     },
     "checkin": {
@@ -2343,6 +2364,24 @@
       "optInDesc": "A warm summary of your week, delivered every Sunday.",
       "deepLabel": "Deeper reflection",
       "deepDesc": "Let your reflection also draw on your journal entries, not just your mood and activity. Your entries stay private and are never stored in the reflection."
+    },
+    "feedback": {
+      "helpful": "Helpful",
+      "notHelpful": "Not helpful",
+      "addNote": "+ add a note",
+      "notePlaceholder": "Anything you'd like to add? (optional)",
+      "send": "Send feedback",
+      "thanks": "Thanks for letting us know.",
+      "journeyPrompt": "How was this journey?",
+      "generalPrompt": "Tell us what's working, or what isn't.",
+      "pageTitle": "Feedback",
+      "pageSub": "We read every note — thank you for helping shape Sukoon.",
+      "navLink": "Send feedback"
+    },
+    "beta": {
+      "bannerText": "You're in the Sukoon beta.",
+      "bannerLink": "Give feedback",
+      "bannerDismiss": "Dismiss"
     }
   }
 }

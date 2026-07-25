@@ -16,6 +16,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
+import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import {
   useMoodToday,
   useCreateMoodEntry,
@@ -53,6 +54,7 @@ function ChoiceChip({
 export function Component() {
   const { t, language } = useSukoonLanguage();
   const { session, loading: authLoading } = useAuth();
+  useTrackSukoonFeatureView("mood");
   const { locale } = useParams<{ locale?: string }>();
   const base = locale ? `/${locale}/sukoon` : "";
 
@@ -146,6 +148,19 @@ export function Component() {
           </Button>
         }
       />
+
+      {/* Non-blocking: the form below still works without today's data (a new
+          entry doesn't need it) — this only warns that an EXISTING entry for
+          today couldn't be checked, so a save might create a duplicate rather
+          than editing it in place. */}
+      {todayQuery.isError ? (
+        <p className="rounded-xl border border-destructive/40 bg-destructive/10 px-3.5 py-2.5 text-xs text-destructive">
+          {t("Sukoon.mood.todayLoadError")}{" "}
+          <button type="button" className="underline underline-offset-2" onClick={() => void todayQuery.refetch()}>
+            {t("Sukoon.pricing.retry")}
+          </button>
+        </p>
+      ) : null}
 
       <SectionCard title={t("Sukoon.mood.scoreLabel")}>
         {/* MoodPicker toggles OFF (onChange(null)) when its active option is

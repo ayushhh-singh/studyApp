@@ -1,9 +1,11 @@
+import { useEffect, useRef } from "react";
 import { useNavigate, useParams } from "react-router";
 import { Sparkles, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useSukoonPaywallStore } from "@/sukoon/stores/sukoon-paywall-store";
+import { useRecordSukoonEvent } from "@/sukoon/lib/use-sukoon-analytics";
 import {
   useSukoonEntitlements,
   useStartSukoonTrial,
@@ -27,6 +29,18 @@ export function SukoonPaywall() {
   const open = useSukoonPaywallStore((s) => s.open);
   const feature = useSukoonPaywallStore((s) => s.feature);
   const close = useSukoonPaywallStore((s) => s.close);
+  const recordEvent = useRecordSukoonEvent();
+
+  // Session 14 — one `paywall_viewed` per genuine open (not on close/re-render).
+  const lastOpenedFor = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || lastOpenedFor.current === feature) return;
+    lastOpenedFor.current = feature;
+    recordEvent("paywall_viewed", { feature });
+  }, [open, feature, recordEvent]);
+  useEffect(() => {
+    if (!open) lastOpenedFor.current = null;
+  }, [open]);
 
   const entQuery = useSukoonEntitlements({ enabled: open });
   const ent = entQuery.data ?? null;
@@ -38,11 +52,13 @@ export function SukoonPaywall() {
   const discountPct = ent?.bundle_discount_pct ?? 40;
 
   const goPlans = () => {
+    recordEvent("paywall_cta_clicked", { feature, cta: "see_plans" });
     close();
     navigate(`${base}/pricing`);
   };
 
   const onStartTrial = () => {
+    recordEvent("paywall_cta_clicked", { feature, cta: "start_trial" });
     startTrial.mutate(undefined, {
       onSuccess: () => {
         refresh();

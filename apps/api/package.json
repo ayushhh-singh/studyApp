@@ -58,6 +58,8 @@
     "sukoon:weekly-insights": "tsx --env-file-if-exists=.env scripts/sukoon-weekly-insights.ts",
     "sukoon:notifications:run": "tsx --env-file-if-exists=.env scripts/sukoon-notifications-run.ts",
     "sukoon:purge": "tsx --env-file-if-exists=.env scripts/sukoon-purge.ts",
+    "sukoon:beta:cohort": "tsx --env-file-if-exists=.env scripts/sukoon-beta-cohort.ts",
+    "sukoon:analytics:report": "tsx --env-file-if-exists=.env scripts/sukoon-analytics-report.ts",
     "demo:seed": "tsx --env-file-if-exists=.env scripts/seed-demo-account.ts",
     "trial-abuse:report": "tsx --env-file-if-exists=.env scripts/trial-abuse-report.ts",
     "og:generate": "tsx scripts/generate-marketing-og.ts",

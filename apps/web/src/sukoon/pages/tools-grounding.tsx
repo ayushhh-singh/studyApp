@@ -93,7 +93,7 @@ function GroundingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
         </div>
       ) : (
         <div className="flex flex-col gap-5">
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex items-center justify-center gap-1.5" aria-hidden>
             {steps.map((_, i) => (
               <span
                 key={i}
@@ -104,6 +104,9 @@ function GroundingPlayer({ exercise }: { exercise: Extract<SukoonExercise, { typ
               />
             ))}
           </div>
+          <p className="sr-only" aria-live="polite">
+            {t("Sukoon.onboarding.stepProgress", { current: stepIdx + 1, total: steps.length })}
+          </p>
 
           {steps[stepIdx] ? (
             <div className="flex flex-col items-center gap-4 rounded-2xl border border-border bg-card p-6 text-center">

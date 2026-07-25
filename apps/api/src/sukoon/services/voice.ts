@@ -53,6 +53,7 @@ import { streamChat, type PromptSegment } from "../../lib/anthropic.js";
 import { assessMessage } from "./crisis/engine.js";
 import { matchSukoonFaq } from "./semantic-cache.js";
 import { consumeVoiceSeconds, getVoiceUsage, getSukoonTier } from "./entitlements.js";
+import { recordSukoonEvent } from "./analytics.js";
 import { transcribeVoiceTurn } from "../lib/stt.js";
 import { getTtsProvider } from "../lib/tts.js";
 import {
@@ -121,6 +122,7 @@ export async function planVoiceTurn(
   const pre = await preflightConversation(userId, conversationId);
   const tier = await getSukoonTier(userId);
   if (tier !== "pro") {
+    void recordSukoonEvent(userId, "cap_hit", { feature: "voice_pro", tier });
     throw new HttpError(402, "Voice Mode is a Sukoon Pro feature.", { feature: "sukoon_voice_pro" });
   }
   return pre;
@@ -167,6 +169,9 @@ export async function executeVoiceTurn(
   const assessment = await assessMessage(userId, transcript, { signal });
   const level = assessment.level;
   const surface = crisisSurface(level);
+  if (level !== "none") {
+    void recordSukoonEvent(userId, "crisis_detected", { level, surface, channel: "voice" });
+  }
   const handoff = surface === "takeover" || assessment.rate_limited;
 
   if (handoff) {
@@ -195,6 +200,7 @@ export async function executeVoiceTurn(
   //    be generated and spoken (see file header for why this isn't step 1).
   const usageBefore = await getVoiceUsage(userId);
   if (usageBefore.remaining_seconds <= 0) {
+    void recordSukoonEvent(userId, "cap_hit", { feature: "voice_minutes", tier: usageBefore.tier });
     throw new HttpError(
       402,
       "You've used all your voice minutes for this month — they refresh on the 1st. Typed chat is always here.",

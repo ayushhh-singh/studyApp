@@ -31,6 +31,7 @@ import { logger } from "../../lib/logger.js";
 import { createRazorpayOrder, razorpayKeyId } from "../../lib/razorpay.js";
 import { getSukoonEntitlements, hasUsedSukoonTrial } from "./entitlements.js";
 import { hasActivePaidNeevPlan, getNeevDisplayName } from "../lib/neev-bridge.js";
+import { recordSukoonEvent } from "./analytics.js";
 
 const PLAN_COLUMNS =
   "id, code, tier, name_i18n, description_i18n, price_paise, currency, interval, interval_count, bundle_discount_pct, is_intro, sort_order";
@@ -205,6 +206,7 @@ export async function startSukoonTrial(userId: string): Promise<SukoonSubscripti
     throw new HttpError(500, `sukoon trial start failed: ${error.message}`);
   }
   logger.info({ userId, until: periodEnd.toISOString() }, "sukoon: started 7-day Pro trial");
+  void recordSukoonEvent(userId, "trial_started", {});
   return data as SukoonSubscription;
 }
 
@@ -315,6 +317,7 @@ async function activate(sub: SubRow, paymentId: string | undefined, now: Date): 
     .eq("id", sub.id);
   if (error) throw new HttpError(500, `sukoon subscription activate failed: ${error.message}`);
   logger.info({ userId: sub.user_id, subId: sub.id, tier: sub.tier, until: periodEnd.toISOString() }, "sukoon billing: activated");
+  void recordSukoonEvent(sub.user_id, "subscription_activated", { tier: sub.tier });
 }
 
 /** Renewal (defensive — order-based has no autopay, so this rarely fires). */

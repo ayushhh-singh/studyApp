@@ -25,6 +25,7 @@ import { useExercises } from "@/sukoon/lib/use-sukoon-exercises";
 import { toolPlayerPath } from "@/sukoon/lib/tool-icons";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { CompletionScreen } from "@/sukoon/components/tools/completion-screen";
+import { SukoonFeedbackWidget } from "@/sukoon/components/sukoon-feedback-widget";
 
 export function Component() {
   const { t, language } = useSukoonLanguage();
@@ -144,6 +145,13 @@ export function Component() {
           description={t("Sukoon.journeys.completeBody")}
           onDone={() => navigate(`${base}/journeys`)}
           doneLabel={t("Sukoon.journeys.backToJourneys")}
+        />
+        <SukoonFeedbackWidget
+          targetType="journey"
+          targetId={slug}
+          variant="full"
+          prompt={t("Sukoon.feedback.journeyPrompt")}
+          className="rounded-2xl border border-border bg-card p-4"
         />
         {progress?.reflection ? (
           <div className="rounded-2xl border border-secondary/40 bg-secondary/10 p-4">

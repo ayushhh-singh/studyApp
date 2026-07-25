@@ -2,8 +2,8 @@
  * Sukoon F12 — About (/sukoon/you/about). Carries the Play-Store-ready,
  * bilingual "what Sukoon is / is not" disclaimer, crisis resources, and a link
  * to the Privacy Center. Copy here is deliberately wellness-framed — it never
- * presents Sukoon in clinical terms (SUKOON_CONTEXT; enforced by the
- * clinical-language CI guard).
+ * presents Sukoon in clinical terms (SUKOON_CONTEXT; enforced by the clinical-words-allow
+ * clinical-language CI guard). clinical-words-allow
  */
 import { Link, useParams } from "react-router";
 import { Heart, ShieldCheck, LifeBuoy } from "lucide-react";
