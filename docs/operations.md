@@ -614,10 +614,20 @@ per-page HTML — e.g. the AI Mentor feature page's prerendered snapshot is
 FAQPage JSON-LD baked into the raw HTML, versus the 1,694-byte generic shell
 a plain build produces) — **but this local/`wrangler pages dev` verification
 was ALSO true of the previous `build:ci`-based fix attempt, and that one
-still didn't work live**, so treat this as fixed-and-deployed but
-**NOT YET CONFIRMED against real production** until someone re-runs the live
-content check (real browser, check raw `<title>`/JSON-LD, not just status
-code) after the next Cloudflare deploy completes. **Vercel's `vercel.json`
+still didn't work live** (its `postbuild.mjs` used `execSync`, which threw
+and failed the whole Cloudflare build the moment the chromium install failed,
+blocking the deploy entirely — fixed by wrapping both steps in try/catch and
+always exiting 0, so a missing enhancement can never take the deploy down
+with it; see the CLAUDE.md TODO entry for the full story).
+
+**CONFIRMED LIVE, 2026-07-26**, after that fix's own deploy: a real `curl`
+against production (following the 308 redirect Cloudflare now correctly
+applies to e.g. `/en/about` → `/en/about/` — itself proof a real prerendered
+directory exists at that path, which it didn't before) shows every one of 16
+spot-checked public URLs across both locales — the 7 pre-existing pages plus
+all 9 new `/features` pages — serving its correct, distinct, per-page
+`<title>` in the raw HTML. This is no longer a "should work" claim, it's a
+directly observed one. **Vercel's `vercel.json`
 still deliberately does NOT run it** — that path is the documented paid-tier
 fallback, not the current deploy target (see its own file comment), and its
 more locked-down managed image made this a real risk when it was last
