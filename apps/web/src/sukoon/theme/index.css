@@ -286,3 +286,62 @@
 .sukoon-garden-sway {
   animation: sukoon-garden-sway 6s ease-in-out infinite;
 }
+
+/* ------------------------------------------------------------------ *
+ *  F10 Voice Orb — the emotional centrepiece of Voice Mode. Each phase
+ *  of a turn gets a visually DISTINCT, breathing-paced motion so the
+ *  person always knows whose turn it is:
+ *    idle     → a slow resting breath (alive, waiting for you)
+ *    listening→ amplitude-driven inline (see voice-orb.tsx) + ripples
+ *    thinking → a calm rotating shimmer (Saathi is gathering words)
+ *    speaking → a warm rhythmic swell + equaliser (Saathi is replying)
+ *  Every rule below is an `animation`, so index.css's global
+ *  prefers-reduced-motion override neutralises them automatically — a
+ *  reduced-motion user gets a still, calm orb, never a frozen-mid-pop one
+ *  (all breathe/speak keyframes rest at scale(1), so switching phases
+ *  eases rather than jumps). Teal accent only — voice is crisis-adjacent,
+ *  so the design doc's joy/coral vibrancy is deliberately absent here. */
+
+/* Idle: a slow, deep resting breath on the soft halo/rings. */
+@keyframes sukoon-orb-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.5; }
+  50% { transform: scale(1.07); opacity: 0.8; }
+}
+.sukoon-orb-breathe { animation: sukoon-orb-breathe 5.5s ease-in-out infinite; }
+
+/* Idle core: a gentler, tighter breath on the solid disc, in phase. */
+@keyframes sukoon-orb-core {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.035); }
+}
+.sukoon-orb-core { animation: sukoon-orb-core 5.5s ease-in-out infinite; }
+
+/* Listening: soft rings that expand and fade outward, staggered, so an active
+   mic reads as "I'm hearing you" beneath the live amplitude swell. */
+@keyframes sukoon-orb-ripple {
+  0% { transform: scale(0.82); opacity: 0.45; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+.sukoon-orb-ripple { animation: sukoon-orb-ripple 2.6s ease-out infinite; }
+
+/* Thinking: a calm, slow sweep around the ring — a shimmer, not a spinner. */
+@keyframes sukoon-orb-sweep {
+  to { transform: rotate(360deg); }
+}
+.sukoon-orb-sweep { animation: sukoon-orb-sweep 7s linear infinite; }
+
+/* Speaking: a warmer, quicker swell than the idle breath, so "Saathi is
+   replying" feels alive and distinct from the resting state — still soft. */
+@keyframes sukoon-orb-speak {
+  0%, 100% { transform: scale(1); opacity: 0.6; }
+  50% { transform: scale(1.13); opacity: 0.92; }
+}
+.sukoon-orb-speak { animation: sukoon-orb-speak 1.7s ease-in-out infinite; }
+
+/* Speaking core: three equaliser bars rising/falling in offset phase — a
+   gentle "voice" motif, slowed to a calm cadence (per-bar delay set inline). */
+@keyframes sukoon-orb-eq {
+  0%, 100% { transform: scaleY(0.35); }
+  50% { transform: scaleY(1); }
+}
+.sukoon-orb-eq { animation: sukoon-orb-eq 1.1s ease-in-out infinite; transform-origin: center; }

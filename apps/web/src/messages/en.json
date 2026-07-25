@@ -1824,6 +1824,7 @@
     "voice": {
       "title": "Voice mode",
       "statusIdle": "Hold the mic and tell me what's on your mind.",
+      "statusPreparing": "Getting your mic ready…",
       "statusListening": "Listening…",
       "statusThinking": "Saathi is thinking…",
       "statusSlow": "Still thinking — check your connection?",
@@ -1834,6 +1835,7 @@
       "releaseToSend": "Release to send",
       "holdHint": "Hold the button and speak",
       "tapHint": "Tap once to start, tap again to send",
+      "micPrivacyHint": "Saathi hears you only while you hold — nothing is recorded otherwise.",
       "switchToTap": "Prefer tap-to-talk?",
       "switchToHold": "Switch to hold-to-talk",
       "showCaptions": "Show captions",

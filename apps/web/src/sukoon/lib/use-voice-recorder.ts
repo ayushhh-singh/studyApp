@@ -17,7 +17,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { SUKOON_VOICE_MAX_TURN_SECONDS, type SukoonVoiceAudioMime } from "@neev/shared";
 
 export type RecorderPermission = "unknown" | "granted" | "denied" | "unsupported";
-export type RecorderState = "idle" | "recording" | "processing";
+// `preparing` = getUserMedia has been requested but hasn't resolved yet (the OS/
+// browser permission prompt can stay open for real seconds). Surfacing it lets
+// the UI say "getting your mic ready" instead of looking frozen during that gap.
+export type RecorderState = "idle" | "preparing" | "recording" | "processing";
 
 export interface VoiceRecordingResult {
   blob: Blob;
@@ -128,6 +131,8 @@ export function useVoiceRecorder(onComplete: (result: VoiceRecordingResult) => v
     // AudioContext with no component left alive to ever call cancel() again —
     // a real dangling-microphone leak, not just a stale-state no-op.
     const myGeneration = ++generationRef.current;
+    // Show "preparing" for the (potentially multi-second) permission-prompt gap.
+    setState("preparing");
 
     let stream: MediaStream;
     try {
@@ -136,11 +141,13 @@ export function useVoiceRecorder(onComplete: (result: VoiceRecordingResult) => v
       if (generationRef.current !== myGeneration) return;
       const name = err instanceof DOMException ? err.name : "";
       setPermission(name === "NotFoundError" || name === "NotSupportedError" ? "unsupported" : "denied");
+      setState("idle");
       return;
     }
     if (generationRef.current !== myGeneration) {
-      // Superseded while awaiting permission — release the stream immediately
-      // and do nothing else (no refs to set, no recorder to build).
+      // Superseded while awaiting permission (cancel/unmount, or the user let go
+      // during a tap/hold) — release the stream immediately and do nothing else.
+      // cancel() has already reset `state` to idle for us.
       stream.getTracks().forEach((t) => t.stop());
       return;
     }

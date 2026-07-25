@@ -72,7 +72,9 @@ export function Component() {
   const audioElRef = useRef<HTMLAudioElement | null>(null);
   const deviceSupported = useMemo(deviceSupportsRecording, []);
 
-  useAmbientChannel("rain", ambientOn, 0.22);
+  // Ambient bed sits UNDER the conversation, never competing with it: duck it
+  // while Saathi is actually speaking so the reply is never fighting the rain.
+  useAmbientChannel("rain", ambientOn, isSpeaking ? 0.09 : 0.2);
 
   const turnMutation = useVoiceTurn();
 
@@ -173,8 +175,12 @@ export function Component() {
   }, [interactionMode, busy, recorder, resetTurnState]);
 
   const handleRelease = useCallback(() => {
-    if (interactionMode !== "hold" || recorder.state !== "recording") return;
-    recorder.stop();
+    if (interactionMode !== "hold") return;
+    // Released mid-recording → send it. Released while the mic is still being
+    // prepared (permission prompt not yet answered) → abandon the pending start
+    // rather than silently begin a recording the user is no longer holding for.
+    if (recorder.state === "recording") recorder.stop();
+    else if (recorder.state === "preparing") recorder.cancel();
   }, [interactionMode, recorder]);
 
   const handleTap = useCallback(() => {
@@ -337,15 +343,17 @@ export function Component() {
             aria-live="polite"
           >
             <span>
-              {recorder.state === "recording"
-                ? t("Sukoon.voice.statusListening")
-                : phase === "processing"
-                  ? t("Sukoon.voice.statusThinking")
-                  : isSpeaking
-                    ? t("Sukoon.voice.statusSpeaking")
-                    : phase === "idle" && !transcript
-                      ? t("Sukoon.voice.statusIdle")
-                      : null}
+              {recorder.state === "preparing"
+                ? t("Sukoon.voice.statusPreparing")
+                : recorder.state === "recording"
+                  ? t("Sukoon.voice.statusListening")
+                  : phase === "processing"
+                    ? t("Sukoon.voice.statusThinking")
+                    : isSpeaking
+                      ? t("Sukoon.voice.statusSpeaking")
+                      : phase === "idle" && !transcript
+                        ? t("Sukoon.voice.statusIdle")
+                        : null}
             </span>
             {phase === "processing" && slowNetwork ? (
               <span className="flex items-center gap-1.5 text-xs text-muted-foreground/80">
@@ -439,7 +447,7 @@ export function Component() {
           >
             {recorder.state === "recording" ? (
               <Square className="size-6" aria-hidden />
-            ) : phase === "processing" ? (
+            ) : phase === "processing" || recorder.state === "preparing" ? (
               <Loader2 className="size-6 animate-spin" aria-hidden />
             ) : (
               <Mic className="size-6" aria-hidden />
@@ -449,6 +457,15 @@ export function Component() {
           <p className="text-xs text-muted-foreground">
             {interactionMode === "hold" ? t("Sukoon.voice.holdHint") : t("Sukoon.voice.tapHint")}
           </p>
+
+          {/* First-time reassurance: the OS mic prompt is about to appear, so
+              say plainly what the mic is for before it does. Hides once access
+              has been granted (or explicitly blocked, which has its own copy). */}
+          {recorder.permission === "unknown" && !permissionBlocked ? (
+            <p className="max-w-xs text-center text-xs leading-relaxed text-muted-foreground/80">
+              {t("Sukoon.voice.micPrivacyHint")}
+            </p>
+          ) : null}
 
           <div className="flex items-center gap-4">
             <button
