@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Info, HelpCircle, Mail, ChevronRight } from "lucide-react";
+import { Info, HelpCircle, Mail, ChevronRight, FileText, ShieldCheck, ReceiptIndianRupee } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { useLocale } from "@/hooks/use-locale";
 import { SUPPORT_EMAIL } from "@/components/marketing/footer";
@@ -40,6 +40,39 @@ export function HelpAboutCard() {
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="text-sm font-medium">{t("Profile.helpFaq")}</span>
             <span className="text-xs text-muted-foreground">{t("Profile.helpFaqHint")}</span>
+          </span>
+          <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+
+        <Link to={`/${locale}/terms`} className={rowClass}>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <FileText className="size-4.5" aria-hidden />
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-medium">{t("Profile.helpTerms")}</span>
+            <span className="text-xs text-muted-foreground">{t("Profile.helpTermsHint")}</span>
+          </span>
+          <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+
+        <Link to={`/${locale}/privacy`} className={rowClass}>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-tulsi/15 text-tulsi-foreground">
+            <ShieldCheck className="size-4.5" aria-hidden />
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-medium">{t("Profile.helpPrivacy")}</span>
+            <span className="text-xs text-muted-foreground">{t("Profile.helpPrivacyHint")}</span>
+          </span>
+          <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </Link>
+
+        <Link to={`/${locale}/refund`} className={rowClass}>
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-coral/15 text-coral">
+            <ReceiptIndianRupee className="size-4.5" aria-hidden />
+          </span>
+          <span className="flex min-w-0 flex-col gap-0.5">
+            <span className="text-sm font-medium">{t("Profile.helpRefund")}</span>
+            <span className="text-xs text-muted-foreground">{t("Profile.helpRefundHint")}</span>
           </span>
           <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Link>

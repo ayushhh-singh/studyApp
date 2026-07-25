@@ -9,8 +9,9 @@
  *
  * Public routes today: /:locale (the landing page), /:locale/pricing (moved
  * out of requireAuth so it's reachable signed-out — see router.tsx and
- * CLAUDE.md's TODO history), and /:locale/about + /:locale/faq (the trust/
- * accuracy story and support surfaces). Every other route stays behind
+ * CLAUDE.md's TODO history), /:locale/about + /:locale/faq (the trust/
+ * accuracy story and support surfaces), and the legal pages /:locale/terms,
+ * /:locale/privacy, /:locale/refund. Every other route stays behind
  * requireAuth and has no reason to be indexed or snapshotted.
  *
  * Run via `pnpm --filter web prerender` AFTER `pnpm --filter web build` —
@@ -24,7 +25,22 @@ import path from "node:path";
 
 const DIST = path.resolve(import.meta.dirname, "..", "dist");
 const PORT = 4321;
-const ROUTES = ["/en", "/hi", "/en/pricing", "/hi/pricing", "/en/about", "/hi/about", "/en/faq", "/hi/faq"];
+const ROUTES = [
+  "/en",
+  "/hi",
+  "/en/pricing",
+  "/hi/pricing",
+  "/en/about",
+  "/hi/about",
+  "/en/faq",
+  "/hi/faq",
+  "/en/terms",
+  "/hi/terms",
+  "/en/privacy",
+  "/hi/privacy",
+  "/en/refund",
+  "/hi/refund",
+];
 
 const MIME = {
   ".js": "text/javascript",
