@@ -1,4 +1,4 @@
-import { ShieldCheck, Lock, Info, MessageSquareHeart } from "lucide-react";
+import { ShieldCheck, Lock, Info, MessageSquareHeart, LifeBuoy } from "lucide-react";
 import { Link, useParams } from "react-router";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { useAuth } from "@/providers/auth-provider";
@@ -54,6 +54,13 @@ export function Component() {
           >
             <Lock className="size-4 text-secondary" aria-hidden />
             {t("Sukoon.privacy.navLink")}
+          </Link>
+          <Link
+            to={`${base}/you/support`}
+            className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors duration-300 hover:border-secondary/50"
+          >
+            <LifeBuoy className="size-4 text-secondary" aria-hidden />
+            {t("Sukoon.support.navLink")}
           </Link>
           <Link
             to={`${base}/you/about`}

@@ -27,6 +27,7 @@ const sukoonAppRoutes: RouteObject[] = [
   { path: "you", lazy: () => import("@/sukoon/pages/you") },
   { path: "you/privacy", lazy: () => import("@/sukoon/pages/you-privacy") },
   { path: "you/about", lazy: () => import("@/sukoon/pages/you-about") },
+  { path: "you/support", lazy: () => import("@/sukoon/pages/you-support") },
   { path: "checkin/:type", lazy: () => import("@/sukoon/pages/checkin") },
   { path: "pricing", lazy: () => import("@/sukoon/pages/pricing") },
   // Static segments before :journeySlug so they aren't captured as a slug.

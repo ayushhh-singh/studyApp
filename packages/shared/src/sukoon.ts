@@ -203,8 +203,10 @@ export const SUKOON_HELPLINES: readonly SukoonHelpline[] = [
     id: "vandrevala",
     name_hi: "वंद्रेवाला फ़ाउंडेशन",
     name_en: "Vandrevala Foundation",
-    phone: "1860-2662-345",
-    tel: "18602662345",
+    // Current number verified against the foundation's official contact page
+    // (2026-07); the old 1860-2662-345 line is retired.
+    phone: "9999-666-555",
+    tel: "9999666555",
     note_hi: "24×7 · कॉल और व्हाट्सएप",
     note_en: "24×7 · call & WhatsApp",
   },
@@ -234,6 +236,78 @@ export const SUKOON_HELPLINES: readonly SukoonHelpline[] = [
     tel: "112",
     note_hi: "तुरंत ख़तरे में",
     note_en: "immediate danger",
+  },
+] as const;
+
+/**
+ * The "Find real support" directory (the /sukoon/you/support page) — a calm,
+ * NON-urgent bridge to ongoing support from a real, trained person, distinct
+ * from the crisis-moment SUKOON_HELPLINES above. Sukoon only points the way:
+ * every row is an outbound `url` and/or a `tel:` link — Sukoon never books,
+ * brokers, or sits in the conversation. `group` splits the two calm sections:
+ *   - "helpline"  — free, ongoing phone/chat support run by a trained person;
+ *   - "directory" — a find-a-professional directory maintained by another org.
+ * All contact details verified against each org's official page (2026-07). As
+ * with the helplines, these are public services, not secrets. Wellness-framed
+ * copy only (SUKOON_CONTEXT hard rules; no clinical vocabulary).
+ */
+export interface SukoonSupportResource {
+  id: string;
+  name_hi: string;
+  name_en: string;
+  note_hi: string;
+  note_en: string;
+  /** Human-readable phone, when the resource is dialable (e.g. "9152987821"). */
+  phone?: string;
+  /** Dialable digits for a `tel:` link (no spaces/dashes). */
+  tel?: string;
+  /** Outbound website — opens in a new tab. */
+  url?: string;
+  group: "helpline" | "directory";
+}
+
+export const SUKOON_SUPPORT_RESOURCES: readonly SukoonSupportResource[] = [
+  {
+    id: "tele_manas",
+    name_hi: "टेली-मानस (सरकारी हेल्पलाइन)",
+    name_en: "Tele-MANAS (Govt. helpline)",
+    phone: "14416",
+    tel: "14416",
+    url: "https://telemanas.mohfw.gov.in/home",
+    note_hi: "मुफ़्त · 24×7 · ~20 भारतीय भाषाएँ",
+    note_en: "Free · 24×7 · ~20 Indian languages",
+    group: "helpline",
+  },
+  {
+    id: "icall",
+    name_hi: "iCALL (टीआईएसएस)",
+    name_en: "iCALL (TISS)",
+    phone: "9152987821",
+    tel: "9152987821",
+    url: "https://icallhelpline.org",
+    note_hi: "मुफ़्त फ़ोन व ईमेल सहायता · सोम–शनि, सुबह 10 – रात 8",
+    note_en: "Free phone & email support · Mon–Sat, 10am – 8pm",
+    group: "helpline",
+  },
+  {
+    id: "vandrevala",
+    name_hi: "वंद्रेवाला फ़ाउंडेशन",
+    name_en: "Vandrevala Foundation",
+    phone: "9999-666-555",
+    tel: "9999666555",
+    url: "https://www.vandrevalafoundation.com",
+    note_hi: "मुफ़्त · 24×7 · कॉल या व्हाट्सएप",
+    note_en: "Free · 24×7 · call or WhatsApp",
+    group: "helpline",
+  },
+  {
+    id: "live_love_laugh",
+    name_hi: "द लिव लव लाफ़ फ़ाउंडेशन",
+    name_en: "The Live Love Laugh Foundation",
+    url: "https://www.thelivelovelaughfoundation.org/find-help",
+    note_hi: "पूरे भारत में अपने पास प्रशिक्षित पेशेवर और हेल्पलाइनें ढूँढने की डायरेक्टरी",
+    note_en: "A directory to find trained professionals and helplines near you, across India",
+    group: "directory",
   },
 ] as const;
 

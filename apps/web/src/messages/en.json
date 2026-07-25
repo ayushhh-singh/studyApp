@@ -1655,8 +1655,23 @@
         "title": "If you need urgent help",
         "body": "Talking to a real person can help. These lines are free and confidential."
       },
+      "supportLink": "Find real support",
       "privacyLink": "Privacy & your data",
       "version": "Sukoon · version {{version}}"
+    },
+    "support": {
+      "navLink": "Find real support",
+      "title": "Find real support",
+      "subtitle": "When you want more than a companion — trusted places to reach a real, trained person.",
+      "intro": "Sukoon is here to sit with you day to day. But some things deserve a real, trained person who can support you over time — and reaching out for that is a strong, healthy step. Below are trusted Indian services that many aspirants turn to. Sukoon doesn't run these or handle your conversations with them — we're only pointing the way.",
+      "urgent": "Need help right now? Please call Tele-MANAS on 14416 — free, 24×7.",
+      "helplinesTitle": "Talk to a trained person",
+      "helplinesBody": "Free support you can reach directly, whenever you're ready.",
+      "directoryTitle": "Find a professional near you",
+      "directoryBody": "A directory maintained by another organization — search for support close to home.",
+      "visit": "Visit website",
+      "call": "Call",
+      "runByOthers": "These services are run by other organizations, not by Sukoon. We share them as trusted starting points, and can't take responsibility for their care."
     },
     "brand": "Sukoon",
     "navLabel": "Sukoon sections",

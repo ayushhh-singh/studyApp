@@ -6,7 +6,7 @@
  * clinical-language CI guard). clinical-words-allow
  */
 import { Link, useParams } from "react-router";
-import { Heart, ShieldCheck, LifeBuoy } from "lucide-react";
+import { Heart, ShieldCheck, LifeBuoy, HeartHandshake } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
@@ -45,6 +45,14 @@ export function Component() {
           </div>
         </div>
       </SectionCard>
+
+      <Link
+        to={`${base}/you/support`}
+        className="flex items-center gap-2 rounded-2xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors duration-300 hover:border-secondary/50"
+      >
+        <HeartHandshake className="size-4 text-secondary" aria-hidden />
+        {t("Sukoon.about.supportLink")}
+      </Link>
 
       <Link
         to={`${base}/you/privacy`}

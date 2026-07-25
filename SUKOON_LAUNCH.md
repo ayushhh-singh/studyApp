@@ -137,7 +137,7 @@ directory/root as above.
       show Neev's briefly before JS runs. Re-check the PWA install prompt
       shows "Sukoon" as the app name, not "Neev".
 - [ ] Add this second domain to `ALLOWED_ORIGINS` (or `ALLOWED_ORIGIN_SUFFIXES`
-      for `*.pages.dev` previews, scoped to your own project name — see the
+      for `*.pages.dev` previews, scoped to your own project name — see the <!-- portable-paths-allow: explanatory placeholder, advises AGAINST hardcoding a bare pages.dev -->  
       Render section below) — otherwise every `/api/sukoon/*` request from
       the standalone domain 403s on CORS.
 
@@ -157,7 +157,7 @@ top of the existing Neev env vars already documented in
 | `SUKOON_TTS_PROVIDER` | `openai` (default, uses the existing `OPENAI_API_KEY`) or `sarvam` (needs `SARVAM_API_KEY` too) |
 | `SARVAM_API_KEY` | only if `SUKOON_TTS_PROVIDER=sarvam` |
 | `ALLOWED_ORIGINS` | must include **both** Cloudflare Pages domains now (integrated + standalone) |
-| `ALLOWED_ORIGIN_SUFFIXES` | if you want per-branch preview deploys of EITHER Pages project to work, scope to your own project names (see the existing warning in `docs/operations.md` about not using a bare `.pages.dev`) |
+| `ALLOWED_ORIGIN_SUFFIXES` | if you want per-branch preview deploys of EITHER Pages project to work, scope to your own project names (see the existing warning in `docs/operations.md` about not using a bare `.pages.dev`) | <!-- portable-paths-allow: explanatory placeholder, advises AGAINST hardcoding a bare pages.dev -->
 
 Everything else (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`,
 `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `RAZORPAY_KEY_ID`/`_SECRET`/

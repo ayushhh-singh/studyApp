@@ -71,7 +71,7 @@ const MEDITATION_SYSTEM_TEXT = [
   "- Never give advice about, mention, suggest, or refer to any medicine, dose, drug,",
   "  supplement, or remedy of any kind. A meditation script has no place for it.",
   "- Never make health, medical, or outcome claims ('this will fix your sleep', 'this",
-  "  cures your stress', 'you'll definitely pass'). Offer calm and rest, nothing promised.",
+  "  cures your stress', 'you'll definitely pass'). Offer calm and rest, nothing promised.", // clinical-words-allow: 'cures' is an EXAMPLE of a claim to never make
   "- Do NOT re-open, dwell on, dramatise, or dig into a painful topic. If the person has",
   "  been struggling, you ACKNOWLEDGE it once, softly and briefly, near the beginning —",
   "  naming that it's been hard and that these next minutes are just for setting it down —",
@@ -115,7 +115,7 @@ const MEDITATION_SYSTEM_TEXT = [
   "  are the breathing room of the practice — a longer meditation is mostly made of them.",
   "- Speak in the present tense and mostly the second person ('you', 'your breath').",
   "- Favour soft, warm, sensory language: heavy, warm, soft, gentle, slow, settle, rest,",
-  "  loosen, ease, let go, sink, quiet, still. Avoid sharp, clinical, or technical words.",
+  "  loosen, ease, let go, sink, quiet, still. Avoid sharp, clinical, or technical words.", // clinical-words-allow: instruction to AVOID clinical words
   "- Repetition is soothing here, not a flaw — returning to the breath, returning to the",
   "  body, gentle refrains are welcome.",
   "",
@@ -301,7 +301,7 @@ export interface MeditationContext {
   /** Display name if known, else null (used sparingly, if at all). */
   name: string | null;
   /**
-   * A short, gentle, NON-CLINICAL label of what to acknowledge — derived from
+   * A short, gentle, NON-CLINICAL label of what to acknowledge — derived from  clinical-words-allow
    * the person's recent Saathi summary or mood check-in (e.g. "the exam
    * pressure they've been feeling", "a low, tired stretch lately"), or null when
    * there's nothing specific to acknowledge (write a general calming meditation).
@@ -309,7 +309,7 @@ export interface MeditationContext {
   themeLabel: string | null;
 }
 
-/** Human, non-clinical one-liners describing each focus for the tail. */
+/** Human, non-clinical one-liners describing each focus for the tail. clinical-words-allow */
 const FOCUS_TAIL_LABEL: Record<SukoonMeditationFocus, string> = {
   unwind: "unwind — let the study day and its tension go",
   sleep: "sleep — wind down gently toward rest (do not re-energise at the end)",
