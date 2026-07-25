@@ -101,6 +101,8 @@ function emotionToFocus(emotion: SukoonEmotionId | null, lowScore: boolean): Suk
 interface MoodSignal {
   score: number;
   emotions: SukoonEmotionId[];
+  /** ISO timestamp of the check-in — used to compare recency against chat. */
+  createdAt: string;
 }
 
 /** The latest mood check-in (F5), or null. Sanitized: score + a few emotion ids only. */
@@ -113,9 +115,9 @@ async function latestMood(userId: string): Promise<MoodSignal | null> {
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
-  const row = data as { score: number; emotions: unknown };
+  const row = data as { score: number; emotions: unknown; created_at: string };
   const emotions = Array.isArray(row.emotions) ? (row.emotions.filter(Boolean) as SukoonEmotionId[]) : [];
-  return { score: row.score, emotions };
+  return { score: row.score, emotions, createdAt: row.created_at };
 }
 
 /** The user's rolling chat memory (sukoon_chat_summaries) — a neutral, no-verbatim
@@ -148,20 +150,36 @@ function moodThemeLabel(mood: MoodSignal): { hi: string; en: string } {
   return { en: "a wish for a calmer few minutes", hi: "कुछ शांत पलों की चाह" };
 }
 
+/** How recent a mood/chat signal must be to seed the setup screen's default
+ *  theme. Beyond this, a stale check-in or an old chat shouldn't masquerade as
+ *  "what's on your mind right now" — the screen falls back to a general
+ *  meditation (source=null) instead. */
+const CONTEXT_RECENCY_MS = 3 * 24 * 60 * 60 * 1000; // 3 days
+
 /**
- * GET /meditation/context — the setup screen's smart defaults. Prefers the most
- * recent signal: a fresh mood check-in, else the rolling chat memory. Returns a
- * suggested focus + a gentle, non-raw theme label, or nulls when there's nothing
- * recent (a general meditation). NEVER returns raw chat/mood text.
+ * GET /meditation/context — the setup screen's smart defaults. Picks the MORE
+ * RECENT of a mood check-in / a Saathi conversation (each only if within the
+ * recency window — a week-old mood must never masquerade as today's state), and
+ * returns a suggested focus + a gentle, non-raw theme label, or nulls when
+ * there's nothing recent (a general meditation). NEVER returns raw chat/mood text.
  */
 export async function getMeditationContext(userId: string): Promise<SukoonMeditationContext> {
-  const [mood, summary, conversationId] = await Promise.all([
+  const [mood, conversation, summary] = await Promise.all([
     latestMood(userId),
+    latestConversation(userId),
     rollingChatSummary(userId),
-    latestConversationId(userId),
   ]);
 
-  if (mood) {
+  const now = Date.now();
+  const moodTs = mood ? new Date(mood.createdAt).getTime() : -Infinity;
+  const convTs = conversation ? new Date(conversation.lastMessageAt).getTime() : -Infinity;
+  const moodFresh = mood != null && now - moodTs <= CONTEXT_RECENCY_MS;
+  // A chat signal needs BOTH recent activity AND a rolling summary to acknowledge.
+  const chatFresh = summary != null && conversation != null && now - convTs <= CONTEXT_RECENCY_MS;
+
+  // Prefer the more recent fresh signal (mood wins a tie — a check-in is the more
+  // deliberate "here's how I feel right now" act than a chat's last message).
+  if (moodFresh && (!chatFresh || moodTs >= convTs)) {
     const label = moodThemeLabel(mood);
     return {
       source: "mood",
@@ -171,12 +189,12 @@ export async function getMeditationContext(userId: string): Promise<SukoonMedita
       theme_label_en: label.en,
     };
   }
-  if (summary) {
+  if (chatFresh) {
     // The UI chip stays a soft, generic label — the sanitized summary itself is
     // used only server-side as the generator's acknowledgement, never shown raw.
     return {
       source: "chat",
-      conversation_id: conversationId,
+      conversation_id: conversation.id,
       suggested_focus: "unwind",
       theme_label_hi: "जो बातें तुमने साथी से साझा कीं",
       theme_label_en: "what you shared with Saathi",
@@ -191,17 +209,19 @@ export async function getMeditationContext(userId: string): Promise<SukoonMedita
   };
 }
 
-/** The user's most recent conversation id, for attributing a chat-seeded meditation. */
-async function latestConversationId(userId: string): Promise<string | null> {
+/** The user's most recent conversation (id + last activity), for recency
+ *  comparison and attributing a chat-seeded meditation. */
+async function latestConversation(userId: string): Promise<{ id: string; lastMessageAt: string } | null> {
   const { data, error } = await supabase()
     .from("sukoon_conversations")
-    .select("id")
+    .select("id, last_message_at")
     .eq("user_id", userId)
     .order("last_message_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (error || !data) return null;
-  return (data as { id: string }).id;
+  const row = data as { id: string; last_message_at: string };
+  return { id: row.id, lastMessageAt: row.last_message_at };
 }
 
 /**
@@ -234,7 +254,10 @@ function sha256(s: string): string {
   return createHash("sha256").update(s).digest("hex");
 }
 
-/** The reuse arbiter: identical (controls) → same cache_key. */
+/** The reuse arbiter — every control that changes the SCRIPT or the TTS AUDIO.
+ *  `ambient` is deliberately EXCLUDED: it's a client-side playback bed only, so
+ *  a request differing only in ambient reuses the same narration (see the reuse
+ *  branch, which then reflects the newly-requested ambient in its response). */
 function cacheKeyOf(body: SukoonMeditationGenerateBody): string {
   return sha256(
     [body.source, body.conversation_id ?? "", body.focus, body.duration_min, body.language, body.voice].join("|"),
@@ -360,11 +383,16 @@ export async function generateMeditation(
   const contextHash = contextHashOf(themeLabel);
 
   // 2) Reuse — a cached, rendered meditation for this exact request replays free.
+  //    ambient is NOT in cacheKey (it's a purely client-side playback bed that
+  //    doesn't change the narration/TTS), so a hit is honoured across ambient
+  //    changes — but the RESPONSE reflects the newly-requested ambient so the
+  //    user's choice is respected without re-rendering identical narration.
   const reusable = await findReusable(userId, cacheKey, contextHash);
   if (reusable) {
     void recordSukoonEvent(userId, "feature_viewed", { feature: "meditation", outcome: "cache_hit" });
     const usage = await getMeditationUsage(userId);
-    return { meditation: await toClientMeditation(reusable, true), usage };
+    const meditation = await toClientMeditation(reusable, true);
+    return { meditation: { ...meditation, ambient: body.ambient }, usage };
   }
 
   // 3) Allowance — a genuine generation needs a credit.

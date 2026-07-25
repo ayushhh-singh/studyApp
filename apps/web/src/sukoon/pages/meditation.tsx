@@ -177,10 +177,13 @@ export function Component() {
   const effectiveFocus = focus ?? inferred?.suggested_focus ?? "unwind";
   const effectiveLang = scriptLang ?? uiLang;
 
+  // Only surface the inferred theme when it matches the source we'll actually
+  // generate from — otherwise a URL-forced source (e.g. ?source=chat while the
+  // more recent signal was a mood check-in) would show a mismatched label.
   const themeLabel = useMemo(() => {
-    if (!inferred) return null;
+    if (!inferred || inferred.source !== source) return null;
     return uiLang === "hi" ? inferred.theme_label_hi : inferred.theme_label_en;
-  }, [inferred, uiLang]);
+  }, [inferred, source, uiLang]);
 
   const paywall = generate.error instanceof ApiError && generate.error.status === 402;
   const usage = usageQuery.data;
