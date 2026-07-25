@@ -15,6 +15,12 @@ Allow: /marketing/
 Allow: /og-default-en.png
 Allow: /og-default-hi.png
 
+# The sitemap itself — without this, the blanket "Disallow: /" above (with no
+# more-specific Allow matching /sitemap.xml) blocks Googlebot from fetching
+# it, which Search Console surfaces as "Couldn't fetch" on the Sitemaps page
+# even though the file's content and Content-Type are both fine.
+Allow: /sitemap.xml$
+
 Allow: /en$
 Allow: /en/$
 Allow: /hi$
