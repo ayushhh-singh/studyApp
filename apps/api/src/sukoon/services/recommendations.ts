@@ -314,6 +314,34 @@ function rankWithDiversity(recs: SukoonRecommendation[], limit: number): SukoonR
 }
 
 /**
+ * Never hand a free user an all-locked "For you" wall: if every ranked item is
+ * locked but a relevant UNLOCKED item exists in the pool, swap the
+ * lowest-similarity locked pick for the highest-similarity unlocked candidate,
+ * then re-sort. Only fires in the all-locked case, and still picks by
+ * similarity — so it's a "don't dead-end every tap at a paywall" guarantee
+ * (matching mood-pattern-nudge's precedent), not a business/popularity rerank.
+ * Locked items still appear whenever they're genuinely the best matches.
+ */
+function ensureOneTappable(
+  ranked: SukoonRecommendation[],
+  pool: SukoonRecommendation[],
+): SukoonRecommendation[] {
+  if (ranked.length === 0 || ranked.some((r) => !r.locked)) return ranked;
+  const inList = new Set(ranked.map((r) => r.content_id));
+  const bestUnlocked = pool
+    .filter((r) => !r.locked && !inList.has(r.content_id))
+    .sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0))[0];
+  if (!bestUnlocked) return ranked; // nothing unlocked is relevant — keep honest set
+  const worstLockedIdx = ranked.reduce(
+    (worst, r, i) => ((r.similarity ?? 0) < (ranked[worst].similarity ?? 0) ? i : worst),
+    0,
+  );
+  const next = [...ranked];
+  next[worstLockedIdx] = bestUnlocked;
+  return next.sort((a, b) => (b.similarity ?? 0) - (a.similarity ?? 0));
+}
+
+/**
  * The one public entry — GET /recommendations. Builds the signal, matches the
  * library, resolves + reasons + ranks. `signal_available` tells the UI whether
  * this is genuinely personalised or a calm cold-start set.
@@ -375,7 +403,7 @@ export async function getRecommendations(
   }
 
   return {
-    recommendations: rankWithDiversity(recs, limit),
+    recommendations: ensureOneTappable(rankWithDiversity(recs, limit), recs),
     signal_available: signal.hasSignal,
   };
 }

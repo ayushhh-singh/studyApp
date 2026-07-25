@@ -140,8 +140,10 @@ function RecommendationRow({
             </span>
           ) : null}
         </span>
-        {/* The honest, considerate reasoning line. */}
-        <span className="truncate text-xs leading-snug text-muted-foreground">{reason}</span>
+        {/* The honest, considerate reasoning line — must stay fully readable
+            (never truncated), so it wraps to at most two lines rather than
+            cutting off mid-sentence, which would undermine the whole point. */}
+        <span className="line-clamp-2 text-xs leading-snug text-muted-foreground">{reason}</span>
       </span>
       <ChevronRight
         className="size-4 shrink-0 text-muted-foreground transition-transform duration-300 group-hover:translate-x-0.5"

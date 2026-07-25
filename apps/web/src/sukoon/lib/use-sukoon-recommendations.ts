@@ -2,11 +2,13 @@
  * Sukoon "For you" recommendations hook — TanStack Query over
  * GET /api/sukoon/recommendations. Mirrors use-sukoon-exercises.ts's conventions.
  *
- * Cached a little longer than per-second surfaces (the rolling signal is a
- * cross-day trend, not live state) and invalidated by a new mood check-in — the
- * mood mutations already invalidate the whole ["sukoon","mood"] family, so we
- * also react to that here by keying off a modest staleTime rather than a manual
- * subscription.
+ * FRESHNESS: the signal is a 21-day rolling window, so a single new check-in
+ * barely moves it — a modest staleTime is the right freshness model, not
+ * per-mutation invalidation. This query key deliberately sits OUTSIDE the
+ * ["sukoon","mood"] family, so a mood mutation does NOT invalidate it; instead
+ * it refreshes on the next mount/focus once the staleTime lapses (well within
+ * the cross-day cadence this feature reflects). Kept intentionally decoupled so
+ * it never needs to reach into the mood/journal mutation hooks.
  */
 import { useQuery } from "@tanstack/react-query";
 import { sukoonRecommendationsResponseSchema } from "@neev/shared";
