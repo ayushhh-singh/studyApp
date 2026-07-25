@@ -13,6 +13,7 @@ import {
   sukoonMoodHeatmapResponseSchema,
   sukoonMoodAggregatesResponseSchema,
   sukoonMoodAggregatesRangeSchema,
+  sukoonMoodPatternResponseSchema,
 } from "@neev/shared";
 import { asyncHandler } from "../../lib/async-handler.js";
 import { parse } from "../../lib/validation.js";
@@ -20,7 +21,15 @@ import { rateLimit } from "../../lib/rate-limit.js";
 import { requireAuth } from "../../middleware/require-auth.js";
 import { requireActiveSukoonAccount } from "../lib/require-active-account.js";
 import { currentUserId } from "../../lib/user-context.js";
-import { createEntry, updateEntry, deleteEntry, getToday, heatmap, aggregates } from "../services/mood.js";
+import {
+  createEntry,
+  updateEntry,
+  deleteEntry,
+  getToday,
+  heatmap,
+  aggregates,
+  detectMoodPattern,
+} from "../services/mood.js";
 
 export const sukoonMoodRouter = Router();
 sukoonMoodRouter.use(requireAuth);
@@ -53,6 +62,15 @@ sukoonMoodRouter.get(
     const { range } = parse(aggregatesQuerySchema, req.query);
     const result = await aggregates(currentUserId(), Number(range));
     res.json(sukoonMoodAggregatesResponseSchema.parse({ data: result, error: null }));
+  }),
+);
+
+// --- Proactive mood-pattern bridge (conservative decline detector) -----------
+sukoonMoodRouter.get(
+  "/mood/pattern",
+  asyncHandler(async (_req, res) => {
+    const pattern = await detectMoodPattern(currentUserId());
+    res.json(sukoonMoodPatternResponseSchema.parse({ data: pattern, error: null }));
   }),
 );
 

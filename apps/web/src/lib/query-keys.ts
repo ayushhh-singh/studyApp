@@ -40,6 +40,7 @@ export const queryKeys = {
   sukoonReflectionUsage: () => ["sukoon", "journal", "reflection-usage"] as const,
   sukoonMoodToday: () => ["sukoon", "mood", "today"] as const,
   sukoonMoodAggregates: (range: string) => ["sukoon", "mood", "aggregates", range] as const,
+  sukoonMoodPattern: () => ["sukoon", "mood", "pattern"] as const,
   sukoonMoodHeatmap: (month: string) => ["sukoon", "mood", "heatmap", month] as const,
   sukoonExercises: () => ["sukoon", "exercises", "list"] as const,
   sukoonExerciseAudioUrl: (id: string, lang: string) => ["sukoon", "exercises", "audio-url", id, lang] as const,

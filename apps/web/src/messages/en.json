@@ -1784,6 +1784,7 @@
       "loading": "Loading",
       "welcome": "I'm here whenever you want to talk. What's on your mind?",
       "composerPlaceholder": "Type how you're feeling…",
+      "thinking": "Saathi is gathering their words…",
       "send": "Send",
       "remaining": "{{count}} messages left today",
       "errorGeneric": "Saathi couldn't reply just now. Please try again.",
@@ -1805,6 +1806,20 @@
         "general1": "I've been feeling stressed lately and don't know why.",
         "general2": "I keep comparing myself to others and it's getting to me."
       }
+    },
+    "moodNudge": {
+      "label": "A gentle check-in",
+      "softTitle": "Checking in on you",
+      "softBody": "Your last few check-ins have felt a little heavier than the days before. That's worth being gentle with yourself about — a small pause might help.",
+      "careTitle": "You've been carrying a lot",
+      "careBody": "The last few check-ins have felt low for a while now. You don't have to push through it alone — a small step, or talking it out, can lighten things a little.",
+      "ctaBreathe": "Take a few slow breaths",
+      "ctaGround": "Try a grounding exercise",
+      "ctaTool": "Open a calming tool",
+      "ctaTalk": "Talk to Saathi",
+      "ctaWrite": "Write it out",
+      "careHelpline": "If it ever feels like too much, talking to a trained, caring listener really can help. These free lines are here any time — reaching out is a strong thing to do.",
+      "dismiss": "Dismiss"
     },
     "voice": {
       "title": "Voice mode",

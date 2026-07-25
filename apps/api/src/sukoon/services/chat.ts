@@ -38,6 +38,7 @@ import { streamChat, structuredJson, type PromptSegment } from "../../lib/anthro
 import { daysBetween, istToday } from "../../lib/ist.js";
 import { assessMessage } from "./crisis/engine.js";
 import { getSukoonProfile } from "./profile.js";
+import { detectMoodPattern } from "./mood.js";
 import { consumeChatMessage } from "./entitlements.js";
 import { matchSukoonFaq } from "./semantic-cache.js";
 import { recordSukoonEvent } from "./analytics.js";
@@ -207,7 +208,7 @@ async function resolveLastMood(userId: string): Promise<string | null> {
 
 /** Load the dynamic-tail context for a user (profile already in hand from the plan). */
 export async function loadSaathiContext(userId: string, profile: SukoonProfile): Promise<SaathiContext> {
-  const [name, lastMood, summaryRow] = await Promise.all([
+  const [name, lastMood, summaryRow, moodPattern] = await Promise.all([
     resolveName(userId),
     resolveLastMood(userId),
     supabase()
@@ -216,6 +217,10 @@ export async function loadSaathiContext(userId: string, profile: SukoonProfile):
       .eq("user_id", userId)
       .maybeSingle()
       .then(({ data }) => (data as { summary: string | null } | null)?.summary ?? null),
+    // Proactive bridge (F5×F6): a conservative decline read over the user's own
+    // check-ins, so Saathi can open already softly aware. Best-effort — a failed
+    // read must never block a reply, so it degrades to no trend awareness.
+    detectMoodPattern(userId).catch(() => null),
   ]);
 
   return {
@@ -227,6 +232,7 @@ export async function loadSaathiContext(userId: string, profile: SukoonProfile):
     lastMood,
     rollingSummary: summaryRow,
     restricted: profile.restricted_mode,
+    moodTrend: moodPattern?.tier ?? "none",
   };
 }
 

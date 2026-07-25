@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 import { MoodHomeCard } from "@/sukoon/components/mood-home-card";
 import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
+import { MoodPatternNudge } from "@/sukoon/components/mood-pattern-nudge";
 import { JourneysHomeCard } from "@/sukoon/components/journeys/journeys-home-card";
 import { SukoonGardenCard } from "@/sukoon/components/garden/sukoon-garden-card";
 import { CheckinCard } from "@/sukoon/components/checkin/checkin-card";
@@ -47,6 +48,10 @@ export function Component() {
 
       {/* Exam-eve is a time-sensitive nudge; it self-hides unless imminent. */}
       {session ? <ExamEveJourneyCard /> : null}
+
+      {/* Proactive bridge: self-hides unless a genuine declining mood trend is
+          detected (conservative). Calm, dismissible — never nags. */}
+      {session ? <MoodPatternNudge /> : null}
 
       {/* THE essential actions — the only things surfaced prominently. */}
       <nav aria-label={t("Sukoon.home.quickActionsLabel")} className="sukoon-rise-slow grid grid-cols-1 gap-3 sm:grid-cols-3">

@@ -779,6 +779,62 @@ export const SUKOON_EXERCISE_TYPES = ["breathing", "grounding", "pmr", "meditati
 export const sukoonExerciseTypeSchema = z.enum(SUKOON_EXERCISE_TYPES);
 export type SukoonExerciseType = z.infer<typeof sukoonExerciseTypeSchema>;
 
+// ---------------------------------------------------------------------------
+// F5×F6 — Proactive mood-pattern bridge (Ebb-inspired). A conservative,
+// zero-LLM read over the user's own recent check-ins that looks for a genuine
+// declining trend and, if found, lets the app gently BRIDGE toward support
+// before being asked — Saathi opens already softly aware, and a calm nudge card
+// offers one specific calming tool (and, at the sustained-low tier, a warm early
+// helpline reminder). This is NOT the crisis engine (which is per-message):
+// it's a slow cross-day pattern, and it never diagnoses or labels — the tiers
+// describe a felt trend ("a lower stretch"), never a condition.
+//
+//   none → no actionable pattern (too little data, stale, or mood is steady/up)
+//   soft → a gentle recent dip vs the days before it
+//   care → a sustained low across several recent check-ins (warmer support offer)
+// ---------------------------------------------------------------------------
+export const SUKOON_MOOD_PATTERN_TIERS = ["none", "soft", "care"] as const;
+export const sukoonMoodPatternTierSchema = z.enum(SUKOON_MOOD_PATTERN_TIERS);
+export type SukoonMoodPatternTier = z.infer<typeof sukoonMoodPatternTierSchema>;
+
+export const sukoonMoodPatternSchema = z.object({
+  tier: sukoonMoodPatternTierSchema,
+  /** Avg mood (1–5) over the recent check-in-day window; null when no data. */
+  recent_avg: z.number().nullable(),
+  /** Avg mood over the window BEFORE that (for the soft-dip comparison); null when absent. */
+  prior_avg: z.number().nullable(),
+  /** How many distinct check-in DAYS the recent window covered (gate is enforced server-side). */
+  recent_days: z.number().int(),
+  /** Most-tagged emotion across the recent window — drives which tool is suggested; null if none. */
+  dominant_emotion: sukoonEmotionIdSchema.nullable(),
+  /** The calming tool this pattern suggests (breathing/grounding/…); null → the tools grid. */
+  suggested_exercise_type: sukoonExerciseTypeSchema.nullable(),
+});
+export type SukoonMoodPattern = z.infer<typeof sukoonMoodPatternSchema>;
+export const sukoonMoodPatternResponseSchema = apiEnvelopeSchema(sukoonMoodPatternSchema);
+export type SukoonMoodPatternResponse = z.infer<typeof sukoonMoodPatternResponseSchema>;
+
+/** Map a dominant recent emotion to the calming tool most likely to help right
+ *  now — activation-type feelings → breathing; low-energy/heavy → grounding.
+ *  Shared so the detector and any UI agree on one mapping. */
+export function sukoonEmotionToExerciseType(
+  emotion: SukoonEmotionId | null,
+): SukoonExerciseType {
+  switch (emotion) {
+    case "anxious":
+    case "restless":
+    case "overwhelmed":
+    case "frustrated":
+      return "breathing";
+    case "exhausted":
+    case "sad":
+    case "lonely":
+      return "grounding";
+    default:
+      return "breathing";
+  }
+}
+
 // Ambient mixer catalog — a fixed, non-DB set (mirrors SUKOON_EMOTIONS' id-array
 // + labeled-def pattern), declared here (before the configs that reference it)
 // since a breathing/timer exercise can name a default/allowed ambient sound.

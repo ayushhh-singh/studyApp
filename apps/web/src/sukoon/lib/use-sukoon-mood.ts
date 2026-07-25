@@ -9,6 +9,7 @@ import {
   sukoonMoodAggregatesResponseSchema,
   sukoonMoodHeatmapResponseSchema,
   sukoonMoodEntryResponseSchema,
+  sukoonMoodPatternResponseSchema,
   type SukoonMoodCreateBody,
   type SukoonMoodUpdateBody,
 } from "@neev/shared";
@@ -30,6 +31,22 @@ export function useMoodAggregates(rangeDays: 7 | 30 | 90, options?: { enabled?: 
     queryFn: () =>
       api.get("/api/sukoon/mood/aggregates", sukoonMoodAggregatesResponseSchema, { range }),
     enabled: options?.enabled ?? true,
+  });
+}
+
+/**
+ * The proactive mood-pattern bridge (F5×F6) — a conservative decline read that
+ * powers the gentle nudge card. `.data.tier` is "none" unless a genuine trend
+ * is found. Cached a little longer than the per-second surfaces since it's a
+ * cross-day trend, not live state, and invalidated by a new check-in (the mood
+ * mutations already invalidate the whole ["sukoon","mood"] family).
+ */
+export function useMoodPattern(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: queryKeys.sukoonMoodPattern(),
+    queryFn: () => api.get("/api/sukoon/mood/pattern", sukoonMoodPatternResponseSchema),
+    enabled: options?.enabled ?? true,
+    staleTime: 5 * 60_000,
   });
 }
 

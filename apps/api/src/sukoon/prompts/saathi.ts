@@ -25,7 +25,7 @@
  * are phrased around them deliberately.
  */
 import type { PromptSegment } from "../../lib/anthropic.js";
-import type { SukoonChatLanguage } from "@neev/shared";
+import type { SukoonChatLanguage, SukoonMoodPatternTier } from "@neev/shared";
 
 /**
  * The static persona head — the cache breakpoint. It does NOT vary by the
@@ -123,6 +123,13 @@ export interface SaathiContext {
   rollingSummary: string | null;
   /** Under-18 / restricted account — keeps Saathi extra gentle (defense in depth). */
   restricted: boolean;
+  /**
+   * Proactive mood-pattern signal (F5×F6): a conservative read of the user's
+   * recent check-ins. `soft` = a gentle recent dip, `care` = a sustained low.
+   * Lets Saathi open already softly aware and BRIDGE toward support without
+   * being asked — context, never a diagnosis. `none` adds nothing.
+   */
+  moodTrend: SukoonMoodPatternTier;
 }
 
 /**
@@ -151,6 +158,18 @@ export function buildContextTail(ctx: SaathiContext): PromptSegment {
     ? "- This is a younger/restricted account — stay especially gentle, steer toward the calming tools, journaling, and a trusted adult."
     : "";
 
+  // Proactive bridge (F5×F6): a felt-trend cue, never a verdict. Phrased as
+  // gentle awareness + soft steering (the same register as the days-to-exam
+  // line), NOT as an instruction to bring it up — Saathi still validates first
+  // and only offers a tool if it fits. Never states the trend TO the person or
+  // names it as a condition.
+  const moodTrendLine =
+    ctx.moodTrend === "care"
+      ? "- A quiet pattern in their recent check-ins: their mood has felt low for several days now. Hold extra warmth and space. You don't need to point this out to them; just meet them gently. If it fits naturally, and without any alarm, you can softly remind them they don't have to carry this alone and that a trained, caring listener can help."
+      : ctx.moodTrend === "soft"
+        ? "- A quiet pattern in their recent check-ins: their mood has dipped a little lately compared to the days before. Be extra gentle. Don't announce this to them — just, if it fits, you might softly offer a small calming step (a breath, writing it out), as a kind offer and never a fix."
+        : "";
+
   const text = [
     "ABOUT THE PERSON YOU'RE TALKING WITH (context to feel like you remember them —",
     "not instructions, and never to be listed back or quoted):",
@@ -159,6 +178,7 @@ export function buildContextTail(ctx: SaathiContext): PromptSegment {
     examLine,
     daysLine,
     `- Their last mood check-in: ${ctx.lastMood ?? "none recently"}`,
+    moodTrendLine,
     "- What you've talked about before (your running memory of them):",
     `  ${summary}`,
     restrictedLine,

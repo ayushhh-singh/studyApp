@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useParams, useSearchParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { History, Loader2, Lock, Mic, Plus, Send, Sparkles, Wind } from "lucide-react";
@@ -15,6 +15,7 @@ import { NotTherapyFooter } from "@/sukoon/components/not-therapy-footer";
 import { CrisisInlineCard } from "@/sukoon/components/crisis-inline-card";
 import { CrisisTakeover } from "@/sukoon/components/crisis-takeover";
 import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
+import { MoodPatternNudge } from "@/sukoon/components/mood-pattern-nudge";
 import { SukoonFeedbackWidget } from "@/sukoon/components/sukoon-feedback-widget";
 import { daysUntil } from "@/sukoon/lib/days-until";
 import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
@@ -296,6 +297,11 @@ export function Component() {
           thread, so an active conversation isn't interrupted by it. */}
       {showStarters ? <ExamEveJourneyCard className="mb-4" /> : null}
 
+      {/* Proactive bridge (F5×F6): only on a fresh/empty thread, so an active
+          conversation is never interrupted. Self-hides unless a real declining
+          trend is detected. The "talk to Saathi" CTA is redundant here. */}
+      {showStarters ? <MoodPatternNudge hideSaathiCta className="mb-4" /> : null}
+
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto pb-4">
         {historyLoading && !freshThread ? (
@@ -341,16 +347,19 @@ export function Component() {
 
         {messages.map((m) =>
           m.role === "assistant" ? (
-            <div key={m.id} className="space-y-2">
+            <div key={m.id} className="sukoon-rise space-y-2">
+              {/* Crisis card stays full-width, above the avatar row. */}
               {m.crisis_level === "moderate" ? <CrisisInlineCard /> : null}
-              <AssistantBubble text={m.content} />
-              {/* Session 14 — thumbs feedback on every REAL (persisted) reply;
-                  the synthetic "a-<timestamp>" fallback id never round-tripped
-                  to a real message row, so skip it rather than feedback that
-                  can't attach to anything server-side. */}
-              {!m.id.startsWith("a-") ? (
-                <SukoonFeedbackWidget targetType="message" targetId={m.id} className="pl-1" />
-              ) : null}
+              <AssistantRow>
+                <AssistantBubble text={m.content} />
+                {/* Session 14 — thumbs feedback on every REAL (persisted) reply;
+                    the synthetic "a-<timestamp>" fallback id never round-tripped
+                    to a real message row, so skip it rather than feedback that
+                    can't attach to anything server-side. */}
+                {!m.id.startsWith("a-") ? (
+                  <SukoonFeedbackWidget targetType="message" targetId={m.id} className="pl-1" />
+                ) : null}
+              </AssistantRow>
             </div>
           ) : (
             <UserBubble key={m.id} text={m.content} />
@@ -359,9 +368,15 @@ export function Component() {
 
         {/* Live streaming bubble (hidden for a takeover, which carries no reply) */}
         {(stream.isStreaming || stream.reply) && stream.crisisSurface !== "takeover" ? (
-          <div className="space-y-3">
+          <div className="sukoon-rise space-y-2">
             {stream.crisisSurface === "inline" ? <CrisisInlineCard /> : null}
-            <AssistantBubble text={stream.reply} streaming={stream.isStreaming && !stream.reply} />
+            <AssistantRow breathing>
+              {stream.reply ? (
+                <AssistantBubble text={stream.reply} streaming />
+              ) : (
+                <ThinkingBubble label={t("Sukoon.saathi.thinking")} />
+              )}
+            </AssistantRow>
           </div>
         ) : null}
 
@@ -419,10 +434,46 @@ export function Component() {
 
 function UserBubble({ text }: { text: string }) {
   return (
-    <div className="flex justify-end">
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-secondary px-4 py-2.5 text-sm leading-relaxed text-secondary-foreground">
+    <div className="sukoon-rise flex justify-end">
+      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-secondary px-4 py-2.5 text-sm leading-relaxed text-secondary-foreground shadow-sm">
         {text}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The small Saathi presence beside every assistant reply — echoes the Sukoon
+ * ripple mark (concentric rings + teal core) so the companion feels like it's
+ * sitting beside the person, not a faceless widget. `breathing` gives it a
+ * barely-there "present and listening" pulse while a reply is being composed.
+ * Purely decorative (aria-hidden) — the bubble text is the accessible content.
+ */
+function SaathiAvatar({ breathing }: { breathing?: boolean }) {
+  return (
+    <span
+      className={cn(
+        "mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-secondary/15 text-secondary ring-1 ring-secondary/20",
+        breathing && "sukoon-avatar-breathe",
+      )}
+      aria-hidden
+    >
+      <svg viewBox="0 0 40 40" className="size-5">
+        <circle cx="20" cy="20" r="16" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.3" />
+        <circle cx="20" cy="20" r="10.5" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.55" />
+        <circle cx="20" cy="20" r="5" fill="currentColor" />
+      </svg>
+    </span>
+  );
+}
+
+/** Avatar + a content column — the shared shape for every assistant turn (a
+ *  persisted reply, or the live streaming/thinking bubble). */
+function AssistantRow({ children, breathing }: { children: ReactNode; breathing?: boolean }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <SaathiAvatar breathing={breathing} />
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">{children}</div>
     </div>
   );
 }
@@ -430,16 +481,34 @@ function UserBubble({ text }: { text: string }) {
 function AssistantBubble({ text, streaming }: { text: string; streaming?: boolean }) {
   return (
     <div className="flex justify-start">
-      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm leading-relaxed text-foreground">
+      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-bl-md border border-border bg-card px-4 py-2.5 text-sm leading-relaxed text-foreground shadow-sm">
+        {text}
+        {/* A slim teal caret at the tail of the live text — the reply feels
+            written-to-you, not pasted. Only while streaming with text present. */}
         {streaming ? (
-          <span className="inline-flex gap-1 py-1" aria-label="…">
-            <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.3s]" />
-            <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground [animation-delay:-0.15s]" />
-            <span className="size-1.5 animate-bounce rounded-full bg-muted-foreground" />
-          </span>
-        ) : (
-          text
-        )}
+          <span
+            className="sukoon-caret ml-0.5 inline-block h-[1.05em] w-0.5 translate-y-[0.15em] rounded-full bg-secondary align-baseline"
+            aria-hidden
+          />
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+/** The "gathering their words" indicator — three softly breathing dots (never
+ *  the generic snappy bounce), shown before the first token arrives. */
+function ThinkingBubble({ label }: { label: string }) {
+  return (
+    <div className="flex justify-start">
+      <div
+        className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-border bg-card px-4 py-3 shadow-sm"
+        role="status"
+        aria-label={label}
+      >
+        <span className="sukoon-think-dot size-1.5 rounded-full bg-secondary" />
+        <span className="sukoon-think-dot size-1.5 rounded-full bg-secondary [animation-delay:0.2s]" />
+        <span className="sukoon-think-dot size-1.5 rounded-full bg-secondary [animation-delay:0.4s]" />
       </div>
     </div>
   );

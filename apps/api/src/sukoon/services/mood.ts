@@ -14,9 +14,11 @@ import type {
   SukoonMoodFactorCorrelation,
   SukoonMoodFactorId,
   SukoonMoodHeatmapDay,
+  SukoonMoodPattern,
+  SukoonMoodPatternTier,
   SukoonMoodUpdateBody,
 } from "@neev/shared";
-import { SUKOON_MOOD_FACTORS } from "@neev/shared";
+import { SUKOON_MOOD_FACTORS, sukoonEmotionToExerciseType } from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { HttpError } from "../../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../../lib/ist.js";
@@ -315,5 +317,134 @@ export async function aggregates(userId: string, rangeDays: number): Promise<Suk
     total_entries: inRange.length,
     emotion_frequency,
     factor_correlations: correlations.slice(0, 3),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Proactive mood-pattern bridge (F5×F6, Ebb-inspired). A pure-code, zero-LLM
+// read over the user's OWN recent check-ins. DELIBERATELY conservative — a
+// wellness app that nudges on thin or noisy data (or misreads one bad evening
+// as a trend) does real harm to trust and tone, so the gates below are strict
+// and every threshold errs toward saying "none". This is NOT crisis detection
+// (that's per-message, in services/crisis/*): this is a slow cross-day trend
+// and never labels a condition. See SukoonMoodPattern in @neev/shared.
+// ---------------------------------------------------------------------------
+
+/** How far back we look for the trend. */
+const PATTERN_LOOKBACK_DAYS = 14;
+/** Never nudge below this many distinct check-in days in the lookback window. */
+const PATTERN_MIN_CHECKIN_DAYS = 4;
+/** The most-recent check-in days that form the "recent" window. */
+const PATTERN_RECENT_WINDOW = 3;
+/** The check-in days BEFORE the recent window, for the soft-dip comparison. */
+const PATTERN_PRIOR_WINDOW = 7;
+/** Don't bridge on stale data — the newest check-in must be within this many days. */
+const PATTERN_MAX_STALENESS_DAYS = 4;
+/** soft: recent avg must be at least this much (on 1–5) below the prior window. */
+const PATTERN_SOFT_DROP = 0.8;
+/** soft: and the recent avg must itself be at or below this (an actual low, not a dip from great→good). */
+const PATTERN_SOFT_CEILING = 3.0;
+/** soft: needs at least this many recent check-in days to call it a pattern, not a blip. */
+const PATTERN_SOFT_MIN_DAYS = 2;
+/** care: a sustained low — recent avg at or below this... */
+const PATTERN_CARE_CEILING = 2.0;
+/** ...across at least this many recent check-in days. */
+const PATTERN_CARE_MIN_DAYS = 3;
+
+const PATTERN_NONE: SukoonMoodPattern = {
+  tier: "none",
+  recent_avg: null,
+  prior_avg: null,
+  recent_days: 0,
+  dominant_emotion: null,
+  suggested_exercise_type: null,
+};
+
+/**
+ * Look for a genuine declining mood trend in the user's recent check-ins.
+ * Returns `tier: "none"` unless the conservative gates below all pass; a `soft`
+ * or `care` tier carries the recent/prior averages, the dominant recent
+ * emotion, and the calming tool it maps to (so both Saathi's context and the
+ * nudge card read from one computation). One indexed, owner-scoped query.
+ */
+export async function detectMoodPattern(userId: string): Promise<SukoonMoodPattern> {
+  const today = istToday();
+  const startUtc = istDayRangeUtc(shiftDate(today, -(PATTERN_LOOKBACK_DAYS - 1))).startUtc;
+
+  const { data, error } = await supabase()
+    .from("sukoon_mood_entries")
+    .select("score, emotions, created_at")
+    .eq("user_id", userId)
+    .gte("created_at", startUtc)
+    .order("created_at", { ascending: false })
+    .limit(METADATA_SCAN_CAP);
+  if (error) throw new HttpError(500, `mood pattern failed: ${error.message}`);
+
+  interface Row {
+    score: number;
+    emotions: string[] | null;
+    created_at: string;
+  }
+  const rows = (data as unknown as Row[]) ?? [];
+
+  // One aggregate per IST day (a day with 3 check-ins is still one data point,
+  // matching how aggregates/correlations treat a day — see the note there).
+  const byDay = new Map<string, { sum: number; count: number; emotions: string[] }>();
+  for (const r of rows) {
+    const day = istDateString(new Date(r.created_at).getTime());
+    const cur = byDay.get(day) ?? { sum: 0, count: 0, emotions: [] };
+    cur.sum += r.score;
+    cur.count += 1;
+    for (const e of r.emotions ?? []) cur.emotions.push(e);
+    byDay.set(day, cur);
+  }
+
+  // Gate 1 — enough distinct check-in days to trust any trend at all.
+  const days = [...byDay.entries()]
+    .map(([date, agg]) => ({ date, avg: agg.sum / agg.count, emotions: agg.emotions }))
+    .sort((a, b) => (a.date < b.date ? 1 : -1)); // most-recent first
+  if (days.length < PATTERN_MIN_CHECKIN_DAYS) return PATTERN_NONE;
+
+  // Gate 2 — not stale: the newest check-in must be recent, or this is history,
+  // not a "right now" signal to bridge on.
+  const staleCutoff = shiftDate(today, -PATTERN_MAX_STALENESS_DAYS);
+  if (days[0].date < staleCutoff) return PATTERN_NONE;
+
+  const recent = days.slice(0, PATTERN_RECENT_WINDOW);
+  const prior = days.slice(PATTERN_RECENT_WINDOW, PATTERN_RECENT_WINDOW + PATTERN_PRIOR_WINDOW);
+  const avg = (xs: { avg: number }[]): number | null =>
+    xs.length ? Math.round((xs.reduce((s, d) => s + d.avg, 0) / xs.length) * 10) / 10 : null;
+  const recentAvg = avg(recent);
+  const priorAvg = avg(prior);
+  if (recentAvg == null) return PATTERN_NONE;
+
+  // Dominant recent emotion (most-tagged across the recent window), if any.
+  const emoCounts = new Map<string, number>();
+  for (const d of recent) for (const e of d.emotions) emoCounts.set(e, (emoCounts.get(e) ?? 0) + 1);
+  const dominant = [...emoCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
+  const dominantEmotion = (dominant as SukoonEmotionId | null) ?? null;
+
+  // Decide the tier — care (sustained low) takes precedence over soft (a dip).
+  let tier: SukoonMoodPatternTier = "none";
+  if (recent.length >= PATTERN_CARE_MIN_DAYS && recentAvg <= PATTERN_CARE_CEILING) {
+    tier = "care";
+  } else if (
+    recent.length >= PATTERN_SOFT_MIN_DAYS &&
+    priorAvg != null &&
+    priorAvg - recentAvg >= PATTERN_SOFT_DROP &&
+    recentAvg <= PATTERN_SOFT_CEILING
+  ) {
+    tier = "soft";
+  }
+
+  if (tier === "none") return PATTERN_NONE;
+
+  return {
+    tier,
+    recent_avg: recentAvg,
+    prior_avg: priorAvg,
+    recent_days: recent.length,
+    dominant_emotion: dominantEmotion,
+    suggested_exercise_type: sukoonEmotionToExerciseType(dominantEmotion),
   };
 }
