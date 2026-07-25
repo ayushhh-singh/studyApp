@@ -2047,6 +2047,7 @@
       "reflection": {
         "privacyNote": "This is just for you — nothing you write here is saved or shared.",
         "optionalNote": "Writing anything is optional — reflecting is enough.",
+        "optionalNoteChips": "Picking anything is optional — reflecting is enough.",
         "next": "Next",
         "back": "Back",
         "finish": "Finish",

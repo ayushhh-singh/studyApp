@@ -3,8 +3,8 @@
  * values check-in, a worry-time container). The user steps through a short
  * sequence of prompt cards at their own pace — some offer an optional text box
  * or a tap-to-pick chip set. Anything typed or picked lives ONLY in local
- * component state: nothing is saved, nothing is sent to an AI (self-guided, not
- * AI-diagnostic — mirrors grounding's ephemeral per-step notes).
+ * component state: nothing is saved and nothing is sent to an AI — this is
+ * self-guided, not AI-diagnostic, and mirrors grounding's ephemeral notes.
  */
 import { useState } from "react";
 import { Link, useParams } from "react-router";
@@ -196,7 +196,13 @@ function ReflectionPlayer({ exercise }: { exercise: Extract<SukoonExercise, { ty
           </div>
 
           {step && step.input !== "none" ? (
-            <p className="text-center text-xs text-muted-foreground/80">{t("Sukoon.tools.reflection.optionalNote")}</p>
+            <p className="text-center text-xs text-muted-foreground/80">
+              {t(
+                step.input === "chips"
+                  ? "Sukoon.tools.reflection.optionalNoteChips"
+                  : "Sukoon.tools.reflection.optionalNote",
+              )}
+            </p>
           ) : null}
         </div>
       )}
