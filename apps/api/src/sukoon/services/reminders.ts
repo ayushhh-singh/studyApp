@@ -89,6 +89,15 @@ interface ReminderVariant {
  * Every variant is warm, no-pressure re-invitation copy — never guilt/shame
  * framing (see the file header's TONE note). `link` is fixed per type; only
  * the title/body rotate, picked at send time by `pickVariant` below.
+ *
+ * APPEND-ONLY, per type: `sukoon_notification_log.variant_key` stores each
+ * variant's ARRAY INDEX as a stable id. Adding a new variant to the end of a
+ * type's list is always safe. Reordering or deleting an existing variant is
+ * NOT safe — an old log row's index would then silently refer to a
+ * different (or, if deleted, out-of-range — see getVariantEmbedding's null
+ * guard) variant when re-embedded for a future repetition comparison. This
+ * can't crash anything (worst case is a slightly wrong similarity score, not
+ * a bad push), but keep new variants appended if this list is ever edited.
  */
 const COPY: Record<ReminderType, { variants: ReminderVariant[]; link: string }> = {
   mood_reminder: {
@@ -241,7 +250,18 @@ function cosineSimilarity(a: number[], b: number[]): number {
  *  this keeps the whole feature to "a small embed + compare" regardless of
  *  user count. Returns null for an out-of-range index (e.g. a history row
  *  referencing a variant that's since been trimmed from COPY) so callers can
- *  simply skip that comparison rather than throw. */
+ *  simply skip that comparison rather than throw.
+ *
+ *  NOTE: `pickVariant` always passes the user's CURRENT locale here, even
+ *  when re-embedding a past variant that may actually have been SENT in a
+ *  different locale (the log doesn't record per-row locale). This is
+ *  deliberate, not an oversight: comparing both sides in one consistent
+ *  locale gives an apples-to-apples similarity score, whereas comparing a
+ *  hi embedding against an en embedding would conflate "different language"
+ *  with "different meaning." A user who recently switched languages simply
+ *  gets compared against what their past notifications WOULD read like in
+ *  their new language — the right proxy for "does this feel repetitive to
+ *  me right now," which is what the guard is actually protecting. */
 const variantEmbeddingCache = new Map<string, number[]>();
 
 async function getVariantEmbedding(type: ReminderType, index: number, locale: "hi" | "en"): Promise<number[] | null> {
