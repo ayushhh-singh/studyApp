@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 import { MoodHomeCard } from "@/sukoon/components/mood-home-card";
 import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
 import { MoodPatternNudge } from "@/sukoon/components/mood-pattern-nudge";
+import { RecommendationsCard } from "@/sukoon/components/recommendations/recommendations-card";
 import { JourneysHomeCard } from "@/sukoon/components/journeys/journeys-home-card";
 import { SukoonGardenCard } from "@/sukoon/components/garden/sukoon-garden-card";
 import { CheckinCard } from "@/sukoon/components/checkin/checkin-card";
@@ -81,6 +82,8 @@ export function Component() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             {t("Sukoon.home.yourSpace")}
           </h2>
+          {/* Semantic "For you" — self-hides when there's nothing to suggest. */}
+          <RecommendationsCard />
           <MoodHomeCard />
           <CheckinCard />
           <SukoonGardenCard />

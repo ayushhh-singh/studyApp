@@ -16,6 +16,7 @@ import { useExercises } from "@/sukoon/lib/use-sukoon-exercises";
 import { SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { ExerciseCard } from "@/sukoon/components/tools/exercise-card";
 import { OfflineIndicator } from "@/sukoon/components/tools/offline-indicator";
+import { RecommendationsCard } from "@/sukoon/components/recommendations/recommendations-card";
 
 const FILTERS: (SukoonExerciseType | "all")[] = ["all", "breathing", "grounding", "reflection", "pmr", "meditation", "timer"];
 
@@ -71,6 +72,9 @@ export function Component() {
           <p className="truncate text-xs text-muted-foreground">{t("Sukoon.meditate.discoverSub")}</p>
         </div>
       </Link>
+
+      {/* Semantic "For you" — ranked to how this week has felt; self-hides when empty. */}
+      <RecommendationsCard />
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (

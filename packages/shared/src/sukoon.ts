@@ -1297,6 +1297,95 @@ export const sukoonJourneyReflectionBodySchema = z.object({
 });
 export type SukoonJourneyReflectionBody = z.infer<typeof sukoonJourneyReflectionBodySchema>;
 
+// ---------------------------------------------------------------------------
+// F6×F5 — "For you" recommendations. A semantic recommender over the STATIC
+// content library (exercises + journeys): one embedding per content item (its
+// title + a curated bilingual "what it helps with" descriptor + theme tags,
+// computed once by `pnpm sukoon:embed-content`) is cosine-matched to a rolling
+// per-user signal derived from recent mood check-ins + journal METADATA (never
+// the encrypted body). Ranked by genuine similarity — not a static list, not
+// popularity. Shared because the backend builds these and the "For you" card
+// renders them.
+//
+// Every recommendation carries an HONEST, bilingual reason CODE (not a
+// server-rendered sentence) so the UI localises it and never overclaims — the
+// copy is always "because you mentioned / it's come up / it fits", never "you
+// need X". `reason.kind` picks the template; the optional emotion/factor/tag
+// carries the specific signal it was grounded in.
+// ---------------------------------------------------------------------------
+
+export const SUKOON_RECOMMENDATION_KINDS = ["exercise", "journey"] as const;
+export const sukoonRecommendationKindSchema = z.enum(SUKOON_RECOMMENDATION_KINDS);
+export type SukoonRecommendationKind = z.infer<typeof sukoonRecommendationKindSchema>;
+
+/** Why this item was surfaced — each maps to a bilingual template in the
+ *  messages files. Ordered loosely by how specific/grounded it is:
+ *   factor        → a mood-factor the user tagged recently (sleep/studies/…)
+ *   journal_theme → a recurring journal TAG (metadata, carried in `tag`)
+ *   emotion       → a frequently-tagged emotion (carried in `emotion`)
+ *   low_mood      → a genuine recent declining trend (the F5×F6 pattern)
+ *   getting_started → cold start: no signal yet, a calm default set
+ *   general       → semantically matched, but to no one specific signal token */
+export const SUKOON_RECOMMENDATION_REASON_KINDS = [
+  "factor",
+  "journal_theme",
+  "emotion",
+  "low_mood",
+  "getting_started",
+  "general",
+] as const;
+export const sukoonRecommendationReasonKindSchema = z.enum(SUKOON_RECOMMENDATION_REASON_KINDS);
+export type SukoonRecommendationReasonKind = z.infer<typeof sukoonRecommendationReasonKindSchema>;
+
+export const sukoonRecommendationReasonSchema = z.object({
+  kind: sukoonRecommendationReasonKindSchema,
+  /** Set only when kind === "factor". */
+  factor: sukoonMoodFactorIdSchema.nullable(),
+  /** Set only when kind === "emotion". */
+  emotion: sukoonEmotionIdSchema.nullable(),
+  /** Set only when kind === "journal_theme" — the user's own tag string. */
+  tag: z.string().nullable(),
+});
+export type SukoonRecommendationReason = z.infer<typeof sukoonRecommendationReasonSchema>;
+
+/**
+ * One recommendation as returned to the client — enough to render the card and
+ * deep-link into the right player WITHOUT a second catalog lookup. `exercise_type`
+ * is set for `content_kind === "exercise"` (drives the tool icon + player route);
+ * `slug` is set for `content_kind === "journey"` (drives the journey route).
+ * `locked` is resolved SERVER-SIDE from the caller's tier (never trust a client
+ * lock for a paywall) — a locked item is still shown, with its lock badge.
+ */
+export const sukoonRecommendationSchema = z.object({
+  content_kind: sukoonRecommendationKindSchema,
+  content_id: z.string().uuid(),
+  content_ref: z.string(),
+  title_hi: z.string(),
+  title_en: z.string(),
+  premium: z.boolean(),
+  locked: z.boolean(),
+  exercise_type: sukoonExerciseTypeSchema.nullable(),
+  slug: z.string().nullable(),
+  /** Cosine similarity to the user's signal (0–1). null for a getting-started fallback. */
+  similarity: z.number().nullable(),
+  reason: sukoonRecommendationReasonSchema,
+});
+export type SukoonRecommendation = z.infer<typeof sukoonRecommendationSchema>;
+
+/**
+ * GET /recommendations — `signal_available` is false when the user has no recent
+ * mood/journal signal yet (the list is then a calm getting-started set, every
+ * reason `getting_started`), so the UI can soften the section heading rather than
+ * imply a personalisation that didn't happen.
+ */
+export const sukoonRecommendationsResponseSchema = apiEnvelopeSchema(
+  z.object({
+    recommendations: z.array(sukoonRecommendationSchema),
+    signal_available: z.boolean(),
+  }),
+);
+export type SukoonRecommendationsResponse = z.infer<typeof sukoonRecommendationsResponseSchema>;
+
 // --- Admin content queue (paste/upload → validate → preview → publish) -----
 
 /** GET /admin/journeys — the queue's list row (draft + published, one place

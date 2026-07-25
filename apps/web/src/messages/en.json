@@ -2493,6 +2493,27 @@
         "chat": "However that went, a short guided meditation on what we just talked about is here, if you’d like one.",
         "mood": "Thanks for checking in. A few calm minutes, shaped by how you’re feeling, if that would help."
       }
+    },
+    "recommendations": {
+      "title": "For you",
+      "titleGeneric": "A place to start",
+      "locked": "Plus",
+      "reason": {
+        "gettingStarted": "A calm place to start",
+        "general": "Because it fits how this week has felt",
+        "lowMood": "Because this week has felt a little heavier",
+        "emotion": "Because {{emotion}} has come up for you lately",
+        "journalTheme": "Because you journaled about {{tag}}",
+        "factor": {
+          "studies": "Because studies have felt heavy lately",
+          "family": "Because family has been on your mind",
+          "sleep": "Because sleep has come up in your check-ins",
+          "result": "Because the result has been weighing on you",
+          "comparison": "Because comparison has come up for you recently",
+          "health": "Because how you're feeling has come up recently",
+          "friends": "Because friendships have come up recently"
+        }
+      }
     }
   }
 }

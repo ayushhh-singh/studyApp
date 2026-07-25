@@ -43,6 +43,7 @@ export const queryKeys = {
   sukoonMoodPattern: () => ["sukoon", "mood", "pattern"] as const,
   sukoonMoodHeatmap: (month: string) => ["sukoon", "mood", "heatmap", month] as const,
   sukoonExercises: () => ["sukoon", "exercises", "list"] as const,
+  sukoonRecommendations: (limit: number) => ["sukoon", "recommendations", limit] as const,
   sukoonExerciseAudioUrl: (id: string, lang: string) => ["sukoon", "exercises", "audio-url", id, lang] as const,
   sukoonAmbientAudioUrl: (id: string) => ["sukoon", "exercises", "ambient-audio-url", id] as const,
   sukoonJourneys: () => ["sukoon", "journeys", "list"] as const,
