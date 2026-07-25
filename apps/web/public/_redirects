@@ -1,3 +1,23 @@
+# Explicit self-rewrites for every top-level static file in public/ that
+# must NEVER fall through to the SPA shell — placed ABOVE the wildcard so
+# there is no reliance on Cloudflare's implicit "exact static file wins over
+# _redirects" priority (that assumption held under local `wrangler pages dev`
+# but real-world reports showed a direct browser navigation to /sitemap.xml
+# rendering the app shell instead of the file). _redirects rules are
+# evaluated top-to-bottom, first match wins, so each of these claims its path
+# before the catch-all ever sees it.
+/sitemap.xml               /sitemap.xml               200
+/robots.txt                /robots.txt                200
+/favicon.svg               /favicon.svg               200
+/manifest.webmanifest      /manifest.webmanifest      200
+/manifest.hi.webmanifest   /manifest.hi.webmanifest   200
+/og-default-en.png         /og-default-en.png         200
+/og-default-hi.png         /og-default-hi.png         200
+/offline.html              /offline.html              200
+/assets/*                  /assets/:splat             200
+/pwa/*                     /pwa/:splat                200
+/marketing/*               /marketing/:splat          200
+
 # Cloudflare Pages SPA fallback — mirrors apps/web/vercel.json's rewrite rule.
 # Vite copies public/* verbatim into dist/, so this ships as dist/_redirects.
 # Cloudflare Pages serves an exact-match static file (e.g. the prerendered

@@ -1,9 +1,18 @@
 # Cloudflare Pages caching rules — mirrors apps/web/vercel.json's `headers`
-# block (kept in sync manually; there are only two rules). Vite copies
-# public/* verbatim into dist/, so this ships as dist/_headers.
+# block (kept in sync manually). Vite copies public/* verbatim into dist/,
+# so this ships as dist/_headers.
 
 /assets/*
   Cache-Control: public, max-age=31536000, immutable
 
 /sw.js
   Cache-Control: public, max-age=0, must-revalidate
+
+# Explicit Content-Type, belt-and-suspenders alongside Cloudflare's own
+# extension-based MIME inference (which already returns these correctly —
+# confirmed live — but costs nothing to pin down explicitly).
+/sitemap.xml
+  Content-Type: application/xml; charset=utf-8
+
+/robots.txt
+  Content-Type: text/plain; charset=utf-8

@@ -13,6 +13,17 @@ cleanupOutdatedCaches();
 // the app icons, index.html, and offline.html.
 precacheAndRoute(self.__WB_MANIFEST);
 
+// Workbox's NavigationRoute matches EVERY `mode: 'navigate'` request by
+// default, regardless of path — that includes a user directly typing
+// /sitemap.xml, /robots.txt, /favicon.svg, etc. into the address bar. None
+// of this app's real SPA routes have a dot in the path, so any navigation
+// to a path ending in a file extension is a real static file, never the
+// app shell, and must be excluded here — otherwise it gets pulled into the
+// "pages" NetworkFirst cache below (confirmed live: /sitemap.xml landed in
+// that cache) where a single slow/failed fetch could later serve a stale or
+// wrong cached response for what should always be a fresh static asset.
+const STATIC_FILE_PATH = /\.[a-zA-Z0-9]+$/;
+
 // SPA navigations: try the network first (so a signed-in user always sees
 // fresh content when online) but fall back to the precached app shell when
 // offline — react-router then renders whatever route-level data IS cached
@@ -24,6 +35,7 @@ registerRoute(
       networkTimeoutSeconds: 4,
       plugins: [new CacheableResponsePlugin({ statuses: [0, 200] })],
     }),
+    { denylist: [STATIC_FILE_PATH] },
   ),
 );
 
