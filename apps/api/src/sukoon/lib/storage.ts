@@ -36,3 +36,24 @@ export async function signAudioPath(path: string): Promise<SignedAudio> {
     expires_at: new Date(Date.now() + SIGNED_URL_TTL_SECONDS * 1000).toISOString(),
   };
 }
+
+/**
+ * Uploads a rendered audio buffer into the sukoon-audio bucket (service role,
+ * bypasses bucket RLS). Used by personalized meditations (services/meditation.ts)
+ * to persist a ONE-TIME TTS render so a replay never re-synthesizes. `upsert`
+ * is true so re-rendering to the same deterministic path (e.g. after a
+ * transient failure) overwrites cleanly rather than 409-ing. Returns nothing —
+ * a caller signs the same path afterward with signAudioPath.
+ */
+export async function uploadAudioPath(
+  path: string,
+  body: Buffer,
+  contentType: string,
+): Promise<void> {
+  const { error } = await supabase()
+    .storage.from(SUKOON_AUDIO_BUCKET)
+    .upload(path, body, { contentType, upsert: true });
+  if (error) {
+    throw new HttpError(500, `could not upload audio: ${error.message}`);
+  }
+}

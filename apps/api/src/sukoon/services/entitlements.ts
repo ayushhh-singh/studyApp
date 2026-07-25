@@ -7,10 +7,13 @@
  * user resolves to `free` — the caps still enforce correctly.
  */
 import {
+  SUKOON_FREE_MEDITATION_LIFETIME,
+  SUKOON_MEDITATION_DAILY_CAPS,
   SUKOON_VOICE_MONTHLY_CAP_SECONDS,
   SUKOON_VOICE_WARNING_SECONDS,
   type SukoonEntitlements,
   type SukoonFeatureFlags,
+  type SukoonMeditationUsage,
   type SukoonReflectionUsage,
   type SukoonTier,
   type SukoonTierSource,
@@ -260,6 +263,83 @@ export async function consumeReflection(
     );
   if (error) {
     logger.error({ err: error.message, userId }, "sukoon reflection usage increment failed");
+  }
+  const used = usage.used + 1;
+  return { allowed: true, usage: { ...usage, used, remaining: Math.max(0, usage.limit - used) } };
+}
+
+// ---------------------------------------------------------------------------
+// Personalized guided meditations (extends F6). GENERATING one is a real LLM +
+// one-time TTS render, so it's metered exactly like F4 reflections: free gets a
+// small LIFETIME taste, plus/pro a generous DAILY budget. A REPLAY of an already
+// generated meditation (cached script + audio) is free and never metered here —
+// only the service's generate path calls consumeMeditation, and only on a real
+// cache MISS. Uses the sukoon_usage.meditations counter (0098).
+// ---------------------------------------------------------------------------
+
+/** Sum of all meditation generations ever (free's lifetime budget denominator). */
+async function lifetimeMeditationCount(userId: string): Promise<number> {
+  const { data, error } = await supabase()
+    .from("sukoon_usage")
+    .select("meditations")
+    .eq("user_id", userId);
+  if (error) {
+    logger.warn({ err: error.message, userId }, "sukoon lifetime meditation read failed; assuming 0");
+    return 0;
+  }
+  return (data as { meditations: number }[] | null)?.reduce((n, r) => n + (r.meditations ?? 0), 0) ?? 0;
+}
+
+/** Today's (IST-day) meditation generation count (plus/pro's daily numerator). */
+async function todayMeditationCount(userId: string): Promise<number> {
+  const { data, error } = await supabase()
+    .from("sukoon_usage")
+    .select("meditations")
+    .eq("user_id", userId)
+    .eq("date", istToday())
+    .maybeSingle();
+  if (error) {
+    logger.warn({ err: error.message, userId }, "sukoon today meditation read failed; assuming 0");
+  }
+  return (data as { meditations: number } | null)?.meditations ?? 0;
+}
+
+/** The meditation allowance meter (read-only — see consumeMeditation). */
+export async function getMeditationUsage(userId: string): Promise<SukoonMeditationUsage> {
+  const tier = await getSukoonTier(userId);
+  if (tier === "free") {
+    const used = await lifetimeMeditationCount(userId);
+    const limit = SUKOON_FREE_MEDITATION_LIFETIME;
+    return { tier, scope: "lifetime", used, limit, remaining: Math.max(0, limit - used) };
+  }
+  const used = await todayMeditationCount(userId);
+  const limit = SUKOON_MEDITATION_DAILY_CAPS[tier];
+  return { tier, scope: "daily", used, limit, remaining: Math.max(0, limit - used) };
+}
+
+/**
+ * Consume one meditation generation against the tier's budget. Returns
+ * `allowed:false` (without incrementing) when the budget is spent, so the
+ * caller emits the gated 402 before any model/TTS spend. Increments today's
+ * `meditations` counter (upsert preserves the day's other counters). Fails OPEN
+ * on a counter-write error, same posture as chat/reflection above.
+ */
+export async function consumeMeditation(
+  userId: string,
+): Promise<{ allowed: boolean; usage: SukoonMeditationUsage }> {
+  const usage = await getMeditationUsage(userId);
+  if (usage.used >= usage.limit) return { allowed: false, usage };
+
+  const today = istToday();
+  const todayCount = await todayMeditationCount(userId);
+  const { error } = await supabase()
+    .from("sukoon_usage")
+    .upsert(
+      { user_id: userId, date: today, meditations: todayCount + 1 },
+      { onConflict: "user_id,date" },
+    );
+  if (error) {
+    logger.error({ err: error.message, userId }, "sukoon meditation usage increment failed");
   }
   const used = usage.used + 1;
   return { allowed: true, usage: { ...usage, used, remaining: Math.max(0, usage.limit - used) } };

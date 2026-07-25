@@ -17,6 +17,7 @@ import { CrisisTakeover } from "@/sukoon/components/crisis-takeover";
 import { ExamEveJourneyCard } from "@/sukoon/components/journeys/exam-eve-journey-card";
 import { MoodPatternNudge } from "@/sukoon/components/mood-pattern-nudge";
 import { SukoonFeedbackWidget } from "@/sukoon/components/sukoon-feedback-widget";
+import { MeditationOfferCard } from "@/sukoon/components/meditation/meditation-offer-card";
 import { daysUntil } from "@/sukoon/lib/days-until";
 import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
 import {
@@ -75,6 +76,7 @@ export function Component() {
   const [takeoverOpen, setTakeoverOpen] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [medOfferDismissed, setMedOfferDismissed] = useState(false);
 
   // The id to CONTINUE on send (decoupled from the load target so a fresh
   // thread keeps its locally-built messages after the server mints its id).
@@ -378,6 +380,16 @@ export function Component() {
               )}
             </AssistantRow>
           </div>
+        ) : null}
+
+        {/* A gentle, optional invitation to a short guided meditation on what
+            was just talked about — only once a real exchange has happened, never
+            mid-stream or during a crisis takeover. Dismissible, never a nag. */}
+        {!medOfferDismissed &&
+        !stream.isStreaming &&
+        stream.crisisSurface !== "takeover" &&
+        messages.some((m) => m.role === "assistant" && !m.id.startsWith("a-")) ? (
+          <MeditationOfferCard source="chat" onDismiss={() => setMedOfferDismissed(true)} />
         ) : null}
 
         {sendError ? (

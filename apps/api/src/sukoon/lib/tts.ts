@@ -28,11 +28,22 @@ export interface TtsResult {
   mimeType: string;
 }
 
+/**
+ * Abstract voice choice (the meditation "voice" control). Provider-neutral:
+ * each provider maps it to a real speaker id below, falling back to the
+ * language default for an unknown/omitted value. Voice Mode (services/voice.ts)
+ * never passes this, so it always gets the warm default — unchanged behaviour.
+ */
+export type TtsVoiceChoice = "warm" | "calm" | "bright";
+
 export interface TtsProvider {
   name: string;
   synthesize(params: {
     text: string;
     language: SukoonChatLanguage;
+    /** Optional voice pick (personalized meditations); defaults to the warm
+     *  per-language voice when omitted. */
+    voice?: TtsVoiceChoice;
     userId?: string;
     signal?: AbortSignal;
   }): Promise<TtsResult>;
@@ -74,14 +85,23 @@ const OPENAI_VOICE_CONFIG: Record<SukoonChatLanguage, { voice: string; instructi
   },
 };
 
+/** Abstract voice → real OpenAI speaker. `warm` is the per-language default
+ *  (shimmer, same as Voice Mode); the other two are calm/bright alternatives
+ *  that read a meditation naturally. */
+const OPENAI_VOICE_BY_CHOICE: Record<TtsVoiceChoice, string> = {
+  warm: "shimmer",
+  calm: "sage",
+  bright: "nova",
+};
+
 export const openAiTtsProvider: TtsProvider = {
   name: "openai:gpt-4o-mini-tts",
-  async synthesize({ text, language, signal }): Promise<TtsResult> {
+  async synthesize({ text, language, voice, signal }): Promise<TtsResult> {
     const cfg = OPENAI_VOICE_CONFIG[language];
     const res = await openai().audio.speech.create(
       {
         model: "gpt-4o-mini-tts",
-        voice: cfg.voice,
+        voice: voice ? OPENAI_VOICE_BY_CHOICE[voice] : cfg.voice,
         input: text,
         instructions: cfg.instructions,
         response_format: "mp3",
@@ -116,13 +136,21 @@ const SARVAM_LANGUAGE_CODE: Record<SukoonChatLanguage, string> = {
  *  which voice timbre reads it). */
 const SARVAM_SPEAKER = "anushka";
 
+/** Abstract voice → real Sarvam bulbul:v2 speaker (best-effort — Sarvam is not
+ *  exercised in this repo; unknown ids simply fall back at the API). */
+const SARVAM_SPEAKER_BY_CHOICE: Record<TtsVoiceChoice, string> = {
+  warm: "anushka",
+  calm: "vidya",
+  bright: "manisha",
+};
+
 interface SarvamTtsResponse {
   audios?: string[];
 }
 
 export const sarvamTtsProvider: TtsProvider = {
   name: "sarvam:bulbul-v2",
-  async synthesize({ text, language, signal }): Promise<TtsResult> {
+  async synthesize({ text, language, voice, signal }): Promise<TtsResult> {
     const apiKey = process.env.SARVAM_API_KEY;
     if (!apiKey) {
       throw new Error("SARVAM_API_KEY is not set (apps/api/.env) — required when SUKOON_TTS_PROVIDER=sarvam");
@@ -137,7 +165,7 @@ export const sarvamTtsProvider: TtsProvider = {
         text,
         target_language_code: SARVAM_LANGUAGE_CODE[language],
         model: SARVAM_MODEL,
-        speaker: SARVAM_SPEAKER,
+        speaker: voice ? SARVAM_SPEAKER_BY_CHOICE[voice] : SARVAM_SPEAKER,
         output_audio_codec: "wav",
       }),
       signal,

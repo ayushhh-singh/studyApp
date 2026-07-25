@@ -2439,6 +2439,60 @@
       "quickSaathi": "Talk to Saathi",
       "quickSaathiSub": "Say what's on your mind",
       "yourSpace": "Your space"
+    },
+    "meditate": {
+      "setupTitle": "A meditation, just for you",
+      "setupSub": "A few calm minutes, shaped around how the day has been.",
+      "themePrefix": "Gently held in mind:",
+      "focusLabel": "What would help right now?",
+      "durationLabel": "How long?",
+      "voiceLabel": "Voice",
+      "languageLabel": "Language",
+      "ambientLabel": "Background sound",
+      "minutes": "{{n}} min",
+      "prepare": "Prepare my meditation",
+      "preparingTitle": "Preparing your meditation…",
+      "preparingBody": "Taking a moment to write something calm, just for you.",
+      "playerTitle": "Your guided meditation",
+      "replayNote": "Replaying the one you made earlier.",
+      "audioUnavailable": "The narration audio isn’t available right now — you can still read along below, and sit with the background sound.",
+      "showScript": "Show the words",
+      "completeNote": "Take this calm with you. You did something kind for yourself.",
+      "another": "Make another",
+      "capReached": "You’ve used your guided-meditation credits for now.",
+      "seePlans": "See Sukoon plans",
+      "genError": "Something interrupted that — please try once more.",
+      "creditsLifetime": "{{n}} free left",
+      "creditsDaily": "{{n}} left today",
+      "offerCta": "Take a few calm minutes",
+      "offerDismiss": "Dismiss",
+      "discoverTitle": "A meditation made for you",
+      "discoverSub": "Shaped around how your day has been",
+      "focus": {
+        "unwind": "Unwind",
+        "sleep": "Wind down to sleep",
+        "ease_worry": "Ease worry",
+        "self_kindness": "Be kind to myself",
+        "refocus": "Refocus",
+        "confidence": "Steady confidence"
+      },
+      "voice": {
+        "warm": "Warm",
+        "calm": "Calm",
+        "bright": "Bright"
+      },
+      "language": {
+        "hi": "हिंदी",
+        "en": "English",
+        "hinglish": "Hinglish"
+      },
+      "ambient": {
+        "none": "None"
+      },
+      "offer": {
+        "chat": "However that went, a short guided meditation on what we just talked about is here, if you’d like one.",
+        "mood": "Thanks for checking in. A few calm minutes, shaped by how you’re feeling, if that would help."
+      }
     }
   }
 }

@@ -24,6 +24,7 @@ import {
   useDeleteMoodEntry,
 } from "@/sukoon/lib/use-sukoon-mood";
 import { MoodPicker, MoodChip, SignInPrompt } from "@/sukoon/components/journal/journal-ui";
+import { MeditationOfferCard } from "@/sukoon/components/meditation/meditation-offer-card";
 
 function ChoiceChip({
   active,
@@ -220,6 +221,10 @@ export function Component() {
       {justSaved ? (
         <p className="text-center text-sm text-secondary">{t("Sukoon.mood.savedNote")}</p>
       ) : null}
+
+      {/* A gentle offer, only right after a check-in: a few calm minutes shaped
+          by how they just said they're feeling. Never presumes, always optional. */}
+      {justSaved ? <MeditationOfferCard source="mood" /> : null}
 
       {editingId ? (
         <div className="flex items-center justify-center gap-4">

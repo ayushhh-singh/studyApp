@@ -3,8 +3,8 @@
  * PMR/timer/meditation tools, each linking into its own player.
  */
 import { useState } from "react";
-import { useParams } from "react-router";
-import { Wind } from "lucide-react";
+import { Link, useParams } from "react-router";
+import { Sparkles, Wind } from "lucide-react";
 import type { SukoonExerciseType } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -56,6 +56,21 @@ export function Component() {
     <div className="mx-auto flex max-w-3xl flex-col gap-6">
       <PageHeader title={t("Sukoon.toolsTitle")} description={t("Sukoon.toolsSub")} />
       <OfflineIndicator />
+
+      {/* Personalized guided meditation — a made-for-you meditation on how the
+          day's been, distinct from the fixed library below. */}
+      <Link
+        to={`${base}/meditate`}
+        className="sukoon-rise flex items-center gap-3 rounded-2xl border border-secondary/25 bg-secondary/10 px-4 py-3.5 transition-colors hover:border-secondary/50"
+      >
+        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary/20">
+          <Sparkles className="size-5 text-secondary" aria-hidden />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-foreground">{t("Sukoon.meditate.discoverTitle")}</p>
+          <p className="truncate text-xs text-muted-foreground">{t("Sukoon.meditate.discoverSub")}</p>
+        </div>
+      </Link>
 
       <div className="flex gap-2 overflow-x-auto pb-1">
         {FILTERS.map((f) => (

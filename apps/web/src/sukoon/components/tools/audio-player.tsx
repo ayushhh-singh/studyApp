@@ -23,12 +23,17 @@ export function AudioPlayer({
   title,
   onPlay,
   onEnded,
+  onPlayingChange,
 }: {
   src: string;
   title: string;
   /** Fires on every native `play` event (resume included) — dedupe in the caller if only the first matters. */
   onPlay?: () => void;
   onEnded?: () => void;
+  /** Fires whenever playback starts/stops (play/pause/ended) — used by the
+   *  personalized-meditation player to fade its ambient bed in and out with the
+   *  narration. Additive; existing callers ignore it. */
+  onPlayingChange?: (playing: boolean) => void;
 }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
@@ -84,12 +89,17 @@ export function AudioPlayer({
         onPlay={() => {
           setPlaying(true);
           onPlay?.();
+          onPlayingChange?.(true);
         }}
-        onPause={() => setPlaying(false)}
+        onPause={() => {
+          setPlaying(false);
+          onPlayingChange?.(false);
+        }}
         onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onEnded={() => {
           setPlaying(false);
+          onPlayingChange?.(false);
           onEnded?.();
         }}
       />
