@@ -2156,6 +2156,10 @@
       "todayOtherCheckIns": "Also today",
       "nextReminder": "Next gentle reminder around {{time}}"
     },
+    "sync": {
+      "queuedOffline": "Saved on this device — it'll sync once you're back online.",
+      "syncing": "Syncing…"
+    },
     "trends": {
       "lineChartTitle": "Your mood over time",
       "rangeDays": "{{count}}d",

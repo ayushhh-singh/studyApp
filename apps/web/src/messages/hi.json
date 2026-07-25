@@ -2156,6 +2156,10 @@
       "todayOtherCheckIns": "आज के अन्य चेक-इन",
       "nextReminder": "अगला हल्का रिमाइंडर लगभग {{time}} बजे"
     },
+    "sync": {
+      "queuedOffline": "इस डिवाइस पर सेव हो गया है — ऑनलाइन होते ही सिंक हो जाएगा।",
+      "syncing": "सिंक हो रहा है…"
+    },
     "trends": {
       "lineChartTitle": "समय के साथ आपका मूड",
       "rangeDays": "{{count}} दिन",

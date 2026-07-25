@@ -7,15 +7,13 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Bold, List, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { queryKeys } from "@/lib/query-keys";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
-import {
-  useCreateJournalEntry,
-  useJournalEntry,
-  useUpdateJournalEntry,
-} from "@/sukoon/lib/use-sukoon-journal";
+import { useJournalEntry, useJournalWriteQueue } from "@/sukoon/lib/use-sukoon-journal";
 import {
   MoodPicker,
   SignInPrompt,
@@ -23,7 +21,8 @@ import {
   usePromptText,
 } from "@/sukoon/components/journal/journal-ui";
 import { PromptPicker } from "@/sukoon/components/journal/prompt-picker";
-import type { SukoonJournalPrompt } from "@neev/shared";
+import { SyncQueueIndicator } from "@/sukoon/components/sync-queue-indicator";
+import type { SukoonJournalEntry, SukoonJournalPrompt } from "@neev/shared";
 
 interface DraftShape {
   body: string;
@@ -54,8 +53,14 @@ export function Component() {
   const draftKey = `sukoon-journal-draft:${entryId ?? "new"}`;
 
   const entryQuery = useJournalEntry(entryId, { enabled: !!session && isEdit });
-  const createMut = useCreateJournalEntry();
-  const updateMut = useUpdateJournalEntry(entryId ?? "");
+  const queryClient = useQueryClient();
+  const { save: saveJournal, status: syncStatus, getResolvedCreate } = useJournalWriteQueue();
+  // Stable across repeated Save clicks on the SAME unsynced new entry (a fresh
+  // component mount — i.e. a genuinely new /journal/new visit — gets a fresh
+  // one), so a save queued offline and re-saved before it syncs overwrites the
+  // same queue slot instead of ever risking two created entries.
+  const pendingCreateKeyRef = useRef(crypto.randomUUID());
+  const [awaitingCreateSync, setAwaitingCreateSync] = useState(false);
 
   const [body, setBody] = useState("");
   const [mood, setMood] = useState<number | null>(null);
@@ -116,29 +121,53 @@ export function Component() {
   }, [body, mood, tags, prompt, hydrated, draftKey]);
 
   const canSave = body.trim().length > 0 || mood != null;
-  const saving = createMut.isPending || updateMut.isPending;
+  // Purely a label swap, not a lock — a create still queued offline stays
+  // re-savable (it re-enqueues under the SAME pendingCreateKeyRef, which just
+  // overwrites the queued snapshot, never a second entry) so a long offline
+  // stretch never strands someone unable to keep refining a fresh entry.
+  const saving = awaitingCreateSync;
 
-  const onSave = async () => {
-    if (!canSave || saving) return;
+  const onSave = () => {
+    if (!canSave) return;
     const payload = {
       body: body.trim() ? body : undefined,
       mood: mood ?? null,
       tags,
     };
-    try {
-      let id = entryId;
-      if (isEdit) {
-        await updateMut.mutateAsync(payload);
-      } else {
-        const res = await createMut.mutateAsync({ ...payload, prompt_id: prompt?.id ?? null });
-        id = res.entry.id;
-      }
-      localStorage.removeItem(draftKey);
-      navigate(journeyReturnTo ?? `${base}/journal/${id}`, { replace: true });
-    } catch {
-      /* mutation error is surfaced below via isError */
+    localStorage.removeItem(draftKey);
+    if (isEdit && entryId) {
+      // Full replace (mirrors the server's own semantics — see
+      // services/journal.ts's updateEntry) reflected in the cache right away,
+      // so navigating straight to the view page never flashes stale content
+      // while the queued PATCH is still in flight (offline, or just not yet
+      // flushed) — this save is durable via the queue regardless of when the
+      // PATCH itself actually lands.
+      queryClient.setQueryData<SukoonJournalEntry>(queryKeys.sukoonJournalEntry(entryId), (prev) =>
+        prev ? { ...prev, body: payload.body ?? null, mood: payload.mood, tags: payload.tags } : prev,
+      );
+      saveJournal({ queueKey: entryId, op: "update", entryId, body: payload });
+      navigate(journeyReturnTo ?? `${base}/journal/${entryId}`, { replace: true });
+    } else {
+      // No id exists yet — stay on the editor until the create actually
+      // reaches the server (near-instant when online; deferred, but never
+      // lost, when offline) and the effect below picks up the real id.
+      saveJournal({
+        queueKey: pendingCreateKeyRef.current,
+        op: "create",
+        body: { ...payload, prompt_id: prompt?.id ?? null },
+      });
+      setAwaitingCreateSync(true);
     }
   };
+
+  // Once a queued create actually syncs (whether that's a moment later,
+  // online, or after a real reconnect), move on to viewing the new entry —
+  // exactly where the old awaited-mutation flow used to land, just deferred.
+  useEffect(() => {
+    if (!awaitingCreateSync) return;
+    const resolved = getResolvedCreate(pendingCreateKeyRef.current);
+    if (resolved) navigate(journeyReturnTo ?? `${base}/journal/${resolved.id}`, { replace: true });
+  }, [awaitingCreateSync, syncStatus, getResolvedCreate, navigate, journeyReturnTo, base]);
 
   // Markdown-lite helpers operating on the textarea selection.
   const wrapSelection = (marker: string) => {
@@ -205,7 +234,7 @@ export function Component() {
             {t("Sukoon.journal.back")}
           </Link>
         </Button>
-        <Button onClick={onSave} disabled={!canSave || saving} size="sm">
+        <Button onClick={onSave} disabled={!canSave} size="sm">
           {saving ? t("Sukoon.journal.saving") : t("Sukoon.journal.save")}
         </Button>
       </div>
@@ -284,15 +313,9 @@ export function Component() {
         <TagInput tags={tags} onChange={setTags} />
       </div>
 
-      {(createMut.isError || updateMut.isError) && (
-        // The save button is already disabled unless canSave (body or mood
-        // present), so a mutation error reaching here is never a validation
-        // failure — it's a real network/server error, and must say so rather
-        // than the stale-copy "write something or pick a mood" message.
-        <p role="alert" className="text-sm text-destructive">
-          {t("Sukoon.journal.saveError")}
-        </p>
-      )}
+      {/* Calm, non-alarming — a save with no connection queues locally and
+          syncs automatically; this just says so, it never reads as an error. */}
+      <SyncQueueIndicator status={syncStatus} />
     </div>
   );
 }

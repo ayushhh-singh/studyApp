@@ -4,7 +4,7 @@
  * use-sukoon-chat's streaming pattern). Bodies only ever arrive on the single
  * -entry / export fetches; lists are metadata only.
  */
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   sukoonJournalListResponseSchema,
@@ -16,6 +16,7 @@ import {
   apiEnvelopeSchema,
   sukoonJournalStreakSchema,
   type SukoonJournalCreateBody,
+  type SukoonJournalEntry,
   type SukoonJournalUpdateBody,
   type SukoonReflectionUsage,
 } from "@neev/shared";
@@ -23,6 +24,8 @@ import { z } from "zod";
 import { api } from "@/lib/api";
 import { streamEvents } from "@/lib/sse";
 import { queryKeys } from "@/lib/query-keys";
+import type { QueueStatus } from "@/lib/offline-queue";
+import { createSukoonWriteQueue } from "@/sukoon/lib/sukoon-write-queue";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 const streakEnvelopeSchema = apiEnvelopeSchema(z.object({ streak: sukoonJournalStreakSchema }));
@@ -110,34 +113,100 @@ function useInvalidateJournal() {
   }, [queryClient]);
 }
 
-export function useCreateJournalEntry() {
-  const invalidate = useInvalidateJournal();
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: SukoonJournalCreateBody) =>
-      api.post("/api/sukoon/journal/entries", sukoonJournalEntryResponseSchema, body),
-    onSuccess: () => {
-      invalidate();
-      // A new entry is one of the three activities that grow the Garden
-      // (F11) — refresh it so Home reflects it right away. (Editing an
-      // existing entry doesn't add a new day-count row, so only create
-      // needs this — update/delete leave growth_points unchanged either way.)
-      void queryClient.invalidateQueries({ queryKey: queryKeys.sukoonGarden() });
-    },
-  });
+/**
+ * One item in the journal write queue — either a brand-new entry (no id yet;
+ * `queueKey` is a client-only uuid the caller keeps stable across repeated
+ * Save clicks on the SAME unsynced draft, see journal-editor.tsx) or an edit
+ * of an existing entry (`queueKey` is the entry's real id, so a re-save
+ * before the previous one has synced just replaces the queued snapshot —
+ * the offline queue's own last-write-wins dedupe, no duplicate PATCHes).
+ */
+export interface JournalWriteItem {
+  queueKey: string;
+  op: "create" | "update";
+  entryId?: string;
+  body: SukoonJournalCreateBody | SukoonJournalUpdateBody;
 }
 
-export function useUpdateJournalEntry(id: string) {
-  const invalidate = useInvalidateJournal();
+function journalResolvedKey(queueKey: string) {
+  return ["sukoon", "journal", "pending-resolved", queueKey] as const;
+}
+
+/**
+ * Journal entry create/update, routed through the SAME localStorage-backed
+ * offline queue the MCQ test player's autosave uses (@/lib/offline-queue) —
+ * a save made with no connection queues locally instead of failing, and
+ * flushes automatically once the connection returns. Wrapped in
+ * createSukoonWriteQueue (not the plain queue) because a batch here can mix
+ * a "create" (POST, not naturally idempotent) with an "update" (PATCH, safe
+ * to resend) for different entries — see that module's header for why a
+ * plain all-or-nothing retry would risk a duplicate entry.
+ *
+ * A create's real server id isn't known until it syncs, so `sendOne` stashes
+ * the created entry into the query cache under a `queueKey`-scoped key —
+ * `getResolvedCreate` lets the editor pick it up (to navigate to the new
+ * entry) once it appears, whether that's near-instant (online) or after a
+ * real reconnect.
+ */
+export function useJournalWriteQueue(): {
+  save: (input: JournalWriteItem) => void;
+  status: QueueStatus;
+  getResolvedCreate: (queueKey: string) => SukoonJournalEntry | undefined;
+} {
   const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (body: SukoonJournalUpdateBody) =>
-      api.patch(`/api/sukoon/journal/entries/${id}`, sukoonJournalEntryResponseSchema, body),
-    onSuccess: (data) => {
-      queryClient.setQueryData(queryKeys.sukoonJournalEntry(id), data);
-      invalidate();
-    },
-  });
+
+  const queue = useMemo(
+    () =>
+      createSukoonWriteQueue<JournalWriteItem>({
+        storageKey: "sukoon-journal-write-queue",
+        dedupeKey: (item) => item.queueKey,
+        sendOne: async (item) => {
+          if (item.op === "update") {
+            await api.patch(
+              `/api/sukoon/journal/entries/${item.entryId}`,
+              sukoonJournalEntryResponseSchema,
+              item.body,
+            );
+          } else {
+            const res = await api.post(
+              "/api/sukoon/journal/entries",
+              sukoonJournalEntryResponseSchema,
+              item.body,
+            );
+            queryClient.setQueryData(journalResolvedKey(item.queueKey), res.entry);
+          }
+          void queryClient.invalidateQueries({ queryKey: ["sukoon", "journal"] });
+          // A new entry is one of the three activities that grow the Garden
+          // (F11) — refresh it so Home reflects it right away. An edit
+          // doesn't add a new day-count row, so this is harmless-but-unneeded
+          // for updates too; invalidating either way keeps this one path simple.
+          void queryClient.invalidateQueries({ queryKey: queryKeys.sukoonGarden() });
+        },
+      }),
+    [queryClient],
+  );
+
+  const status = useSyncExternalStore(
+    (listener) => queue.subscribe(listener),
+    () => queue.getStatus(),
+  );
+
+  useEffect(() => {
+    // Flush on mount too, not just unmount — this queue is localStorage-durable
+    // and outlives a single page visit, so an entry stranded by a closed tab
+    // or a connection drop shouldn't sit unsent until the next unrelated save
+    // (mirrors use-srs-review-queue.ts's identical reasoning).
+    queue.flushNow().catch(() => {});
+    return () => {
+      queue.flushNow().catch(() => {});
+    };
+  }, [queue]);
+
+  return {
+    save: (input) => queue.enqueue(input),
+    status,
+    getResolvedCreate: (queueKey) => queryClient.getQueryData(journalResolvedKey(queueKey)),
+  };
 }
 
 export function useDeleteJournalEntry() {

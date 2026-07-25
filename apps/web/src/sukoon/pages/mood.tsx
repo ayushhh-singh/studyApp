@@ -5,7 +5,7 @@
  * editable in place; "Check in again" starts a fresh EXTRA entry for the same
  * day (both are stored — a later dip is a real, separate signal).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router";
 import { Pencil, Trash2 } from "lucide-react";
 import { SUKOON_EMOTIONS, SUKOON_MOOD_FACTORS } from "@neev/shared";
@@ -17,14 +17,10 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/providers/auth-provider";
 import { useSukoonLanguage } from "@/sukoon/lib/use-sukoon-language";
 import { useTrackSukoonFeatureView } from "@/sukoon/lib/use-sukoon-analytics";
-import {
-  useMoodToday,
-  useCreateMoodEntry,
-  useUpdateMoodEntry,
-  useDeleteMoodEntry,
-} from "@/sukoon/lib/use-sukoon-mood";
+import { useMoodToday, useMoodWriteQueue, useDeleteMoodEntry } from "@/sukoon/lib/use-sukoon-mood";
 import { MoodPicker, MoodChip, SignInPrompt } from "@/sukoon/components/journal/journal-ui";
 import { MeditationOfferCard } from "@/sukoon/components/meditation/meditation-offer-card";
+import { SyncQueueIndicator } from "@/sukoon/components/sync-queue-indicator";
 
 function ChoiceChip({
   active,
@@ -60,8 +56,7 @@ export function Component() {
   const base = locale ? `/${locale}/sukoon` : "";
 
   const todayQuery = useMoodToday({ enabled: !!session });
-  const createMut = useCreateMoodEntry();
-  const updateMut = useUpdateMoodEntry();
+  const { save: saveMood, status: syncStatus, getResolvedCreate } = useMoodWriteQueue();
   const deleteMut = useDeleteMoodEntry();
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -72,6 +67,16 @@ export function Component() {
   const [expanded, setExpanded] = useState(false);
   const [hydrated, setHydrated] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  // Stable across repeated Save clicks on the SAME unsynced check-in — a
+  // re-save before it's synced just overwrites the queued snapshot (never a
+  // duplicate entry); resetForNew() below mints a fresh one for the NEXT
+  // genuinely new check-in ("Check in again"), so two check-ins queued
+  // offline back-to-back never collide with each other either.
+  const pendingCreateKeyRef = useRef(crypto.randomUUID());
+  // True from the moment a brand-new check-in is queued until its real id
+  // comes back (near-instant when online; deferred, but never lost, when
+  // offline) — only relevant while editingId is still null.
+  const [awaitingCreateId, setAwaitingCreateId] = useState(false);
 
   const loadEntry = (entry: SukoonMoodEntry) => {
     setEditingId(entry.id);
@@ -81,6 +86,7 @@ export function Component() {
     setNote(entry.note ?? "");
     setExpanded(entry.emotions.length > 0 || entry.factors.length > 0 || !!entry.note);
     setJustSaved(false);
+    setAwaitingCreateId(false);
   };
 
   // Hydrate once from today's primary entry, if one already exists.
@@ -90,6 +96,20 @@ export function Component() {
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hydrated, todayQuery.data]);
+
+  // Once a brand-new check-in actually reaches the server (near-instant when
+  // online; deferred, but never lost, when offline), adopt its real id so
+  // Delete/"Check in again" behave exactly as if it had saved online —
+  // without ever clobbering fields the user may have kept editing since.
+  useEffect(() => {
+    if (!awaitingCreateId) return;
+    const resolved = getResolvedCreate(pendingCreateKeyRef.current);
+    if (resolved) {
+      setEditingId(resolved.id);
+      setAwaitingCreateId(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [awaitingCreateId, syncStatus]);
 
   // Check `loading` BEFORE `session` — session starts null until the initial
   // getSession() resolves, and a disabled query's isPending never flips (it
@@ -107,6 +127,11 @@ export function Component() {
     setNote("");
     setExpanded(false);
     setJustSaved(false);
+    setAwaitingCreateId(false);
+    // A fresh key for the NEXT new check-in — so if the previous one is still
+    // queued (unsynced), this one is tracked separately and can never collide
+    // with it in the write queue.
+    pendingCreateKeyRef.current = crypto.randomUUID();
   };
 
   const toggleEmotion = (id: SukoonEmotionId) =>
@@ -114,22 +139,23 @@ export function Component() {
   const toggleFactor = (id: SukoonMoodFactorId) =>
     setFactors((cur) => (cur.includes(id) ? cur.filter((f) => f !== id) : [...cur, id]));
 
-  const isSaving = createMut.isPending || updateMut.isPending;
-  const canSave = score != null && !isSaving;
+  const canSave = score != null;
 
   const handleSave = () => {
-    if (score == null || isSaving) return;
+    if (score == null) return;
     const body = { score, emotions, factors, note: note.trim() || undefined };
     if (editingId) {
-      updateMut.mutate({ id: editingId, body }, { onSuccess: () => setJustSaved(true) });
+      saveMood({ queueKey: editingId, op: "update", entryId: editingId, body });
     } else {
-      createMut.mutate(body, {
-        onSuccess: (res) => {
-          setEditingId(res.entry.id);
-          setJustSaved(true);
-        },
-      });
+      // Re-saving before the previous attempt has synced overwrites the SAME
+      // queued snapshot (same pendingCreateKeyRef) — never a second entry.
+      saveMood({ queueKey: pendingCreateKeyRef.current, op: "create", body });
+      setAwaitingCreateId(true);
     }
+    // The write is durably queued the moment enqueue() returns, whether or
+    // not it's reached the server yet — SyncQueueIndicator (below) is what
+    // tells the calmer, honest "still syncing" story, not this note.
+    setJustSaved(true);
   };
 
   const entryTime = (iso: string) =>
@@ -211,16 +237,16 @@ export function Component() {
       )}
 
       <Button onClick={handleSave} disabled={!canSave}>
-        {isSaving
-          ? t("Sukoon.mood.saving")
-          : editingId
-            ? t("Sukoon.mood.update")
-            : t("Sukoon.mood.save")}
+        {editingId ? t("Sukoon.mood.update") : t("Sukoon.mood.save")}
       </Button>
 
       {justSaved ? (
         <p className="text-center text-sm text-secondary">{t("Sukoon.mood.savedNote")}</p>
       ) : null}
+
+      {/* Calm, non-alarming — a check-in with no connection queues locally and
+          syncs automatically; this just says so, it never reads as an error. */}
+      <SyncQueueIndicator status={syncStatus} />
 
       {/* A gentle offer, only right after a check-in: a few calm minutes shaped
           by how they just said they're feeling. Never presumes, always optional. */}

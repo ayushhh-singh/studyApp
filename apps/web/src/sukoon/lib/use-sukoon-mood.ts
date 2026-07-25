@@ -2,7 +2,7 @@
  * Sukoon F5 mood-tracking data hooks — TanStack Query over the
  * /api/sukoon/mood endpoints. Mirrors use-sukoon-journal.ts's conventions.
  */
-import { useCallback } from "react";
+import { useCallback, useEffect, useMemo, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   sukoonMoodTodayResponseSchema,
@@ -11,10 +11,13 @@ import {
   sukoonMoodEntryResponseSchema,
   sukoonMoodPatternResponseSchema,
   type SukoonMoodCreateBody,
+  type SukoonMoodEntry,
   type SukoonMoodUpdateBody,
 } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
+import type { QueueStatus } from "@/lib/offline-queue";
+import { createSukoonWriteQueue } from "@/sukoon/lib/sukoon-write-queue";
 
 export function useMoodToday(options?: { enabled?: boolean }) {
   return useQuery({
@@ -70,27 +73,89 @@ function useInvalidateMood() {
   }, [queryClient]);
 }
 
-export function useCreateMoodEntry() {
-  const invalidate = useInvalidateMood();
-  return useMutation({
-    mutationFn: (body: SukoonMoodCreateBody) =>
-      api.post("/api/sukoon/mood/entries", sukoonMoodEntryResponseSchema, body),
-    onSuccess: () => invalidate(),
-  });
+/**
+ * One item in the mood write queue — either a brand-new check-in (no id yet;
+ * `queueKey` is a client-only uuid the caller keeps stable across repeated
+ * Save clicks on the SAME unsynced check-in, see mood.tsx) or an edit of an
+ * already-saved entry (`queueKey` is the entry's real id, so a re-save before
+ * the previous one has synced just replaces the queued snapshot — the
+ * offline queue's own last-write-wins dedupe, no duplicate PATCHes).
+ */
+export interface MoodWriteItem {
+  queueKey: string;
+  op: "create" | "update";
+  entryId?: string;
+  body: SukoonMoodCreateBody | SukoonMoodUpdateBody;
+}
+
+function moodResolvedKey(queueKey: string) {
+  return ["sukoon", "mood", "pending-resolved", queueKey] as const;
 }
 
 /**
- * `id` is passed per-call (not fixed at hook-creation, unlike the journal
- * editor's pattern) because the check-in screen can switch between editing
- * today's primary entry and an already-saved extra entry in the same session.
+ * Mood check-in create/update, routed through the SAME localStorage-backed
+ * offline queue the MCQ test player's autosave uses (@/lib/offline-queue) —
+ * a check-in made with no connection queues locally instead of failing, and
+ * flushes automatically once the connection returns. See
+ * use-sukoon-journal.ts's identical useJournalWriteQueue (and
+ * sukoon-write-queue.ts's header) for why this goes through
+ * createSukoonWriteQueue rather than the plain queue: a batch here can mix a
+ * "create" (POST) with an "update" (PATCH) for different entries, and a
+ * plain all-or-nothing retry would risk resending an already-synced create.
  */
-export function useUpdateMoodEntry() {
+export function useMoodWriteQueue(): {
+  save: (input: MoodWriteItem) => void;
+  status: QueueStatus;
+  getResolvedCreate: (queueKey: string) => SukoonMoodEntry | undefined;
+} {
+  const queryClient = useQueryClient();
   const invalidate = useInvalidateMood();
-  return useMutation({
-    mutationFn: ({ id, body }: { id: string; body: SukoonMoodUpdateBody }) =>
-      api.patch(`/api/sukoon/mood/entries/${id}`, sukoonMoodEntryResponseSchema, body),
-    onSuccess: () => invalidate(),
-  });
+
+  const queue = useMemo(
+    () =>
+      createSukoonWriteQueue<MoodWriteItem>({
+        storageKey: "sukoon-mood-write-queue",
+        dedupeKey: (item) => item.queueKey,
+        sendOne: async (item) => {
+          if (item.op === "update") {
+            await api.patch(
+              `/api/sukoon/mood/entries/${item.entryId}`,
+              sukoonMoodEntryResponseSchema,
+              item.body,
+            );
+          } else {
+            const res = await api.post(
+              "/api/sukoon/mood/entries",
+              sukoonMoodEntryResponseSchema,
+              item.body,
+            );
+            queryClient.setQueryData(moodResolvedKey(item.queueKey), res.entry);
+          }
+          invalidate();
+        },
+      }),
+    [queryClient, invalidate],
+  );
+
+  const status = useSyncExternalStore(
+    (listener) => queue.subscribe(listener),
+    () => queue.getStatus(),
+  );
+
+  useEffect(() => {
+    // Flush on mount too, not just unmount — this queue is localStorage-durable
+    // and outlives a single page visit (mirrors use-srs-review-queue.ts).
+    queue.flushNow().catch(() => {});
+    return () => {
+      queue.flushNow().catch(() => {});
+    };
+  }, [queue]);
+
+  return {
+    save: (input) => queue.enqueue(input),
+    status,
+    getResolvedCreate: (queueKey) => queryClient.getQueryData(moodResolvedKey(queueKey)),
+  };
 }
 
 export function useDeleteMoodEntry() {
