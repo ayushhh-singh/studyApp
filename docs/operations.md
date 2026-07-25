@@ -97,7 +97,10 @@ Run it locally before pushing anything that touches a script or a path:
 
 ### Cloudflare Pages (web)
 
-- **Build command**: `pnpm --filter web build`
+- **Build command**: `pnpm --filter web build:ci` (changed 2026-07-26 from plain
+  `pnpm --filter web build` — see "Prerendering" below; the site was shipping
+  zero prerendered HTML to crawlers before this, which is the confirmed root
+  cause of Google discoverability failing entirely up to that point).
 - **Build output directory**: `apps/web/dist`
 - **Root directory**: repo root (NOT `apps/web`) — this is a pnpm workspace;
   Cloudflare needs to run `pnpm install` at the monorepo root so
@@ -112,13 +115,21 @@ Run it locally before pushing anything that touches a script or a path:
   won't necessarily match this repo's pinned `packageManager: pnpm@9.0.0`
   (root `package.json`); an unpinned newer major version could parse or
   regenerate the lockfile differently.
-- **Prerendering is a separate, optional step** — same rationale as before
-  (needs a Playwright Chromium binary at build time, fragile on a managed
-  build image); it is NOT wired into the Pages build command. Run
-  `pnpm --filter web prerender` locally (or in a separate CI job you control)
-  after a build and publish the resulting `dist/{en,hi}/index.html` +
-  `dist/{en,hi}/pricing/index.html` snapshots if you want them live — see
-  "Prerendering" below for exactly how Cloudflare serves them.
+- **Prerendering is now the default on this host** — `build:ci` chains
+  `pnpm build` → `playwright install --with-deps chromium` → `pnpm prerender`
+  as one command, so the `playwright` browser download happens at build time
+  on Cloudflare's own image rather than needing a separate CI job you control.
+  `playwright` was added as a real (not temporary-only) `apps/web` devDependency
+  for exactly this — the npm `playwright` package ships no postinstall hook of
+  its own (confirmed against the published package metadata), so without an
+  explicit `playwright install` step in the build command this silently never
+  downloads a browser and `prerender.mjs` throws `ERR_MODULE_NOT_FOUND`/fails to
+  launch. Verified locally end-to-end from a **fully fresh** Playwright browser
+  cache (real network download, not a locally-cached shortcut) — see
+  "Prerendering" below for exactly how Cloudflare serves the resulting
+  snapshots and the one open risk (`--with-deps`' system-package install needs
+  root, unverified against Cloudflare's actual Linux build image — watch the
+  first real deploy's build log for it).
 
 #### Verified against `wrangler pages dev` (live, not assumed)
 
@@ -533,18 +544,36 @@ worth paying for headroom:
   succeeded (Actions tab) and that `BACKUP_PASSPHRASE` is still recoverable
   from your password manager — an untested backup is not a backup.
 
-## Prerendering (deliberately not wired into either host's default build)
+## Prerendering (wired into Cloudflare Pages' default build since 2026-07-26; still opt-in on Vercel)
 
-`apps/web/scripts/prerender.mjs` snapshots `/en`/`/hi`/`/en/pricing`/
-`/hi/pricing` via a real headless Chromium after the build — genuinely useful
-for SEO/OG tags, but it needs a Playwright Chromium binary present at build
-time, which is fragile on a managed build image you don't control (missing
-system libs, no root for `apt-get`, etc. — real failure modes, not
-hypothetical). The codebase already keeps `prerender` as a separate step from
-`build` for exactly this reason (see the script's own header comment).
-Neither the Cloudflare Pages build command above nor `vercel.json`'s
-`buildCommand` runs it by default, in favor of a build that reliably succeeds
-every time.
+`apps/web/scripts/prerender.mjs` snapshots every public route (`/en`, `/hi`,
+`/en/pricing`, `/hi/pricing`, `/en/about`, `/hi/about`, `/en/faq`, `/hi/faq`,
+`/en/terms`, `/hi/terms`, `/en/privacy`, `/hi/privacy`, `/en/refund`,
+`/hi/refund`) via a real headless Chromium after the build — genuinely useful
+for SEO/OG tags and crawler discoverability, but it needs a Playwright
+Chromium binary present at build time, which is a real risk on a managed
+build image you don't control (missing system libs, no root for `apt-get`,
+etc.). `apps/web`'s `build:ci` script (`pnpm build && playwright install
+--with-deps chromium && pnpm prerender`) handles this by installing the
+browser (with its Linux system-dependency package, on a Debian/Ubuntu-based
+image) as part of the same command, and `playwright` is a real `apps/web`
+devDependency for exactly this reason (see the Cloudflare Pages section
+above). **This was the confirmed root cause of zero Google discoverability**
+up to 2026-07-26: the Cloudflare Pages build command ran plain `pnpm --filter
+web build` (no prerender step), so the live site's raw HTML — what a crawler
+actually reads — was always an empty `<div id="root">` with no content,
+title, or meta description; only a JS-executing browser ever saw real copy.
+Verified locally end-to-end from a genuinely fresh Playwright browser cache
+(forced a real network chromium download, not a locally-cached shortcut) —
+`build:ci` produces real, substantial hero/feature/legal copy and correct
+per-page `<title>`/canonical/hreflang/OG tags in the raw HTML for all 14
+routes. **Vercel's `vercel.json` still deliberately does NOT run it** — that
+path is the documented paid-tier fallback, not the current deploy target (see
+its own file comment), and its more locked-down managed image made this a
+real risk when it was last evaluated; flip `buildCommand` to `npx playwright
+install --with-deps chromium && pnpm run build:ci` there too if it's ever
+promoted back to the live target — test it fresh, the same way, before
+trusting it.
 
 Serving behavior differs by host (both verified live, see the Cloudflare
 Pages section above for the `wrangler pages dev` session):
@@ -557,12 +586,3 @@ Pages section above for the `wrangler pages dev` session):
   clean URL with an explicit trailing slash (`/en/`), matching neither host's
   production behavior exactly — don't use it as the reference for how a real
   deploy resolves these paths.
-
-If you want prerendering live: run `pnpm --filter web build:ci` (build +
-prerender chained) in a CI job with Playwright's Chromium installed, then
-publish that `dist/` — either as Cloudflare Pages' build output (its build
-image does support installing browser dependencies, unlike Vercel's more
-locked-down managed image, but test this yourself before trusting it in
-production) or via `vercel.json`'s `buildCommand` changed to
-`npx playwright install chromium && pnpm run build:ci`. Watch the build logs
-closely the first few times either way before trusting it.

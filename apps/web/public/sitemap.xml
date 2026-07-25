@@ -18,6 +18,22 @@
     <priority>1.0</priority>
   </url>
   <url>
+    <loc>https://neevstudy.com/en/pricing</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/pricing" />
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/pricing</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/pricing" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/pricing" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/pricing" />
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://neevstudy.com/en/about</loc>
     <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/about" />
     <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/about" />
@@ -48,5 +64,53 @@
     <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/faq" />
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/terms</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/terms" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/terms" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/terms" />
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/terms</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/terms" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/terms" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/terms" />
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/privacy" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/privacy" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/privacy" />
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/privacy</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/privacy" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/privacy" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/privacy" />
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/refund</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/refund" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/refund" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/refund" />
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/refund</loc>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/refund" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/refund" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/refund" />
+    <changefreq>yearly</changefreq>
+    <priority>0.3</priority>
   </url>
 </urlset>

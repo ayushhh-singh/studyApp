@@ -1,6 +1,33 @@
 User-agent: *
-Allow: /en
-Allow: /hi
 Disallow: /
+
+Allow: /en$
+Allow: /en/$
+Allow: /hi$
+Allow: /hi/$
+Allow: /en/pricing$
+Allow: /en/pricing/$
+Allow: /hi/pricing$
+Allow: /hi/pricing/$
+Allow: /en/about$
+Allow: /en/about/$
+Allow: /hi/about$
+Allow: /hi/about/$
+Allow: /en/faq$
+Allow: /en/faq/$
+Allow: /hi/faq$
+Allow: /hi/faq/$
+Allow: /en/terms$
+Allow: /en/terms/$
+Allow: /hi/terms$
+Allow: /hi/terms/$
+Allow: /en/privacy$
+Allow: /en/privacy/$
+Allow: /hi/privacy$
+Allow: /hi/privacy/$
+Allow: /en/refund$
+Allow: /en/refund/$
+Allow: /hi/refund$
+Allow: /hi/refund/$
 
 Sitemap: https://neevstudy.com/sitemap.xml
