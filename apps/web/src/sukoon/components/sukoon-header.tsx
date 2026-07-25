@@ -18,7 +18,11 @@ export function SukoonHeader() {
       <div className="flex items-center gap-2">
         {!IS_STANDALONE && (
           <Button asChild variant="ghost" size="sm" className="-ml-2 gap-1.5 text-muted-foreground">
-            <Link to={`/${locale ?? DEFAULT_LOCALE}/dashboard`}>
+            {/* Neev's homepage (the marketing landing page), not the
+                authenticated dashboard — this is a "leave Sukoon" exit, and
+                the homepage is reachable whether or not the visitor is
+                signed in (it renders its own signed-in-aware CTA). */}
+            <Link to={`/${locale ?? DEFAULT_LOCALE}`}>
               <ArrowLeft className="size-4" aria-hidden />
               {t("Sukoon.backToNeev")}
             </Link>

@@ -52,7 +52,17 @@ export function SukoonCheckinNudge({
   const locale = useLocale();
   const reduceMotion = useReducedMotion();
   const sukoonBetaVisible = useSukoonBetaVisible();
-  const [dismissed, setDismissed] = useState(() => isDismissed(submissionId));
+  // Tracks only the id most recently dismissed IN THIS RENDER SESSION, not a
+  // one-shot "is this submission dismissed" flag — the route element for
+  // /answers/evaluation/:submissionId is reused across param changes (e.g.
+  // clicking between two results in submission-history-list.tsx never
+  // remounts this component), so a plain `useState(() => isDismissed(id))`
+  // initializer would only ever run once and leak a dismiss on evaluation A
+  // into evaluation B. Comparing against the CURRENT submissionId on every
+  // render, alongside a fresh localStorage read, keeps this correct across
+  // both a full reload (localStorage) and an in-session id switch (state).
+  const [justDismissedId, setJustDismissedId] = useState<string | null>(null);
+  const dismissed = justDismissedId === submissionId || isDismissed(submissionId);
 
   const pct = maxScore > 0 ? (overallScore / maxScore) * 100 : 0;
   const isHardScore = pct <= HARD_SCORE_PCT_THRESHOLD;
@@ -77,7 +87,7 @@ export function SukoonCheckinNudge({
         type="button"
         onClick={() => {
           persistDismiss(submissionId);
-          setDismissed(true);
+          setJustDismissedId(submissionId);
         }}
         aria-label={t("Answers.sukoonNudgeDismiss")}
         className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
