@@ -37,11 +37,17 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const [nodeIds, setNodeIds] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
   const [exam, setExam] = useState<ExamCode | undefined>(undefined);
-  // Scope the tree fetch by the SAME exam + difficulty filters used at creation
-  // time — otherwise the per-node counts (and the cap derived from them) reflect
-  // "all exams / all difficulties" while a narrower pick could deliver fewer
-  // questions than the cap promised.
+  // Two trees, same reason the count ceiling is decoupled from supply (see below):
+  //  - `tree` is scoped by exam + difficulty, so the per-node counts and the
+  //    availableInBank the "Create practice set" gate reads reflect what a
+  //    difficulty-filtered set would actually deliver.
+  //  - `treeAll` is difficulty-AGNOSTIC (exam-scoped only). It decides WHICH
+  //    topics appear, so choosing a difficulty with zero questions on a topic no
+  //    longer HIDES that topic — you can still select it and "Show me a new set"
+  //    builds what's available of that difficulty now and prepares more. (Exam is
+  //    respected on both — filtering to UPPSC-only is a deliberate scope.)
   const { data: tree } = usePaperTree(paperCode || undefined, exam, difficulty || undefined);
+  const { data: treeAll } = usePaperTree(paperCode || undefined, exam);
   const [count, setCount] = useState(20);
   // Free-typed text for the number input, separate from `count` — clamping
   // on every keystroke (e.g. via `Number(e.target.value) || 1`) snapped an
@@ -55,13 +61,20 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const createFresh = useCreateFreshCustomSet();
   const [preparing, setPreparing] = useState(false);
 
-  // own_pyq_count (exact node match), NOT pyq_count (subtree-aggregated) —
-  // createCustomTestFromNode only pulls questions mapped to this exact node,
-  // so the picker must reflect that count or it over-promises what a parent
-  // topic's row can actually deliver.
+  // The set of nodes that have ANY content (any difficulty) — the topic-list
+  // filter, so a difficulty selection can't hide a real topic. own_*_count is the
+  // exact node match (not subtree-aggregated), matching what createCustomTestFromNode
+  // pulls, so the picker never over-promises what a parent topic can deliver.
+  const contentNodeIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (treeAll) for (const f of flatten(treeAll.children)) if (f.node.own_pyq_count > 0 || f.node.own_generated_count > 0) ids.add(f.node.id);
+    return ids;
+  }, [treeAll]);
+  // Rows come from the difficulty-SCOPED tree (so their counts reflect the chosen
+  // difficulty), but the filter is the difficulty-agnostic content set above.
   const flatNodes = useMemo(
-    () => (tree ? flatten(tree.children).filter((f) => f.node.own_pyq_count > 0 || f.node.own_generated_count > 0) : []),
-    [tree],
+    () => (tree ? flatten(tree.children).filter((f) => contentNodeIds.has(f.node.id)) : []),
+    [tree, contentNodeIds],
   );
   const selectedNodes = useMemo(
     () => flatNodes.filter((f) => nodeIds.includes(f.node.id)),
@@ -242,7 +255,9 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
 
       {selectedNodes.length > 0 && (
         <p className="-mt-1 text-xs text-muted-foreground">
-          {count > availableInBank ? (
+          {availableInBank === 0 ? (
+            <span className="font-medium text-marigold">{t("OnDemand.emptyBank")}</span>
+          ) : count > availableInBank ? (
             <span className="font-medium text-marigold">{t("OnDemand.aboveBank", { available: availableInBank })}</span>
           ) : count > selectedPyq ? (
             <span className="font-medium text-marigold">

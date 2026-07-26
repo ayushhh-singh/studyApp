@@ -238,7 +238,11 @@ function weightHotOf(weightage: Map<string, OwnWeightage>, year: number, nodeId:
 }
 
 /** CA MCQs whose source item is classified to any of the selected topics (step 6). */
-async function currentAffairsOverlapPool(subtreeIds: string[], seen: Set<string>): Promise<PoolQuestion[]> {
+async function currentAffairsOverlapPool(
+  subtreeIds: string[],
+  seen: Set<string>,
+  difficulty?: Difficulty,
+): Promise<PoolQuestion[]> {
   const { data: items, error } = await supabase()
     .from("current_affairs_items")
     .select("mcq_question_ids")
@@ -247,20 +251,28 @@ async function currentAffairsOverlapPool(subtreeIds: string[], seen: Set<string>
   if (error) throw new HttpError(500, `current-affairs overlap lookup failed: ${error.message}`);
   const ids = [...new Set((items ?? []).flatMap((i) => (i.mcq_question_ids ?? []) as string[]))];
   if (ids.length === 0) return [];
-  const rows = await fetchQuestionsByIds(ids, "test");
+  // Honor the difficulty filter here too — otherwise a "Hard" set could fill
+  // with non-hard CA questions once the syllabus pool runs out.
+  const rows = await fetchQuestionsByIds(ids, "test", difficulty);
   return rows.filter((r) => !seen.has(r.id));
 }
 
 /** Fetch specific question ids under a visibility scope, chunked (a big `.in` list overflows the URL). */
-async function fetchQuestionsByIds(ids: string[], scope: QuestionVisibilityScope): Promise<PoolQuestion[]> {
+async function fetchQuestionsByIds(
+  ids: string[],
+  scope: QuestionVisibilityScope,
+  difficulty?: Difficulty,
+): Promise<PoolQuestion[]> {
   const out: PoolQuestion[] = [];
   for (let i = 0; i < ids.length; i += 100) {
-    const { data, error } = await supabase()
+    let q = supabase()
       .from("questions")
       .select("id, marks")
       .in("id", ids.slice(i, i + 100))
       .eq("type", "mcq")
       .or(questionVisibilityOrFilter(scope));
+    if (difficulty) q = q.eq("difficulty", difficulty);
+    const { data, error } = await q;
     if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
     out.push(...((data ?? []) as PoolQuestion[]));
   }
@@ -323,7 +335,7 @@ async function buildCustomMcqPool(opts: {
     (r) => r.source === "pyq" && r.syllabus_node_id && subtreeSet.has(r.syllabus_node_id) && !opts.seen.has(r.id),
   );
   const generated = rows.filter((r) => r.source === "generated" && !opts.seen.has(r.id));
-  const ca = await currentAffairsOverlapPool(opts.subtreeIds, opts.seen);
+  const ca = await currentAffairsOverlapPool(opts.subtreeIds, opts.seen, opts.difficulty);
 
   const weightage = await loadNodeWeightage();
   return combinePool(pyq, generated, ca, weightage, currentExamYear());

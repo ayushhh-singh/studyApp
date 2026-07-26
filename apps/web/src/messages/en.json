@@ -804,6 +804,7 @@
     "finding": "Finding fresh questions…",
     "hint": "A fresh set of questions you haven't seen recently.",
     "aboveBank": "Only {{available}} in the bank for this selection — “Show me a new set” builds what's available now and prepares more.",
+    "emptyBank": "No questions in the bank for this selection yet — “Show me a new set” prepares them.",
     "preparing": "We're preparing more questions for this — check back soon.",
     "preparingMock": "We're preparing more questions for this paper — check back soon."
   },
