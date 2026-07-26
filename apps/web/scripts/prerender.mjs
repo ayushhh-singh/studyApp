@@ -92,27 +92,50 @@ function startStaticServer() {
 
 const server = await startStaticServer();
 let browser;
+const failed = [];
 try {
   browser = await chromium.launch();
   const page = await browser.newPage();
 
   for (const route of ROUTES) {
-    await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle" });
-    // The landing hero renders synchronously off i18n + auth-provider state
-    // (no data fetching), so networkidle is already past first render — this
-    // just guards against a slow CI runner's first paint.
-    await page.waitForSelector("h1", { timeout: 10_000 });
-    let html = await page.content();
-    // React Router's lazy-loading injects modulepreload hints for the CURRENT
-    // route's chunk with the page's full origin baked in (absolute, not
-    // relative) — harmless on the temp prerender server but a dead cross-origin
-    // preload once this file is deployed elsewhere, so rewrite back to root-relative.
-    html = html.replaceAll(`http://localhost:${PORT}`, "");
+    // One route's failure must never lose the rest of the batch — confirmed
+    // live on Cloudflare's actual build machine (2026-07-26): the un-isolated
+    // version of this loop hit a single h1-timeout on the 5th route and threw,
+    // silently discarding all 28 remaining routes (only 4/32 shipped that
+    // build). A shared build container can genuinely be slower than a local
+    // dev machine, so a real, non-flaky render taking longer than the local
+    // timeout is a live risk here, not a hypothetical one — isolate per-route
+    // and keep going.
+    try {
+      await page.goto(`http://localhost:${PORT}${route}`, { waitUntil: "networkidle" });
+      // The landing hero renders synchronously off i18n + auth-provider state
+      // (no data fetching), so networkidle is already past first render — this
+      // just guards against a slow CI runner's first paint. 20s (not the
+      // original 10s) — a shared/CPU-constrained build container has real,
+      // observed reason to need more headroom than a local dev machine.
+      await page.waitForSelector("h1", { timeout: 20_000 });
+      let html = await page.content();
+      // React Router's lazy-loading injects modulepreload hints for the CURRENT
+      // route's chunk with the page's full origin baked in (absolute, not
+      // relative) — harmless on the temp prerender server but a dead cross-origin
+      // preload once this file is deployed elsewhere, so rewrite back to root-relative.
+      html = html.replaceAll(`http://localhost:${PORT}`, "");
 
-    const outDir = path.join(DIST, route.slice(1));
-    mkdirSync(outDir, { recursive: true });
-    writeFileSync(path.join(outDir, "index.html"), html);
-    console.log(`prerendered ${route} -> dist${route}/index.html`);
+      const outDir = path.join(DIST, route.slice(1));
+      mkdirSync(outDir, { recursive: true });
+      writeFileSync(path.join(outDir, "index.html"), html);
+      console.log(`prerendered ${route} -> dist${route}/index.html`);
+    } catch (err) {
+      failed.push(route);
+      console.warn(`FAILED to prerender ${route} — leaving no snapshot for it, continuing with the rest:`, err.message);
+    }
+  }
+
+  if (failed.length > 0) {
+    console.warn(`\n${failed.length}/${ROUTES.length} route(s) failed to prerender: ${failed.join(", ")}`);
+    console.warn("Every other route above still got a real snapshot. A route with no snapshot here serves the");
+    console.warn("generic app-shell instead of its own content/meta until the next successful prerender run.");
+    process.exitCode = 1;
   }
 } finally {
   // Always release the browser + port, even on failure — otherwise a failed

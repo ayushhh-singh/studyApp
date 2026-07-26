@@ -24,4 +24,13 @@
 # dist/en/index.html) BEFORE evaluating this rule, so /en and /hi still hit
 # their prerendered snapshots, not this fallback — verified with
 # `wrangler pages dev dist` (see docs/operations.md's Cloudflare Pages section).
-/*   /index.html   200
+#
+# Destination is __spa-fallback.html, NOT index.html — confirmed live,
+# 2026-07-26: Cloudflare's build-time redirect linter flags a literal
+# "/* -> /index.html 200" as an "infinite loop" and silently DROPS the rule
+# entirely (a false positive Cloudflare's own team has acknowledged:
+# https://github.com/cloudflare/workers-sdk/issues/11824, but nothing
+# repo-side can fix their linter). scripts/copy-spa-fallback.mjs copies
+# dist/index.html to dist/__spa-fallback.html on every build specifically so
+# this rule has a real, byte-identical, non-flagged target.
+/*   /__spa-fallback.html   200
