@@ -206,7 +206,8 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
         </Button>
         <Button
           type="button"
-          variant="outline"
+          // Solid primary once the bank can't fill the request (see the prelims builder).
+          variant={nodeIds.length > 0 && !bankCanFill ? "default" : "outline"}
           onClick={handleFresh}
           disabled={nodeIds.length === 0 || createTest.isPending || createFresh.isPending}
           title={t("OnDemand.hint")}
@@ -217,7 +218,12 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
 
       {createTest.isError && <p className="text-sm text-destructive">{createTest.error.message}</p>}
       {createFresh.isError && <p className="text-sm text-destructive">{createFresh.error.message}</p>}
-      {preparing && <p className="text-sm text-muted-foreground">{t("OnDemand.preparing")}</p>}
+      {preparing && (
+        <div className="flex items-start gap-2 rounded-lg border border-marigold/30 bg-marigold/15 px-3 py-2 text-sm text-marigold-foreground">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-marigold" />
+          <span>{t("OnDemand.preparing")}</span>
+        </div>
+      )}
     </div>
   );
 }
