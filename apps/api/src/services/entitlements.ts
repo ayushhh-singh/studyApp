@@ -264,6 +264,17 @@ export function assertMockTests(userId: string): Promise<void> {
   return assertPro(userId, "mock_tests", "The mock test series is a Pro feature. Upgrade to attempt full-length papers.");
 }
 
+/**
+ * Magazine PDF export is Pro-only. The magazine WEB VIEW stays fully free and
+ * ungated (the /magazine/:month/{prelims,mains} content endpoints call no gate);
+ * only exporting/downloading a clean PDF is gated. Mirrors assertMockTests —
+ * a fresh getPlanFor read per call, so a lapsed Pro/trial is blocked on the very
+ * next export request with no client refresh needed.
+ */
+export function assertMagazinePdf(userId: string): Promise<void> {
+  return assertPro(userId, "magazine_pdf", "Magazine PDF download is a Pro feature. Read both monthly editions free online, or upgrade to export a clean PDF.");
+}
+
 // ---------------------------------------------------------------------------
 // Notes — Free users get the top-5 published notes per paper (by weightage)
 // ---------------------------------------------------------------------------

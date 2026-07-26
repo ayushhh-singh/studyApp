@@ -126,7 +126,12 @@ export function Component() {
         .mag-section { break-inside: avoid; }
       }`}</style>
 
-      <MagazineToolbar backTo={`/${locale}/magazine/${month}`} canPrint={!isLoading && !isError && !!mag} />
+      <MagazineToolbar
+        backTo={`/${locale}/magazine/${month}`}
+        canPrint={!isLoading && !isError && !!mag}
+        month={month}
+        edition="prelims"
+      />
 
       <div className="mag-shell mx-auto flex max-w-6xl justify-center gap-8 px-4 py-8 sm:px-6">
         {mag && indexEntries.length > 0 && <MagazineIndexNav entries={indexEntries} />}
