@@ -33,25 +33,6 @@ import { initSentry } from "@/lib/sentry";
 
 void initSentry();
 
-// Vite dispatches this event on `window` when a dynamically-imported module
-// (e.g. a React Router `lazy` route chunk) fails to fetch — the standard
-// "tab was open across a deploy" problem, since every deploy replaces old
-// hashed chunk filenames with new ones. Without this, clicking into a route
-// whose chunk no longer exists silently fails the navigation (stays on the
-// current page, or the URL changes but nothing renders) rather than
-// recovering — exactly what a stale service-worker-controlled tab hits after
-// a deploy, before the "new version available" toast has been actioned.
-// Vite's own docs recommend a hard reload as the standard recovery for this
-// event. Guarded with sessionStorage so a genuinely broken reload (offline, a
-// real 5xx) can't loop forever — a fresh tab/session always gets a clean
-// slate since sessionStorage clears on its own.
-window.addEventListener("vite:preloadError", () => {
-  const key = "vite-preload-reload-attempted";
-  if (sessionStorage.getItem(key)) return;
-  sessionStorage.setItem(key, "1");
-  window.location.reload();
-});
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
