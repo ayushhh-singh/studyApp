@@ -41,8 +41,21 @@ export const ESSAY_RUBRIC_VERSION = "essay-v1";
  * writing-progress trend) uses this so a one-time recalibration is never
  * presented to a user as a real decline or a website bug: pre-boundary scores are
  * on the old, more lenient scale and are NOT directly comparable to later ones.
+ *
+ * Why the boundary is the END of the deploy day (00:00 on the 27th), not 00:00 on
+ * the 26th: the ONLY harmful misclassification is treating an OLD-code (lenient)
+ * evaluation as post-recalibration — it would then be compared against a strict
+ * score and turn a real improvement into a false DECLINE. Old code keeps running
+ * until this change actually deploys (some hour on the 26th, or later), so a
+ * 26th-00:00 boundary would wrongly mark every same-day old-code eval as "new".
+ * Ending the boundary at day's end instead treats every evaluation scored on
+ * deploy day — whichever code scored it — as pre-recalibration, erring only in the
+ * harmless direction (a genuinely new-scale deploy-day eval is merely, briefly,
+ * excluded from cross-era comparison). It also keeps the demo account's backdated
+ * seed history (all within the last ~24 days) internally consistent. If the
+ * production deploy of this change lands on a LATER date, bump this to that date.
  */
-export const RUBRIC_RECALIBRATED_AT = "2026-07-26T00:00:00.000Z";
+export const RUBRIC_RECALIBRATED_AT = "2026-07-27T00:00:00.000Z";
 
 /** True iff an evaluation created at `dateIso` predates the scoring recalibration. */
 export function isPreRecalibration(dateIso: string): boolean {

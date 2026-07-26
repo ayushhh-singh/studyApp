@@ -420,18 +420,23 @@ interface EvalPlanItem {
   language: Locale;
 }
 
+// Target quality per evaluation (fraction ≈ overall %). Calibrated to the
+// 2026-07-26 scoring recalibration (see prompts.ts / RUBRIC_RECALIBRATED_AT): under
+// real UPPSC Mains severity a genuinely strong answer lands ~55-62%, not 75-85%, so
+// the ceiling here is ~0.62. The upward trend and the day-24→day-10 improvement pair
+// (a real ~+23% rewrite gain for improvement_proof) are preserved — just honest now.
 const EVAL_PLAN: EvalPlanItem[] = [
-  { daysAgo: 24, paper: "MAINS_GS1", qIndex: 0, fraction: 0.45, language: "en" },
-  { daysAgo: 18, paper: "MAINS_GS2", qIndex: 0, fraction: 0.5, language: "en" },
-  { daysAgo: 13, paper: "MAINS_GS3", qIndex: 0, fraction: 0.6, language: "en" },
+  { daysAgo: 24, paper: "MAINS_GS1", qIndex: 0, fraction: 0.34, language: "en" },
+  { daysAgo: 18, paper: "MAINS_GS2", qIndex: 0, fraction: 0.4, language: "en" },
+  { daysAgo: 13, paper: "MAINS_GS3", qIndex: 0, fraction: 0.46, language: "en" },
   // Same question as day -24 — an "improvement pair" for profile_improvement_pairs.
-  { daysAgo: 10, paper: "MAINS_GS1", qIndex: 0, fraction: 0.78, language: "en" },
-  { daysAgo: 8, paper: "MAINS_GS4", qIndex: 0, fraction: 0.65, language: "en" },
-  { daysAgo: 6, paper: "MAINS_GS5", qIndex: 0, fraction: 0.7, language: "en" },
-  { daysAgo: 4, paper: "MAINS_GS6", qIndex: 0, fraction: 0.72, language: "en" },
-  { daysAgo: 3, paper: "MAINS_ESSAY", qIndex: 0, fraction: 0.68, language: "en" },
-  { daysAgo: 1, paper: "MAINS_GS2", qIndex: 1, fraction: 0.8, language: "hi" },
-  { daysAgo: 0, paper: "MAINS_GS1", qIndex: 1, fraction: 0.85, language: "en" },
+  { daysAgo: 10, paper: "MAINS_GS1", qIndex: 0, fraction: 0.57, language: "en" },
+  { daysAgo: 8, paper: "MAINS_GS4", qIndex: 0, fraction: 0.48, language: "en" },
+  { daysAgo: 6, paper: "MAINS_GS5", qIndex: 0, fraction: 0.52, language: "en" },
+  { daysAgo: 4, paper: "MAINS_GS6", qIndex: 0, fraction: 0.54, language: "en" },
+  { daysAgo: 3, paper: "MAINS_ESSAY", qIndex: 0, fraction: 0.5, language: "en" },
+  { daysAgo: 1, paper: "MAINS_GS2", qIndex: 1, fraction: 0.58, language: "hi" },
+  { daysAgo: 0, paper: "MAINS_GS1", qIndex: 1, fraction: 0.62, language: "en" },
 ];
 
 const JUSTIFICATIONS_EN: Partial<Record<RubricDimensionKey, string>> = {
