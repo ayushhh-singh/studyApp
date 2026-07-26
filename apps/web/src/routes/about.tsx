@@ -128,6 +128,11 @@ export function Component() {
               {session ? t("Landing.goToApp") : t("Landing.startFree")} <ArrowRight className="size-5" />
             </Link>
           </Button>
+          <div className="mt-4">
+            <Link to={`/${locale}/features`} className="text-sm font-medium text-primary hover:underline">
+              {t("Footer.features")} →
+            </Link>
+          </div>
         </div>
       </section>
 

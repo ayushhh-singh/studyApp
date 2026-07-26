@@ -33,6 +33,23 @@ export function Component() {
     slug: FEATURE_SLUGS[i],
   }));
 
+  // Organization schema — helps Google's Knowledge Graph (and AI Overview
+  // grounding) identify neevstudy.com as a distinct entity, since "Neev" also
+  // names an unrelated Physics Wallah school-foundation product line and a
+  // brand-new domain has near-zero other disambiguating signal yet. Every
+  // field here is real (name/url/logo/description) — deliberately no
+  // `sameAs` social profiles, since none exist yet; inventing one would be
+  // worse than omitting it.
+  const organizationStructuredData = {
+    "@context": "https://schema.org",
+    "@type": "Organization",
+    name: "Neev",
+    alternateName: "नींव",
+    url: "https://neevstudy.com",
+    logo: "https://neevstudy.com/pwa/icon-512.png",
+    description: t("Landing.heroSub"),
+  };
+
   return (
     <div className="min-h-svh bg-background">
       <PageSeo
@@ -40,6 +57,7 @@ export function Component() {
         path=""
         title={`${t("Landing.brand")} — ${locale === "hi" ? t("Landing.heroTitleHi") : t("Landing.heroTitleEn")}`}
         description={t("Landing.heroSub")}
+        structuredData={organizationStructuredData}
       />
       <MarketingHeader maxWidthClass="max-w-6xl" />
 
