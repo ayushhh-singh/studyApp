@@ -1,14 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { Sparkles } from "lucide-react";
 import type { Locale, SyllabusNodeWithStats } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useCreateCustomAnswerTest } from "@/hooks/use-create-custom-answer-test";
+import { useCreateFreshCustomSet } from "@/hooks/use-create-fresh-set";
 
 const INPUT_CLASS =
   "min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** Per-set question ceiling (matches createCustomAnswerTestBodySchema / createFreshCustomSetBodySchema for mains). */
+const MAINS_SET_MAX = 50;
 
 interface FlatNode {
   node: SyllabusNodeWithStats;
@@ -34,6 +39,10 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
   // separate component, not shared, so it needed the same fix independently).
   const [countInput, setCountInput] = useState(() => String(5));
   const createTest = useCreateCustomAnswerTest();
+  // "Show me a new set" — a fresh, recency-excluded descriptive set from the
+  // demand-aware reserve; `preparing` = the reserve can't fill this scope yet.
+  const createFresh = useCreateFreshCustomSet();
+  const [preparing, setPreparing] = useState(false);
 
   const flatNodes = useMemo(
     () => (tree ? flatten(tree.children).filter((f) => f.node.own_pyq_count > 0 || f.node.own_generated_count > 0) : []),
@@ -46,12 +55,18 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
     () => selectedNodes.reduce((sum, f) => sum + f.node.own_generated_count, 0),
     [selectedNodes],
   );
-  const maxCount = Math.max(1, Math.min(50, selectedPyq + selectedGen || 50));
+  // Bank supply for this exact selection; "Create practice set" is honest only up
+  // to this. The count ceiling is the paper's per-set limit, NOT what's mapped —
+  // beyond the bank, "Show me a new set" draws what it can + logs demand.
+  const availableInBank = selectedPyq + selectedGen;
+  const maxCount = MAINS_SET_MAX;
+  const bankCanFill = nodeIds.length > 0 && availableInBank > 0 && count <= availableInBank;
 
   function toggleNode(id: string) {
     setNodeIds((prev) => (prev.includes(id) ? prev.filter((n) => n !== id) : [...prev, id]));
   }
 
+  // Keep count within the per-set ceiling (constant — the selection no longer shrinks it).
   useEffect(() => {
     setCount((c) => Math.min(c, maxCount));
   }, [maxCount]);
@@ -67,6 +82,22 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
       { onSuccess: (test) => navigate(`/${locale}/answers/session/${test.id}`) },
     );
   }
+
+  function handleFresh() {
+    if (nodeIds.length === 0) return;
+    setPreparing(false);
+    createFresh.mutate(
+      { node_ids: nodeIds, count, kind: "descriptive" },
+      {
+        onSuccess: (result) => {
+          if (result.status === "ready") navigate(`/${locale}/answers/session/${result.test.id}`);
+          else setPreparing(true);
+        },
+      },
+    );
+  }
+
+  useEffect(() => setPreparing(false), [nodeIds, count]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -153,7 +184,9 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
 
       {selectedNodes.length > 0 && (
         <p className="-mt-1 text-xs text-muted-foreground">
-          {count > selectedPyq ? (
+          {count > availableInBank ? (
+            <span className="font-medium text-marigold">{t("OnDemand.aboveBank", { available: availableInBank })}</span>
+          ) : count > selectedPyq ? (
             <span className="font-medium text-marigold">
               {t("Practice.customFillMix", { pyq: selectedPyq, ai: count - selectedPyq })}
             </span>
@@ -163,11 +196,28 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
         </p>
       )}
 
-      <Button type="button" onClick={handleSubmit} disabled={nodeIds.length === 0 || createTest.isPending} className="self-start">
-        {createTest.isPending ? t("Practice.customCreating") : t("Practice.customCreate")}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!bankCanFill || createTest.isPending || createFresh.isPending}
+        >
+          {createTest.isPending ? t("Practice.customCreating") : t("Practice.customCreate")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleFresh}
+          disabled={nodeIds.length === 0 || createTest.isPending || createFresh.isPending}
+          title={t("OnDemand.hint")}
+        >
+          <Sparkles className="size-4" /> {createFresh.isPending ? t("OnDemand.finding") : t("OnDemand.newSet")}
+        </Button>
+      </div>
 
       {createTest.isError && <p className="text-sm text-destructive">{createTest.error.message}</p>}
+      {createFresh.isError && <p className="text-sm text-destructive">{createFresh.error.message}</p>}
+      {preparing && <p className="text-sm text-muted-foreground">{t("OnDemand.preparing")}</p>}
     </div>
   );
 }

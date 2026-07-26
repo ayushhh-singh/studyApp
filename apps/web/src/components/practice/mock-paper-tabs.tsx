@@ -1,12 +1,15 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PenSquare } from "lucide-react";
+import { useNavigate } from "react-router";
+import { PenSquare, Sparkles } from "lucide-react";
 import type { Locale, TestSummary } from "@neev/shared";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { TestCard } from "@/components/practice/test-card";
 import { useTests } from "@/hooks/use-tests";
+import { useCreateFreshMockSet } from "@/hooks/use-create-fresh-set";
 import { useLocale } from "@/hooks/use-locale";
 
 /** Canonical paper order for the mock sub-tabs: prelims papers, then mains GS1-6. */
@@ -44,23 +47,82 @@ function mockIndex(test: TestSummary): number {
   return Number.isFinite(n) ? n : 0;
 }
 
+/**
+ * "Fresh mock" — a full-length UPPSC-pattern paper built on demand from
+ * questions this user hasn't recently seen (a SELECTION against the demand-aware
+ * reserve, never a live generation call). Mocks are Pro-only, so a Free user's
+ * click surfaces the paywall error the server returns.
+ */
+function FreshMockButton({
+  paperCode,
+  locale,
+  hrefFor,
+}: {
+  paperCode: string;
+  locale: Locale;
+  hrefFor?: (test: TestSummary) => string;
+}) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const fresh = useCreateFreshMockSet();
+  const [preparing, setPreparing] = useState(false);
+
+  function onClick() {
+    setPreparing(false);
+    fresh.mutate(
+      { paper_code: paperCode },
+      {
+        onSuccess: (result) => {
+          if (result.status === "ready") {
+            navigate(hrefFor ? hrefFor(result.test) : `/${locale}/practice/test/${result.test.id}`);
+          } else {
+            setPreparing(true);
+          }
+        },
+      },
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Button
+        type="button"
+        variant="outline"
+        onClick={onClick}
+        disabled={fresh.isPending}
+        className="self-start"
+        title={t("OnDemand.hint")}
+      >
+        <Sparkles className="size-4" /> {fresh.isPending ? t("OnDemand.finding") : t("OnDemand.newMock")}
+      </Button>
+      {fresh.isError && <p className="text-sm text-destructive">{fresh.error.message}</p>}
+      {preparing && <p className="text-sm text-muted-foreground">{t("OnDemand.preparingMock")}</p>}
+    </div>
+  );
+}
+
 function MockList({
   tests,
   locale,
   hrefFor,
+  paperCode,
 }: {
   tests: TestSummary[];
   locale: Locale;
   hrefFor?: (test: TestSummary) => string;
+  paperCode: string;
 }) {
   return (
-    <ul className="flex flex-col gap-2">
-      {tests.map((test) => (
-        <li key={test.id}>
-          <TestCard test={test} locale={locale} href={hrefFor?.(test)} />
-        </li>
-      ))}
-    </ul>
+    <div className="flex flex-col gap-3">
+      <FreshMockButton paperCode={paperCode} locale={locale} hrefFor={hrefFor} />
+      <ul className="flex flex-col gap-2">
+        {tests.map((test) => (
+          <li key={test.id}>
+            <TestCard test={test} locale={locale} href={hrefFor?.(test)} />
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -98,7 +160,8 @@ export function MockPaperTabs({
 
   if (byPaper.length === 0) return null;
   // A single paper needs no selector — just the sequenced list.
-  if (byPaper.length === 1) return <MockList tests={byPaper[0][1]} locale={locale} hrefFor={hrefFor} />;
+  if (byPaper.length === 1)
+    return <MockList tests={byPaper[0][1]} locale={locale} hrefFor={hrefFor} paperCode={byPaper[0][0]} />;
 
   return (
     <Tabs defaultValue={byPaper[0][0]}>
@@ -111,7 +174,7 @@ export function MockPaperTabs({
       </TabsList>
       {byPaper.map(([code, list]) => (
         <TabsContent key={code} value={code}>
-          <MockList tests={list} locale={locale} hrefFor={hrefFor} />
+          <MockList tests={list} locale={locale} hrefFor={hrefFor} paperCode={code} />
         </TabsContent>
       ))}
     </Tabs>

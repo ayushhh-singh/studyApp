@@ -1,0 +1,13 @@
+-- 0102_test_kind_on_demand.sql
+-- (Numbered 0102 to sit above the 0079–0100 range already applied to the shared
+-- cloud DB by a concurrent branch — 0100 was taken, so this clears it.)
+-- "Show me a new set" builds a fresh, unseen test on demand (see
+-- services/on-demand.ts). It gets its own test_kind — like 'mock' (0040) and
+-- 'time_attack' (0046) did — so these per-request throwaway sets NEVER appear in
+-- any of the shared test lists (every /practice + /answers panel queries a
+-- specific kind, none of them 'on_demand'), instead of masquerading as a
+-- 'custom'/'mock' row and needing a filter on every list query. The user is
+-- navigated straight into the set; it is not meant to be browsed.
+-- Adding an enum value is its own migration (the new value isn't usable in the
+-- same transaction it's added in).
+alter type test_kind add value if not exists 'on_demand';

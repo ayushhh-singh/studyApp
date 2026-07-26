@@ -2,7 +2,18 @@ import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema, examCodeSchema, paginatedSchema } from "./types";
 import { difficultySchema, questionSchema } from "./questions";
 
-export const testKindSchema = z.enum(["pyq_full", "sectional", "daily_quiz", "custom", "mock", "time_attack"]);
+export const testKindSchema = z.enum([
+  "pyq_full",
+  "sectional",
+  "daily_quiz",
+  "custom",
+  "mock",
+  "time_attack",
+  // A fresh, unseen "Show me a new set" test (services/on-demand.ts). Its own
+  // kind so it never appears in any shared test list — the user is navigated
+  // straight into it.
+  "on_demand",
+]);
 export type TestKind = z.infer<typeof testKindSchema>;
 
 export const markingSchemeSchema = z

@@ -67,7 +67,7 @@ const MOCK_PAPERS: MockPaperConfig[] = [
 
 type Log = (msg: string) => void;
 
-interface AvailQ {
+export interface AvailQ {
   id: string;
   marks: number;
   top: string;
@@ -450,6 +450,65 @@ export async function buildMainsMocks(log: Log = () => {}): Promise<MockBuildRes
     results.push({ paper_code: cfg.paperCode, built: numSets, skipped: false });
   }
   return results;
+}
+
+// ---------------------------------------------------------------------------
+// Fresh (on-demand) mocks — services/on-demand.ts's "Show me a new set" for the
+// Mock Tests tab reuses the SAME paper structure + question pools as the seeded
+// series, so a fresh mock is a genuine full-length UPPSC-pattern paper (150/100
+// prelims, 20/etc. mains). The unified config + pool accessor below expose that
+// knowledge without duplicating it; on-demand.ts owns the seen-exclusion,
+// section-balancing (weightedSample), and the new test row.
+// ---------------------------------------------------------------------------
+
+/** Unified fresh-mock paper structure across prelims (MCQ) and mains (descriptive). */
+export interface FreshMockPaper {
+  kind: "mcq" | "descriptive";
+  count: number;
+  durationMinutes: number;
+  officialMaxMarks: number;
+  qualifyingPct: number | null;
+  negativeMarking: number;
+  /** Descriptive only: exact per-question marks pattern (length === count). Null for MCQ. */
+  marksPattern: number[] | null;
+  title: { en: string; hi: string };
+}
+
+/** The fresh-mock config for a paper code, or null if that paper has no mock structure. */
+export function freshMockPaperConfig(paperCode: string): FreshMockPaper | null {
+  const pre = MOCK_PAPERS.find((p) => p.paperCode === paperCode);
+  if (pre) {
+    const title = pre.paperCode === "PRE_CSAT" ? { en: "CSAT", hi: "सीसैट" } : { en: "GS-I", hi: "जीएस-I" };
+    return {
+      kind: "mcq",
+      count: pre.count,
+      durationMinutes: pre.durationMinutes,
+      officialMaxMarks: pre.officialMaxMarks,
+      qualifyingPct: pre.qualifyingPct ?? null,
+      negativeMarking: pre.negativeMarking,
+      marksPattern: null,
+      title,
+    };
+  }
+  const mains = MAINS_MOCK_CONFIGS.find((p) => p.paperCode === paperCode);
+  if (mains) {
+    return {
+      kind: "descriptive",
+      count: mains.count,
+      durationMinutes: MAINS_MOCK_DURATION_MINUTES,
+      officialMaxMarks: mains.marksPattern.reduce((s, m) => s + m, 0),
+      qualifyingPct: null,
+      negativeMarking: 0,
+      marksPattern: mains.marksPattern,
+      title: mains.title,
+    };
+  }
+  return null;
+}
+
+/** Whole-paper question pool (with section `top` grouping) for a fresh mock. */
+export function availableMockPool(paperCode: string, kind: "mcq" | "descriptive"): Promise<AvailQ[]> {
+  return kind === "mcq" ? availableQuestions(paperCode) : availableDescriptiveQuestions(paperCode);
 }
 
 export async function getCutoffs(examCode = "PRE_GS1"): Promise<ExamCutoff[]> {

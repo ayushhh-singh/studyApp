@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
+import { Sparkles } from "lucide-react";
 import type { Difficulty, ExamCode, Locale, SyllabusNodeWithStats } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useCreateCustomTest } from "@/hooks/use-create-custom-test";
+import { useCreateFreshCustomSet } from "@/hooks/use-create-fresh-set";
 
 const INPUT_CLASS =
   "min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
+
+/** Per-set question ceiling (matches createCustomTestBodySchema / createFreshCustomSetBodySchema count max). */
+const PRELIMS_SET_MAX = 100;
 
 interface FlatNode {
   node: SyllabusNodeWithStats;
@@ -44,6 +49,11 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   // replacement digit without first typing e.g. "15" then deleting the "1".
   const [countInput, setCountInput] = useState(() => String(count));
   const createTest = useCreateCustomTest();
+  // "Show me a new set" — a fresh, recency-excluded set drawn instantly from the
+  // demand-aware reserve. `preparing` = the reserve can't fill this niche scope
+  // yet (the request has been logged for tonight's top-up).
+  const createFresh = useCreateFreshCustomSet();
+  const [preparing, setPreparing] = useState(false);
 
   // own_pyq_count (exact node match), NOT pyq_count (subtree-aggregated) —
   // createCustomTestFromNode only pulls questions mapped to this exact node,
@@ -65,15 +75,23 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
     () => selectedNodes.reduce((sum, f) => sum + f.node.own_generated_count, 0),
     [selectedNodes],
   );
-  const maxCount = Math.max(1, Math.min(100, selectedPyq + selectedGen || 100));
+  // How many are actually in the bank for this exact selection (exam + difficulty
+  // scoped). "Create practice set" only draws from the bank, so it's honest only
+  // up to this many.
+  const availableInBank = selectedPyq + selectedGen;
+  // The count ceiling is the paper's per-set limit (matches the backend schema),
+  // NOT what's currently mapped — so choosing a difficulty no longer shrinks how
+  // many you can ask for. Beyond what the bank holds, "Show me a new set" draws
+  // what it can now and logs demand so tonight's top-up prepares the rest.
+  const maxCount = PRELIMS_SET_MAX;
+  const bankCanFill = nodeIds.length > 0 && availableInBank > 0 && count <= availableInBank;
 
   function toggleNode(id: string) {
     setNodeIds((prev) => (prev.includes(id) ? prev.filter((n) => n !== id) : [...prev, id]));
   }
 
-  // Reclamp the count whenever the selection changes — the combined
-  // own_pyq_count across selected topics (the input's max) can shrink, but
-  // the input's value doesn't reclamp itself.
+  // Keep the count within the per-set ceiling (a constant now — the selection no
+  // longer shrinks it; that freedom is the point of the reserve-backed fresh set).
   useEffect(() => {
     setCount((c) => Math.min(c, maxCount));
   }, [maxCount]);
@@ -92,6 +110,23 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
       { onSuccess: (test) => navigate(`/${locale}/practice/test/${test.id}`) },
     );
   }
+
+  function handleFresh() {
+    if (nodeIds.length === 0) return;
+    setPreparing(false);
+    createFresh.mutate(
+      { node_ids: nodeIds, count, kind: "mcq", difficulty: difficulty || undefined, exam },
+      {
+        onSuccess: (result) => {
+          if (result.status === "ready") navigate(`/${locale}/practice/test/${result.test.id}`);
+          else setPreparing(true);
+        },
+      },
+    );
+  }
+
+  // A changed selection/count invalidates a stale "preparing" notice.
+  useEffect(() => setPreparing(false), [nodeIds, count, difficulty, exam]);
 
   return (
     <div className="flex flex-col gap-4">
@@ -207,7 +242,9 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
 
       {selectedNodes.length > 0 && (
         <p className="-mt-1 text-xs text-muted-foreground">
-          {count > selectedPyq ? (
+          {count > availableInBank ? (
+            <span className="font-medium text-marigold">{t("OnDemand.aboveBank", { available: availableInBank })}</span>
+          ) : count > selectedPyq ? (
             <span className="font-medium text-marigold">
               {t("Practice.customFillMix", { pyq: selectedPyq, ai: count - selectedPyq })}
             </span>
@@ -217,11 +254,28 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
         </p>
       )}
 
-      <Button type="button" onClick={handleSubmit} disabled={nodeIds.length === 0 || createTest.isPending} className="self-start">
-        {createTest.isPending ? t("Practice.customCreating") : t("Practice.customCreate")}
-      </Button>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          type="button"
+          onClick={handleSubmit}
+          disabled={!bankCanFill || createTest.isPending || createFresh.isPending}
+        >
+          {createTest.isPending ? t("Practice.customCreating") : t("Practice.customCreate")}
+        </Button>
+        <Button
+          type="button"
+          variant="outline"
+          onClick={handleFresh}
+          disabled={nodeIds.length === 0 || createTest.isPending || createFresh.isPending}
+          title={t("OnDemand.hint")}
+        >
+          <Sparkles className="size-4" /> {createFresh.isPending ? t("OnDemand.finding") : t("OnDemand.newSet")}
+        </Button>
+      </div>
 
       {createTest.isError && <p className="text-sm text-destructive">{createTest.error.message}</p>}
+      {createFresh.isError && <p className="text-sm text-destructive">{createFresh.error.message}</p>}
+      {preparing && <p className="text-sm text-muted-foreground">{t("OnDemand.preparing")}</p>}
     </div>
   );
 }

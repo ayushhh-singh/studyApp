@@ -22,6 +22,7 @@ import { estimateCostUsd, MODELS } from "../lib/models.js";
 import { BATCH_DISCOUNT } from "../lib/anthropic.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { loadNodeContext, generateBatch, type GeneratePlan, type NodeGenerationResult } from "./generate.js";
+import { loadRecentDemand, onDemandReserveAdditive, ON_DEMAND_WINDOW_DAYS, type DemandRow } from "./on-demand-reserve.js";
 
 /** A weightage-scaled coverage floor: `min` for the least-asked top node, `max` for the busiest. */
 export interface FloorBand {
@@ -67,13 +68,36 @@ interface NodeRow {
   title_i18n: unknown;
 }
 
-/** Shortfall plans for one paper-family + question type, against a weightage-scaled floor. */
-async function shortfallsFor(
+/**
+ * The full target for one depth-1 node: baseline weightage floor PLUS the
+ * additive on-demand reserve, versus what's already published+approved.
+ */
+export interface NodeTarget {
+  node: NodeRow;
+  have: number;
+  hot: number;
+  baseFloor: number;
+  /** Additive reserve driven by recent "Show me a new set" demand (0 if none). */
+  reserve: number;
+  /** baseFloor + reserve. */
+  target: number;
+  /** Recent request-days attributed to this node (fractional for mock demand). */
+  demand: number;
+}
+
+/**
+ * Per-node coverage targets for one paper-family + question type: the baseline
+ * weightage-scaled floor, plus a SEPARATE additive on-demand reserve attributed
+ * from recent `on_demand_requests`. Used both to plan shortfalls (below) and,
+ * via reserveTargetsFor, to inspect targets without generating.
+ */
+async function computeNodeTargets(
   paperLike: string,
   kind: "mcq" | "descriptive",
   band: FloorBand,
+  demand: DemandRow[],
   log: (msg: string) => void,
-): Promise<GeneratePlan[]> {
+): Promise<NodeTarget[]> {
   // All nodes for the matching papers.
   const { data: nodes, error: nodesErr } = await supabase()
     .from("syllabus_nodes")
@@ -131,21 +155,84 @@ async function shortfallsFor(
       `maxHotness=${maxHot.toFixed(1)} over ${tops.length} top-level nodes`,
   );
 
+  // Attribute each recent on-demand request to a depth-1 node's reserve:
+  //  - a custom request on any node → its depth-1 ancestor (path first segment)
+  //  - a mock request on the paper's depth-0 root → distributed across that
+  //    paper's depth-1 sections by hotness share (so whole-paper mock demand
+  //    concentrates fresh generation where the paper is heaviest, matching where
+  //    a mock actually draws), or equally if the paper has no hotness yet.
+  // A demand row whose node isn't in this paper family (or was deleted) is
+  // skipped — the MCQ pass only sees PRE_% demand, descriptive only MAINS_%.
+  const nodeById = new Map(rows.map((n) => [n.id, n]));
+  const topsByPaper = new Map<string, typeof info>();
+  for (const i of info) (topsByPaper.get(i.node.paper_code) ?? topsByPaper.set(i.node.paper_code, []).get(i.node.paper_code)!).push(i);
+  const topByPathKey = new Map<string, NodeRow>(); // `${paper}::${firstSegment}` → depth-1 node
+  for (const i of info) topByPathKey.set(`${i.node.paper_code}::${i.node.path}`, i.node);
+
+  const demandByTop = new Map<string, number>();
+  const addDemand = (topId: string, amount: number) => demandByTop.set(topId, (demandByTop.get(topId) ?? 0) + amount);
+  for (const d of demand) {
+    const node = nodeById.get(d.node_id);
+    if (!node) continue;
+    if (node.depth === 0) {
+      const paperTops = topsByPaper.get(node.paper_code) ?? [];
+      if (paperTops.length === 0) continue;
+      const totalHot = paperTops.reduce((s, t) => s + t.hot, 0);
+      for (const t of paperTops) addDemand(t.node.id, totalHot > 0 ? t.hot / totalHot : 1 / paperTops.length);
+    } else {
+      const top = topByPathKey.get(`${node.paper_code}::${node.path.split("/")[0]}`);
+      if (top) addDemand(top.id, 1);
+    }
+  }
+
+  return info.map(({ node, have, hot }) => {
+    const baseFloor = scaledFloor(hot, maxHot, band);
+    const d = demandByTop.get(node.id) ?? 0;
+    const reserve = onDemandReserveAdditive(baseFloor, d);
+    return { node, have, hot, baseFloor, reserve, target: baseFloor + reserve, demand: d };
+  });
+}
+
+/** Shortfall plans for one paper-family + question type, against the full target (floor + on-demand reserve). */
+async function shortfallsFor(
+  paperLike: string,
+  kind: "mcq" | "descriptive",
+  band: FloorBand,
+  demand: DemandRow[],
+  log: (msg: string) => void,
+): Promise<GeneratePlan[]> {
+  const targets = await computeNodeTargets(paperLike, kind, band, demand, log);
   const plans: GeneratePlan[] = [];
-  for (const { node, have, hot } of info) {
-    const floor = scaledFloor(hot, maxHot, band);
-    const shortfall = Math.min(MAX_PER_NODE, Math.max(0, floor - have));
+  for (const t of targets) {
+    const shortfall = Math.min(MAX_PER_NODE, Math.max(0, t.target - t.have));
     if (shortfall > 0) {
-      // Audit line — only fires when a node is genuinely below its scaled floor
-      // (a purge/re-gate/new node). Keeps a nightly trail of what got generated and why.
+      // Audit line — only fires when a node is genuinely below its target (a
+      // purge/re-gate/new node, or a fresh on-demand reserve to stock). Keeps a
+      // nightly trail of what got generated and why.
       log(
-        `  ↳ "${(node.title_i18n as { en: string }).en}": floor=${floor} have=${have} ` +
-          `(hotness=${hot.toFixed(1)}) → generate ${shortfall}`,
+        `  ↳ "${(t.node.title_i18n as { en: string }).en}": floor=${t.baseFloor}` +
+          `${t.reserve > 0 ? `+${t.reserve} on-demand reserve` : ""} target=${t.target} have=${t.have} ` +
+          `(hotness=${t.hot.toFixed(1)}, demand=${t.demand.toFixed(1)}) → generate ${shortfall}`,
       );
-      plans.push({ node: await loadNodeContext(node.id), count: shortfall, kind });
+      plans.push({ node: await loadNodeContext(t.node.id), count: shortfall, kind });
     }
   }
   return plans;
+}
+
+/**
+ * Inspect per-node targets (baseline floor + on-demand reserve) WITHOUT
+ * generating — used by the on-demand reserve verification/reporting so the
+ * reserve target and its decay can be observed for any node, not only nodes that
+ * happen to be in shortfall.
+ */
+export async function reserveTargetsFor(
+  paperLike: string,
+  kind: "mcq" | "descriptive",
+  band: FloorBand,
+): Promise<NodeTarget[]> {
+  const demand = await loadRecentDemand();
+  return computeNodeTargets(paperLike, kind, band, demand, () => {});
 }
 
 export interface TopupResult {
@@ -163,9 +250,15 @@ export async function runTopup(
   opts: { maxUsd: number; only?: "mcq" | "descriptive"; dryRun?: boolean },
   log: (msg: string) => void = () => {},
 ): Promise<TopupResult> {
+  // Load the rolling demand window once and reuse it across both passes — the
+  // additive reserve it drives is 0 for every node when there's no demand, so a
+  // demand-free system generates exactly as it did before this feature.
+  const demand = await loadRecentDemand();
+  log(`On-demand demand: ${demand.length} request-day(s) in the last ${ON_DEMAND_WINDOW_DAYS} days.`);
+
   const plans: GeneratePlan[] = [];
-  if (opts.only !== "descriptive") plans.push(...(await shortfallsFor("PRE_%", "mcq", MCQ_FLOOR, log)));
-  if (opts.only !== "mcq") plans.push(...(await shortfallsFor("MAINS_%", "descriptive", DESCRIPTIVE_FLOOR, log)));
+  if (opts.only !== "descriptive") plans.push(...(await shortfallsFor("PRE_%", "mcq", MCQ_FLOOR, demand, log)));
+  if (opts.only !== "mcq") plans.push(...(await shortfallsFor("MAINS_%", "descriptive", DESCRIPTIVE_FLOOR, demand, log)));
 
   const totalRequested = plans.reduce((s, p) => s + p.count, 0);
   log(`Shortfall: ${plans.length} nodes need generation (${totalRequested} questions total).`);
