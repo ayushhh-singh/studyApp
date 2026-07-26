@@ -15,7 +15,7 @@ import type {
   ProfileAnalytics,
   RubricDimensionKey,
 } from "@neev/shared";
-import { RUBRIC_DIMENSION_KEYS } from "@neev/shared";
+import { RUBRIC_DIMENSION_KEYS, isPreRecalibration } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
@@ -152,13 +152,21 @@ function computeDimensionInsights(trendAsc: EvaluationTrendPoint[]): DimensionIn
   const hasPrevious = last10.length >= 10;
   const previous5 = hasPrevious ? last10.slice(0, 5) : [];
 
+  // If the recent history straddles the 2026-07-26 scoring recalibration, a
+  // recent-vs-previous delta compares two different scales — it would read as a
+  // sharp (false) drop on every dimension. Suppress the delta (show "steady")
+  // until 10 post-recalibration evaluations exist. (RUBRIC_RECALIBRATED_AT)
+  const spansBoundary =
+    last10.some((p) => isPreRecalibration(p.date)) && last10.some((p) => !isPreRecalibration(p.date));
+  const comparable = hasPrevious && !spansBoundary;
+
   const avg = (vals: number[]): number => (vals.length ? vals.reduce((s, v) => s + v, 0) / vals.length : 0);
 
   return RUBRIC_DIMENSION_KEYS.map((key) => {
     const recentVals = recent5.map((e) => e.dimension_pct[key]).filter((v): v is number => v !== undefined);
     const recentAvg = round1(avg(recentVals));
     let previousAvg: number | null = null;
-    if (hasPrevious) {
+    if (comparable) {
       const previousVals = previous5.map((e) => e.dimension_pct[key]).filter((v): v is number => v !== undefined);
       previousAvg = round1(avg(previousVals));
     }
@@ -191,7 +199,13 @@ export async function getImprovementProof(
 ): Promise<{ items: ImprovementProofItem[]; avg_delta_pct: number | null }> {
   const { data, error } = await supabase().rpc("profile_improvement_pairs", { p_user_id: userId });
   if (error) throw new HttpError(500, `improvement-proof query failed: ${error.message}`);
-  const rows = (data ?? []) as ImprovementPairRow[];
+  const allRows = (data ?? []) as ImprovementPairRow[];
+  // A pair whose "before" and "after" fall on opposite sides of the 2026-07-26
+  // scoring recalibration compares a lenient before to a strict after — it would
+  // turn a genuine rewrite improvement into a false decline (and corrupt the
+  // "your rewrites gain +X%" headline / paywall pitch). Only compare within one
+  // calibration era. (RUBRIC_RECALIBRATED_AT, @neev/shared)
+  const rows = allRows.filter((r) => isPreRecalibration(r.before_date) === isPreRecalibration(r.after_date));
   if (rows.length === 0) return { items: [], avg_delta_pct: null };
 
   const questionIds = [...new Set(rows.map((r) => r.question_id))];

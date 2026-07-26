@@ -89,6 +89,44 @@ const UNTRUSTED_ANSWER_CLAUSE =
 // ---------------------------------------------------------------------------
 // Pass 1 — analysis (strict JSON)
 // ---------------------------------------------------------------------------
+/**
+ * SCORING CALIBRATION RATIONALE (recalibrated 2026-07-26). The 0-10 bands in the
+ * prompt below are anchored to how UPPSC/UPSC Mains answers are ACTUALLY marked,
+ * which is far more severe than a school-style "8/10 for a good effort" scale:
+ *
+ *   - Toppers finish Mains at only ~50-55% of aggregate marks — e.g. CSE-2021
+ *     topper Shruti Sharma scored 54.56%; the top cohort clusters ~52-58% and
+ *     even they leave ~40%+ of the marks on the table. On a single GS answer the
+ *     per-question capture is typically LOWER than that aggregate, because GS
+ *     papers are marked hardest.
+ *   - So a genuinely strong, well-prepared answer should land ~50-55% of a
+ *     question's max marks, NOT 70-85%. A near-flawless, topper-level answer is
+ *     the rare exception that reaches the top band — never the default reward
+ *     for merely competent, complete, on-topic work.
+ *
+ * The earlier bands (8-10 "fully meets", 5-7 "partial", 2-4 "weak") systematically
+ * over-scored: a real before/after harness run scored a solid answer ~76% and an
+ * excellent one ~86% — both unrealistic, and demoralising by inversion (an answer
+ * a real examiner would give ~55% read here as a near-perfect score). The 5-band
+ * scale in the prompt maps "solid, genuinely good" work to 5-6 per dimension
+ * (≈ 50-55% overall), reserves 7-8 for work that genuinely stands out, and keeps
+ * 9-10 for the rare/exceptional.
+ *
+ * Sources for the benchmark: UPSC CSE topper marksheets / topper-marks analyses
+ * (studyiq.com topper-marks-analysis; careers360 on Shruti Sharma 54.56%;
+ * drishtiias UPSC marksheet coverage). See the CLAUDE.md session log.
+ *
+ * IMPORTANT — this recalibration changes the NUMBER only. Justification and
+ * downstream feedback must stay exactly as rich, specific, and constructive as
+ * before: a stricter score paired with the SAME detailed critique is the goal;
+ * a stricter score paired with thinner feedback is a regression (verified by
+ * qualitative-field word-count, before vs after). The honesty guardrail
+ * (off-topic → 0-2, no invented praise) and "score only what is present" are
+ * unchanged. Bumping the number scale did NOT bump RUBRIC_VERSION — the version
+ * string still means "which rubric variant (GS vs essay)" and is load-bearing
+ * for scoreboard segmentation + model-answer reuse; calibration-era comparability
+ * is handled separately via RUBRIC_RECALIBRATED_AT (see @neev/shared).
+ */
 export function buildAnalysisSystem(hasPageImage = false, rubricVersion?: string): string {
   const isEssay = rubricVersion === "essay-v1";
   return (
@@ -109,11 +147,40 @@ export function buildAnalysisSystem(hasPageImage = false, rubricVersion?: string
         "let image legibility affect any other dimension, and do not second-guess the given word " +
         "count from the image.\n"
       : "") +
-    "\n\nScoring principles:\n" +
+    "\n\nSCORING CALIBRATION — read carefully; this is where auto-graders most often go wrong.\n" +
+    "Real UPPSC/UPSC Mains marking is SEVERE. Examiners very rarely award the top of the scale: a " +
+    "topper's answer typically captures only about HALF the marks on a question, and strong, " +
+    "genuinely well-prepared candidates routinely land in the 45-55% range per answer. Grade to " +
+    "that reality, not to a generous school-style scale. Apply these bands to EACH dimension (0-10):\n" +
+    "  9-10  Exceptional and rare. Topper-level on this dimension: virtually flawless, with " +
+    "essentially nothing material a strong examiner would add. This must be GENUINELY UNCOMMON — it " +
+    "is NOT the reward for merely competent, complete, on-topic work.\n" +
+    "  7-8   Strong, comprehensive, clearly above average — distinctly better than the typical " +
+    "well-prepared candidate. Even a good answer does NOT default here; reserve 7-8 for work that " +
+    "genuinely stands out.\n" +
+    "  5-6   Solid, competent, on-topic work. Give 5 for sound work that does the job but has real, " +
+    "nameable gaps — this is the TYPICAL strong, well-prepared answer, and MOST of its dimensions are " +
+    "5s. Give 6 only for a dimension with no material gap for its level (thorough and polished) yet " +
+    "still short of standout. A 5-heavy strong answer (≈50-55% overall) is the correct, good result — " +
+    "not a disappointment.\n" +
+    "  3-4   Weak, generic, or with significant gaps in coverage, structure, or substantiation.\n" +
+    "  0-2   Absent, off-topic, or empty/irrelevant (see the honesty guardrail).\n" +
+    "HARD ANCHORING RULE (this is how you avoid the usual over-scoring): a dimension's SCORE must be " +
+    "consistent with its own justification. If your justification for a dimension names any real " +
+    "omission or gap (a missing point, no data/examples, thin coverage, a weak conclusion, etc.), " +
+    "that dimension is a 5 or lower — NEVER a 6, 7, or 8. Do not praise a dimension in the number " +
+    "while criticising it in the words. Only a dimension you can honestly say has essentially NO " +
+    "material gap for its level may exceed 5. Consequently a complete, well-structured, on-topic " +
+    "answer that still has real gaps (as almost all do) lands around 5 per dimension — a weighted " +
+    "overall near 50-55% of the max marks, which is the CORRECT, expected result for a strong " +
+    "answer. Reserve 7-8 for work that genuinely stands out and 9-10 for the rare/exceptional.\n\n" +
+    "Scoring principles:\n" +
     "- Score each dimension ONLY on what is actually present in the answer. Never reward " +
     "content, structure, or examples that are not there.\n" +
-    "- Calibrate honestly: 8-10 fully meets the question's demand at Mains standard; 5-7 " +
-    "partially meets it with clear gaps; 2-4 weak, generic, or largely missing; 0-1 absent.\n" +
+    "- SEVERITY IS ABOUT THE NUMBER, NOT THE FEEDBACK. A lower score must carry exactly the SAME " +
+    "depth of specific, constructive analysis as a high one — never write a thinner, terser, or " +
+    "more dismissive justification because the score is lower. Always explain precisely what is " +
+    "present, what is missing, and what would move the answer up a band.\n" +
     "- HONESTY GUARDRAIL: if the answer is empty, irrelevant, or answers a different question, " +
     "set is_off_topic to true and score every dimension between 0 and 2. Do not invent praise " +
     "or merit that is not in the text — an honest low score is correct; flattery is a failure.\n" +
@@ -122,7 +189,8 @@ export function buildAnalysisSystem(hasPageImage = false, rubricVersion?: string
     "(missed_key_points).\n" +
     "- Flag only genuine factual errors: quote the candidate's own words and state what is wrong. " +
     "Stylistic choices are not errors.\n\n" +
-    "Justifications must be 2-3 sentences, specific, and cite what the candidate did or did not do.\n\n" +
+    "Justifications must be 2-3 full sentences, specific, and cite what the candidate did or did " +
+    "not do — written in as much detail for a low score as for a high one.\n\n" +
     UNTRUSTED_ANSWER_CLAUSE +
     "\n\nReturn strict JSON matching the schema — no prose outside it."
   );

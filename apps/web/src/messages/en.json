@@ -677,6 +677,7 @@
     "writingProgressEmptyDescription": "Submit an answer for AI evaluation under Answers to start building this chart.",
     "writingProgressTrendLabel": "Overall score over time",
     "writingProgressRadarLabel": "Recent rubric profile (last 5 evaluations)",
+    "recalibrationNote": "Scoring was made stricter on {{date}} to match real UPPSC Mains marking. Evaluations before that date used an earlier, more lenient scale, so a step down here reflects the new scale — not a drop in your writing.",
     "insightSteady": "{{dimension}} — holding steady",
     "insightUp": "{{dimension}} +{{delta}}% this month",
     "insightDown": "{{dimension}} -{{delta}}% this month",

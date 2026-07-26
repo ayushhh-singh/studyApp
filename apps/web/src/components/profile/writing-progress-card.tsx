@@ -13,7 +13,13 @@ import {
   YAxis,
 } from "recharts";
 import { PenSquare, TrendingDown, TrendingUp } from "lucide-react";
-import { RUBRIC_DIMENSION_KEYS, type DimensionInsight, type EvaluationTrendPoint } from "@neev/shared";
+import {
+  RUBRIC_DIMENSION_KEYS,
+  RUBRIC_RECALIBRATED_AT,
+  isPreRecalibration,
+  type DimensionInsight,
+  type EvaluationTrendPoint,
+} from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -126,8 +132,26 @@ export function WritingProgressCard({
   insights: DimensionInsight[] | undefined;
   isLoading: boolean;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const hasData = useMemo(() => (trend ?? []).length > 0, [trend]);
+  // A one-time recalibration (2026-07-26) made scoring stricter. When the trend
+  // straddles that boundary, a step-down is expected — say so, so it doesn't read
+  // as a decline or a bug.
+  const spansRecalibration = useMemo(
+    () =>
+      (trend ?? []).some((p) => isPreRecalibration(p.date)) &&
+      (trend ?? []).some((p) => !isPreRecalibration(p.date)),
+    [trend],
+  );
+  const recalibratedOn = useMemo(
+    () =>
+      new Date(RUBRIC_RECALIBRATED_AT).toLocaleDateString(i18n.language === "hi" ? "hi-IN" : "en-IN", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+    [i18n.language],
+  );
 
   return (
     <SectionCard title={t("Profile.writingProgressTitle")} description={t("Profile.writingProgressDescription")}>
@@ -159,6 +183,11 @@ export function WritingProgressCard({
                 <InsightLine key={insight.dimension_key} insight={insight} />
               ))}
             </ul>
+          )}
+          {spansRecalibration && (
+            <p className="col-span-full border-t border-border pt-3 text-xs text-muted-foreground">
+              {t("Profile.recalibrationNote", { date: recalibratedOn })}
+            </p>
           )}
         </div>
       )}

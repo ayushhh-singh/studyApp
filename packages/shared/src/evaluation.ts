@@ -25,6 +25,30 @@ export const RUBRIC_VERSION = "v1";
 /** The UPPSC Essay-paper rubric variant (one ~700-word essay, 50 marks). */
 export const ESSAY_RUBRIC_VERSION = "essay-v1";
 
+/**
+ * Calibration-era boundary. On 2026-07-26 the answer-evaluation SCORING BANDS
+ * were recalibrated to real UPPSC/UPSC Mains severity (a genuinely strong answer
+ * now scores ~50-55% instead of the earlier ~75-85%). This is a change to the
+ * NUMBERS the model assigns, NOT to the rubric structure — so RUBRIC_VERSION was
+ * deliberately left "v1" (it means "which rubric variant", and is load-bearing
+ * for scoreboard GS/essay segmentation and question_model_answers reuse). This
+ * timestamp is the separate, decoupled marker of "which calibration era".
+ *
+ * An evaluation's `created_at` unambiguously reflects the era it was scored under
+ * (evaluations are 1:1 with a submission and are never re-scored, only replayed),
+ * so a plain timestamp — no per-row column, no migration — is sufficient. Any
+ * cross-TIME surface (improvement_proof deltas, dimension-insight deltas, the
+ * writing-progress trend) uses this so a one-time recalibration is never
+ * presented to a user as a real decline or a website bug: pre-boundary scores are
+ * on the old, more lenient scale and are NOT directly comparable to later ones.
+ */
+export const RUBRIC_RECALIBRATED_AT = "2026-07-26T00:00:00.000Z";
+
+/** True iff an evaluation created at `dateIso` predates the scoring recalibration. */
+export function isPreRecalibration(dateIso: string): boolean {
+  return new Date(dateIso).getTime() < new Date(RUBRIC_RECALIBRATED_AT).getTime();
+}
+
 export const rubricDimensionKeySchema = z.enum([
   "structure_flow",
   "content_coverage",

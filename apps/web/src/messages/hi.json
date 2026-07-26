@@ -677,6 +677,7 @@
     "writingProgressEmptyDescription": "यह चार्ट बनाने के लिए उत्तर अनुभाग में AI मूल्यांकन हेतु एक उत्तर जमा करें।",
     "writingProgressTrendLabel": "समय के साथ कुल स्कोर",
     "writingProgressRadarLabel": "हालिया रूब्रिक प्रोफ़ाइल (पिछले 5 मूल्यांकन)",
+    "recalibrationNote": "{{date}} को स्कोरिंग को वास्तविक UPPSC मुख्य परीक्षा की जाँच के अनुरूप और सख़्त किया गया। उस तिथि से पहले के मूल्यांकन एक पुराने, अधिक उदार पैमाने पर थे, इसलिए यहाँ अंक कम दिखना नए पैमाने के कारण है — आपके लेखन में गिरावट के कारण नहीं।",
     "insightSteady": "{{dimension}} — स्थिर बना हुआ है",
     "insightUp": "{{dimension}} इस महीने +{{delta}}%",
     "insightDown": "{{dimension}} इस महीने -{{delta}}%",
