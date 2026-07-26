@@ -25,12 +25,22 @@
 # their prerendered snapshots, not this fallback — verified with
 # `wrangler pages dev dist` (see docs/operations.md's Cloudflare Pages section).
 #
-# Destination is __spa-fallback.html, NOT index.html — confirmed live,
-# 2026-07-26: Cloudflare's build-time redirect linter flags a literal
-# "/* -> /index.html 200" as an "infinite loop" and silently DROPS the rule
-# entirely (a false positive Cloudflare's own team has acknowledged:
-# https://github.com/cloudflare/workers-sdk/issues/11824, but nothing
-# repo-side can fix their linter). scripts/copy-spa-fallback.mjs copies
-# dist/index.html to dist/__spa-fallback.html on every build specifically so
-# this rule has a real, byte-identical, non-flagged target.
-/*   /__spa-fallback.html   200
+# DELIBERATELY still the plain "/* -> /index.html 200" form, NOT
+# "__spa-fallback.html" — a same-day attempt at that "fix" (see git history,
+# reverted) turned into a REAL, LIVE infinite redirect loop in production:
+# Cloudflare Pages auto-strips the .html extension from ANY served path
+# (redirecting /__spa-fallback.html -> /__spa-fallback), which immediately
+# loops back into this exact rule forever (confirmed live: curl showed 50+
+# chained 308s all pointing at /__spa-fallback, and /en/dashboard — every
+# real authenticated app route — was completely down). Reverted within
+# minutes of shipping. Cloudflare's build-time linter DOES still flag this
+# literal line as a false-positive "infinite loop" and silently drops it
+# (acknowledged bug in Cloudflare's own tooling:
+# https://github.com/cloudflare/workers-sdk/issues/11824) — but Cloudflare
+# Pages has its own separate, undocumented built-in "serve index.html for an
+# unmatched SPA path" default that transparently covers for the dropped rule,
+# verified live repeatedly. That undocumented-but-working default is safer
+# than any alternative explicit rule tried so far — do not "fix" this again
+# without shipping to a real preview/staging deploy first, not straight to
+# production, given how fast this exact class of change broke live traffic.
+/*   /index.html   200
