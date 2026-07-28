@@ -2,11 +2,15 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { useAddPost } from "@/hooks/use-community";
+import { useAuth } from "@/providers/auth-provider";
+import { usePaywallStore } from "@/stores/paywall-store";
 
 export function PostComposer({ threadId, disabled }: { threadId: string; disabled?: boolean }) {
   const { t } = useTranslation();
   const [body, setBody] = useState("");
   const addPost = useAddPost(threadId);
+  const { isGuest } = useAuth();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
 
   if (disabled) {
     return <p className="rounded-lg border border-dashed border-border p-3 text-center text-sm text-muted-foreground">{t("Community.threadLocked")}</p>;
@@ -27,7 +31,10 @@ export function PostComposer({ threadId, disabled }: { threadId: string; disable
         size="sm"
         className="self-end"
         disabled={addPost.isPending || !body.trim()}
-        onClick={() => addPost.mutate({ body: body.trim() }, { onSuccess: () => setBody("") })}
+        onClick={() => {
+          if (isGuest) return openPaywall("generic");
+          addPost.mutate({ body: body.trim() }, { onSuccess: () => setBody("") });
+        }}
       >
         {t("Community.postReply")}
       </Button>

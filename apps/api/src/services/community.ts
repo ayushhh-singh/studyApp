@@ -15,6 +15,14 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { screenPost, screenThread } from "../lib/community-moderation.js";
+import { assertNotGuest } from "./entitlements.js";
+
+/**
+ * Guests browse the community READ-ONLY (a deliberate design decision — an
+ * anonymous, ephemeral, low-accountability account posting/voting/reporting is a
+ * moderation and spam liability). Every write below prompts signup instead.
+ */
+const GUEST_COMMUNITY_MSG = "Create a free account to join the discussion — you'll also start your 7-day Pro trial.";
 import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 
@@ -172,6 +180,7 @@ export async function createThread(
   title: string,
   body: string,
 ): Promise<DiscussionThread> {
+  assertNotGuest("community", GUEST_COMMUNITY_MSG);
   // shared_answer-anchored threads are system-managed: shareAnswerForPeerReview
   // creates exactly one per shared answer and every other read (getSharedAnswer,
   // the re-share idempotency check) looks it up with .maybeSingle(), which
@@ -321,6 +330,7 @@ function toPost(row: PostRow, author: CommunityAuthor, myVote: -1 | 0 | 1): Disc
 }
 
 export async function addPost(userId: string, threadId: string, body: string): Promise<DiscussionPost> {
+  assertNotGuest("community", GUEST_COMMUNITY_MSG);
   const { data: threadRow, error: threadError } = await supabase()
     .from("discussion_threads")
     .select("id, is_locked, moderation_status")
@@ -390,6 +400,7 @@ export async function votePost(
   postId: string,
   value: -1 | 1,
 ): Promise<{ vote_score: number; my_vote: -1 | 0 | 1 }> {
+  assertNotGuest("community", GUEST_COMMUNITY_MSG);
   const { data: targetPost, error: targetError } = await supabase()
     .from("discussion_posts")
     .select("user_id")
@@ -547,6 +558,7 @@ async function findExistingShare(submissionId: string): Promise<{ id: string; cr
 }
 
 export async function shareAnswerForPeerReview(userId: string, submissionId: string): Promise<SharedAnswer> {
+  assertNotGuest("community", GUEST_COMMUNITY_MSG);
   const { data: submission, error: subError } = await supabase()
     .from("answer_submissions")
     .select("user_id, status, custom_question_text_i18n, questions(stem_i18n)")
@@ -712,6 +724,7 @@ export async function reportContent(
   reason: ReportReason,
   detail?: string,
 ): Promise<{ id: string; status: string }> {
+  assertNotGuest("community", GUEST_COMMUNITY_MSG);
   if (targetType === "post") {
     const { data, error } = await supabase().from("discussion_posts").select("id").eq("id", targetId).maybeSingle();
     if (error) throw new HttpError(500, `post lookup failed: ${error.message}`);
@@ -765,6 +778,7 @@ export async function reportContent(
 // Blocks
 // ---------------------------------------------------------------------------
 export async function blockUser(blockerId: string, blockedId: string): Promise<void> {
+  assertNotGuest("community", GUEST_COMMUNITY_MSG);
   if (blockerId === blockedId) throw badRequest("You cannot block yourself");
   const { error } = await supabase()
     .from("user_blocks")

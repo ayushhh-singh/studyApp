@@ -4,6 +4,7 @@ import type { DiscussionPost } from "@neev/shared";
 import { Pencil, ShieldOff, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/providers/auth-provider";
+import { usePaywallStore } from "@/stores/paywall-store";
 import { useLocale } from "@/hooks/use-locale";
 import { useDeletePost, useEditPost, useVotePost } from "@/hooks/use-community";
 import { useBlockUser } from "@/hooks/use-community";
@@ -14,7 +15,8 @@ import { ReportSheet } from "./report-sheet";
 function PostRow({ threadId, post }: { threadId: string; post: DiscussionPost }) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { user } = useAuth();
+  const { user, isGuest } = useAuth();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
   const isOwn = post.author.id === user?.id;
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(post.body);
@@ -40,7 +42,10 @@ function PostRow({ threadId, post }: { threadId: string; post: DiscussionPost })
         score={post.vote_score}
         myVote={post.my_vote}
         disabled={votePost.isPending}
-        onVote={(value) => votePost.mutate({ postId: post.id, value })}
+        onVote={(value) => {
+          if (isGuest) return openPaywall("generic");
+          votePost.mutate({ postId: post.id, value });
+        }}
       />
       <div className="flex min-w-0 flex-1 flex-col gap-1.5">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">

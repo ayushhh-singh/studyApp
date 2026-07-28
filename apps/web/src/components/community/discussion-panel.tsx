@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { useLocale } from "@/hooks/use-locale";
 import { useCommunityThreads, useCreateThread } from "@/hooks/use-community";
+import { useAuth } from "@/providers/auth-provider";
+import { usePaywallStore } from "@/stores/paywall-store";
 
 /**
  * Anchor-scoped discussion — embedded on question/node/current-affairs pages
@@ -24,10 +26,13 @@ export function DiscussionPanel({ anchorType, anchorId }: { anchorType: Discussi
 
   const threads = useCommunityThreads(anchorType, anchorId);
   const createThread = useCreateThread(anchorType, anchorId);
+  const { isGuest } = useAuth();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
 
   const items = threads.data?.items ?? [];
 
   const submit = () => {
+    if (isGuest) return openPaywall("generic");
     createThread.mutate(
       { anchor_type: anchorType, anchor_id: anchorId, title: title.trim(), body: body.trim() },
       {

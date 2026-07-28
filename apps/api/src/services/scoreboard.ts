@@ -33,6 +33,7 @@ import type {
   DailyQuizWeeklyRow,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { currentUserIsAnonymous } from "../lib/user-context.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
 import { PRELIMS_CSAT_PAPER_CODE } from "../lib/exam-papers.js";
@@ -145,6 +146,11 @@ export async function recordDailyQuizResult(
   gradedAnswers: { question_id: string; is_correct: boolean }[],
 ): Promise<void> {
   if (!attempt.test_id || !attempt.submitted_at) return;
+  // Guests are kept OFF the public competitive leaderboard (an anonymous,
+  // ephemeral, potentially farm-able entry doesn't belong on it) — their attempt
+  // is still scored and saved like anyone's; it's just never placed on the board.
+  // A converted (real) account starts appearing on the next day's quiz.
+  if (currentUserIsAnonymous()) return;
 
   const { data: test, error } = await supabase()
     .from("tests")
