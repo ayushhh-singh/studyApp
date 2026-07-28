@@ -239,8 +239,22 @@ export type CaHighConfidenceCount = z.infer<typeof caHighConfidenceCountSchema>;
 export const caHighConfidenceCountResponseSchema = apiEnvelopeSchema(caHighConfidenceCountSchema);
 export type CaHighConfidenceCountResponse = z.infer<typeof caHighConfidenceCountResponseSchema>;
 
-/** GET /admin/status — whether ADMIN_MODE is enabled server-side (drives the UI gate). */
-export const adminStatusSchema = z.object({ admin_mode: z.boolean() });
+/** Billing mode snapshot — populated for admins only, so the active Razorpay
+ * TEST/LIVE mode (and any misconfiguration) is visible in-app, not just in logs. */
+export const billingModeStatusSchema = z.object({
+  configured: z.boolean(),
+  mode: z.enum(["test", "live"]).nullable(),
+  misconfigured: z.boolean(),
+  detail: z.string(),
+});
+export type BillingModeStatus = z.infer<typeof billingModeStatusSchema>;
+
+/** GET /admin/status — whether the user is an admin (drives the UI gate), plus
+ * the billing mode for admins (null for non-admins). */
+export const adminStatusSchema = z.object({
+  admin_mode: z.boolean(),
+  billing: billingModeStatusSchema.nullable().optional(),
+});
 export type AdminStatus = z.infer<typeof adminStatusSchema>;
 
 export const adminStatusResponseSchema = apiEnvelopeSchema(adminStatusSchema);

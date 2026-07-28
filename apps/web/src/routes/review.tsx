@@ -227,6 +227,25 @@ export function Component() {
         }
       />
 
+      {/* Payment mode — verify TEST vs LIVE at a glance before/after go-live. */}
+      {admin?.billing?.configured ? (
+        <div
+          className={cn(
+            "flex items-center gap-2 self-start rounded-md px-3 py-1.5 text-sm font-medium",
+            admin.billing.misconfigured
+              ? "bg-coral/15 text-coral-foreground"
+              : admin.billing.mode === "live"
+                ? "bg-tulsi/15 text-tulsi-foreground"
+                : "bg-marigold/15 text-marigold-foreground",
+          )}
+        >
+          <ShieldCheck className="size-4" aria-hidden />
+          {admin.billing.misconfigured
+            ? t("Review.billingMisconfigured", { detail: admin.billing.detail })
+            : t("Review.billingMode", { mode: (admin.billing.mode ?? "").toUpperCase() })}
+        </div>
+      ) : null}
+
       {/* tabs */}
       <div role="tablist" aria-label={t("Review.title")} className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {TABS.map((tb) => {

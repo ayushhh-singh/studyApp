@@ -35,6 +35,7 @@ import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { isCurrentUserAdmin, requireAdmin } from "../lib/admin.js";
 import { currentUserId } from "../lib/user-context.js";
+import { razorpayStatus } from "../lib/razorpay.js";
 import {
   approveQuestion,
   bulkApprove,
@@ -69,12 +70,24 @@ import {
 
 export const adminRouter = Router();
 
-/** Lets the SPA decide whether to render the Review Queue — true only for admins. */
+/** Lets the SPA decide whether to render the Review Queue — true only for admins.
+ * Also surfaces the active Razorpay TEST/LIVE mode to admins (null otherwise) so
+ * the payment mode is verifiable in-app without exposing it to every user. */
 adminRouter.get(
   "/admin/status",
   asyncHandler(async (_req, res) => {
+    const admin = await isCurrentUserAdmin();
+    const s = admin ? razorpayStatus() : null;
     res.json(
-      adminStatusResponseSchema.parse({ data: { admin_mode: await isCurrentUserAdmin() }, error: null }),
+      adminStatusResponseSchema.parse({
+        data: {
+          admin_mode: admin,
+          billing: s
+            ? { configured: s.configured, mode: s.mode, misconfigured: s.misconfigured, detail: s.detail }
+            : null,
+        },
+        error: null,
+      }),
     );
   }),
 );

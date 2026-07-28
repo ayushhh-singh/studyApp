@@ -737,6 +737,8 @@
     "disabledDescription": "जनित प्रश्नों की समीक्षा के लिए apps/api/.env में ADMIN_MODE=true सेट करें और API पुनः शुरू करें।",
     "emptyTitle": "सूची खाली है",
     "emptyDescription": "इस टैब में समीक्षा हेतु कुछ भी लंबित नहीं है। pnpm qgen से और बनाएँ।",
+    "billingMode": "भुगतान: {{mode}} मोड",
+    "billingMisconfigured": "भुगतान गलत कॉन्फ़िगर — {{detail}}",
     "tab": {
       "generated_mcq": "जनित MCQ",
       "generated_descriptive": "जनित मुख्य",

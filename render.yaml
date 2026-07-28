@@ -55,6 +55,10 @@ envVarGroups:
         sync: false
       - key: QGEN_BATCH_MAX_USD
         value: "5"
+      # Optional: declare test|live to fail-fast on a test/live key mismatch.
+      # Mode is otherwise derived from the RAZORPAY_KEY_ID prefix.
+      - key: RAZORPAY_MODE
+        sync: false
       - key: RAZORPAY_KEY_ID
         sync: false
       - key: RAZORPAY_KEY_SECRET

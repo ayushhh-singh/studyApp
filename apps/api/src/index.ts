@@ -40,6 +40,7 @@ import { tourRouter } from "./routes/tour.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
 import { startDailyScheduler } from "./daily/scheduler.js";
 import { initSentry } from "./lib/sentry.js";
+import { razorpayStatus } from "./lib/razorpay.js";
 
 await initSentry();
 
@@ -148,6 +149,17 @@ app.listen(port, () => {
   // Surface a missing manual migration (0049/0070) loudly at boot — an ERROR
   // log, not a swallowed warn — so the mentor FAQ cache never silently no-ops.
   void checkMentorCacheHealthAtBoot();
+  // Make the active Razorpay TEST/LIVE mode visible at boot — never silent. A
+  // present-but-inconsistent config (mode mismatch / bad key prefix) is an
+  // ERROR so a bad test/live mix can't slip through unnoticed on deploy.
+  const rzp = razorpayStatus();
+  if (!rzp.configured) {
+    logger.warn("billing: Razorpay is not configured — checkout/webhook will 500 until keys are set");
+  } else if (rzp.misconfigured) {
+    logger.error({ detail: rzp.detail }, "billing: Razorpay is MISCONFIGURED — refusing to transact until fixed");
+  } else {
+    logger.info({ mode: rzp.mode }, `billing: Razorpay configured in ${rzp.mode?.toUpperCase()} mode`);
+  }
   if (process.env.NODE_ENV !== "production") {
     startDevCaScheduler();
     startDailyScheduler();

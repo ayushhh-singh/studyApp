@@ -737,6 +737,8 @@
     "disabledDescription": "Set ADMIN_MODE=true in apps/api/.env and restart the API to review generated questions.",
     "emptyTitle": "Queue is clear",
     "emptyDescription": "Nothing is waiting for review in this tab. Generate more with pnpm qgen.",
+    "billingMode": "Payments: {{mode}} mode",
+    "billingMisconfigured": "Payments misconfigured — {{detail}}",
     "tab": {
       "generated_mcq": "Generated MCQs",
       "generated_descriptive": "Generated Mains",
