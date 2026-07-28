@@ -5,6 +5,8 @@ import type { QuestionReportReason } from "@neev/shared";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui-x/sheet";
 import { Button } from "@/components/ui/button";
 import { useReportQuestion } from "@/hooks/use-question-reports";
+import { useAuth } from "@/providers/auth-provider";
+import { usePaywallStore } from "@/stores/paywall-store";
 
 const REASONS: QuestionReportReason[] = ["wrong_answer", "wrong_explanation", "translation", "ambiguous", "other"];
 
@@ -21,8 +23,14 @@ export function ReportQuestionSheet({ questionId, className }: { questionId: str
   const [detail, setDetail] = useState("");
   const [done, setDone] = useState(false);
   const report = useReportQuestion();
+  const { isGuest } = useAuth();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
 
   const submit = () => {
+    if (isGuest) {
+      setOpen(false);
+      return openPaywall("generic");
+    }
     report.mutate(
       { questionId, body: { reason, detail: detail.trim() || undefined } },
       { onSuccess: () => setDone(true) },

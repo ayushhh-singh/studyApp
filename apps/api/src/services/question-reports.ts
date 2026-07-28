@@ -24,6 +24,7 @@ import type {
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
+import { assertNotGuest } from "./entitlements.js";
 import { generateGroundedExplanation } from "./question-explanation.js";
 
 export const QUESTION_REPORTS_PAGE_SIZE = 10;
@@ -38,6 +39,10 @@ export async function createQuestionReport(
   questionId: string,
   body: CreateQuestionReportBody,
 ): Promise<QuestionReportResult> {
+  // A guest can't file a moderation-queue report (anonymous, unaccountable — an
+  // anonymous account could spam-flag every question). Signup prompt instead,
+  // consistent with the community report gate.
+  assertNotGuest("question_report");
   // Question must exist (any state — a user can report an already-hidden one).
   const { data: q, error: qErr } = await supabase()
     .from("questions")

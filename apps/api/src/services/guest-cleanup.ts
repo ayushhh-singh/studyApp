@@ -8,11 +8,13 @@
  *   - `is_anonymous = true` (a converted guest is no longer anonymous → NEVER
  *     touched; a real account is never anonymous → NEVER touched), AND
  *   - created more than `retentionDays` ago, AND
- *   - no real INTERACTION in that window — no `events` row and no `attempts` row
- *     since the cutoff. (We use raw interactions, not `last_active_date`, because
- *     that column is only set on a study-DAY activity — a guest who merely browses
- *     chapters/current-affairs fires events but no study-day, and must NOT be
- *     pruned as if abandoned.)
+ *   - no real activity in that window across ANY durable free-guest surface:
+ *     `events` (learn/notes reads), `attempts` (quizzes/practice/time-attack),
+ *     `srs_reviews` + `srs_cards` (revision), `user_notes` (personal notes). We
+ *     use raw activity rows, NOT `users_profile.last_active_date` (only set on a
+ *     study-DAY) NOR `events` alone (fired only from learn/notes pages, so a
+ *     revision- or notes-active guest would be wrongly pruned). A guest who left
+ *     zero durable rows in the window has no progress to lose anyway.
  *
  * Deletion order matters: `users_profile` first (its children — attempts, events,
  * srs_cards, … — are ON DELETE CASCADE from it), then the auth user (whose delete
@@ -65,21 +67,21 @@ export async function pruneAbandonedGuests(opts?: {
     if (users.length < perPage) break;
   }
 
-  // 2. Activity filter: keep any guest with a real INTERACTION in the window —
-  //    an events row OR an attempt since the cutoff. `selectAll` pages past the
-  //    1000-row cap so an active guest's user_id can never be truncated out of
-  //    the "keep" set (which would wrongly delete them).
+  // 2. Activity filter: keep any guest with a durable activity row in the window
+  //    across ANY free-guest surface. `selectAll` pages past the 1000-row cap so
+  //    an active guest's user_id can never be truncated out of the "keep" set
+  //    (which would wrongly delete them). Chunk .in() at 100 ids to stay well
+  //    under PostgREST's URL-length limit (see the codebase's .in() gotcha).
+  const ACTIVITY_TABLES = ["events", "attempts", "srs_reviews", "srs_cards", "user_notes"] as const;
   const active = new Set<string>();
-  for (let i = 0; i < oldAnon.length; i += 200) {
-    const chunk = oldAnon.slice(i, i + 200);
-    const evs = await selectAll<{ user_id: string }>(() =>
-      supabase().from("events").select("user_id").in("user_id", chunk).gte("created_at", cutoffIso),
-    );
-    evs.forEach((r) => active.add(r.user_id));
-    const atts = await selectAll<{ user_id: string }>(() =>
-      supabase().from("attempts").select("user_id").in("user_id", chunk).gte("created_at", cutoffIso),
-    );
-    atts.forEach((r) => active.add(r.user_id));
+  for (let i = 0; i < oldAnon.length; i += 100) {
+    const chunk = oldAnon.slice(i, i + 100);
+    for (const table of ACTIVITY_TABLES) {
+      const rows = await selectAll<{ user_id: string }>(() =>
+        supabase().from(table).select("user_id").in("user_id", chunk).gte("created_at", cutoffIso),
+      );
+      rows.forEach((r) => active.add(r.user_id));
+    }
   }
   const eligible = oldAnon.filter((id) => !active.has(id));
 
