@@ -18,11 +18,22 @@ import { recomputeMastery } from "../src/mastery/compute.js";
 import { computeLearnerProfile } from "../src/services/learner-profile.js";
 import { generateMentorInsights } from "../src/services/mentor-insights.js";
 import { refreshScoreboardViews } from "../src/services/scoreboard.js";
+import { pruneAbandonedGuests } from "../src/services/guest-cleanup.js";
 
 async function main() {
   // Scoreboard: one global refresh (not per-user), same as scheduler.ts's dev cron.
   await refreshScoreboardViews();
   console.log("scoreboard: nightly refresh done");
+
+  // Prune abandoned anonymous (guest) accounts (global, not per-user). Only old
+  // AND inactive guests; converted/real accounts are never touched.
+  try {
+    const p = await pruneAbandonedGuests({ apply: true });
+    console.log(`guests: pruned ${p.pruned} abandoned (of ${p.eligible} eligible / ${p.oldAnonymous} old, retention ${p.retentionDays}d)`);
+  } catch (err) {
+    // Non-fatal: never let guest cleanup block the streak/mastery settle below.
+    console.error("guests: prune failed (non-fatal):", err instanceof Error ? err.message : err);
+  }
 
   await forEachUser(
     "nightly:settle",
