@@ -40,10 +40,17 @@ function modeFromKeyId(keyId: string): RazorpayMode | null {
   return null;
 }
 
-/** The operator's DECLARED mode via RAZORPAY_MODE, if set (test|live), else null. */
-function declaredMode(): RazorpayMode | null {
-  const raw = process.env.RAZORPAY_MODE?.trim().toLowerCase();
-  return raw === "test" || raw === "live" ? raw : null;
+/**
+ * Parse the operator's DECLARED mode via RAZORPAY_MODE. Returns the mode, the
+ * literal "invalid" when it's set to something other than test|live (a typo like
+ * "production"/"liv" must NOT be silently ignored — that would defeat the whole
+ * point of the pin), or null when unset.
+ */
+function declaredMode(): RazorpayMode | "invalid" | null {
+  const raw = process.env.RAZORPAY_MODE?.trim();
+  if (!raw) return null;
+  const lc = raw.toLowerCase();
+  return lc === "test" || lc === "live" ? lc : "invalid";
 }
 
 /**
@@ -69,6 +76,12 @@ export function razorpayConfig(): RazorpayConfig {
     );
   }
   const declared = declaredMode();
+  if (declared === "invalid") {
+    throw new HttpError(
+      500,
+      `RAZORPAY_MODE is set to an unrecognized value (expected "test" or "live") — refusing to transact rather than silently ignore an intended mode pin.`,
+    );
+  }
   if (declared && declared !== mode) {
     throw new HttpError(
       500,
@@ -97,7 +110,8 @@ export function razorpayStatus(): RazorpayStatus {
   const keyId = process.env.RAZORPAY_KEY_ID;
   const keySecret = process.env.RAZORPAY_KEY_SECRET;
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
-  const declared = declaredMode();
+  const declaredRaw = declaredMode();
+  const declared = declaredRaw === "invalid" ? null : declaredRaw;
   if (!keyId || !keySecret || !webhookSecret) {
     return {
       configured: false,
@@ -108,6 +122,15 @@ export function razorpayStatus(): RazorpayStatus {
     };
   }
   const mode = modeFromKeyId(keyId);
+  if (declaredRaw === "invalid") {
+    return {
+      configured: true,
+      mode,
+      declared: null,
+      misconfigured: true,
+      detail: `RAZORPAY_MODE is set to an unrecognized value (expected test or live)`,
+    };
+  }
   if (!mode) {
     return {
       configured: true,
