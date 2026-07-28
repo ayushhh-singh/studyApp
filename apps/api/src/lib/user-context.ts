@@ -14,13 +14,20 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 interface UserStore {
   userId: string;
+  /** True iff this request is a Supabase native anonymous (guest) session. */
+  isAnonymous: boolean;
 }
 
 const storage = new AsyncLocalStorage<UserStore>();
 
-/** Run `fn` with `userId` bound as the current user for its whole async subtree. */
-export function runWithUser<T>(userId: string, fn: () => T): T {
-  return storage.run({ userId }, fn);
+/**
+ * Run `fn` with `userId` bound as the current user for its whole async subtree.
+ * `opts.isAnonymous` marks a guest session (the auth middleware passes it from
+ * the verified token); background jobs/CLIs omit it — a job user is never a
+ * guest, so it defaults to false.
+ */
+export function runWithUser<T>(userId: string, fn: () => T, opts?: { isAnonymous?: boolean }): T {
+  return storage.run({ userId, isAnonymous: opts?.isAnonymous ?? false }, fn);
 }
 
 /**
@@ -36,4 +43,13 @@ export function currentUserId(): string {
     );
   }
   return store.userId;
+}
+
+/**
+ * Whether the current request is an anonymous (guest) session. Returns false
+ * outside any user context (background jobs never run as a guest), so callers
+ * can use it without a try/catch — unlike currentUserId(), it never throws.
+ */
+export function currentUserIsAnonymous(): boolean {
+  return storage.getStore()?.isAnonymous ?? false;
 }

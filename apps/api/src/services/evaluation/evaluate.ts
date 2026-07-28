@@ -55,7 +55,7 @@ import {
   type Pass1Result,
 } from "./prompts.js";
 import { assertImagesExist, downloadImageAsBase64, getOcrProvider, type OcrResult } from "../ocr/index.js";
-import { assertEvaluationCredit, assertHandwrittenOcr } from "../entitlements.js";
+import { assertEvaluationCredit, assertHandwrittenOcr, assertNotGuest } from "../entitlements.js";
 
 /** SSE-style emitter: (event, payload). Route wraps res.write; harness captures. */
 export type EvalEmit = (event: string, data: unknown) => void;
@@ -119,6 +119,10 @@ const EVALUATION_COLUMNS =
 // Create submission
 // ---------------------------------------------------------------------------
 export async function createSubmission(userId: string, body: CreateSubmissionBody): Promise<Submission> {
+  // A guest cannot evaluate at all — the signup prompt fires before any draft is
+  // written or model cost incurred (checked first so a guest never sees the
+  // free-tier "N left" allowance for a surface they can't use).
+  assertNotGuest(body.mode === "handwritten" ? "handwritten_ocr" : "evaluation");
   // Entitlement gates (early paywall, before we write a draft): handwritten
   // upload is Pro-only, and every submission consumes an evaluation credit
   // (Free 3-lifetime / Pro 60-month). planEvaluation re-checks the credit at the
@@ -385,6 +389,8 @@ export async function planEvaluation(userId: string, submissionId: string): Prom
   // short-circuit, so re-viewing a finished evaluation is never charged and
   // never blocked). A user who created several drafts under the cap can't
   // evaluate past it — this is the throttle that actually bounds model spend.
+  // Guest defense-in-depth: this SSE runner is a separate entry point.
+  assertNotGuest("evaluation");
   await assertEvaluationCredit(userId);
 
   // A handwritten submission has no typed_text until the user reviews and
@@ -921,6 +927,7 @@ export type OcrPlan =
 export async function planOcr(userId: string, submissionId: string): Promise<OcrPlan> {
   // Handwritten OCR is Pro-only (defense in depth — createSubmission already
   // gated the handwritten write, but the OCR stream is a separate entry point).
+  assertNotGuest("handwritten_ocr");
   await assertHandwrittenOcr(userId);
   const submission = await fetchSubmission(userId, submissionId);
   if (submission.mode !== "handwritten") {

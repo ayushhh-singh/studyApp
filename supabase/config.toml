@@ -174,10 +174,19 @@ enable_refresh_token_rotation = true
 refresh_token_reuse_interval = 10
 # Allow/disallow new user signups to your project.
 enable_signup = true
-# Allow/disallow anonymous sign-ins to your project.
-enable_anonymous_sign_ins = false
-# Allow/disallow testing manual linking of accounts
-enable_manual_linking = false
+# Allow/disallow anonymous sign-ins to your project. Enabled for the guest/
+# browsing experience (migration 0104 makes handle_new_user skip the trial for
+# is_anonymous users). NOTE: this key configures a LOCAL `supabase start`; the
+# CLOUD project uses the dashboard toggle (Authentication -> Sign In / Providers
+# -> Anonymous Sign-Ins), which must be turned on there too.
+enable_anonymous_sign_ins = true
+# Allow/disallow manual linking of accounts. Required for linkIdentity() — how a
+# GUEST converts to a real account via Google OAuth while KEEPING the same user
+# row (and thus all guest progress). The email/password conversion path
+# (auth.updateUser) does NOT need this; Google linking does. LOCAL only — enable
+# the same "Manual Linking" toggle on the CLOUD project's dashboard for Google
+# guest-conversion to work there.
+enable_manual_linking = true
 # Passwords shorter than this value will be rejected as weak. Minimum 6, recommended 8 or more.
 minimum_password_length = 6
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values

@@ -15,6 +15,7 @@
 import type { Entitlements, Quota, UserPlan } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
+import { currentUserIsAnonymous } from "../lib/user-context.js";
 import { istDayRangeUtc, istToday } from "../lib/ist.js";
 import { loadNodeWeightage } from "../lib/weightage.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
@@ -51,6 +52,30 @@ export const LIMITS = {
 /** A 402 the UI reads as "show the upgrade paywall for `feature`". */
 export function paywall(feature: string, message: string): HttpError {
   return new HttpError(402, message, { feature });
+}
+
+/**
+ * A 402 flagged `requiresSignup` — the UI shows a "create your free account +
+ * 7-day Pro trial" signup prompt instead of the Pro upgrade paywall. A guest is
+ * anonymous/ephemeral: the expensive AI surfaces (answer evaluation, mentor
+ * chat, handwritten OCR) are the natural signup moment, so we never spend AI
+ * cost on an unconverted guest and never show them a free-tier allowance.
+ */
+export function guestSignupRequired(
+  feature: string,
+  message = "Create your free account to use this — you'll also start your 7-day Pro trial.",
+): HttpError {
+  return new HttpError(402, message, { feature, requiresSignup: true });
+}
+
+/**
+ * Throw the signup prompt if the CURRENT request is an anonymous guest. Reads
+ * the guest flag from the request's async context (never throws outside one),
+ * so a background job — which is never a guest — passes through untouched.
+ * Call this at the AI-work entry points BEFORE any model spend.
+ */
+export function assertNotGuest(feature: string, message?: string): void {
+  if (currentUserIsAnonymous()) throw guestSignupRequired(feature, message);
 }
 
 // ---------------------------------------------------------------------------
@@ -358,6 +383,7 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
     plan,
     plan_expires_at: expiresAt,
     is_on_trial: isOnTrial,
+    is_guest: currentUserIsAnonymous(),
     evaluations: { used: evaluations.used, limit: evaluations.limit, remaining: evaluations.remaining, period: evaluations.period },
     mentor_messages: { used: mentor.used, limit: mentor.limit, remaining: mentor.remaining, period: mentor.period },
     features: {

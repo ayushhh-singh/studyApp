@@ -47,9 +47,12 @@ export function Component() {
   const {
     session,
     loading,
+    isGuest,
     signInWithGoogle,
     signInWithPassword,
     signUpWithPassword,
+    linkGoogle,
+    convertGuestWithPassword,
     sendEmailOtp,
     verifyEmailOtp,
     sendPasswordReset,
@@ -58,7 +61,9 @@ export function Component() {
   const redirectTarget = params.get("redirect") || `/${locale}/dashboard`;
 
   const [step, setStep] = useState<Step>("options");
-  const [mode, setMode] = useState<Mode>("signin");
+  // A guest is here to CONVERT (save progress) — default to the create-account
+  // form rather than sign-in.
+  const [mode, setMode] = useState<Mode>(isGuest ? "signup" : "signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
@@ -67,8 +72,10 @@ export function Component() {
   const [notice, setNotice] = useState<string | null>(null);
 
   if (loading) return <FullScreenLoader />;
-  // Already signed in — RequireAuth handles the onboarding gate downstream.
-  if (session) return <Navigate to={redirectTarget} replace />;
+  // A REAL signed-in user has nothing to do here — RequireAuth handles the
+  // onboarding gate downstream. A GUEST, though, stays: this page is where they
+  // convert to a real account (which preserves their progress).
+  if (session && !isGuest) return <Navigate to={redirectTarget} replace />;
 
   async function handleGoogle() {
     setBusy(true);
@@ -77,7 +84,10 @@ export function Component() {
       // Bounce back through our callback route, carrying the intended path.
       const callback = new URL(`/${locale}/auth/callback`, window.location.origin);
       callback.searchParams.set("redirect", redirectTarget);
-      await signInWithGoogle(callback.toString());
+      // A guest LINKS Google to keep the same account (data preserved); a fresh
+      // visitor signs in with Google normally.
+      if (isGuest) await linkGoogle(callback.toString());
+      else await signInWithGoogle(callback.toString());
       // Browser now navigates to Google; nothing further runs here on success.
     } catch (err) {
       setError(err instanceof Error ? err.message : t("Auth.genericError"));
@@ -94,8 +104,21 @@ export function Component() {
     setNotice(null);
     try {
       if (mode === "signin") {
+        // A guest signing into an EXISTING account switches to it (guest progress,
+        // owned by the anonymous id, stays behind — the create-account path is the
+        // one that preserves it). A fresh visitor just signs in.
         await signInWithPassword(email.trim(), password);
         navigate(redirectTarget, { replace: true });
+      } else if (isGuest) {
+        // Convert the guest in place — same user id, so all progress is preserved.
+        const { needsConfirmation } = await convertGuestWithPassword(email.trim(), password);
+        if (needsConfirmation) {
+          setNotice(t("Auth.signupCheckEmail"));
+          setPassword("");
+          setBusy(false);
+        } else {
+          navigate(redirectTarget, { replace: true }); // RequireAuth grants the trial + onboarding
+        }
       } else {
         const { needsConfirmation } = await signUpWithPassword(email.trim(), password);
         if (needsConfirmation) {
@@ -200,8 +223,17 @@ export function Component() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
-          <h1 className="text-center text-xl font-bold tracking-tight sm:text-2xl">{t("Auth.title")}</h1>
-          <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">{t("Auth.subtitle")}</p>
+          <h1 className="text-center text-xl font-bold tracking-tight sm:text-2xl">
+            {isGuest ? t("Auth.guestTitle") : t("Auth.title")}
+          </h1>
+          <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
+            {isGuest ? t("Auth.guestSubtitle") : t("Auth.subtitle")}
+          </p>
+          {isGuest ? (
+            <p className="mt-4 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-center text-xs leading-relaxed text-foreground">
+              {t("Auth.guestPreserveNote")}
+            </p>
+          ) : null}
 
           {error ? (
             <p

@@ -8,6 +8,8 @@ import { useLocale } from "@/hooks/use-locale";
 import { useDoubtThread, useQuizMe } from "@/hooks/use-mentor";
 import { useDoubtStream } from "@/hooks/use-doubt-stream";
 import { useEntitlements } from "@/hooks/use-billing";
+import { useAuth } from "@/providers/auth-provider";
+import { usePaywallStore } from "@/stores/paywall-store";
 import { queryKeys } from "@/lib/query-keys";
 import { Button } from "@/components/ui/button";
 import { FirstVisitCoachmark } from "@/components/ui-x/first-visit-coachmark";
@@ -53,6 +55,8 @@ export function MentorChat({
   const stream = useDoubtStream(threadId, locale);
   const quiz = useQuizMe(threadId);
   const entitlements = useEntitlements();
+  const { isGuest } = useAuth();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
 
   const [input, setInput] = useState(autoSend ? "" : seed ?? "");
   const [revision, setRevision] = useState(false);
@@ -96,6 +100,11 @@ export function MentorChat({
   ) => {
     const trimmed = content.trim();
     if (!trimmed || busy) return;
+    // A guest can't chat with the mentor — prompt signup before sending.
+    if (isGuest) {
+      openPaywall("generic");
+      return;
+    }
     const teach = override?.teach ?? teachMode;
     const d = override?.depth ?? depth;
     const mode = override?.mode ?? (revision && !teach ? ("revision" as const) : ("normal" as const));

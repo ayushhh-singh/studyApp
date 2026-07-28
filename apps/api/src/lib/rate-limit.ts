@@ -45,3 +45,38 @@ export function rateLimit(opts: { windowMs: number; max: number }): RequestHandl
     next();
   };
 }
+
+/**
+ * Per-IP in-memory rate limit for PRE-AUTH endpoints (there is no user id yet),
+ * keyed strictly by client IP — deliberately SEPARATE from the per-user
+ * rateLimit() above so a burst of anonymous-session creation from one IP can't
+ * consume anyone else's per-user budget, and vice versa.
+ *
+ * Reading a correct client IP behind Cloudflare/Render requires `trust proxy`
+ * (set in index.ts for production); without it req.ip is the proxy's socket IP.
+ * A spoofed X-Forwarded-For could rotate the key, but the AUTHORITATIVE per-IP
+ * cap on anonymous sign-ins is Supabase's own GoTrue `anonymous_users` rate
+ * limit (config.toml / dashboard), which sees the true client IP and cannot be
+ * bypassed — this app-level gate is the graceful, tunable, in-repo layer in
+ * front of it (a friendly "create an account" nudge before GoTrue's opaque 429),
+ * NOT the last line of defense. Same per-instance caveat as rateLimit() applies.
+ */
+export function rateLimitByIp(opts: { windowMs: number; max: number; message?: string }): RequestHandler {
+  const buckets = new Map<string, Bucket>();
+  return (req, _res, next) => {
+    const key = `ip:${req.ip ?? "unknown"}`;
+    const now = Date.now();
+    const bucket = buckets.get(key);
+    if (!bucket || bucket.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + opts.windowMs });
+      next();
+      return;
+    }
+    bucket.count += 1;
+    if (bucket.count > opts.max) {
+      next(new HttpError(429, opts.message ?? "Too many requests — slow down."));
+      return;
+    }
+    next();
+  };
+}

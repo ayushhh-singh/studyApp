@@ -1196,7 +1196,10 @@
     "passwordTooCommon": "That password is too common. Please choose a stronger one.",
     "passwordHint": "Any password works — pick one you will remember.",
     "profileLoadError": "Couldn't load your profile. Please check your connection and try again.",
-    "retry": "Retry"
+    "retry": "Retry",
+    "guestTitle": "Create your account",
+    "guestSubtitle": "Save your progress and unlock AI evaluation, the mentor, and more.",
+    "guestPreserveNote": "You're browsing as a guest. Create an account to keep your progress — you'll also start your 7-day Pro trial, no card needed."
   },
   "Onboarding": {
     "step1Title": "Welcome! Let's set you up",
@@ -1967,5 +1970,13 @@
       "ctaTitle": "Bring your doubts and your answers to a community anchored in real UPPSC content.",
       "ctaSub": "Discuss real topics and PYQs, share your evaluated answers, and get feedback that's grounded in your actual scores, moderated every step of the way."
     }
+  },
+  "Guest": {
+    "short": "Guest",
+    "browsingAsGuest": "Browsing as guest",
+    "sameDeviceNote": "Your progress is saved on this device only. Create an account to keep it everywhere.",
+    "createAccountCta": "Create free account",
+    "exit": "Exit guest mode",
+    "bannerText": "You're exploring as a guest — progress is saved on this device. Create a free account to keep it and start your 7-day Pro trial."
   }
 }

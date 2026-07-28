@@ -27,8 +27,8 @@ export const requireAuth: RequestHandler = (req: Request, res: Response, next: N
     return;
   }
   verifyAccessToken(token)
-    .then((userId) => {
-      runWithUser(userId, () => next());
+    .then(({ userId, isAnonymous }) => {
+      runWithUser(userId, () => next(), { isAnonymous });
     })
     .catch((err) => {
       if (err instanceof AuthError) {

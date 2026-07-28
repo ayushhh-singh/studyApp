@@ -74,6 +74,12 @@ export const entitlementsSchema = z.object({
    * trial countdown and the "resets tomorrow" (not "upgrade") eval messaging.
    */
   is_on_trial: z.boolean(),
+  /**
+   * True for an anonymous (guest) session. Guests have a free-shaped plan but
+   * cannot use the AI/paid surfaces at all — the UI reads this to show "sign up
+   * to unlock" instead of a free-tier allowance they can't actually spend.
+   */
+  is_guest: z.boolean(),
   evaluations: quotaSchema,
   mentor_messages: quotaSchema,
   /** Boolean feature flags (Pro-only surfaces). */

@@ -15,6 +15,24 @@ export function EvaluationQuotaChip({ className }: { className?: string }) {
   const openPaywall = usePaywallStore((s) => s.openPaywall);
   if (!data) return null;
 
+  // A guest can't spend any evaluation credit — show a signup prompt, not a
+  // free-tier "N left" allowance they can't actually use.
+  if (data.is_guest) {
+    return (
+      <button
+        type="button"
+        onClick={() => openPaywall("evaluation")}
+        className={cn(
+          "inline-flex cursor-pointer items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-medium text-primary hover:brightness-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+          className,
+        )}
+      >
+        <Zap className="size-3.5" aria-hidden />
+        {pick(locale, c.guestSignUpShort)}
+      </button>
+    );
+  }
+
   // A trial user is plan==='pro' but has a real, tighter daily cap — show the
   // count, never "Unlimited". Only a PAID Pro is truly unlimited-ish here.
   const unlimited = data.plan === "pro" && !data.is_on_trial;

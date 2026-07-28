@@ -16,10 +16,13 @@ export class ApiError extends Error {
   status: number;
   /** For 402 paywalls: which feature was gated (e.g. "evaluation", "handwritten_ocr"). */
   feature?: string;
-  constructor(status: number, message: string, feature?: string) {
+  /** True when a 402 was hit by a GUEST — the UI shows a signup prompt, not the Pro paywall. */
+  requiresSignup?: boolean;
+  constructor(status: number, message: string, feature?: string, requiresSignup?: boolean) {
     super(message);
     this.status = status;
     this.feature = feature;
+    this.requiresSignup = requiresSignup;
   }
 }
 
@@ -65,10 +68,11 @@ async function request<T extends ZodTypeAny>(
 
   const envelope = parsed.data as { data: unknown; error: string | null };
   if (!res.ok || envelope.error) {
-    // `feature` is an out-of-schema field the API adds to 402 paywall errors; read
-    // it from the raw JSON since the envelope schema strips unknown keys.
-    const feature = (json as { feature?: string }).feature;
-    throw new ApiError(res.status, envelope.error ?? `Request failed (HTTP ${res.status})`, feature);
+    // `feature` / `requiresSignup` are out-of-schema fields the API adds to 402
+    // errors; read them from the raw JSON since the envelope schema strips
+    // unknown keys.
+    const { feature, requiresSignup } = json as { feature?: string; requiresSignup?: boolean };
+    throw new ApiError(res.status, envelope.error ?? `Request failed (HTTP ${res.status})`, feature, requiresSignup);
   }
   return envelope.data as NonNullable<z.infer<T>["data"]>;
 }

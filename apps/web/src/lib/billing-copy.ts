@@ -140,6 +140,17 @@ export const billingCopy = {
   } as T,
   gotIt: { en: "Got it", hi: "समझ गए" } as T,
 
+  // Guest (anonymous) signup prompt — shown instead of the Pro paywall when a
+  // guest hits a gated feature. Framed as "create account + trial", not "pay".
+  guestUnlockTitle: { en: "Create your free account", hi: "अपना निःशुल्क खाता बनाएँ" } as T,
+  guestUnlockBody: {
+    en: "AI answer evaluation, the mentor, handwritten upload and more need an account. Create one free — you'll also start your 7-day Pro trial, no card needed. Your progress so far comes with you.",
+    hi: "AI उत्तर मूल्यांकन, मेंटर, हस्तलिखित अपलोड और बहुत कुछ के लिए खाता आवश्यक है। निःशुल्क खाता बनाएँ — साथ ही आपका 7-दिन का प्रो ट्रायल भी शुरू होगा, कार्ड की ज़रूरत नहीं। अब तक की आपकी प्रगति साथ रहेगी।",
+  } as T,
+  guestUnlockCta: { en: "Create free account", hi: "निःशुल्क खाता बनाएँ" } as T,
+  guestKeepBrowsing: { en: "Keep browsing", hi: "ब्राउज़िंग जारी रखें" } as T,
+  guestSignUpShort: { en: "Sign up to unlock", hi: "अनलॉक हेतु साइन अप" } as T,
+
   // Quota chip / notes lock
   evalsLeft: { en: "evaluations left", hi: "मूल्यांकन शेष" } as T,
   evalLeftOne: { en: "evaluation left", hi: "मूल्यांकन शेष" } as T,

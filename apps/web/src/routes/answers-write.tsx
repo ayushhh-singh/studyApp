@@ -20,6 +20,7 @@ import { ApiError } from "@/lib/api";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { prepareAnswerImage, uploadAnswerImage } from "@/lib/answer-images";
 import { usePaywallStore, toPaywallFeature } from "@/stores/paywall-store";
+import { useAuth } from "@/providers/auth-provider";
 
 const INPUT_CLASS =
   "h-9 rounded-md border border-input bg-background px-2.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
@@ -96,6 +97,7 @@ export function Component() {
   );
 
   const createSubmission = useCreateSubmission();
+  const { isGuest } = useAuth();
   const openPaywall = usePaywallStore((s) => s.openPaywall);
   // A 402 from the create-submission call means the eval credit / OCR gate hit —
   // raise the matching upgrade paywall instead of only showing an inline error.
@@ -113,6 +115,12 @@ export function Component() {
 
   async function handleSubmit() {
     if (!canSubmit) return;
+    // A guest can't evaluate/upload — prompt signup instantly, before any draft
+    // is created, an image is uploaded, or a request is sent.
+    if (isGuest) {
+      openPaywall(mode === "handwritten" ? "handwritten_ocr" : "evaluation");
+      return;
+    }
     setUploadError(null);
 
     const questionFields = {

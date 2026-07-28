@@ -35,6 +35,7 @@ import { studyPlanRouter } from "./routes/study-plan.js";
 import { communityRouter } from "./routes/community.js";
 import { scoreboardRouter } from "./routes/scoreboard.js";
 import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./routes/billing.js";
+import { guestAuthPublicRouter, guestAuthRouter } from "./routes/auth.js";
 import { pushRouter } from "./routes/push.js";
 import { tourRouter } from "./routes/tour.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
@@ -46,6 +47,14 @@ await initSentry();
 
 const app = express();
 const port = process.env.PORT ?? 4000;
+
+// Behind Cloudflare/Render in production, the real client IP is in
+// X-Forwarded-For; trust the proxy so req.ip reflects it (used by the per-IP
+// guest-session rate limit, the per-user limiter's IP fallback, and logging).
+// Off in dev so req.ip stays the direct socket. A spoofed XFF could rotate the
+// app-level guest key, but Supabase's own anonymous_users per-IP limit is the
+// authoritative backstop (see routes/auth.ts).
+if (process.env.NODE_ENV === "production") app.set("trust proxy", true);
 
 // ALLOWED_ORIGINS is a comma-separated list (prod web origin + any exact
 // preview origins). Trailing slashes are stripped — an Origin header never
@@ -106,9 +115,15 @@ app.use("/api/v1", healthRouter);
 // Public — the /pricing marketing page needs the plan list while signed out.
 app.use("/api/v1", billingPublicRouter);
 
+// Public — the per-IP guest-session checkpoint (called before signInAnonymously).
+app.use("/api/v1", guestAuthPublicRouter);
+
 // Everything below requires a valid Supabase session. requireAuth verifies the
 // JWT, derives the user id, and binds it to the request's async context.
 app.use("/api/v1", requireAuth);
+
+// Authenticated: grant the trial when a guest upgrades to a real account.
+app.use("/api/v1", guestAuthRouter);
 
 app.use("/api/v1", streamRouter);
 app.use("/api/v1", syllabusRouter);

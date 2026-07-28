@@ -15,5 +15,11 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     void captureException(err);
   }
   const feature = err instanceof HttpError ? err.feature : undefined;
-  res.status(status).json({ data: null, error: message, ...(feature ? { feature } : {}) });
+  const requiresSignup = err instanceof HttpError ? err.requiresSignup : undefined;
+  res.status(status).json({
+    data: null,
+    error: message,
+    ...(feature ? { feature } : {}),
+    ...(requiresSignup ? { requiresSignup } : {}),
+  });
 };

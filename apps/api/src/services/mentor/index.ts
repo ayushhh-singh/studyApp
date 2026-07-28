@@ -24,7 +24,7 @@ import type {
   MentorWebSource,
 } from "@neev/shared";
 import { MAX_DOUBT_CHARS, mentorQuotaCost } from "@neev/shared";
-import { getMentorQuota, LIMITS } from "../entitlements.js";
+import { getMentorQuota, LIMITS, assertNotGuest } from "../entitlements.js";
 import { supabase } from "../../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";
 import { logger } from "../../lib/logger.js";
@@ -211,6 +211,8 @@ export async function planDoubtMessage(
   body: { content: string; mode: "normal" | "revision"; teach: boolean; depth: MentorDepth; node_id?: string; bypass_cache?: boolean },
   locale: Locale,
 ): Promise<DoubtPlan> {
+  // A guest cannot chat with the mentor — signup prompt before any model spend.
+  assertNotGuest("mentor");
   const thread = await requireThread(userId, threadId);
   const question = body.content.trim();
   if (!question) throw badRequest("Message content is required");

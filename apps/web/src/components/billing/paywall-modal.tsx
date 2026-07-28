@@ -1,6 +1,7 @@
-import { useNavigate } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 import { Sparkles, Check } from "lucide-react";
 import { useLocale } from "@/hooks/use-locale";
+import { useAuth } from "@/providers/auth-provider";
 import { usePaywallStore, type PaywallFeature } from "@/stores/paywall-store";
 import { useProfileAnalytics } from "@/hooks/use-profile-analytics";
 import { useEntitlements } from "@/hooks/use-billing";
@@ -40,15 +41,18 @@ const PRO_BULLETS = [c.featEvalPro, c.featNotesPro, c.featOcr, c.featMocks, c.fe
 export function PaywallModal() {
   const locale = useLocale();
   const navigate = useNavigate();
+  const location = useLocation();
+  const { isGuest } = useAuth();
   const { open, feature, close } = usePaywallStore();
-  // Only the eval paywall needs the gains data — fetch lazily, only when shown.
-  const analytics = useProfileAnalytics({ enabled: open && feature === "evaluation" });
+  // Only the eval paywall needs the gains data — fetch lazily, only when shown
+  // (and never for a guest, who has no analytics and sees the signup variant).
+  const analytics = useProfileAnalytics({ enabled: open && !isGuest && feature === "evaluation" });
   const avgGain = analytics.data?.improvement_proof.avg_delta_pct ?? null;
   // The eval paywall means three different things depending on plan state, and
   // each wants different copy + CTA (see #6): a free user should upgrade; a
   // trial user's daily cap resets tomorrow (upgrade for more); a PAID Pro who
   // hit the monthly fair-use cap can't "upgrade" out of it — it just resets.
-  const entitlements = useEntitlements({ enabled: open && feature === "evaluation" });
+  const entitlements = useEntitlements({ enabled: open && !isGuest && feature === "evaluation" });
   const ent = entitlements.data;
   const evalState: "free" | "trial" | "proCap" | null =
     feature !== "evaluation" ? null : ent?.is_on_trial ? "trial" : ent?.plan === "pro" ? "proCap" : "free";
@@ -66,6 +70,48 @@ export function PaywallModal() {
     close();
     navigate(`/${locale}/pricing`);
   };
+  const goSignup = () => {
+    close();
+    const redirect = `${location.pathname}${location.search}`;
+    navigate(`/${locale}/auth?redirect=${encodeURIComponent(redirect)}`);
+  };
+
+  // Guests can't do ANY gated action without an account, so every paywall
+  // trigger becomes a "create your free account + 7-day trial" prompt, not an
+  // upgrade-to-Pro pitch (they have nothing to pay from yet).
+  if (isGuest) {
+    return (
+      <Sheet open={open} onOpenChange={(o) => !o && close()}>
+        <SheetContent side="bottom" title={pick(locale, c.guestUnlockTitle)} className="mx-auto max-w-lg gap-5">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
+              <Sparkles className="size-5" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <h2 className="text-lg font-semibold leading-snug">{pick(locale, c.guestUnlockTitle)}</h2>
+              <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{pick(locale, c.guestUnlockBody)}</p>
+            </div>
+          </div>
+          <ul className="grid gap-2">
+            {PRO_BULLETS.map((b, i) => (
+              <li key={i} className="flex items-center gap-2 text-sm">
+                <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
+                <span>{pick(locale, b)}</span>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col gap-2 sm:flex-row-reverse">
+            <Button size="lg" className="w-full sm:flex-1" onClick={goSignup}>
+              {pick(locale, c.guestUnlockCta)}
+            </Button>
+            <Button size="lg" variant="ghost" className="w-full sm:w-auto" onClick={close}>
+              {pick(locale, c.guestKeepBrowsing)}
+            </Button>
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && close()}>

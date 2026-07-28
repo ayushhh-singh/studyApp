@@ -2,12 +2,37 @@ import { createContext, useContext, useEffect, useMemo, useState, type ReactNode
 import type { Session, User } from "@supabase/supabase-js";
 import { supabaseBrowser } from "@/lib/supabase";
 import { setUnauthorizedHandler } from "@/lib/auth";
+import { api } from "@/lib/api";
+import { guestGateResponseSchema } from "@neev/shared";
+import { markTrialClaimPending } from "@/lib/guest";
 
 interface AuthContextValue {
   session: Session | null;
   user: User | null;
   /** True until the initial getSession() resolves — gate route guards on this. */
   loading: boolean;
+  /** True for a Supabase native anonymous (guest) session — gates AI/paid surfaces behind signup. */
+  isGuest: boolean;
+  /**
+   * Create a guest (anonymous) session. Goes through our public per-IP checkpoint
+   * (POST /auth/guest) first — a 429 there (ApiError) means "too many from this
+   * IP", and Supabase itself may also reject if anonymous sign-ins are disabled or
+   * over its own per-IP limit. Callers treat any throw as "stay on the landing".
+   */
+  signInAnonymously: () => Promise<void>;
+  /**
+   * Link a Google identity to the CURRENT (guest) session, converting it to a
+   * real account while keeping the same user id (so guest progress is preserved).
+   * Requires "manual linking" enabled on the project. Marks a pending trial claim.
+   */
+  linkGoogle: (redirectTo: string) => Promise<void>;
+  /**
+   * Add email+password to the CURRENT (guest) session via updateUser, converting
+   * it in place (same user id → data preserved). Marks a pending trial claim.
+   * Returns `needsConfirmation: true` if the project requires email confirmation
+   * (the session stays anonymous until the emailed link is clicked).
+   */
+  convertGuestWithPassword: (email: string, password: string) => Promise<{ needsConfirmation: boolean }>;
   signInWithGoogle: (redirectTo: string) => Promise<void>;
   /** Email + password sign-in (no email sent — sidesteps the OTP rate limit). */
   signInWithPassword: (email: string, password: string) => Promise<void>;
@@ -67,6 +92,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       user: session?.user ?? null,
       loading,
+      isGuest: session?.user?.is_anonymous === true,
+      async signInAnonymously() {
+        // App-level per-IP gate (graceful nudge before Supabase's own 30/hr/IP
+        // limit). A 429 here throws an ApiError the caller handles.
+        await api.post("/api/v1/auth/guest", guestGateResponseSchema);
+        const { error } = await supabaseBrowser().auth.signInAnonymously();
+        if (error) throw error;
+      },
+      async linkGoogle(redirectTo) {
+        markTrialClaimPending();
+        const { error } = await supabaseBrowser().auth.linkIdentity({
+          provider: "google",
+          options: { redirectTo },
+        });
+        if (error) throw error;
+      },
+      async convertGuestWithPassword(email, password) {
+        markTrialClaimPending();
+        const { data, error } = await supabaseBrowser().auth.updateUser({ email, password });
+        if (error) throw error;
+        // With email confirmations off (this project's default), the user is
+        // converted immediately (is_anonymous → false). With them on, the row
+        // stays anonymous until the emailed link is clicked.
+        return { needsConfirmation: data.user?.is_anonymous === true };
+      },
       async signInWithGoogle(redirectTo) {
         const { error } = await supabaseBrowser().auth.signInWithOAuth({
           provider: "google",

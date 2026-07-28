@@ -4,6 +4,7 @@ import { Loader2 } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useProfile } from "@/hooks/use-profile";
 import { useLocale } from "@/hooks/use-locale";
+import { useClaimTrialOnConversion } from "@/hooks/use-claim-trial";
 import { Button } from "@/components/ui/button";
 
 /** Centered full-screen spinner used while auth/profile state resolves. */
@@ -53,7 +54,10 @@ export function ProfileLoadError({ onRetry }: { onRetry: () => void }) {
 export function Component() {
   const locale = useLocale();
   const location = useLocation();
-  const { session, loading } = useAuth();
+  const { session, loading, isGuest } = useAuth();
+
+  // If this session just converted from guest to real, grant its 7-day trial.
+  useClaimTrialOnConversion();
 
   const onboardingPath = `/${locale}/onboarding`;
   const isOnboardingRoute = location.pathname === onboardingPath;
@@ -88,6 +92,11 @@ export function Component() {
   // is what forced a real onboarded user into a redirect loop. Offer a manual
   // retry instead of guessing.
   if (profileQuery.isError) return <ProfileLoadError onRetry={() => profileQuery.refetch()} />;
+
+  // Guests browse the whole app freely — no onboarding wizard, no welcome tour.
+  // Those are reserved for a real account (a guest hits them after converting,
+  // when isGuest flips false and onboarding_completed is still false).
+  if (isGuest) return <Outlet />;
 
   const onboarded = profileQuery.data?.onboarding_completed ?? false;
   if (!onboarded && !isOnboardingRoute) {

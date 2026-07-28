@@ -31,11 +31,23 @@ function getJwks() {
 
 export class AuthError extends Error {}
 
+export interface VerifiedToken {
+  userId: string;
+  /**
+   * True for a Supabase native anonymous (guest) session. Anonymous users carry
+   * the SAME `authenticated` audience/role as a real user (so JWT verify + RLS
+   * treat them identically) — the ONLY distinguishing claim is `is_anonymous`.
+   * The app reads this to gate the AI/paid surfaces behind a signup prompt.
+   */
+  isAnonymous: boolean;
+}
+
 /**
- * Verify a Supabase access token and return its user id (`sub`). Throws
- * AuthError on any invalid/expired/mis-audienced token.
+ * Verify a Supabase access token and return its user id (`sub`) + whether it's
+ * an anonymous (guest) session. Throws AuthError on any invalid/expired/
+ * mis-audienced token.
  */
-export async function verifyAccessToken(token: string): Promise<string> {
+export async function verifyAccessToken(token: string): Promise<VerifiedToken> {
   const issuer = `${SUPABASE_URL()}/auth/v1`;
   try {
     const { payload } = await jwtVerify(token, getJwks(), {
@@ -43,7 +55,7 @@ export async function verifyAccessToken(token: string): Promise<string> {
       audience: "authenticated",
     });
     if (!payload.sub) throw new AuthError("Token has no subject claim");
-    return payload.sub;
+    return { userId: payload.sub, isAnonymous: payload.is_anonymous === true };
   } catch (err) {
     // A signature-algorithm/key mismatch means this is very likely a legacy
     // HS256 (symmetric) project with no JWKS to verify against — fall back to
@@ -62,10 +74,10 @@ export async function verifyAccessToken(token: string): Promise<string> {
 }
 
 /** Legacy-symmetric fallback: validate the token by asking Supabase Auth. */
-async function verifyViaAuthApi(token: string): Promise<string> {
+async function verifyViaAuthApi(token: string): Promise<VerifiedToken> {
   const { data, error } = await supabase().auth.getUser(token);
   if (error || !data.user) {
     throw new AuthError(error?.message ?? "Token rejected by Auth API");
   }
-  return data.user.id;
+  return { userId: data.user.id, isAnonymous: data.user.is_anonymous === true };
 }
