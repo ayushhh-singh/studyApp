@@ -30,6 +30,11 @@ import { AuthProvider } from "@/providers/auth-provider";
 import { PwaUpdateToast } from "@/components/app-shell/pwa-update-toast";
 import { RootErrorBoundary } from "@/components/app-shell/root-error-boundary";
 import { initSentry } from "@/lib/sentry";
+import { installChunkReloadHandler } from "@/lib/chunk-reload";
+
+// Recover from stale-deploy chunk 404s (a lazy route's chunk hash changed under
+// a tab holding an old index.html) by reloading once — before the router mounts.
+installChunkReloadHandler();
 
 void initSentry();
 
