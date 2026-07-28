@@ -127,13 +127,18 @@ async function main() {
       JSON.stringify(body.data),
     );
   } finally {
-    // Cleanup by explicit captured ids only.
-    if (guestAttemptId) await admin.from("attempts").delete().eq("id", guestAttemptId).catch(() => {});
-    await admin.from("attempts").delete().eq("id", bAttemptId).catch(() => {});
-    // deleteUser does not cascade users_profile (known gotcha) — remove both.
-    await admin.from("users_profile").delete().in("id", [guestId, bId]).catch(() => {});
-    await admin.auth.admin.deleteUser(guestId).catch(() => {});
-    await admin.auth.admin.deleteUser(bId).catch(() => {});
+    // Cleanup by explicit captured ids only. (PostgREST builders are thenable
+    // but have no .catch — await them inside try/catch, don't chain .catch.)
+    try {
+      if (guestAttemptId) await admin.from("attempts").delete().eq("id", guestAttemptId);
+      await admin.from("attempts").delete().eq("id", bAttemptId);
+      // deleteUser does not cascade users_profile (known gotcha) — remove both.
+      await admin.from("users_profile").delete().in("id", [guestId, bId]);
+      await admin.auth.admin.deleteUser(guestId);
+      await admin.auth.admin.deleteUser(bId);
+    } catch (e) {
+      console.error("cleanup warning:", e instanceof Error ? e.message : e);
+    }
   }
 
   console.log(`\n=== ${passes} passed, ${failures} failed ===\n`);
