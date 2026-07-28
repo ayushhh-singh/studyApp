@@ -1,6 +1,6 @@
 import type { BilingualText, OnboardingBody, Profile, ProfileUpdateBody } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
-import { HttpError, conflict, notFound } from "../lib/http-error.js";
+import { HttpError, conflict } from "../lib/http-error.js";
 import { istToday, daysBetween } from "../lib/ist.js";
 import { normalizeTourState } from "./tour.js";
 
@@ -53,7 +53,12 @@ export async function getProfile(userId: string): Promise<Profile> {
     getNextExamInfo(),
   ]);
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
-  if (!data) throw notFound("Profile not found");
+  // A valid, unexpired JWT that resolves to a user with NO profile row means the
+  // session is orphaned — the account was deleted (e.g. a pruned abandoned guest,
+  // or a deleted user) while the browser still holds its token. Return 401 (not
+  // 404) so the client's existing 401→signOut path clears the dead session and
+  // the app self-heals into a fresh one, instead of looping on profile errors.
+  if (!data) throw new HttpError(401, "Session no longer valid — please sign in again.");
   return toProfile(data, examInfo);
 }
 

@@ -35,26 +35,3 @@ export function clearTrialClaimPending(): void {
     /* ignore */
   }
 }
-
-/**
- * sessionStorage flag so the landing auto-guest starter attempts a guest sign-in
- * at most once per tab — a failure (anonymous sign-ins disabled, rate-limited)
- * must not retry on every re-render/navigation back to the landing page.
- */
-const GUEST_AUTOSTART_TRIED_KEY = "neev.guestAutostartTried";
-
-export function guestAutostartAlreadyTried(): boolean {
-  try {
-    return sessionStorage.getItem(GUEST_AUTOSTART_TRIED_KEY) === "1";
-  } catch {
-    return true; // no storage → don't attempt (safer)
-  }
-}
-
-export function markGuestAutostartTried(): void {
-  try {
-    sessionStorage.setItem(GUEST_AUTOSTART_TRIED_KEY, "1");
-  } catch {
-    /* ignore */
-  }
-}

@@ -5,7 +5,6 @@ import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
-import { GuestAutostart } from "@/components/marketing/guest-autostart";
 import { GuestEntryButton } from "@/components/marketing/guest-entry-button";
 import { Footer } from "@/components/marketing/footer";
 import { Screenshot } from "@/components/marketing/screenshot";
@@ -54,8 +53,6 @@ export function Component() {
 
   return (
     <div className="min-h-svh bg-background">
-      {/* First session-less visit → silently start a guest session and enter the app. */}
-      <GuestAutostart />
       <PageSeo
         locale={locale}
         path=""
