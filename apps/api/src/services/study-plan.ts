@@ -17,6 +17,7 @@ import { supabase } from "../lib/supabase.js";
 import { conflict, HttpError, notFound, badRequest } from "../lib/http-error.js";
 import { istDateString, istToday, shiftDate } from "../lib/ist.js";
 import { MODELS, structuredJson } from "../lib/anthropic.js";
+import { assertNotGuest } from "./entitlements.js";
 import { getMasteryMap } from "../mastery/compute.js";
 
 const PLAN_DAYS = 7;
@@ -108,6 +109,9 @@ async function loadWeakSections(
 }
 
 export async function planGenerate(userId: string, hoursPerDay: number): Promise<GeneratePlanInput> {
+  // AI-backed (per-user, uncached) — a guest can't spend model cost on a plan
+  // they can't keep across devices. Signup prompt before generation.
+  assertNotGuest("study_plan");
   const existing = await fetchActivePlanRow(userId);
   if (existing && !canRegenerateToday(existing.updated_at)) {
     throw conflict("The study plan can only be regenerated once per day. Come back tomorrow.");

@@ -15,6 +15,8 @@ import {
 } from "lucide-react";
 import type { PlanDay, PlanTask, PlanTaskKind } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
+import { useAuth } from "@/providers/auth-provider";
+import { usePaywallStore } from "@/stores/paywall-store";
 import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -267,6 +269,8 @@ export function StudyPlanCard() {
   const { t } = useTranslation();
   const { data, isLoading } = useActivePlan();
   const stream = useStudyPlanStream();
+  const { isGuest } = useAuth();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
   const [hours, setHours] = useState(DEFAULT_HOURS);
   // Free-typed text for the input below, separate from the canonical numeric
   // state — see the fix + comment in practice/custom-test-builder.tsx. This
@@ -283,6 +287,7 @@ export function StudyPlanCard() {
   const weekComplete = totalTasks > 0 && doneTasks === totalTasks;
 
   function generate() {
+    if (isGuest) return openPaywall("generic");
     stream.start(hours);
   }
 
