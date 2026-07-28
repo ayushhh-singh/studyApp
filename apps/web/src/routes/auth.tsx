@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FullScreenLoader } from "@/routes/require-auth";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { GuestEntryButton } from "@/components/marketing/guest-entry-button";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +69,9 @@ export function Component() {
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  // Seed from a `?error=` param so an OAuth-callback failure surfaces its reason
+  // here instead of a silent bounce back to a blank form.
+  const [error, setError] = useState<string | null>(() => params.get("error"));
   const [notice, setNotice] = useState<string | null>(null);
 
   if (loading) return <FullScreenLoader />;
@@ -355,6 +358,19 @@ export function Component() {
               </Button>
 
               <p className="text-center text-xs leading-relaxed text-muted-foreground">{t("Auth.phoneSoon")}</p>
+
+              {!isGuest ? (
+                <>
+                  <div className="flex items-center gap-3 py-1">
+                    <span className="h-px flex-1 bg-border" />
+                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                      {t("Auth.or")}
+                    </span>
+                    <span className="h-px flex-1 bg-border" />
+                  </div>
+                  <GuestEntryButton variant="ghost" className="items-stretch" />
+                </>
+              ) : null}
             </div>
           ) : step === "forgot" ? (
             <form onSubmit={handleSendReset} className="mt-6 space-y-4">

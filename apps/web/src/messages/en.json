@@ -1977,6 +1977,8 @@
     "sameDeviceNote": "Your progress is saved on this device only. Create an account to keep it everywhere.",
     "createAccountCta": "Create free account",
     "exit": "Exit guest mode",
-    "bannerText": "You're exploring as a guest — progress is saved on this device. Create a free account to keep it and start your 7-day Pro trial."
+    "bannerText": "You're exploring as a guest — progress is saved on this device. Create a free account to keep it and start your 7-day Pro trial.",
+    "exploreCta": "Explore as a guest",
+    "unavailable": "Guest mode isn't available right now."
   }
 }

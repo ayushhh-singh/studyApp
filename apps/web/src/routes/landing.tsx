@@ -6,6 +6,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { GuestAutostart } from "@/components/marketing/guest-autostart";
+import { GuestEntryButton } from "@/components/marketing/guest-entry-button";
 import { Footer } from "@/components/marketing/footer";
 import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
@@ -94,6 +95,7 @@ export function Component() {
                   {session ? t("Landing.goToApp") : t("Landing.startFree")} <ArrowRight className="size-5" />
                 </Link>
               </Button>
+              {!session ? <GuestEntryButton className="sm:flex-none" /> : null}
               <p className="text-sm text-muted-foreground">{t("Landing.heroCtaption")}</p>
             </div>
           </div>

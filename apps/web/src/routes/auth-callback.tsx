@@ -28,17 +28,26 @@ export function Component() {
     }
   }, [loading, session, navigate, redirectTarget]);
 
-  // No session materialised and no code left to exchange → treat as a failure
-  // after auth has finished loading.
+  // Wait for supabase-js's async PKCE exchange (detectSessionInUrl) to produce a
+  // session, then declare failure only AFTER a grace window — NEVER the instant
+  // we see no `?code=`. The exchange can consume+strip the code a tick before the
+  // session propagates through the provider; bailing immediately bounced the user
+  // back to sign in and forced a second attempt (the "had to do it twice" bug).
+  // If a session arrives within the window the effect re-runs and clears the
+  // timer (its guard sees `session`); an explicit `?error=` still fails at once
+  // (handled by the initial `failed` state above).
   useEffect(() => {
     if (loading || session || failed) return;
-    const hasCode = params.get("code");
-    if (!hasCode) setFailed(t("Auth.callbackError"));
-  }, [loading, session, failed, params, t]);
+    const timer = setTimeout(() => setFailed(t("Auth.callbackError")), 8000);
+    return () => clearTimeout(timer);
+  }, [loading, session, failed, t]);
 
-  // Send failures back to the auth page (it shows a fresh sign-in form). The
-  // provider error text is transient; retrying is the right recovery.
-  if (failed) return <Navigate to={`/${locale}/auth`} replace />;
+  // Send failures back to the auth page (it shows a fresh sign-in form), carrying
+  // the reason so the user sees WHY rather than a silent bounce.
+  if (failed) {
+    const q = new URLSearchParams({ error: failed });
+    return <Navigate to={`/${locale}/auth?${q.toString()}`} replace />;
+  }
 
   return <FullScreenLoader />;
 }
