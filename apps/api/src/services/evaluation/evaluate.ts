@@ -32,6 +32,7 @@ import { MODELS, streamText, structuredJson, translateBatch, type LlmUsage } fro
 import { touchFeature } from "../../lib/feature-touch.js";
 import { retrieveGrounding } from "./grounding.js";
 import { examCodeForNode, getUserExam } from "../../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
 import {
   computeOverallScore,
   ESSAY_RUBRIC_VERSION,
@@ -561,6 +562,9 @@ export async function executeEvaluation(
       wordCount: countWords(answerText),
       grounding,
       rubricVersion: plan.rubricVersion,
+      // The SUBMISSION's exam (resolved once in resolveQuestionContext), which
+      // keys every exam-specific string in the prompt builders.
+      examCode: plan.examCode,
     };
 
     // 2. Pass 1 — structured analysis
@@ -574,10 +578,14 @@ export async function executeEvaluation(
       // keeping repeatability within ±5% of full marks. The clear rubric + the
       // huge ranking margins mean low effort loses no accuracy here.
       effort: "low",
-      // Fixed per (locale, hasPageImage) — cached so the rubric + examiner
-      // framing is a cache read, not a fresh input token, for every OTHER
-      // student's submission that shares those two axes.
-      system: [{ text: buildAnalysisSystem(!!plan.pageImage, plan.rubricVersion), cache: true }],
+      // Fixed per (exam, hasPageImage, rubricVersion) — cached so the rubric +
+      // examiner framing is a cache read, not a fresh input token, for every
+      // OTHER student's submission that shares those axes. The exam PARTITIONS
+      // this cache (one stable entry per exam) rather than defeating it: nothing
+      // per-request is interpolated into this segment.
+      system: [
+        { text: buildAnalysisSystem(plan.examCode, !!plan.pageImage, plan.rubricVersion), cache: true },
+      ],
       content: buildAnalysisUserContent(ctx, plan.pageImage),
       schema: analysisJsonSchema(),
       maxTokens: 8000,
@@ -612,6 +620,10 @@ export async function executeEvaluation(
     // share one system segment (question + answer + pass-1 analysis) — it is
     // built ONCE here and marked cache:true on both calls so they land on the
     // same cache entry; only the second (persona/task) segment differs.
+    // The exam framing lives in that SECOND, UNCACHED segment on purpose:
+    // interpolating it into the shared context would not change the exam's own
+    // hit rate, but it would risk desynchronising the two calls' cached prefix,
+    // which is the only thing making the sibling call a cache read.
     emit("status", { phase: "feedback" });
     const sharedFeedbackContext = buildFeedbackSharedContext(ctx, pass1);
     let strengths = "";
@@ -619,7 +631,7 @@ export async function executeEvaluation(
       model: MODELS.sonnet,
       system: [
         { text: sharedFeedbackContext, cache: true },
-        { text: buildStrengthsSystem(language) },
+        { text: buildStrengthsSystem(plan.examCode, language) },
       ],
       content: FEEDBACK_WRITE_NOW,
       maxTokens: 1500,
@@ -639,7 +651,7 @@ export async function executeEvaluation(
       model: MODELS.sonnet,
       system: [
         { text: sharedFeedbackContext, cache: true },
-        { text: buildImprovementsSystem(language) },
+        { text: buildImprovementsSystem(plan.examCode, language) },
       ],
       content: FEEDBACK_WRITE_NOW,
       maxTokens: 2000,
@@ -845,7 +857,11 @@ async function translateAndCacheEvaluation(
   const translated = await translateBatch(
     [original.strengths, original.improvements, original.modelAnswer, overallComment, ...dimTexts, ...missedKeyPoints, ...factualIssues],
     locale,
-    "UPPSC answer-evaluation feedback (an examiner's critique of a candidate's answer)",
+    requireAuthored(
+      getExamConfig(evaluation.exam_code).evaluation.feedbackTranslateDomainHint,
+      evaluation.exam_code,
+      "evaluation.feedbackTranslateDomainHint",
+    ),
     { purpose: "eval_translate", userId, onUsage: (u) => usage.push(u) },
   );
 

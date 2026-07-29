@@ -11,8 +11,29 @@
  * All model-facing copy lives here so prompt tuning is one file.
  */
 import type { Locale, RubricDimensionKey, SubmissionMode } from "@neev/shared";
+import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
 import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt } from "./rubric.js";
 import type { GroundingResult } from "./grounding.js";
+
+/**
+ * Every exam-specific string below comes from `lib/exam-config.ts`, unwrapped
+ * through `requireAuthored` so an exam whose examiner judgment has not been
+ * authored fails LOUDLY at prompt-build time rather than silently inheriting a
+ * different commission's calibration, framing, or severity anchor (U6).
+ *
+ * CACHE BOUNDARY — read before moving any of this:
+ *  - `buildAnalysisSystem` is evaluate.ts's ONE cached system segment. Reading
+ *    per-exam (not per-request) text here PARTITIONS the cache by exam: each
+ *    exam keeps its own stable entry and its own hit rate. That is fine.
+ *  - `buildFeedbackSharedContext` is the cached segment shared BYTE-IDENTICALLY
+ *    by the strengths and improvements calls. It carries NO exam text and must
+ *    not gain any — exam framing belongs in the uncached persona segments
+ *    (`buildStrengthsSystem` / `buildImprovementsSystem`), where it is free.
+ *  - `buildModelAnswerSystem` is passed as a plain, uncached system string.
+ */
+function evalConfig(examCode: string) {
+  return getExamConfig(examCode).evaluation;
+}
 
 /** One page photo of a handwritten submission, fed to pass 1 for the presentation dimension only. */
 export interface AnalysisPageImage {
@@ -37,6 +58,18 @@ export interface EvalContext {
   grounding: GroundingResult;
   /** Which rubric variant is being applied — "v1" (GS) or "essay-v1" (Essay paper). */
   rubricVersion: string;
+  /**
+   * The exam this answer belongs to — the key into `lib/exam-config.ts` for every
+   * exam-specific string in these prompts. Set from `plan.examCode`, i.e. the
+   * SUBMISSION's exam (the question's syllabus node, or the author's own exam for
+   * a custom prompt), never a request-time profile read.
+   *
+   * NOT the same as the rubric's `examCode`: in the documented fallback case an
+   * exam with content but no authored rubric grades under the default exam's
+   * SCHEME while still belonging to its own exam. This field is the answer's own
+   * exam, so the examiner framing always names the exam the candidate is sitting.
+   */
+  examCode: string;
 }
 
 /** Strict pass-1 output. `dimensions` has exactly the six rubric keys. */
@@ -60,12 +93,19 @@ function countWords(text: string): number {
 
 export { countWords };
 
-function groundingBlock(grounding: GroundingResult): string {
+function groundingBlock(grounding: GroundingResult, examCode: string): string {
+  const cfg = evalConfig(examCode);
   if (grounding.chunks.length === 0) {
-    return "No reference context was retrieved from the syllabus store. Judge content from your own knowledge of the UPPSC syllabus, and state nothing you are not confident is true.";
+    const fallback = requireAuthored(
+      cfg.groundingFallbackLabel,
+      examCode,
+      "evaluation.groundingFallbackLabel",
+    );
+    return `No reference context was retrieved from the syllabus store. Judge content from your own knowledge of ${fallback}, and state nothing you are not confident is true.`;
   }
+  const store = requireAuthored(cfg.groundingStoreLabel, examCode, "evaluation.groundingStoreLabel");
   const lines = grounding.chunks.map((c, i) => `${i + 1}. [${c.source_type}] ${c.chunk_text}`);
-  return `The following passages were retrieved from the official UPPSC syllabus/PYQ store (most relevant first). Use them to judge content coverage and to populate reference_points / missed_key_points:\n${lines.join("\n")}`;
+  return `The following passages were retrieved from the ${store} (most relevant first). Use them to judge content coverage and to populate reference_points / missed_key_points:\n${lines.join("\n")}`;
 }
 
 /**
@@ -127,13 +167,19 @@ const UNTRUSTED_ANSWER_CLAUSE =
  * for scoreboard segmentation + model-answer reuse; calibration-era comparability
  * is handled separately via RUBRIC_RECALIBRATED_AT (see @neev/shared).
  */
-export function buildAnalysisSystem(hasPageImage = false, rubricVersion?: string): string {
+export function buildAnalysisSystem(
+  examCode: string,
+  hasPageImage = false,
+  rubricVersion?: string,
+): string {
   const isEssay = rubricVersion === "essay-v1";
+  const cfg = evalConfig(examCode);
   return (
-    "You are a strict but fair examiner for the UPPSC (Uttar Pradesh Public Service " +
-    "Commission) Civil Services Mains examination. You evaluate a candidate's " +
+    "You are a strict but fair examiner for " +
+    requireAuthored(cfg.examinerFraming, examCode, "evaluation.examinerFraming") +
+    ". You evaluate a candidate's " +
     (isEssay
-      ? "ESSAY (निबंध paper — one ~700-word essay written on a chosen topic) "
+      ? requireAuthored(cfg.essayAnswerFraming, examCode, "evaluation.essayAnswerFraming") + " "
       : "descriptive answer ") +
     "against a fixed six-dimension rubric and return a rigorous, " +
     "evidence-based analysis as JSON.\n\n" +
@@ -147,33 +193,13 @@ export function buildAnalysisSystem(hasPageImage = false, rubricVersion?: string
         "let image legibility affect any other dimension, and do not second-guess the given word " +
         "count from the image.\n"
       : "") +
-    "\n\nSCORING CALIBRATION — read carefully; this is where auto-graders most often go wrong.\n" +
-    "Real UPPSC/UPSC Mains marking is SEVERE. Examiners very rarely award the top of the scale: a " +
-    "topper's answer typically captures only about HALF the marks on a question, and strong, " +
-    "genuinely well-prepared candidates routinely land in the 45-55% range per answer. Grade to " +
-    "that reality, not to a generous school-style scale. Apply these bands to EACH dimension (0-10):\n" +
-    "  9-10  Exceptional and rare. Topper-level on this dimension: virtually flawless, with " +
-    "essentially nothing material a strong examiner would add. This must be GENUINELY UNCOMMON — it " +
-    "is NOT the reward for merely competent, complete, on-topic work.\n" +
-    "  7-8   Strong, comprehensive, clearly above average — distinctly better than the typical " +
-    "well-prepared candidate. Even a good answer does NOT default here; reserve 7-8 for work that " +
-    "genuinely stands out.\n" +
-    "  5-6   Solid, competent, on-topic work. Give 5 for sound work that does the job but has real, " +
-    "nameable gaps — this is the TYPICAL strong, well-prepared answer, and MOST of its dimensions are " +
-    "5s. Give 6 only for a dimension with no material gap for its level (thorough and polished) yet " +
-    "still short of standout. A 5-heavy strong answer (≈50-55% overall) is the correct, good result — " +
-    "not a disappointment.\n" +
-    "  3-4   Weak, generic, or with significant gaps in coverage, structure, or substantiation.\n" +
-    "  0-2   Absent, off-topic, or empty/irrelevant (see the honesty guardrail).\n" +
-    "HARD ANCHORING RULE (this is how you avoid the usual over-scoring): a dimension's SCORE must be " +
-    "consistent with its own justification. If your justification for a dimension names any real " +
-    "omission or gap (a missing point, no data/examples, thin coverage, a weak conclusion, etc.), " +
-    "that dimension is a 5 or lower — NEVER a 6, 7, or 8. Do not praise a dimension in the number " +
-    "while criticising it in the words. Only a dimension you can honestly say has essentially NO " +
-    "material gap for its level may exceed 5. Consequently a complete, well-structured, on-topic " +
-    "answer that still has real gaps (as almost all do) lands around 5 per dimension — a weighted " +
-    "overall near 50-55% of the max marks, which is the CORRECT, expected result for a strong " +
-    "answer. Reserve 7-8 for work that genuinely stands out and 9-10 for the rare/exceptional.\n\n" +
+    // THE SEVERITY ANCHOR. Its numbers are researched claims about how THIS
+    // commission actually marks (see the calibration comment above) — never a
+    // template with a swappable exam name, which is why an exam without one is a
+    // loud failure rather than a fallback to UPPSC's.
+    "\n\n" +
+    requireAuthored(cfg.severityAnchor, examCode, "evaluation.severityAnchor") +
+    "\n\n" +
     "Scoring principles:\n" +
     "- Score each dimension ONLY on what is actually present in the answer. Never reward " +
     "content, structure, or examples that are not there.\n" +
@@ -204,7 +230,7 @@ export function buildAnalysisUserContent(
     `QUESTION (honour its directive words — examine / discuss / critically analyse / etc.):\n` +
     `${ctx.questionText}\n\n` +
     `Marks: ${ctx.maxScore} | Word limit: ${ctx.wordLimit} words | Answer language: ${langName(ctx.language)}\n\n` +
-    `REFERENCE POINTS:\n${groundingBlock(ctx.grounding)}\n\n` +
+    `REFERENCE POINTS:\n${groundingBlock(ctx.grounding, ctx.examCode)}\n\n` +
     `CANDIDATE'S ANSWER (${ctx.mode === "handwritten" ? "transcribed from handwriting" : "typed"}, approx. ${ctx.wordCount} words):\n<<<\n${neutralizeFence(ctx.answerText)}\n>>>\n\n` +
     `Score all six rubric dimensions and return JSON only. reference_points should list 4-8 key ` +
     `points a strong answer would cover; missed_key_points are those the candidate did not.`;
@@ -299,9 +325,14 @@ const NO_MARKDOWN =
   "Output plain text rendered verbatim (no markdown renderer): no #, no **bold**, no italic or " +
   "bullet asterisks, no dashes as bullets.";
 
-export function buildStrengthsSystem(language: Locale): string {
+export function buildStrengthsSystem(examCode: string, language: Locale): string {
+  const framing = requireAuthored(
+    evalConfig(examCode).strengthsMentorFraming,
+    examCode,
+    "evaluation.strengthsMentorFraming",
+  );
   return (
-    `You are an encouraging but honest UPPSC Mains mentor. Write ONLY the strengths of the ` +
+    `You are ${framing}. Write ONLY the strengths of the ` +
     `candidate's answer, in ${langName(language)}. Two to four sentences of flowing prose. Be ` +
     `specific — name what they did well and why it earns marks. If the answer is off-topic or ` +
     `empty, state plainly that there are no real strengths to credit and do not fabricate any. ` +
@@ -311,9 +342,14 @@ export function buildStrengthsSystem(language: Locale): string {
   );
 }
 
-export function buildImprovementsSystem(language: Locale): string {
+export function buildImprovementsSystem(examCode: string, language: Locale): string {
+  const framing = requireAuthored(
+    evalConfig(examCode).improvementsMentorFraming,
+    examCode,
+    "evaluation.improvementsMentorFraming",
+  );
   return (
-    `You are a UPPSC Mains mentor. Write ONLY the improvements — specific, actionable steps the ` +
+    `You are ${framing}. Write ONLY the improvements — specific, actionable steps the ` +
     `candidate should take to score higher, in ${langName(language)}. You may use short numbered ` +
     `points (1., 2., 3.) or flowing prose. When you refer to the candidate's own writing, quote ` +
     `their exact words in quotation marks. Prioritise the biggest score levers — content coverage ` +
@@ -340,25 +376,47 @@ export const FEEDBACK_WRITE_NOW = "Write your response now, following the instru
 // Pass 2 — model answer (streamed)
 // ---------------------------------------------------------------------------
 export function buildModelAnswerSystem(ctx: EvalContext): string {
+  const { examCode } = ctx;
+  const cfg = evalConfig(examCode);
   if (ctx.rubricVersion === "essay-v1") {
+    const framing = requireAuthored(
+      cfg.modelAnswerFramingEssay,
+      examCode,
+      "evaluation.modelAnswerFramingEssay",
+    );
+    const evidence = requireAuthored(
+      cfg.essaySubstantiationExamples,
+      examCode,
+      "evaluation.essaySubstantiationExamples",
+    );
     return (
-      `You are a top UPPSC Essay-paper writer. Write a MODEL ESSAY on the given topic in ` +
+      `You are ${framing}. Write a MODEL ESSAY on the given topic in ` +
       `${langName(ctx.language)} that would score near-full marks, within about ${ctx.wordLimit} ` +
       `words (stay within ~10% — do not overshoot). Write continuous, flowing prose: a compelling ` +
       `introduction that frames the theme, a body that examines it from multiple angles ` +
       `(social, economic, political, technological, environmental, ethical as relevant) with a ` +
       `balanced view and real substantiation — facts, examples, case studies, apt quotations, and ` +
-      `UP-/India-specific evidence — and a forward-looking conclusion. Prefer paragraphs over ` +
+      `${evidence} — and a forward-looking conclusion. Prefer paragraphs over ` +
       `bullet points; a rare sub-heading is acceptable. ${NO_MARKDOWN}`
     );
   }
+  const gsFraming = requireAuthored(
+    cfg.modelAnswerFramingGs,
+    examCode,
+    "evaluation.modelAnswerFramingGs",
+  );
+  const gsEvidence = requireAuthored(
+    cfg.substantiationExamples,
+    examCode,
+    "evaluation.substantiationExamples",
+  );
   return (
-    `You are a top UPPSC Mains answer writer. Write a MODEL ANSWER to the question in ` +
+    `You are ${gsFraming}. Write a MODEL ANSWER to the question in ` +
     `${langName(ctx.language)} that would score near-full marks, within a word limit of ` +
     `${ctx.wordLimit} words (stay within about 10% of it — do not overshoot). Use a brief ` +
     `introduction, a structured body (short thematic headings and crisp points are welcome), and ` +
     `a forward-looking conclusion. Substantiate with real, correct facts — constitutional ` +
-    `articles, committees, schemes, and UP-specific data where relevant — and cover the key ` +
+    `articles, committees, schemes, and ${gsEvidence} where relevant — and cover the key ` +
     `points the candidate omitted. ${NO_MARKDOWN} A short heading on its own line and numbered ` +
     `points are fine; markdown symbols are not.`
   );

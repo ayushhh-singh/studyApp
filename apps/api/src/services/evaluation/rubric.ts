@@ -62,9 +62,40 @@ import {
   type RubricDimensionKey,
   type RubricKind,
 } from "@neev/shared";
+import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
 import { ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, ESSAY_MAX_MARKS } from "../../lib/exam-papers.js";
 
 export { RUBRIC_VERSION, ESSAY_RUBRIC_VERSION };
+
+/**
+ * The substantiation examples named in v1's `examples_data` description are the
+ * SAME string as `evaluation.substantiationExamples` in lib/exam-config.ts (the
+ * model-answer prompt interpolates it too). Read it rather than keeping a
+ * parallel copy, so the two cannot drift.
+ *
+ * Keyed off THIS rubric's own `examCode` (v1 is the default exam's GS scheme —
+ * see the header). A future `<exam>-gs-v1` reads its own exam's config the same
+ * way; the registry itself is deliberately NOT restructured.
+ */
+const V1_EXAM_CODE = DEFAULT_EXAM_CODE;
+const V1_SUBSTANTIATION_EXAMPLES = requireAuthored(
+  getExamConfig(V1_EXAM_CODE).evaluation.substantiationExamples,
+  V1_EXAM_CODE,
+  "evaluation.substantiationExamples",
+);
+
+/**
+ * Same rationale for `essay-v1`'s `examples_data`, which names the substantiation
+ * in a different grammatical form ("UP-/India-specific evidence"). It is the same
+ * string as `evaluation.essaySubstantiationExamples`, which the model-answer
+ * ESSAY prompt also interpolates — read it rather than keep a parallel copy.
+ */
+const ESSAY_V1_EXAM_CODE = DEFAULT_EXAM_CODE;
+const ESSAY_V1_SUBSTANTIATION_EXAMPLES = requireAuthored(
+  getExamConfig(ESSAY_V1_EXAM_CODE).evaluation.essaySubstantiationExamples,
+  ESSAY_V1_EXAM_CODE,
+  "evaluation.essaySubstantiationExamples",
+);
 
 /** Fallback max marks when a custom prompt / question carries no `marks`. */
 export const DEFAULT_MAX_SCORE = 10;
@@ -131,7 +162,7 @@ const V1_DIMENSIONS: readonly RubricDimension[] = [
     label: "Examples & Data",
     weight: 0.15,
     description:
-      "Claims are substantiated with concrete facts, figures, UP-specific data, committees " +
+      `Claims are substantiated with concrete facts, figures, ${V1_SUBSTANTIATION_EXAMPLES}, committees ` +
       "and commissions, constitutional articles, government schemes, case studies, or court " +
       "judgments — not left as unsupported assertions.",
   },
@@ -192,7 +223,7 @@ const ESSAY_V1_DIMENSIONS: readonly RubricDimension[] = [
     weight: 0.2,
     description:
       "Arguments are backed with concrete facts, data, real examples, case studies, apt " +
-      "quotations, historical references, and UP-/India-specific evidence — not unsupported " +
+      `quotations, historical references, and ${ESSAY_V1_SUBSTANTIATION_EXAMPLES} — not unsupported ` +
       "generalisation.",
   },
   {

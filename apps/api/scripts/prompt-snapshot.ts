@@ -293,11 +293,11 @@ async function collectEvaluationPrompts(): Promise<void> {
   if (!mod) return;
 
   // --- pass 1: system, all four rubric x image branches + the no-arg default
-  put("evaluation/buildAnalysisSystem:gs-noimage", mod.buildAnalysisSystem(false, "v1"));
-  put("evaluation/buildAnalysisSystem:gs-image", mod.buildAnalysisSystem(true, "v1"));
-  put("evaluation/buildAnalysisSystem:essay-noimage", mod.buildAnalysisSystem(false, "essay-v1"));
-  put("evaluation/buildAnalysisSystem:essay-image", mod.buildAnalysisSystem(true, "essay-v1"));
-  put("evaluation/buildAnalysisSystem:default-noargs", mod.buildAnalysisSystem());
+  put("evaluation/buildAnalysisSystem:gs-noimage", mod.buildAnalysisSystem("uppsc", false, "v1"));
+  put("evaluation/buildAnalysisSystem:gs-image", mod.buildAnalysisSystem("uppsc", true, "v1"));
+  put("evaluation/buildAnalysisSystem:essay-noimage", mod.buildAnalysisSystem("uppsc", false, "essay-v1"));
+  put("evaluation/buildAnalysisSystem:essay-image", mod.buildAnalysisSystem("uppsc", true, "essay-v1"));
+  put("evaluation/buildAnalysisSystem:default-noargs", mod.buildAnalysisSystem("uppsc"));
 
   // --- pass 1: user content
   const ctx = (over: Record<string, unknown> = {}) =>
@@ -311,6 +311,9 @@ async function collectEvaluationPrompts(): Promise<void> {
       wordCount: 142,
       grounding: GROUNDING,
       rubricVersion: "v1",
+      // Explicit, so the fixture never relies on getExamConfig()'s
+      // unknown-code fallback to produce the uppsc baseline.
+      examCode: "uppsc",
       ...over,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     }) as any;
@@ -338,10 +341,10 @@ async function collectEvaluationPrompts(): Promise<void> {
   put("evaluation/analysisJsonSchema", mod.analysisJsonSchema());
 
   // --- pass 2: feedback
-  put("evaluation/buildStrengthsSystem:en", mod.buildStrengthsSystem("en"));
-  put("evaluation/buildStrengthsSystem:hi", mod.buildStrengthsSystem("hi"));
-  put("evaluation/buildImprovementsSystem:en", mod.buildImprovementsSystem("en"));
-  put("evaluation/buildImprovementsSystem:hi", mod.buildImprovementsSystem("hi"));
+  put("evaluation/buildStrengthsSystem:en", mod.buildStrengthsSystem("uppsc", "en"));
+  put("evaluation/buildStrengthsSystem:hi", mod.buildStrengthsSystem("uppsc", "hi"));
+  put("evaluation/buildImprovementsSystem:en", mod.buildImprovementsSystem("uppsc", "en"));
+  put("evaluation/buildImprovementsSystem:hi", mod.buildImprovementsSystem("uppsc", "hi"));
   put("evaluation/FEEDBACK_WRITE_NOW", mod.FEEDBACK_WRITE_NOW);
 
   const keys = rubricMod ? rubricMod.RUBRIC_DIMENSION_KEYS : [];

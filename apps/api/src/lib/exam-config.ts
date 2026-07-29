@@ -335,6 +335,13 @@ export interface ExamEvaluationConfig {
    * Separate field rather than forcing one to do double duty.
    */
   essaySubstantiationExamples: Authored<string>;
+  /**
+   * Call site: `evaluate.ts` `translateAndCacheEvaluation` — the `domainHint`
+   * passed to `translateBatch` when lazily translating a stored evaluation into
+   * the other locale. Nominal (it names the corpus, not examiner judgment), but
+   * it IS model-facing, so it is configured rather than left hardcoded.
+   */
+  feedbackTranslateDomainHint: Authored<string>;
 }
 
 /** Question generation — `qgen/prompts.ts`. */
@@ -691,6 +698,8 @@ const UPPSC: ExamConfig = {
     groundingFallbackLabel: UPPSC_SYLLABUS_LABEL,
     substantiationExamples: "UP-specific data",
     essaySubstantiationExamples: "UP-/India-specific evidence",
+    feedbackTranslateDomainHint:
+      "UPPSC answer-evaluation feedback (an examiner's critique of a candidate's answer)",
   },
 
   qgen: {
@@ -855,6 +864,7 @@ const UPSC: ExamConfig = {
     groundingFallbackLabel: UNAUTHORED,
     substantiationExamples: UNAUTHORED,
     essaySubstantiationExamples: UNAUTHORED,
+    feedbackTranslateDomainHint: UNAUTHORED,
   },
 
   qgen: {
@@ -995,6 +1005,7 @@ const MPPSC: ExamConfig = {
     groundingFallbackLabel: UNAUTHORED,
     substantiationExamples: UNAUTHORED,
     essaySubstantiationExamples: UNAUTHORED,
+    feedbackTranslateDomainHint: UNAUTHORED,
   },
 
   qgen: {
