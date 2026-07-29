@@ -284,8 +284,9 @@ export async function createThread(
   if (postError) throw new HttpError(500, `thread opening post failed: ${postError.message}`);
 
   // Fire-and-forget: never block the response on the moderation screen.
-  void screenThread(row.id, title, body).catch((err) => logger.warn({ err }, "screenThread failed"));
-  void screenPost((post as { id: string }).id, body).catch((err) => logger.warn({ err }, "screenPost failed"));
+  const screenExam = anchorExam ?? userExam;
+  void screenThread(row.id, title, body, screenExam).catch((err) => logger.warn({ err }, "screenThread failed"));
+  void screenPost((post as { id: string }).id, body, screenExam).catch((err) => logger.warn({ err }, "screenPost failed"));
 
   const [authors, nodeLabels] = await Promise.all([fetchAuthors([userId]), fetchNodeLabels([row])]);
   // post_count is bumped by the discussion_posts_after_write trigger, but the
@@ -431,7 +432,9 @@ export async function addPost(userId: string, threadId: string, body: string): P
   if (error) throw new HttpError(500, `post creation failed: ${error.message}`);
   const row = post as unknown as PostRow;
 
-  void screenPost(row.id, body).catch((err) => logger.warn({ err }, "screenPost failed"));
+  // The thread's own exam when it has one (a cross-exam thread is exam_code
+  // NULL — 0106 §12), else the poster's.
+  void screenPost(row.id, body, threadExam ?? userExam).catch((err) => logger.warn({ err }, "screenPost failed"));
 
   const authors = await fetchAuthors([userId]);
   return toPost(row, authors.get(userId) ?? { id: userId, handle: null, display_name: null }, 0);
@@ -459,7 +462,7 @@ export async function editPost(userId: string, postId: string, body: string): Pr
   if (error) throw new HttpError(500, `post edit failed: ${error.message}`);
   const row = post as unknown as PostRow;
 
-  void screenPost(row.id, body).catch((err) => logger.warn({ err }, "screenPost failed"));
+  void screenPost(row.id, body, await getUserExam(userId)).catch((err) => logger.warn({ err }, "screenPost failed"));
 
   const authors = await fetchAuthors([userId]);
   const myVote = (await fetchMyVotes(userId, [postId])).get(postId) ?? 0;

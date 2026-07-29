@@ -9,6 +9,7 @@ import { createRequire } from "node:module";
 import satori from "satori";
 import { Resvg } from "@resvg/resvg-js";
 import type { Locale, MasteryLevel, MasteryMap, WeeklyDigest } from "@neev/shared";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 
 const require = createRequire(import.meta.url);
 const font = (spec: string) => readFileSync(require.resolve(spec));
@@ -60,9 +61,18 @@ function el(type: string, style: Record<string, any>, children?: (El | string)[]
   return { type, props: { style, children: fixed } };
 }
 
+/**
+ * The brand line rendered at the foot of both share cards. Exam-specific (it
+ * names the exam the card is bragging about), so it is read per-render from the
+ * viewer's own exam rather than baked in.
+ */
+function brandLine(examCode: string, locale: Locale): string {
+  return requireAuthored(getExamConfig(examCode).misc.shareCardBrand, examCode, "misc.shareCardBrand")[locale];
+}
+
 const COPY = {
-  en: { title: "This week on Neev", questions: "Questions", accuracy: "Accuracy", answers: "Answers", streak: "Day streak", brand: "Neev · UPPSC prep" },
-  hi: { title: "इस सप्ताह नींव पर", questions: "प्रश्न", accuracy: "सटीकता", answers: "उत्तर", streak: "दिन स्ट्रीक", brand: "नींव · यूपीपीएससी तैयारी" },
+  en: { title: "This week on Neev", questions: "Questions", accuracy: "Accuracy", answers: "Answers", streak: "Day streak" },
+  hi: { title: "इस सप्ताह नींव पर", questions: "प्रश्न", accuracy: "सटीकता", answers: "उत्तर", streak: "दिन स्ट्रीक" },
 } as const;
 
 function stat(value: string, label: string, color: string): El {
@@ -76,7 +86,7 @@ function stat(value: string, label: string, color: string): El {
   );
 }
 
-function digestElement(d: WeeklyDigest, locale: Locale): El {
+function digestElement(d: WeeklyDigest, locale: Locale, examCode: string): El {
   const c = COPY[locale];
   return el(
     "div",
@@ -101,13 +111,13 @@ function digestElement(d: WeeklyDigest, locale: Locale): El {
         stat(String(d.answers_evaluated), c.answers, "#F2A93B"),
         stat(String(d.streak_count), c.streak, "#E5484D"),
       ]),
-      el("div", { display: "flex", fontSize: "26px", fontWeight: 700, color: "#2B4EE0" }, c.brand),
+      el("div", { display: "flex", fontSize: "26px", fontWeight: 700, color: "#2B4EE0" }, brandLine(examCode, locale)),
     ],
   );
 }
 
-export async function renderWeeklyDigestPng(digest: WeeklyDigest, locale: Locale): Promise<Buffer> {
-  const svg = await satori(digestElement(digest, locale) as never, { width: 1200, height: 630, fonts: loadFonts() });
+export async function renderWeeklyDigestPng(digest: WeeklyDigest, locale: Locale, examCode: string): Promise<Buffer> {
+  const svg = await satori(digestElement(digest, locale, examCode) as never, { width: 1200, height: 630, fonts: loadFonts() });
   const png = new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
   return png;
 }
@@ -127,8 +137,8 @@ const MASTERY_STYLE: Record<MasteryLevel, { fill: string; solid: string }> = {
 };
 
 const MAP_COPY = {
-  en: { title: "Conquest Map", brand: "Neev · UPPSC prep", ready: "exam-ready" },
-  hi: { title: "कॉन्क्वेस्ट मानचित्र", brand: "नींव · यूपीपीएससी तैयारी", ready: "परीक्षा-तैयार" },
+  en: { title: "Conquest Map", ready: "exam-ready" },
+  hi: { title: "कॉन्क्वेस्ट मानचित्र", ready: "परीक्षा-तैयार" },
 } as const;
 
 interface SquareItem {
@@ -233,7 +243,7 @@ function tileElement(r: SquareRect, locale: Locale): El {
   );
 }
 
-function masteryMapElement(map: MasteryMap, locale: Locale): El {
+function masteryMapElement(map: MasteryMap, locale: Locale, examCode: string): El {
   const c = MAP_COPY[locale];
   const root = map.nodes.find((n) => n.depth === 0);
   const paperTitle = root ? root.title_i18n[locale] : "";
@@ -261,12 +271,12 @@ function masteryMapElement(map: MasteryMap, locale: Locale): El {
         el("div", { display: "flex", fontSize: "22px", color: "#8B90A0" }, `${readyCount} ${c.ready}`),
       ]),
       el("div", { display: "flex", position: "relative", width: `${boxW}px`, height: `${boxH}px` }, rects.map((r) => tileElement(r, locale))),
-      el("div", { display: "flex", fontSize: "22px", fontWeight: 700, color: "#2B4EE0" }, c.brand),
+      el("div", { display: "flex", fontSize: "22px", fontWeight: 700, color: "#2B4EE0" }, brandLine(examCode, locale)),
     ],
   );
 }
 
-export async function renderMasteryMapPng(map: MasteryMap, locale: Locale): Promise<Buffer> {
-  const svg = await satori(masteryMapElement(map, locale) as never, { width: 1200, height: 630, fonts: loadFonts() });
+export async function renderMasteryMapPng(map: MasteryMap, locale: Locale, examCode: string): Promise<Buffer> {
+  const svg = await satori(masteryMapElement(map, locale, examCode) as never, { width: 1200, height: 630, fonts: loadFonts() });
   return new Resvg(svg, { fitTo: { mode: "width", value: 1200 } }).render().asPng();
 }

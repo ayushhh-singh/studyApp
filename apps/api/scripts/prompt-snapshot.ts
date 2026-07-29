@@ -782,6 +782,97 @@ async function collectQuestionExplanationPrompts(): Promise<void> {
   // (see __not_reachable_without_editing__).
   put("question-explanation/groundingBlockText:grounded", mod.groundingBlockText(GROUNDING as never));
   put("question-explanation/groundingBlockText:empty", mod.groundingBlockText(EMPTY_GROUNDING as never));
+  // Newly reachable (multi-exam slice 2d): both were module-private consts /
+  // inline route literals before the conversion exported them.
+  put("question-explanation/explainSystem", mod.explainSystem("uppsc"));
+  put("question-explanation/streamExplainSystem", mod.streamExplainSystem("uppsc"));
+}
+
+// ===========================================================================
+// Newly reachable in multi-exam slice 2d — each of these was a module-private
+// const, a module-private function, or an anonymous inline literal inside the
+// very model call that issued it, and is listed as such in the baseline's
+// __not_reachable_without_editing__ block until this commit exported it.
+// ===========================================================================
+async function collectSlice2dPrompts(): Promise<void> {
+  const anthropic = await load<typeof import("../src/lib/anthropic.js")>("../src/lib/anthropic.js");
+  if (anthropic) {
+    // translate()'s system prompt. The domainHint argument is a REQUIRED
+    // parameter now (its "UPPSC exam-prep content" default was removed), so both
+    // the configured generic hint and a caller-specific one are snapshotted.
+    put(
+      "anthropic/buildTranslateSystem:generic-hint",
+      anthropic.buildTranslateSystem("uppsc", "UPPSC exam-prep content"),
+    );
+    put(
+      "anthropic/buildTranslateSystem:explanation-hint",
+      anthropic.buildTranslateSystem("uppsc", "UPPSC MCQ explanation"),
+    );
+  }
+
+  const drills = await load<typeof import("../src/services/micro-drills.js")>("../src/services/micro-drills.js");
+  if (drills) {
+    put("micro-drills/buildDrillEvaluationSystem:intro", drills.buildDrillEvaluationSystem("uppsc", "intro"));
+    put("micro-drills/buildDrillEvaluationSystem:conclusion", drills.buildDrillEvaluationSystem("uppsc", "conclusion"));
+  }
+
+  const plan = await load<typeof import("../src/services/study-plan.js")>("../src/services/study-plan.js");
+  if (plan) {
+    put("study-plan/buildPlanSystem", plan.buildPlanSystem("uppsc"));
+    const planInput = (over: Record<string, unknown> = {}) =>
+      ({
+        userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        examCode: "uppsc",
+        hoursPerDay: 4,
+        today: "2026-01-02",
+        targetDate: "2026-12-06",
+        displayName: "Fixture Learner",
+        targetExamYear: 2026,
+        medium: "en",
+        nextExam: {
+          title_i18n: { en: "Fixture Prelims", hi: "फिक्स्चर प्रारंभिक" },
+          exam_date: "2026-12-06",
+          days_until: 338,
+        },
+        weakSections: [
+          { title_i18n: { en: "Fixture Weak Section", hi: "फिक्स्चर अनुभाग" }, pyq_count: 41, mastery_level: "bronze" },
+        ],
+        srsDueCount: 17,
+        ...over,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any;
+    put("study-plan/buildPlanContent:full", plan.buildPlanContent(planInput()));
+    // The no-display-name branch is the one that renders the configured
+    // aspirant fallback — the only exam-bearing string in this builder.
+    put(
+      "study-plan/buildPlanContent:no-name-no-exam-no-weak",
+      plan.buildPlanContent(planInput({ displayName: null, targetExamYear: null, nextExam: null, weakSections: [] })),
+    );
+  }
+
+  const userNotes = await load<typeof import("../src/services/user-notes.js")>("../src/services/user-notes.js");
+  if (userNotes) {
+    put("user-notes/buildUserNoteConvertSystem:en", userNotes.buildUserNoteConvertSystem("uppsc", "en"));
+    put("user-notes/buildUserNoteConvertSystem:hi", userNotes.buildUserNoteConvertSystem("uppsc", "hi"));
+  }
+
+  const ocr = await load<typeof import("../src/services/ocr/claude-vision-provider.js")>(
+    "../src/services/ocr/claude-vision-provider.js",
+  );
+  if (ocr) {
+    put("ocr/buildTranscribeSystem:en", ocr.buildTranscribeSystem("uppsc", "en"));
+    put("ocr/buildTranscribeSystem:hi", ocr.buildTranscribeSystem("uppsc", "hi"));
+  }
+
+  const moderation = await load<typeof import("../src/lib/community-moderation.js")>(
+    "../src/lib/community-moderation.js",
+  );
+  if (moderation) put("community-moderation/buildScreenSystem", moderation.buildScreenSystem("uppsc"));
+
+  // ingest/series.ts is import-safe (no top-level main()); its sibling ingest
+  // CLIs (explain/syllabus/pyq) are NOT and stay out of this harness.
+  const series = await load<typeof import("../src/ingest/series.js")>("../src/ingest/series.js");
+  if (series) put("ingest/seriesSystem", series.seriesSystem("uppsc"));
 }
 
 async function collectAuditPrompts(): Promise<void> {
@@ -817,11 +908,19 @@ async function collectAuditPrompts(): Promise<void> {
     put("audit/SOLVE_SCHEMA", resolve.SOLVE_SCHEMA);
     // solveModel branches on difficulty, so the two params variants differ in
     // model AND in whether `effort` is present — both are live paths.
-    put("audit/buildSolveParams:haiku-grounded", messageParamsSnapshot(resolve.buildSolveParams(q as never, GROUNDING as never) as never));
+    put(
+      "audit/buildSolveParams:haiku-grounded",
+      messageParamsSnapshot(resolve.buildSolveParams(q as never, GROUNDING as never, "uppsc") as never),
+    );
     put(
       "audit/buildSolveParams:sonnet-hard-ungrounded",
-      messageParamsSnapshot(resolve.buildSolveParams({ ...q, difficulty: "hard" } as never, EMPTY_GROUNDING as never) as never),
+      messageParamsSnapshot(
+        resolve.buildSolveParams({ ...q, difficulty: "hard" } as never, EMPTY_GROUNDING as never, "uppsc") as never,
+      ),
     );
+    // Newly reachable (multi-exam slice 2d): ESCALATE_SYSTEM was a module-private
+    // const consumed only inside escalate(), which issues a live webResearch call.
+    put("audit/escalateSystem", resolve.escalateSystem("uppsc"));
   }
 
   const consistency = await load<typeof import("../src/audit/consistency.js")>("../src/audit/consistency.js");
@@ -848,52 +947,38 @@ const NOT_REACHABLE_WITHOUT_EDITING: Record<string, string> = {
     "same — inline inside the exported async generateMainsQuestion(); the briefText builder is also a local const in that function body",
   "ca/mcq-node-classify.ts::classifyPrelimsMcqNode content":
     "user content is a local const inside the exported async classifyPrelimsMcqNode(), built immediately before structuredJson(); only MCQ_NODE_CLASSIFY_SYSTEM and buildMcqNodeClassifySchema are exported",
-  "services/question-explanation.ts::EXPLAIN_SYSTEM":
-    "module-private const (no export keyword)",
   "services/question-explanation.ts::EXPLAIN_SCHEMA":
     "module-private const (no export keyword)",
   "services/question-explanation.ts::authorExplanation user content":
-    "inline template literal written as the content: property of the structuredJson({...}) call inside the module-private authorExplanation()",
-  "services/study-plan.ts::buildPlanSystem":
-    "module-private function (no export keyword); only caller is executeGeneratePlan(), which calls the model and writes the DB",
-  "services/study-plan.ts::buildPlanContent":
-    "module-private function (no export keyword)",
+    "inline template literal written as the content: property of the structuredJson({...}) call inside the module-private authorExplanation() (its SYSTEM prompt is now covered: question-explanation/explainSystem)",
   "services/study-plan.ts::planGenerationSchema":
     "module-private function (no export keyword)",
-  "services/micro-drills.ts::buildDrillEvaluationSystem":
-    "module-private function (no export keyword); reaching it needs executeDrillEvaluation(), which calls the model and updates drill_sessions",
   "services/micro-drills.ts::buildDrillEvaluationContent":
     "module-private function; its DrillSessionRow parameter type is module-private too",
   "services/micro-drills.ts::drillScoreSchema":
     "module-private function (no export keyword)",
-  "services/user-notes.ts::convertAnswerToBody system+content+schema":
-    "no identifier at all — system, content and schema are inline properties of the structuredJson({...}) argument inside the module-private convertAnswerToBody()",
+  "services/user-notes.ts::convertAnswerToBody content+schema":
+    "content and schema are still inline properties of the structuredJson({...}) argument inside the module-private convertAnswerToBody(); its SYSTEM prompt was extracted and IS now covered (user-notes/buildUserNoteConvertSystem)",
   "services/user-notes.ts::translateUserNote translate hint":
-    "bare inline string-literal argument to translateBatch() inside the exported translateUserNote(), which also reads and writes the DB",
-  "services/ocr/claude-vision-provider.ts::buildTranscribeSystem":
-    "module-private function; only the claudeVisionProvider object is exported and reaching the text needs .transcribe(), which makes two live model calls",
+    "argument to translateBatch() inside the exported translateUserNote(), which also reads and writes the DB — no longer a bare literal (it reads misc.personalNotesTranslateDomainHint), but still not reachable without running the function",
   "services/ocr/claude-vision-provider.ts::buildConfidenceSystem":
     "module-private function (no export keyword)",
   "services/ocr/claude-vision-provider.ts::transcribe user text + confidence schema":
     "inline template literal / object literal inside the provider's transcribe() method body",
-  "lib/community-moderation.ts::screenText system+schema":
-    "no identifier at all — inline properties of the single return structuredJson({...}) expression inside the module-private screenText()",
+  "lib/community-moderation.ts::screenText schema":
+    "still an inline property of the single return structuredJson({...}) expression inside the module-private screenText(); its SYSTEM prompt was extracted and IS now covered (community-moderation/buildScreenSystem)",
   "lib/community-moderation.ts::screenThread 'Title:/Body:' framing":
     "inline template literal argument to screenText() inside the exported screenThread()",
-  "routes/stream.ts::/stream/explain system+content":
-    "inline literals inside an anonymous asyncHandler closure registered on streamRouter at module load; only streamRouter is exported, so reaching the text needs a live HTTP request",
-  "audit/resolve.ts::ESCALATE_SYSTEM":
-    "module-private const with no pure builder — only consumed inside the exported escalate(), which immediately issues a live webResearch() call (SOLVE_SYSTEM by contrast IS covered, via the pure exported buildSolveParams)",
+  "routes/stream.ts::/stream/explain content":
+    "the user content is still an inline literal inside an anonymous asyncHandler closure registered on streamRouter at module load; the SYSTEM prompt moved to services/question-explanation.ts and IS now covered (question-explanation/streamExplainSystem)",
   "ca/deepdive.ts::DEEP_DIVE_SYSTEM / DEEP_DIVE_SCHEMA / buildContext":
     "all module-private, and unlike audit/* there is no pure params builder — structuredParams() is called inside runDeepDives(), which first deletes draft rows from Supabase and then runs a sonnet batch",
-  "ingest/explain.ts::SUPPORT_SYSTEM / SUPPORT_SCHEMA / EXPLAIN_SYSTEM / EXPLAIN_SCHEMA / supportContent / explainContent":
-    "module exports NOTHING (pure CLI entry) AND ends in a bare top-level main().catch(...) at L269 with no argv guard — dynamically importing it would run the real ingest (DB writes + Anthropic batch), so this harness must not import it at all",
-  "ingest/syllabus.ts::NODE_SCHEMA + the structurePaper system/instructions + the vision OCR prompt":
-    "module exports NOTHING; the system/instructions are function-LOCAL consts inside structurePaper(), and the file ends in a bare top-level main().catch(...) at L428 — not importable",
-  "ingest/pyq.ts::buildExtractSystem / EXTRACT_SCHEMA / ANSWER_KEY_SCHEMA / CLASSIFY_SCHEMA + the answer-key and classify inline prompts":
-    "module exports NOTHING; buildExtractSystem is module-private and its ctx type (ExtractCtx) is unexported; the answer-key/classify prompts are anonymous inline properties; and the file ends in a bare top-level main().catch(...) at L815 — not importable",
-  "ingest/series.ts::SERIES_SYSTEM / SERIES_SCHEMA":
-    "module-private consts; the file IS import-safe (no top-level main) but exposes no prompt builder — detectBookletSeries() returns only a series letter and needs a real PDF plus a live vision call",
+  "ingest/explain.ts::supportSystem / SUPPORT_SCHEMA / explainSystem / EXPLAIN_SCHEMA / supportContent / explainContent":
+    "module exports NOTHING (pure CLI entry) AND ends in a bare top-level main().catch(...) with no argv guard — dynamically importing it would run the real ingest (DB writes + Anthropic batch), so this harness must not import it at all. Its two exam-parameterised systems were verified byte-identical by direct string assertion in the slice-2d verification script instead",
+  "ingest/syllabus.ts::NODE_SCHEMA + buildStructurePaperSystem + the structurePaper instructions + the vision OCR prompt":
+    "module exports NOTHING and ends in a bare top-level main().catch(...) — not importable. buildStructurePaperSystem is now a named module-private function taking an exam code; its uppsc output was verified byte-identical by direct string assertion in the slice-2d verification script",
+  "ingest/pyq.ts::buildExtractSystem / buildNodeClassifySystem / EXTRACT_SCHEMA / ANSWER_KEY_SCHEMA / CLASSIFY_SCHEMA + the answer-key inline prompt":
+    "module exports NOTHING; buildExtractSystem is module-private and its ctx type (ExtractCtx) is unexported; the answer-key prompt is an anonymous inline property; and the file ends in a bare top-level main().catch(...) — not importable. buildNodeClassifySystem (the one exam-bearing prompt here) was verified byte-identical by direct string assertion in the slice-2d verification script",
 };
 
 // ===========================================================================
@@ -934,6 +1019,7 @@ async function main(): Promise<void> {
   await collectNotesPrompts();
   await collectQuestionExplanationPrompts();
   await collectAuditPrompts();
+  await collectSlice2dPrompts();
 
   snapshot.__unreachable__ = unreachable;
   snapshot.__not_reachable_without_editing__ = NOT_REACHABLE_WITHOUT_EDITING;

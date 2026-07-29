@@ -7,6 +7,7 @@
  */
 import type { Locale } from "@neev/shared";
 import { MODELS, streamText, structuredJson } from "../../lib/anthropic.js";
+import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
 import { logger } from "../../lib/logger.js";
 import type { OcrPage, OcrProvider, OcrResult } from "./index.js";
 
@@ -14,9 +15,20 @@ function langName(locale: Locale): string {
   return locale === "hi" ? "Hindi (Devanagari script)" : "English";
 }
 
-function buildTranscribeSystem(language: Locale): string {
+/**
+ * EXPORTED (was module-private) so `pnpm prompts:snapshot` can diff it — reading
+ * it previously required `.transcribe()`, which makes two live model calls.
+ *
+ * CACHE BOUNDARY: this string is sent as a `cache: true` system segment (see
+ * `transcribe` below). Per-exam text here PARTITIONS the cache — one stable
+ * entry per (exam, language) instead of one per language — which is fine.
+ * Nothing PER-REQUEST may ever enter it, or the prefix varies per call and the
+ * entry is destroyed outright.
+ */
+export function buildTranscribeSystem(examCode: string, language: Locale): string {
+  const answer = requireAuthored(getExamConfig(examCode).misc.ocrFraming, examCode, "misc.ocrFraming");
   return (
-    "You transcribe photographed pages of a handwritten UPPSC Mains exam answer. The pages are " +
+    `You transcribe photographed pages of ${answer}. The pages are ` +
     "given in order; treat them as one continuous answer and transcribe them in that order. " +
     `Transcribe EXACTLY what is written — the answer is primarily in ${langName(language)}, but a ` +
     "candidate may mix Hindi and English words; transcribe each word in the script it was actually " +
@@ -61,7 +73,7 @@ function estimateConfidenceFromMarkers(text: string): number {
 
 export const claudeVisionProvider: OcrProvider = {
   name: "claude-vision",
-  async transcribe({ pages, language, userId, onDelta, signal }): Promise<OcrResult> {
+  async transcribe({ pages, language, examCode, userId, onDelta, signal }): Promise<OcrResult> {
     const content = [
       {
         type: "text" as const,
@@ -75,7 +87,7 @@ export const claudeVisionProvider: OcrProvider = {
       model: MODELS.sonnet,
       // Fixed per language — cached so it's a cache read, not a fresh input
       // token cost, for every other student's transcription in that language.
-      system: [{ text: buildTranscribeSystem(language), cache: true }],
+      system: [{ text: buildTranscribeSystem(examCode, language), cache: true }],
       content,
       maxTokens: 4000,
       purpose: "answer_ocr_transcribe",

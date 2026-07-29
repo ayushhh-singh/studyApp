@@ -22,6 +22,22 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { structuredJson, translateBatch, MODELS } from "../lib/anthropic.js";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+
+/**
+ * The PRODUCT exam this CLI ingests INTO — deliberately NOT `cls.examCode`,
+ * which is PROVENANCE ("which exam asked this", domain includes up_ro_aro /
+ * upsssc_pet / other, none of which is a selectable product exam).
+ *
+ * `classifyPyqId` maps EVERY provenance exam onto bare UPPSC paper codes and
+ * this pipeline classifies against the UPPSC syllabus tree, so the exam whose
+ * framing these prompts must use is the default one. Named here, once and
+ * greppably, rather than defaulted into each prompt builder (this repo's M24
+ * lesson). Changing that is docs/OUTSTANDING.md M23 — do it as the FIRST step
+ * of a second exam's PYQ ingest, before the first `ingest:pyq` run.
+ */
+const INGEST_PRODUCT_EXAM: string = DEFAULT_EXAM_CODE;
 import { supabase } from "../lib/supabase.js";
 import { detectBookletSeries, seriesAlignment, type BookletSeries, type SeriesAlignment } from "./series.js";
 import {
@@ -405,7 +421,7 @@ async function loadAnswerKey(
   for (const a of out.answers) map.set(a.q_no, a.correct_option_key.trim().toUpperCase());
   // Detect which booklet series this key is for (so it's only trusted against a
   // paper of the same series — see series.ts).
-  const series = await detectBookletSeries(absPath(entry), entry.pages ?? 1, "ingest_series_detect_key");
+  const series = await detectBookletSeries(absPath(entry), entry.pages ?? 1, INGEST_PRODUCT_EXAM, "ingest_series_detect_key");
   return { map, series };
 }
 
@@ -450,6 +466,25 @@ const CLASSIFY_SCHEMA = {
   required: ["mappings"],
 } as const;
 
+/**
+ * NOT exported and NOT snapshot-covered: this module ends in a bare top-level
+ * `main().catch(...)` with no argv guard, so `pnpm prompts:snapshot` must never
+ * import it (a dynamic import would run the real ingest — DB writes, Anthropic
+ * batches). Its byte-identity for uppsc was verified by direct string assertion
+ * instead; see the multi-exam slice-2d report.
+ */
+function buildNodeClassifySystem(examCode: string): string {
+  const questions = requireAuthored(
+    getExamConfig(examCode).misc.pyqNodeClassifyFraming,
+    examCode,
+    "misc.pyqNodeClassifyFraming",
+  );
+  return (
+    `You map ${questions} to the single best-matching syllabus node. ` +
+    "Choose ONLY from the provided paths. If none fit, return an empty path."
+  );
+}
+
 async function classify(
   questions: RawQuestion[],
   tree: SyllabusNode[],
@@ -465,9 +500,7 @@ async function classify(
       .join("\n");
     const out = await structuredJson<{ mappings: { q_no: number; path: string }[] }>({
       model: MODELS.haiku,
-      system:
-        "You map each UPPSC question to the single best-matching syllabus node. " +
-        "Choose ONLY from the provided paths. If none fit, return an empty path.",
+      system: buildNodeClassifySystem(INGEST_PRODUCT_EXAM),
       content:
         `SYLLABUS NODES (path :: title):\n${treeText}\n\n` +
         `QUESTIONS:\n${qText}\n\n` +
@@ -697,7 +730,7 @@ async function main(): Promise<void> {
   let alignment: SeriesAlignment = "assumed";
   if (isMcq) {
     report.section("Booklet series + answer-key cross-check");
-    paperSeries = await detectBookletSeries(absPath(entry), info.pageCount);
+    paperSeries = await detectBookletSeries(absPath(entry), info.pageCount, INGEST_PRODUCT_EXAM);
     report.step(`paper booklet series: ${paperSeries ?? "unknown"}`);
     const keyResult = await loadAnswerKey(manifest, cls.examCode, cls.year, cls.paperCode);
     if (keyResult) {
@@ -730,7 +763,17 @@ async function main(): Promise<void> {
   // Hindi from the clean English via batched haiku translation (flagged).
   report.section("Bilingual fill (claude-haiku-4-5, batched)");
   const jobs = collectHindiJobs(raw);
-  const translations = jobs.length ? await translateBatch(jobs, "hi") : [];
+  const translations = jobs.length
+    ? await translateBatch(
+        jobs,
+        "hi",
+        requireAuthored(
+          getExamConfig(INGEST_PRODUCT_EXAM).misc.translateQuestionsDomainHint,
+          INGEST_PRODUCT_EXAM,
+          "misc.translateQuestionsDomainHint",
+        ),
+      )
+    : [];
   const hiMap = new Map<string, string>();
   jobs.forEach((en, i) => {
     if (translations[i]) hiMap.set(en, translations[i]);

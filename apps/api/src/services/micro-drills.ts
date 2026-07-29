@@ -20,6 +20,8 @@ import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { assertMicroDrill } from "./entitlements.js";
 import { MODELS, structuredJson } from "../lib/anthropic.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { getUserExam } from "../lib/exams.js";
 import { fetchRecentEvaluations, computeDimensionInsights } from "./profile-analytics.js";
 
 const DRILL_WORD_LIMIT = 80;
@@ -261,10 +263,20 @@ interface DrillScorePass1Item {
   justification_en: string;
 }
 
-function buildDrillEvaluationSystem(drillType: DrillType): string {
+/**
+ * EXPORTED (was module-private) so `pnpm prompts:snapshot` can diff it by string
+ * — reaching it previously required `executeDrillEvaluation`, which calls the
+ * model and writes `drill_sessions`.
+ */
+export function buildDrillEvaluationSystem(examCode: string, drillType: DrillType): string {
   const part = drillType === "intro" ? "introduction" : "conclusion";
+  const examiner = requireAuthored(
+    getExamConfig(examCode).misc.drillExaminerFraming,
+    examCode,
+    "misc.drillExaminerFraming",
+  );
   return (
-    `You are an examiner scoring UPPSC (UP PCS) Mains answer-writing practice. The student ` +
+    `You are ${examiner}. The student ` +
     `has written ONLY the ${part} of an answer (not the full answer) to each question, within an ` +
     `80-word limit. Score EACH item 0-10 purely on structure and flow of that ${part}: ` +
     (drillType === "intro"
@@ -326,7 +338,8 @@ export async function executeDrillEvaluation(
   const pass1 = await structuredJson<{ items: DrillScorePass1Item[] }>({
     model: MODELS.sonnet,
     effort: "low",
-    system: buildDrillEvaluationSystem(session.drill_type),
+    // The drill is scored against the student's OWN exam's examiner framing.
+    system: buildDrillEvaluationSystem(await getUserExam(session.user_id), session.drill_type),
     content: buildDrillEvaluationContent(session),
     schema: drillScoreSchema(),
     maxTokens: 2000,

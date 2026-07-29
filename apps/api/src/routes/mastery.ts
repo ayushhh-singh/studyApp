@@ -34,8 +34,9 @@ masteryRouter.get(
       req.query,
     );
     const userId = currentUserId();
-    const map = await getMasteryMap(userId, { paperCode: paper, targetExam: await getUserExam(userId) });
-    const png = await renderMasteryMapPng(map, locale);
+    const examCode = await getUserExam(userId);
+    const map = await getMasteryMap(userId, { paperCode: paper, targetExam: examCode });
+    const png = await renderMasteryMapPng(map, locale, examCode);
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.send(png);

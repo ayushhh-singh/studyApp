@@ -24,6 +24,7 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { retrieveGrounding, type GroundingResult } from "./evaluation/grounding.js";
 import { examCodeForNode } from "../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 
 interface ExplainQuestion {
   id: string;
@@ -58,12 +59,58 @@ export function groundingBlockText(g: GroundingResult): string {
 // ---------------------------------------------------------------------------
 // Grounded explanation authoring (argues FOR the stored key)
 // ---------------------------------------------------------------------------
-const EXPLAIN_SYSTEM =
-  "You write UPPSC MCQ answer explanations for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the " +
-  "correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using the " +
-  "reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
-  "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
-  "no bold/italic asterisks, no bullet lists. Return strict JSON only.";
+/**
+ * Memoise each exam's assembled system prompt — these were module-level consts
+ * (one string instance, one prompt-cache-friendly identity); per-exam functions
+ * keep that property PER EXAM instead of rebuilding on every call. Same helper
+ * shape as `qgen/prompts.ts`'s.
+ */
+function memoisePerExam(build: (examCode: string) => string): (examCode: string) => string {
+  const cache = new Map<string, string>();
+  return (examCode: string) => {
+    const hit = cache.get(examCode);
+    if (hit !== undefined) return hit;
+    const built = build(examCode);
+    cache.set(examCode, built);
+    return built;
+  };
+}
+
+/**
+ * Exported (was a module-private `EXPLAIN_SYSTEM` const) so `pnpm prompts:snapshot`
+ * can diff it by string without issuing the model call that used to be the only
+ * way to read it.
+ */
+export const explainSystem = memoisePerExam(
+  (examCode) =>
+    `You write ${requireAuthored(getExamConfig(examCode).misc.explanationFraming, examCode, "misc.explanationFraming")} for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the ` +
+    "correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using the " +
+    "reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
+    "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
+    "no bold/italic asterisks, no bullet lists. Return strict JSON only.",
+);
+
+/**
+ * The system prompt for the STREAMED on-demand explanation served by
+ * `routes/stream.ts`'s `GET /stream/explain/:questionId`.
+ *
+ * It lives here, next to that endpoint's `groundingForExplain`, rather than
+ * inline in the route: as an anonymous literal inside a router closure it was
+ * unreachable by `pnpm prompts:snapshot` without a live HTTP request, so a
+ * refactor could silently reword it. This module is already the owner of the
+ * endpoint's prompt inputs (see the header), which is why it is the natural home.
+ *
+ * Distinct from `explainSystem` above — that one writes a BILINGUAL, persisted
+ * JSON explanation; this one streams prose in ONE locale.
+ */
+export const streamExplainSystem = memoisePerExam(
+  (examCode) =>
+    `You explain ${requireAuthored(getExamConfig(examCode).misc.streamExplanationFraming, examCode, "misc.streamExplanationFraming")} for exam aspirants. Be concise (3-5 sentences), ` +
+    "argue why the given correct option is right (grounded in the reference passages) and briefly why the " +
+    "others are wrong. Ground every factual claim in the passages or well-established knowledge; never invent a " +
+    "date, article, name, or number. Output plain prose only, rendered verbatim with no markdown renderer: no " +
+    "headers, no bold/italic asterisks, no bullet lists.",
+);
 
 const EXPLAIN_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -79,12 +126,17 @@ const EXPLAIN_SCHEMA: Record<string, unknown> = {
   required: ["explanation"],
 };
 
-async function authorExplanation(q: ExplainQuestion, g: GroundingResult, userId?: string): Promise<BilingualText> {
+async function authorExplanation(
+  q: ExplainQuestion,
+  g: GroundingResult,
+  examCode: string,
+  userId?: string,
+): Promise<BilingualText> {
   const correct = (q.options_i18n ?? []).find((o) => o.key === q.correct_option_key);
   const out = await structuredJson<{ explanation: BilingualText }>({
     model: MODELS.haiku,
     maxTokens: 1500,
-    system: EXPLAIN_SYSTEM,
+    system: explainSystem(examCode),
     content:
       `Question:\n${q.stem_i18n.en ?? q.stem_i18n.hi ?? ""}\n\nOptions:\n${optionsEn(q)}\n\n` +
       `Correct option: ${q.correct_option_key}` +
@@ -116,15 +168,17 @@ export async function generateGroundedExplanation(
 ): Promise<BilingualText> {
   const q = await fetchQuestion(questionId);
   const text = `${q.stem_i18n.en ?? q.stem_i18n.hi ?? ""}\n${optionsEn(q)}`;
+  // The exam that owns the question's node, not its provenance exam_code —
+  // scopes BOTH the retrieval and the explanation's own exam framing.
+  const examCode = await examCodeForNode(q.syllabus_node_id);
   const g = await retrieveGrounding({
     questionText: text,
     locale: "en",
     syllabusNodeId: q.syllabus_node_id,
-    // The exam that owns the question's node, not its provenance exam_code.
-    examCode: await examCodeForNode(q.syllabus_node_id),
+    examCode,
     k: 6,
   });
-  const expl = await authorExplanation(q, g, opts.userId);
+  const expl = await authorExplanation(q, g, examCode, opts.userId);
   await writeExplanation(questionId, expl, opts.force ?? false);
   return expl;
 }

@@ -9,6 +9,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { MODELS, estimateCostUsd, type ModelId } from "./models.js";
 import { supabase } from "./supabase.js";
 import { logger } from "./logger.js";
+import { getExamConfig, requireAuthored } from "./exam-config.js";
 
 let client: Anthropic | null = null;
 
@@ -797,22 +798,46 @@ export async function webResearch(opts: {
 }
 
 /**
+ * The `translate()` system prompt, per exam. Exported so `pnpm prompts:snapshot`
+ * can diff it without issuing a model call (it was previously an inline literal
+ * inside the structuredJson call).
+ */
+export function buildTranslateSystem(examCode: string, domainHint: string): string {
+  const platform = requireAuthored(
+    getExamConfig(examCode).misc.translatePlatformFraming,
+    examCode,
+    "misc.translatePlatformFraming",
+  );
+  return (
+    `You translate ${domainHint} between Hindi and English for ${platform}. ` +
+    `Preserve technical/administrative terms accurately. ` +
+    `Return ONLY the translation, no notes.`
+  );
+}
+
+/**
  * Draft-translate a short piece of content between hi/en with claude-haiku-4-5.
  * Used to fill the missing language when only one side parsed cleanly. Callers
  * mark the result meta.machine_translated=true for human review.
+ *
+ * `examCode` and `domainHint` are BOTH REQUIRED, and `domainHint`'s default was
+ * deliberately REMOVED (multi-exam slice 2d). It used to default to
+ * "UPPSC exam-prep content", so every caller that omitted the argument emitted
+ * a hardcoded exam name with nothing at the call site to grep for — the worst
+ * instance of this repo's M24 lesson (a defaulted parameter lets a caller
+ * silently keep the old behaviour). Every caller can supply both; the generic
+ * hint now lives in `misc.translateDomainHint` and is read explicitly.
  */
 export async function translate(
   text: string,
   target: "hi" | "en",
-  domainHint = "UPPSC exam-prep content",
+  examCode: string,
+  domainHint: string,
 ): Promise<string> {
   const targetName = target === "hi" ? "Hindi (Devanagari)" : "English";
   const out = await structuredJson<{ translation: string }>({
     model: MODELS.haiku,
-    system:
-      `You translate ${domainHint} between Hindi and English for a UP PCS ` +
-      `exam platform. Preserve technical/administrative terms accurately. ` +
-      `Return ONLY the translation, no notes.`,
+    system: buildTranslateSystem(examCode, domainHint),
     content: `Translate the following into ${targetName}:\n\n${text}`,
     schema: {
       type: "object",
@@ -836,11 +861,16 @@ export async function translate(
  * llm_calls/cost:report) — pass them when a caller cares about attributing
  * this spend, e.g. per-evaluation lazy translation. Omit for the original
  * ingestion-time use (untracked, as before).
+ *
+ * `domainHint` is REQUIRED — its "UPPSC exam questions" default was removed in
+ * multi-exam slice 2d for the same reason as `translate()`'s (see above). Unlike
+ * `translate()` this needs no `examCode`: its system prompt names no platform,
+ * so the hint is the only exam-bearing text and the caller supplies it.
  */
 export async function translateBatch(
   texts: string[],
   target: "hi" | "en",
-  domainHint = "UPPSC exam questions",
+  domainHint: string,
   opts?: { purpose?: string; userId?: string; onUsage?: (usage: LlmUsage) => void },
 ): Promise<string[]> {
   const targetName = target === "hi" ? "Hindi (Devanagari)" : "English";

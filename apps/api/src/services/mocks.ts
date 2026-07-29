@@ -9,7 +9,8 @@
  * compares against the seeded official cut-offs (out of 200) by percentage, and
  * meta.official_max_marks records the real paper's max.
  */
-import type { ExamCutoff } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, type ExamCutoff } from "@neev/shared";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
@@ -18,6 +19,32 @@ import { roundMarks } from "../lib/marks.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 
 const MCQ_MARKS = 2;
+
+/**
+ * The exam-name half of a mock test's title, per stage.
+ *
+ * Read from the config for `DEFAULT_EXAM_CODE` explicitly rather than threaded
+ * from a caller, because THESE BUILDERS ARE SINGLE-EXAM BY CONSTRUCTION: every
+ * question they draw is filtered `.eq("exam_code", UPPSC_EXAM_CODE)` (see the
+ * module header — mocks are titled AND marked to one commission's pattern, and
+ * this app also ingests other exams' questions onto the same paper codes), and
+ * the paper codes/marking patterns below are that exam's. A second exam needs
+ * its own verified pattern and its own builder pass, not a threaded parameter
+ * onto this one — so the default is named HERE, at one greppable place, instead
+ * of hiding as a defaulted parameter on four functions (this repo's M24 lesson).
+ */
+const MOCK_TITLE_EXAM = {
+  prelims: requireAuthored(
+    getExamConfig(DEFAULT_EXAM_CODE).misc.prelimsMockTitlePrefix,
+    DEFAULT_EXAM_CODE,
+    "misc.prelimsMockTitlePrefix",
+  ),
+  mains: requireAuthored(
+    getExamConfig(DEFAULT_EXAM_CODE).misc.mainsMockTitlePrefix,
+    DEFAULT_EXAM_CODE,
+    "misc.mainsMockTitlePrefix",
+  ),
+};
 
 /**
  * A mock must ALWAYS carry at least this many questions from every populated
@@ -227,8 +254,8 @@ async function upsertMockTest(input: {
       {
         slug: input.slug,
         title_i18n: {
-          en: `UPPSC Prelims ${paperName.en} — Mock Test ${input.index}`,
-          hi: `यूपीपीएससी प्रारंभिक ${paperName.hi} — मॉक टेस्ट ${input.index}`,
+          en: `${MOCK_TITLE_EXAM.prelims.en} ${paperName.en} — Mock Test ${input.index}`,
+          hi: `${MOCK_TITLE_EXAM.prelims.hi} ${paperName.hi} — मॉक टेस्ट ${input.index}`,
         },
         kind: "mock",
         paper_code: input.paperCode,
@@ -388,8 +415,8 @@ async function upsertMainsMockTest(input: {
       {
         slug: input.slug,
         title_i18n: {
-          en: `UPPSC Mains ${input.title.en} — Mock Test ${input.index}`,
-          hi: `यूपीपीएससी मुख्य ${input.title.hi} — मॉक टेस्ट ${input.index}`,
+          en: `${MOCK_TITLE_EXAM.mains.en} ${input.title.en} — Mock Test ${input.index}`,
+          hi: `${MOCK_TITLE_EXAM.mains.hi} ${input.title.hi} — मॉक टेस्ट ${input.index}`,
         },
         kind: "mock",
         paper_code: input.paperCode,

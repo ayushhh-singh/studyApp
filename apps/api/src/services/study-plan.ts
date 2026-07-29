@@ -21,6 +21,7 @@ import { MODELS, structuredJson } from "../lib/anthropic.js";
 import { assertNotGuest } from "./entitlements.js";
 import { getMasteryMap } from "../mastery/compute.js";
 import { getUserExam } from "../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 
 const PLAN_DAYS = 7;
 
@@ -78,6 +79,8 @@ export type PlanEmit = (event: string, data: unknown) => void;
 
 export interface GeneratePlanInput {
   userId: string;
+  /** The user's target exam — scopes the coach persona and the aspirant fallback. */
+  examCode: string;
   hoursPerDay: number;
   today: string;
   targetDate: string | null;
@@ -155,6 +158,7 @@ export async function planGenerate(userId: string, hoursPerDay: number): Promise
 
   return {
     userId,
+    examCode,
     hoursPerDay,
     today,
     targetDate: examRow?.exam_date ?? null,
@@ -221,9 +225,19 @@ function planGenerationSchema(): Record<string, unknown> {
   };
 }
 
-function buildPlanSystem(): string {
+/**
+ * EXPORTED (was module-private) so `pnpm prompts:snapshot` can diff it by string
+ * — its only caller is `executeGeneratePlan`, which calls the model and writes
+ * the DB.
+ */
+export function buildPlanSystem(examCode: string): string {
+  const coach = requireAuthored(
+    getExamConfig(examCode).misc.studyPlanCoachFraming,
+    examCode,
+    "misc.studyPlanCoachFraming",
+  );
   return (
-    "You are an expert UPPSC (UP PCS) exam-prep coach building a personalised 7-day study " +
+    `You are ${coach} building a personalised 7-day study ` +
     "plan. Every task title and focus line must be written in BOTH Hindi (Devanagari) and " +
     "English, fully populated in both languages — never leave one language thin or empty. " +
     "Each day should have 2-4 tasks of kind read/practice/revise/write/mock, with " +
@@ -236,9 +250,15 @@ function buildPlanSystem(): string {
   );
 }
 
-function buildPlanContent(input: GeneratePlanInput): string {
+/** EXPORTED alongside `buildPlanSystem` for the same snapshot-coverage reason. */
+export function buildPlanContent(input: GeneratePlanInput): string {
   const lines: string[] = [];
-  lines.push(`Student: ${input.displayName ?? "a UPPSC aspirant"}, target exam year ${input.targetExamYear ?? "unspecified"}, preferred medium ${input.medium}.`);
+  const aspirant = requireAuthored(
+    getExamConfig(input.examCode).misc.studyPlanAspirantFallback,
+    input.examCode,
+    "misc.studyPlanAspirantFallback",
+  );
+  lines.push(`Student: ${input.displayName ?? aspirant}, target exam year ${input.targetExamYear ?? "unspecified"}, preferred medium ${input.medium}.`);
   lines.push(`Hours available per day: ${input.hoursPerDay}.`);
   if (input.nextExam) {
     lines.push(
@@ -302,7 +322,7 @@ export async function executeGeneratePlan(
   const generated = await structuredJson<{ days: GeneratedDay[] }>({
     model: MODELS.sonnet,
     effort: "medium",
-    system: buildPlanSystem(),
+    system: buildPlanSystem(input.examCode),
     content: buildPlanContent(input),
     schema: planGenerationSchema(),
     maxTokens: 8000,

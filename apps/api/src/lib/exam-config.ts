@@ -579,6 +579,20 @@ export interface ExamNotesConfig {
   groundingStoreLabel: Authored<string>;
 }
 
+/**
+ * A bilingual USER-FACING label (not a prompt fragment).
+ *
+ * Separate from `Authored<string>` because the strings it carries are rendered
+ * to a learner in both locales — a test title, a share-card brand line — so an
+ * exam that has one side authored and not the other is not a usable value.
+ * `naming.displayNameI18n` uses the same `{en, hi}` shape; this type exists so
+ * the several `misc` labels below don't each re-declare it inline.
+ */
+export interface I18nLabel {
+  en: string;
+  hi: string;
+}
+
 /** Everything else that names the exam in a prompt. */
 export interface ExamMiscConfig {
   /** Call site: `lib/community-moderation.ts` — `` `You screen user-generated posts on ${moderationFraming} for abuse…` ``. */
@@ -587,12 +601,35 @@ export interface ExamMiscConfig {
   ocrFraming: Authored<string>;
   /** Call site: `services/micro-drills.ts` — `` `You are ${drillExaminerFraming}. The student has written ONLY the…` ``. */
   drillExaminerFraming: Authored<string>;
-  /** Call site: `services/question-explanation.ts` `EXPLAIN_SYSTEM` — `` `You write ${explanationFraming} for exam aspirants, in BOTH Hindi…` ``. */
+  /**
+   * TWO call sites, one byte-identical fragment (so one field, per this file's
+   * shared-fragment convention):
+   *  - `services/question-explanation.ts` `explainSystem` (the on-demand path)
+   *  - `ingest/explain.ts` `explainSystem` (the batch ingest CLI, a deliberate
+   *    self-contained copy of the same policy — its surrounding sentence says
+   *    "the VERIFIED correct option", which is structural, not exam-bearing).
+   * Both read `` `You write ${explanationFraming} for exam aspirants, in BOTH Hindi…` ``.
+   */
   explanationFraming: Authored<string>;
-  /** Call site: `routes/stream.ts` on-demand explanation — a DIFFERENT form (`"UPPSC (UP PCS) MCQ answers"`); separate field. */
+  /**
+   * The on-demand `/stream/explain` explanation — a DIFFERENT grammatical form
+   * (`"UPPSC (UP PCS) MCQ answers"`, the object of "You explain …"); separate
+   * field, not derivable from `explanationFraming`.
+   *
+   * Call site: `services/question-explanation.ts` `streamExplainSystem`, which
+   * `routes/stream.ts`'s `/stream/explain` handler sends. (The builder was moved
+   * out of the route in the multi-exam sweep so it is reachable by
+   * `pnpm prompts:snapshot` without issuing an HTTP request.)
+   */
   streamExplanationFraming: Authored<string>;
   /** Call site: `routes/stream.ts` — the `translate()` `domainHint` argument for the second locale. */
   explanationTranslateDomainHint: Authored<string>;
+  /**
+   * Call site: `ingest/explain.ts` `supportSystem` — the grounded key-SUPPORT
+   * pre-check that runs before an explanation is written:
+   * `` `You are auditing ${ingestKeySupportFraming} before an explanation is written for it.` ``.
+   */
+  ingestKeySupportFraming: Authored<string>;
   /** Call site: `services/study-plan.ts` `buildPlanSystem` — `` `You are ${studyPlanCoachFraming} building a personalised 7-day study plan.` ``. */
   studyPlanCoachFraming: Authored<string>;
   /** Call site: `services/study-plan.ts` `buildPlanContent` — the `displayName` fallback, `` `Student: ${displayName ?? studyPlanAspirantFallback}, …` ``. */
@@ -627,6 +664,72 @@ export interface ExamMiscConfig {
   translatePlatformFraming: Authored<string>;
   /** Call site: `lib/anthropic.ts` `translateBatch()` — the DEFAULT `domainHint`. Same default-parameter trap as above. */
   translateQuestionsDomainHint: Authored<string>;
+
+  // -------------------------------------------------------------------------
+  // Ingest / audit CLI prompts
+  // -------------------------------------------------------------------------
+  /**
+   * Call site: `ingest/series.ts` `seriesSystem` —
+   * `` `You are shown the cover/first page of ${seriesPaperFraming}. Look for a BOOKLET …` ``.
+   */
+  seriesPaperFraming: Authored<string>;
+  /**
+   * Call site: `ingest/series.ts` `seriesSystem` — `` `Note: ${seriesBookletCodeNote}, and coaching-reconstructed papers …` ``.
+   *
+   * JUDGMENT, not naming: "DSTF-1-23" is the shape of the code a UPPSC booklet
+   * actually prints instead of a plain A/B/C/D series letter (confirmed on the
+   * 2024 GS-I pilot — see that module's header). Another commission's booklets
+   * carry whatever THEY print; this must be observed, never adapted.
+   */
+  seriesBookletCodeNote: Authored<string>;
+  /**
+   * Call site: `ingest/syllabus.ts` `buildStructurePaperSystem` —
+   * `` `You are an expert on ${syllabusExpertFraming}. You build a clean, hierarchical …` ``.
+   *
+   * JUDGMENT: the uppsc value names a specific reform year ("its 2025-reform
+   * syllabus"), which is a fact about UPPSC's own syllabus history.
+   */
+  syllabusExpertFraming: Authored<string>;
+  /**
+   * Call site: `ingest/syllabus.ts` `buildStructurePaperSystem` —
+   * `` `…use ${syllabusStructureNote} to organise topics into sections and sub-topics.` ``.
+   */
+  syllabusStructureNote: Authored<string>;
+  /**
+   * Call site: `ingest/pyq.ts` `buildNodeClassifySystem` —
+   * `` `You map ${pyqNodeClassifyFraming} to the single best-matching syllabus node. ` ``.
+   */
+  pyqNodeClassifyFraming: Authored<string>;
+  /** Call site: `audit/resolve.ts` `solveSystem` — `` `You are ${auditSolverFraming}. You are shown ONE multiple-choice question…` ``. */
+  auditSolverFraming: Authored<string>;
+  /** Call site: `audit/resolve.ts` `escalateSystem` — `` `You are ${auditEscalateFraming}. An automated solver disagreed…` ``. */
+  auditEscalateFraming: Authored<string>;
+
+  // -------------------------------------------------------------------------
+  // USER-FACING labels (rendered to a learner, not sent to a model)
+  // -------------------------------------------------------------------------
+  /**
+   * Call site: `ingest/tests.ts` — the `tests.title_i18n` of a `pyq_full` test:
+   * `` `${pyqTestTitlePrefix.en} ${paper.title.en} — ${year}` `` (and the `hi` half).
+   * Stored WITHOUT the trailing space, which is structural.
+   */
+  pyqTestTitlePrefix: Authored<I18nLabel>;
+  /**
+   * Call site: `services/mocks.ts` `upsertPrelimsMockTest` —
+   * `` `${prelimsMockTitlePrefix.en} ${paperName.en} — Mock Test ${index}` ``.
+   * Distinct from `pyqTestTitlePrefix` because it names the STAGE too.
+   */
+  prelimsMockTitlePrefix: Authored<I18nLabel>;
+  /** Call site: `services/mocks.ts` `upsertMainsMockTest` — the Mains counterpart. */
+  mainsMockTitlePrefix: Authored<I18nLabel>;
+  /**
+   * Call site: `services/share-image.ts` — the brand line rendered into BOTH
+   * share PNGs (weekly digest + Conquest Map). "Neev" is the product name and is
+   * exam-independent; only the exam half of the line varies, but the two are
+   * fused into one rendered string, so the whole line is configured rather than
+   * assembled from a product constant plus an exam name.
+   */
+  shareCardBrand: Authored<I18nLabel>;
 }
 
 export interface ExamConfig {
@@ -899,6 +1002,22 @@ const UPPSC: ExamConfig = {
     translateDomainHint: "UPPSC exam-prep content",
     translatePlatformFraming: "a UP PCS exam platform",
     translateQuestionsDomainHint: "UPPSC exam questions",
+    ingestKeySupportFraming: "a UPPSC exam MCQ",
+
+    seriesPaperFraming: "a UPPSC exam question paper or its official answer key",
+    seriesBookletCodeNote:
+      "many UPPSC booklets carry only a CODE string (e.g. 'DSTF-1-23') or a bar-code serial number instead of a " +
+      "plain A/B/C/D letter",
+    syllabusExpertFraming: "the UPPSC (UP PCS) examination and its 2025-reform syllabus",
+    syllabusStructureNote: "the standard UPPSC structure",
+    pyqNodeClassifyFraming: "each UPPSC question",
+    auditSolverFraming: "a top UPPSC aspirant taking the exam",
+    auditEscalateFraming: "a meticulous fact-checker auditing a UPPSC exam question",
+
+    pyqTestTitlePrefix: { en: "UPPSC", hi: "यूपीपीएससी" },
+    prelimsMockTitlePrefix: { en: "UPPSC Prelims", hi: "यूपीपीएससी प्रारंभिक" },
+    mainsMockTitlePrefix: { en: "UPPSC Mains", hi: "यूपीपीएससी मुख्य" },
+    shareCardBrand: { en: "Neev · UPPSC prep", hi: "नींव · यूपीपीएससी तैयारी" },
   },
 
   launchScope: { source: "db:exams.launch_scope_i18n" },
@@ -1049,6 +1168,20 @@ const UPSC: ExamConfig = {
     translateDomainHint: UNAUTHORED,
     translatePlatformFraming: UNAUTHORED,
     translateQuestionsDomainHint: UNAUTHORED,
+    ingestKeySupportFraming: UNAUTHORED,
+
+    seriesPaperFraming: UNAUTHORED,
+    seriesBookletCodeNote: UNAUTHORED,
+    syllabusExpertFraming: UNAUTHORED,
+    syllabusStructureNote: UNAUTHORED,
+    pyqNodeClassifyFraming: UNAUTHORED,
+    auditSolverFraming: UNAUTHORED,
+    auditEscalateFraming: UNAUTHORED,
+
+    pyqTestTitlePrefix: UNAUTHORED,
+    prelimsMockTitlePrefix: UNAUTHORED,
+    mainsMockTitlePrefix: UNAUTHORED,
+    shareCardBrand: UNAUTHORED,
   },
 
   launchScope: { source: "db:exams.launch_scope_i18n" },
@@ -1199,6 +1332,20 @@ const MPPSC: ExamConfig = {
     translateDomainHint: UNAUTHORED,
     translatePlatformFraming: UNAUTHORED,
     translateQuestionsDomainHint: UNAUTHORED,
+    ingestKeySupportFraming: UNAUTHORED,
+
+    seriesPaperFraming: UNAUTHORED,
+    seriesBookletCodeNote: UNAUTHORED,
+    syllabusExpertFraming: UNAUTHORED,
+    syllabusStructureNote: UNAUTHORED,
+    pyqNodeClassifyFraming: UNAUTHORED,
+    auditSolverFraming: UNAUTHORED,
+    auditEscalateFraming: UNAUTHORED,
+
+    pyqTestTitlePrefix: UNAUTHORED,
+    prelimsMockTitlePrefix: UNAUTHORED,
+    mainsMockTitlePrefix: UNAUTHORED,
+    shareCardBrand: UNAUTHORED,
   },
 
   launchScope: { source: "db:exams.launch_scope_i18n" },

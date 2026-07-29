@@ -25,6 +25,7 @@ import { logger } from "../lib/logger.js";
 import { MODELS, structuredJson, translateBatch } from "../lib/anthropic.js";
 import { embedQuery, retrieveContext } from "./mentor/retrieval.js";
 import { getUserExam } from "../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 
 const EMPTY_BODY: NoteBody = {
   overview: "",
@@ -106,13 +107,40 @@ interface ConvertResult {
   cards: { front: string; back: string }[];
 }
 
+/**
+ * EXPORTED (the whole prompt used to be anonymous inline properties of the
+ * `structuredJson({...})` argument inside the module-private
+ * `convertAnswerToBody`) so `pnpm prompts:snapshot` can diff it by string.
+ */
+export function buildUserNoteConvertSystem(examCode: string, locale: Locale): string {
+  const lang = locale === "hi" ? "Hindi (Devanagari)" : "English";
+  const audience = requireAuthored(
+    getExamConfig(examCode).misc.personalNotesAudience,
+    examCode,
+    "misc.personalNotesAudience",
+  );
+  return (
+    `You convert a mentor's answer into concise, well-structured personal STUDY NOTES for ${audience}, in ${lang}. ` +
+    "Restructure and tighten the content into clean study material — do not just copy the answer. Fill:\n" +
+    "- title: a short 3-8 word topic title.\n" +
+    "- overview: a 2-4 sentence plain-language summary of the core idea.\n" +
+    "- key_facts: 3-8 crisp, standalone, memorizable facts. If a fact comes from one of the AVAILABLE SOURCES " +
+    "listed below, set source_ref to that source's id (e.g. \"S1\"); otherwise set source_ref to null. Never " +
+    "invent a source id not in the list.\n" +
+    "- mnemonics: 0-3 memory aids ONLY if genuinely useful (else []).\n" +
+    "- quick_revision: 3-6 ultra-short one-line revision bullets.\n" +
+    "- cards: 2-5 spaced-repetition flashcards (front = a question/cue, back = the answer), for self-testing.\n" +
+    "Be faithful to the answer — never add facts it doesn't contain. Plain text only, no markdown."
+  );
+}
+
 async function convertAnswerToBody(
   userId: string,
+  examCode: string,
   answer: string,
   locale: Locale,
   sources: NoteSource[],
 ): Promise<{ body: NoteBody; title: string; cards: { front: string; back: string }[] }> {
-  const lang = locale === "hi" ? "Hindi (Devanagari)" : "English";
   const sourceLines = sources.length
     ? sources.map((s) => `${s.id}: ${s.title}`).join("\n")
     : "(none)";
@@ -121,18 +149,7 @@ async function convertAnswerToBody(
     model: MODELS.haiku,
     purpose: "user_note_convert",
     userId,
-    system:
-      `You convert a mentor's answer into concise, well-structured personal STUDY NOTES for a UPPSC aspirant, in ${lang}. ` +
-      "Restructure and tighten the content into clean study material — do not just copy the answer. Fill:\n" +
-      "- title: a short 3-8 word topic title.\n" +
-      "- overview: a 2-4 sentence plain-language summary of the core idea.\n" +
-      "- key_facts: 3-8 crisp, standalone, memorizable facts. If a fact comes from one of the AVAILABLE SOURCES " +
-      "listed below, set source_ref to that source's id (e.g. \"S1\"); otherwise set source_ref to null. Never " +
-      "invent a source id not in the list.\n" +
-      "- mnemonics: 0-3 memory aids ONLY if genuinely useful (else []).\n" +
-      "- quick_revision: 3-6 ultra-short one-line revision bullets.\n" +
-      "- cards: 2-5 spaced-repetition flashcards (front = a question/cue, back = the answer), for self-testing.\n" +
-      "Be faithful to the answer — never add facts it doesn't contain. Plain text only, no markdown.",
+    system: buildUserNoteConvertSystem(examCode, locale),
     content:
       `AVAILABLE SOURCES (id: title):\n${sourceLines}\n\n` +
       `MENTOR ANSWER TO CONVERT:\n<<<\n${answer.replace(/[<>]/g, " ").slice(0, 12000)}\n>>>`,
@@ -243,12 +260,13 @@ export async function saveMessageAsNote(
 
   // Node link: explicit value wins (including an explicit null to unlink);
   // undefined → infer from the message's teacher meta or a semantic match.
+  const examCode = await getUserExam(userId);
   const nodeId =
     opts.nodeId === undefined
-      ? await inferNode(msg.content, msg.meta?.node_id, locale, await getUserExam(userId))
+      ? await inferNode(msg.content, msg.meta?.node_id, locale, examCode)
       : opts.nodeId;
 
-  const { body, title, cards } = await convertAnswerToBody(userId, msg.content, locale, sources);
+  const { body, title, cards } = await convertAnswerToBody(userId, examCode, msg.content, locale, sources);
   if (!body.overview.trim()) throw new HttpError(502, "Couldn't turn this answer into notes — try a fuller answer.");
 
   const content_i18n: NoteContentI18n =
@@ -364,10 +382,19 @@ export async function translateUserNote(userId: string, id: string): Promise<Use
   // never skips the call — no empty-batch special case needed. `to` can be
   // either locale (this fills whichever side is missing), so the hint stays
   // direction-agnostic rather than naming a specific source/target language.
+  //
+  // The note is the USER's own material, so its domain hint follows the user's
+  // target exam — the same exam `convertAnswerToBody` framed it under when the
+  // note was first written (not the linked node's exam, which may be absent).
+  const noteExam = await getUserExam(userId);
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     to,
-    "UPPSC study note (write natural, fully-idiomatic text in the target language — no leftover source-language words for ordinary terms; keep only genuine loanwords/acronyms readers actually use as-is)",
+    requireAuthored(
+      getExamConfig(noteExam).misc.personalNotesTranslateDomainHint,
+      noteExam,
+      "misc.personalNotesTranslateDomainHint",
+    ),
     { purpose: "user_note_translate", userId },
   );
   const byKey = new Map(jobs.map((j, i) => [j.key, translated[i] ?? ""]));

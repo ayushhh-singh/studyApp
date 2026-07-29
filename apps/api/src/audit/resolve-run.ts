@@ -26,6 +26,7 @@ import {
 } from "./shared.js";
 import {
   groundingForQuestion,
+  examForQuestion,
   buildSolveParams,
   solveModel,
   escalate,
@@ -83,8 +84,11 @@ async function main() {
   // Phase 0 — grounding (bounded concurrency; embeds + RPCs, cheap).
   console.log("[resolve] retrieving RAG grounding…");
   const grounding = new Map<string, GroundingResult>();
+  // Exam framing for the solve/escalate prompts, from each question's own node.
+  const examOf = new Map<string, string>();
   await pMap(todo, 6, async (q) => {
     grounding.set(q.id, await groundingForQuestion(q));
+    examOf.set(q.id, await examForQuestion(q));
   });
 
   // Phase 1 — blind solve (Batch API, mixed models).
@@ -92,7 +96,7 @@ async function main() {
   console.log(`[resolve] blind-solving ${todo.length} (${nSonnet} hard→sonnet, ${todo.length - nSonnet} →haiku) via Batch API…`);
   const reqs = todo.map((q) => ({
     customId: q.id,
-    params: buildSolveParams(q, grounding.get(q.id)!),
+    params: buildSolveParams(q, grounding.get(q.id)!, examOf.get(q.id)!),
     purpose: "audit_resolve",
   }));
   const solveResults = await runBatch(reqs, {
@@ -131,7 +135,7 @@ async function main() {
     }
     const b = blind.get(q.id)!;
     try {
-      escalations.set(q.id, await escalate(q, b, onUsage));
+      escalations.set(q.id, await escalate(q, b, examOf.get(q.id)!, onUsage));
     } catch (e) {
       escalations.set(q.id, null);
       console.error(`  escalate ${q.id} failed: ${String(e)}`);

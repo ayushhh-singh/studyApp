@@ -8,7 +8,9 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
 import { MODELS, streamText, translate } from "../lib/anthropic.js";
 import { getQuestionForExplain, persistQuestionExplanation } from "../services/questions.js";
-import { groundingForExplain } from "../services/question-explanation.js";
+import { groundingForExplain, streamExplainSystem } from "../services/question-explanation.js";
+import { examCodeForNode } from "../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { executeDoubtStream, planDoubtMessage, type MentorEmit } from "../services/mentor/index.js";
 import {
   executeEvaluation,
@@ -83,6 +85,7 @@ streamRouter.get(
       // a wrong key and withholds the explanation on correct questions. Reliable
       // wrong-key detection is the re-solve audit + user reports, not this path.
       const groundingBlock = await groundingForExplain(question);
+      const examCode = await examCodeForNode(question.syllabus_node_id);
 
       const optionsText = (question.options_i18n ?? [])
         .map((o) => `${o.key}. ${o.text_i18n[locale]}`)
@@ -92,12 +95,9 @@ streamRouter.get(
       let generated = "";
       await streamText({
         model: MODELS.haiku,
-        system:
-          "You explain UPPSC (UP PCS) MCQ answers for exam aspirants. Be concise (3-5 sentences), " +
-          "argue why the given correct option is right (grounded in the reference passages) and briefly why the " +
-          "others are wrong. Ground every factual claim in the passages or well-established knowledge; never invent a " +
-          "date, article, name, or number. Output plain prose only, rendered verbatim with no markdown renderer: no " +
-          "headers, no bold/italic asterisks, no bullet lists.",
+        // The exam that OWNS this question's syllabus node — not its provenance
+        // `questions.exam_code`, whose domain includes exams nobody can select.
+        system: streamExplainSystem(examCode),
         content:
           `Question:\n${question.stem_i18n[locale]}\n\nOptions:\n${optionsText}\n\n` +
           `Correct answer: ${question.correct_option_key ?? "unknown"}` +
@@ -113,7 +113,16 @@ streamRouter.get(
       });
 
       const otherLocale = locale === "en" ? "hi" : "en";
-      const otherText = await translate(generated.trim(), otherLocale, "UPPSC MCQ explanation");
+      const otherText = await translate(
+        generated.trim(),
+        otherLocale,
+        examCode,
+        requireAuthored(
+          getExamConfig(examCode).misc.explanationTranslateDomainHint,
+          examCode,
+          "misc.explanationTranslateDomainHint",
+        ),
+      );
       const explanation_i18n: BilingualText =
         locale === "en" ? { en: generated.trim(), hi: otherText } : { en: otherText, hi: generated.trim() };
 

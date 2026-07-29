@@ -1042,6 +1042,11 @@ export async function executeOcr(
     const result: OcrResult = await getOcrProvider().transcribe({
       pages,
       language: submission.language,
+      // The transcription prompt frames the pages as "a handwritten <exam>
+      // Mains exam answer". A submission carries no exam column of its own, so
+      // this follows the writer's target exam — the same source planEvaluation
+      // uses for a custom-prompt submission.
+      examCode: await getUserExam(submission.user_id),
       userId: submission.user_id,
       signal,
       onDelta: (text) => emit("delta", { text }),

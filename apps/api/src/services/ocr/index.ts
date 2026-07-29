@@ -27,6 +27,13 @@ export interface OcrTranscribeInput {
   /** Page photos in reading order. */
   pages: OcrPage[];
   language: Locale;
+  /**
+   * The exam whose framing the transcription prompt uses ("a handwritten
+   * <exam> Mains exam answer"). REQUIRED — never give this a default: a
+   * defaulted field lets a caller silently keep the old, hardcoded behaviour
+   * (this repo's M24 lesson).
+   */
+  examCode: string;
   userId?: string;
   /** Invoked with each text chunk as the transcription streams in. */
   onDelta?: (text: string) => void;

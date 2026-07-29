@@ -21,6 +21,7 @@ import { runBatch, type BatchRequest } from "../lib/anthropic.js";
 import {
   buildSolveParams,
   escalate,
+  examForQuestion,
   groundingForQuestion,
   interpretResolve,
   type SolveResult,
@@ -82,6 +83,11 @@ async function resolveFile(
   // 1. Grounding (OpenAI embed per q — cheap; bounded fan-out).
   report.step(`retrieving grounding for ${targets.length} MCQs…`);
   const groundings = await pMap(targets, opts.concurrency, (q) => groundingForQuestion(toAudit(q)));
+  // Exam framing for the solve/escalate prompts. `toAudit` sets syllabus_node_id
+  // to null (nodes aren't assigned until load), so this resolves to the default
+  // exam today — resolved through the shared helper anyway so it follows the
+  // node the moment parsed questions carry one.
+  const examCodes = await pMap(targets, opts.concurrency, (q) => examForQuestion(toAudit(q)));
 
   // 2. Blind solve — batched (0.5x). custom_id must match ^[a-zA-Z0-9_-]{1,64}$,
   // but external_id contains colons (pyq:...:q1) — sanitize + map back by index.
@@ -89,7 +95,7 @@ async function resolveFile(
   const cid = (ext: string) => ext.replace(/[^a-zA-Z0-9_-]/g, "_");
   const requests: BatchRequest[] = targets.map((q, i) => ({
     customId: cid(q.external_id),
-    params: buildSolveParams(toAudit(q), groundings[i]),
+    params: buildSolveParams(toAudit(q), groundings[i], examCodes[i]!),
     purpose: "ingest_blind_solve",
   }));
   const results = await runBatch(requests, {
@@ -142,7 +148,7 @@ async function resolveFile(
     let escalation = null;
     if (blind.chosen_key !== storedKey && opts.escalate) {
       try {
-        escalation = await escalate(audit, blind);
+        escalation = await escalate(audit, blind, await examForQuestion(audit));
       } catch (e) {
         escalation = null;
         report.warn(`escalation failed for ${q.external_id}: ${e instanceof Error ? e.message : e}`);

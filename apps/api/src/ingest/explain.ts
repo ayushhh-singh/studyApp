@@ -22,6 +22,7 @@ import { estimateCostUsd } from "../lib/models.js";
 import { supabase } from "../lib/supabase.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
 import { examCodeForNode } from "../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { pMap } from "../audit/shared.js";
 
 /** Format retrieved passages for the prompt (same shape as the on-demand path). */
@@ -43,11 +44,33 @@ interface ExQ {
   correct_option_key: string | null;
 }
 
-const SUPPORT_SYSTEM =
-  "You are auditing a UPPSC exam MCQ before an explanation is written for it. You are given the question, its options, " +
-  "reference passages, and the STORED answer key. Using the passages and well-established knowledge, decide whether the " +
-  "evidence genuinely supports the stored key being the single correct option. Do NOT assume the stored key is right — " +
-  "check it. If it is clearly wrong, say which option the evidence actually supports. Name the decisive fact. Return strict JSON only.";
+/**
+ * NOT exported and NOT snapshot-covered: this module exports nothing and ends in
+ * a bare top-level `main().catch(...)` with no argv guard, so
+ * `pnpm prompts:snapshot` must never import it (a dynamic import would run the
+ * real ingest — DB writes + an Anthropic batch). Byte-identity for uppsc was
+ * verified by direct string assertion instead; see the slice-2d report.
+ *
+ * Memoised per exam: one string instance per exam across a whole batch.
+ */
+function memoisePerExam(build: (examCode: string) => string): (examCode: string) => string {
+  const cache = new Map<string, string>();
+  return (examCode: string) => {
+    const hit = cache.get(examCode);
+    if (hit !== undefined) return hit;
+    const built = build(examCode);
+    cache.set(examCode, built);
+    return built;
+  };
+}
+
+const supportSystem = memoisePerExam(
+  (examCode) =>
+    `You are auditing ${requireAuthored(getExamConfig(examCode).misc.ingestKeySupportFraming, examCode, "misc.ingestKeySupportFraming")} before an explanation is written for it. You are given the question, its options, ` +
+    "reference passages, and the STORED answer key. Using the passages and well-established knowledge, decide whether the " +
+    "evidence genuinely supports the stored key being the single correct option. Do NOT assume the stored key is right — " +
+    "check it. If it is clearly wrong, say which option the evidence actually supports. Name the decisive fact. Return strict JSON only.",
+);
 const SUPPORT_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -59,12 +82,14 @@ const SUPPORT_SCHEMA: Record<string, unknown> = {
   },
   required: ["supports_key", "believed_key", "decisive_fact", "reason"],
 };
-const EXPLAIN_SYSTEM =
-  "You write UPPSC MCQ answer explanations for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the " +
-  "verified correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using " +
-  "the reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
-  "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
-  "no bold/italic asterisks, no bullet lists. Return strict JSON only.";
+const explainSystem = memoisePerExam(
+  (examCode) =>
+    `You write ${requireAuthored(getExamConfig(examCode).misc.explanationFraming, examCode, "misc.explanationFraming")} for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the ` +
+    "verified correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using " +
+    "the reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
+    "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
+    "no bold/italic asterisks, no bullet lists. Return strict JSON only.",
+);
 const EXPLAIN_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -135,25 +160,29 @@ async function main(): Promise<void> {
 
   // Grounding for every target (retrieveGrounding embeds + ANN; bounded fan-out).
   report.step("retrieving grounding…");
-  const grounds = await pMap(targets, 6, async (q) => {
+  // Each question is grounded AND framed in the exam that owns its syllabus
+  // node (not its provenance questions.exam_code).
+  const examOf = await pMap(targets, 6, (q) => examCodeForNode(q.syllabus_node_id));
+  const grounds = await pMap(targets, 6, async (q, i) => {
     const g = await retrieveGrounding({
       questionText: `${stemEn(q)}\n${optionsEn(q)}`,
       locale: "en",
       syllabusNodeId: q.syllabus_node_id,
-      examCode: await examCodeForNode(q.syllabus_node_id),
+      examCode: examOf[i]!,
       k: 6,
     });
     return groundingBlockText(g);
   });
 
   // ---- Cost projection (both rounds) ----
-  const SYS_TOK = estTokens(SUPPORT_SYSTEM) + estTokens(EXPLAIN_SYSTEM);
   let inTok = 0;
   for (let i = 0; i < targets.length; i++) {
     inTok += estTokens(supportContent(targets[i], grounds[i]));
     inTok += estTokens(explainContent(targets[i], grounds[i]));
+    // Both round systems, once per question — now per-exam, so summed inside
+    // the loop rather than multiplied by a single shared figure.
+    inTok += estTokens(supportSystem(examOf[i]!)) + estTokens(explainSystem(examOf[i]!));
   }
-  inTok += SYS_TOK * targets.length; // both round systems, once per question
   const outTok = targets.length * (120 + 600); // ~support + ~explain output tokens
   const fullCost = estimateCostUsd(MODELS.haiku, inTok, outTok, 0, 0);
   const batchCost = fullCost * 0.5;
@@ -177,7 +206,7 @@ async function main(): Promise<void> {
     params: structuredParams({
       model: MODELS.haiku,
       maxTokens: 500,
-      system: SUPPORT_SYSTEM,
+      system: supportSystem(examOf[i]!),
       content: supportContent(q, grounds[i]),
       schema: SUPPORT_SCHEMA,
     }),
@@ -236,7 +265,7 @@ async function main(): Promise<void> {
     params: structuredParams({
       model: MODELS.haiku,
       maxTokens: 1500,
-      system: EXPLAIN_SYSTEM,
+      system: explainSystem(examOf[idx.get(q.id)!]!),
       content: explainContent(q, grounds[idx.get(q.id)!]),
       schema: EXPLAIN_SCHEMA,
     }),

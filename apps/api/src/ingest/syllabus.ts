@@ -20,6 +20,7 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { streamText, structuredJson, translate, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import {
   ROOT,
   readManifest,
@@ -158,6 +159,23 @@ function clip(text: string, max = 45000): string {
   return text.length > max ? text.slice(0, max) : text;
 }
 
+/**
+ * NOT exported and NOT snapshot-covered: this module ends in a bare top-level
+ * `main().catch(...)` with no argv guard, so `pnpm prompts:snapshot` must never
+ * import it. Byte-identity for uppsc was verified by direct string assertion
+ * instead; see the multi-exam slice-2d report.
+ */
+function buildStructurePaperSystem(examCode: string): string {
+  const cfg = getExamConfig(examCode).misc;
+  return (
+    `You are an expert on ${requireAuthored(cfg.syllabusExpertFraming, examCode, "misc.syllabusExpertFraming")}. ` +
+    "You build a clean, hierarchical syllabus tree for ONE paper. " +
+    `Ground every node in the provided official syllabus text; use ${requireAuthored(cfg.syllabusStructureNote, examCode, "misc.syllabusStructureNote")} ` +
+    "to organise topics into sections and sub-topics. " +
+    "Do NOT invent topics that contradict the source."
+  );
+}
+
 async function structurePaper(
   paper: PaperDef,
   sources: LangSource[],
@@ -168,12 +186,7 @@ async function structurePaper(
   if (en) parts.push(`### OFFICIAL SYLLABUS TEXT (English)\n${clip(en.text)}`);
   if (hi) parts.push(`### OFFICIAL SYLLABUS TEXT (Hindi)\n${clip(hi.text)}`);
 
-  const system =
-    "You are an expert on the UPPSC (UP PCS) examination and its 2025-reform " +
-    "syllabus. You build a clean, hierarchical syllabus tree for ONE paper. " +
-    "Ground every node in the provided official syllabus text; use the " +
-    "standard UPPSC structure to organise topics into sections and sub-topics. " +
-    "Do NOT invent topics that contradict the source.";
+  const system = buildStructurePaperSystem(paper.exam);
 
   const instructions =
     `Build the syllabus tree for this paper:\n` +
@@ -226,7 +239,15 @@ interface BuiltNode {
 async function fillBilingual(
   raw: RawNode,
   forceTranslateInto: "hi" | "en" | null,
+  examCode: string,
 ): Promise<BuiltNode> {
+  // The generic domain hint for this exam. `translate()`'s own default was
+  // removed in multi-exam slice 2d, so every caller names its exam explicitly.
+  const hint = requireAuthored(
+    getExamConfig(examCode).misc.translateDomainHint,
+    examCode,
+    "misc.translateDomainHint",
+  );
   const meta: Record<string, unknown> = {};
   let title: { hi: string; en: string } = { hi: raw.title_hi.trim(), en: raw.title_en.trim() };
   let desc: { hi: string; en: string } = {
@@ -238,20 +259,20 @@ async function fillBilingual(
   if (forceTranslateInto) {
     const from = forceTranslateInto === "hi" ? "en" : "hi";
     if (!title[forceTranslateInto] && title[from]) {
-      title[forceTranslateInto] = await translate(title[from], forceTranslateInto);
+      title[forceTranslateInto] = await translate(title[from], forceTranslateInto, examCode, hint);
       meta.machine_translated = true;
     }
     if (!desc[forceTranslateInto] && desc[from]) {
-      desc[forceTranslateInto] = await translate(desc[from], forceTranslateInto);
+      desc[forceTranslateInto] = await translate(desc[from], forceTranslateInto, examCode, hint);
       meta.machine_translated = true;
     }
   } else {
     // Fill any per-node gaps (title must be bilingual).
     if (!title.hi && title.en) {
-      title.hi = await translate(title.en, "hi");
+      title.hi = await translate(title.en, "hi", examCode, hint);
       meta.machine_translated = true;
     } else if (!title.en && title.hi) {
-      title.en = await translate(title.hi, "en");
+      title.en = await translate(title.hi, "en", examCode, hint);
       meta.machine_translated = true;
     }
   }
@@ -318,7 +339,7 @@ async function ingestPaper(
   const forceInto: "hi" | "en" | null = !haveHi ? "hi" : !haveEn ? "en" : null;
 
   const built: BuiltNode[] = [];
-  for (const n of limited) built.push(await fillBilingual(n, forceInto));
+  for (const n of limited) built.push(await fillBilingual(n, forceInto, paper.exam));
   // Deterministic order: shallow first (parents before children), then order_index.
   built.sort((a, b) => a.depth - b.depth || a.order_index - b.order_index || a.path.localeCompare(b.path));
 

@@ -28,6 +28,7 @@ import { UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { PRELIMS_MARKING } from "../lib/exam-papers.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { paperByCode, report } from "./_shared.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 
 interface QRow {
   id: string;
@@ -159,9 +160,16 @@ async function main(): Promise<void> {
     const prelimsMarking = PRELIMS_MARKING[paperCode];
     const totalMarks = roundMarks(qs.reduce((s, q) => s + (q.marks ?? prelimsMarking?.marksPerQuestion ?? 0), 0)) || null;
     const slug = `pyq:${paperCode}:${year}`;
+    // The paper's OWN product exam (PaperDef.exam), not a hardcoded name — the
+    // question rows are additionally restricted to that exam's provenance above.
+    const titlePrefix = requireAuthored(
+      getExamConfig(paper.exam).misc.pyqTestTitlePrefix,
+      paper.exam,
+      "misc.pyqTestTitlePrefix",
+    );
     const title = {
-      en: `UPPSC ${paper.title.en} — ${year}`,
-      hi: `यूपीपीएससी ${paper.title.hi} — ${year}`,
+      en: `${titlePrefix.en} ${paper.title.en} — ${year}`,
+      hi: `${titlePrefix.hi} ${paper.title.hi} — ${year}`,
     };
     const meta = {
       source: "pyq",

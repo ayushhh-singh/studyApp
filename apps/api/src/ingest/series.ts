@@ -26,6 +26,7 @@
  */
 import { structuredJson, MODELS } from "../lib/anthropic.js";
 import { pdfSubsetDocumentBlock } from "./_shared.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 
 export type BookletSeries = "A" | "B" | "C" | "D";
 
@@ -39,12 +40,26 @@ const SERIES_SCHEMA: Record<string, unknown> = {
   required: ["series", "evidence"],
 };
 
-const SERIES_SYSTEM =
-  "You are shown the cover/first page of a UPPSC exam question paper or its official answer key. Look for a BOOKLET " +
-  "SERIES / SET letter (A, B, C, or D) printed near the top or in a box, and report that letter EXACTLY as printed. " +
-  "Note: many UPPSC booklets carry only a CODE string (e.g. 'DSTF-1-23') or a bar-code serial number instead of a " +
-  "plain A/B/C/D letter, and coaching-reconstructed papers may print no series marker at all — in those cases there " +
-  "is no series letter, so return 'unknown'. Quote the exact printed phrase you used as evidence. Return strict JSON only.";
+/**
+ * EXPORTED (was a module-private const) so `pnpm prompts:snapshot` can diff it —
+ * this module is import-safe but previously exposed no prompt text at all.
+ * Memoised per exam so repeated detections reuse one string instance.
+ */
+export const seriesSystem = ((): ((examCode: string) => string) => {
+  const cache = new Map<string, string>();
+  return (examCode: string) => {
+    const hit = cache.get(examCode);
+    if (hit !== undefined) return hit;
+    const cfg = getExamConfig(examCode).misc;
+    const built =
+      `You are shown the cover/first page of ${requireAuthored(cfg.seriesPaperFraming, examCode, "misc.seriesPaperFraming")}. Look for a BOOKLET ` +
+      "SERIES / SET letter (A, B, C, or D) printed near the top or in a box, and report that letter EXACTLY as printed. " +
+      `Note: ${requireAuthored(cfg.seriesBookletCodeNote, examCode, "misc.seriesBookletCodeNote")}, and coaching-reconstructed papers may print no series marker at all — in those cases there ` +
+      "is no series letter, so return 'unknown'. Quote the exact printed phrase you used as evidence. Return strict JSON only.";
+    cache.set(examCode, built);
+    return built;
+  };
+})();
 
 /**
  * Detect the booklet series printed on a PDF's first page (and, for a key, an
@@ -54,6 +69,7 @@ const SERIES_SYSTEM =
 export async function detectBookletSeries(
   fileAbsPath: string,
   pageCount: number,
+  examCode: string,
   purpose = "ingest_series_detect",
 ): Promise<BookletSeries | null> {
   const pages = pageCount > 1 ? [0, 1] : [0];
@@ -61,7 +77,7 @@ export async function detectBookletSeries(
     const out = await structuredJson<{ series: string; evidence: string }>({
       model: MODELS.haiku,
       maxTokens: 200,
-      system: SERIES_SYSTEM,
+      system: seriesSystem(examCode),
       content: [
         await pdfSubsetDocumentBlock(fileAbsPath, pages),
         { type: "text", text: "Which booklet series is this?" },

@@ -16,6 +16,7 @@ import { evaluateMilestones, listUnseenMilestones, markMilestoneSeen } from "../
 import { getLeaderboard, getWeeklyDigest } from "../services/digest.js";
 import { getActivityHeatmap } from "../services/daily-stats.js";
 import { renderWeeklyDigestPng } from "../services/share-image.js";
+import { getUserExam } from "../lib/exams.js";
 
 export const engagementRouter = Router();
 engagementRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -61,8 +62,9 @@ engagementRouter.get(
   "/share/weekly.png",
   asyncHandler(async (req, res) => {
     const { locale } = parse(z.object({ locale: localeSchema.default("en") }), req.query);
-    const digest = await getWeeklyDigest(currentUserId());
-    const png = await renderWeeklyDigestPng(digest, locale);
+    const userId = currentUserId();
+    const digest = await getWeeklyDigest(userId);
+    const png = await renderWeeklyDigestPng(digest, locale, await getUserExam(userId));
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.send(png);

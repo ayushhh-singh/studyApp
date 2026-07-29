@@ -10,6 +10,7 @@ import { structuredJson } from "./anthropic.js";
 import { MODELS } from "./models.js";
 import { supabase } from "./supabase.js";
 import { logger } from "./logger.js";
+import { getExamConfig, requireAuthored } from "./exam-config.js";
 
 interface ScreenResult {
   is_abusive: boolean;
@@ -18,17 +19,32 @@ interface ScreenResult {
   reason: string;
 }
 
-async function screenText(text: string): Promise<ScreenResult> {
+/**
+ * EXPORTED (the prompt used to be an anonymous inline property of the single
+ * `structuredJson({...})` expression below) so `pnpm prompts:snapshot` can diff
+ * it by string.
+ */
+export function buildScreenSystem(examCode: string): string {
+  const community = requireAuthored(
+    getExamConfig(examCode).misc.moderationFraming,
+    examCode,
+    "misc.moderationFraming",
+  );
+  return (
+    `You screen user-generated posts on ${community} for abuse, spam, and PII. ` +
+    "is_abusive: harassment, hate speech, threats, or sexual content. is_spam: unsolicited " +
+    "advertising, off-topic promotional links, or repetitive gibberish. has_pii: the poster's own " +
+    "or another named person's phone number, email, home address, or government ID number. Normal " +
+    "exam-prep discussion, disagreement, or criticism of content is NOT abusive. Give a one-sentence " +
+    "reason either way."
+  );
+}
+
+async function screenText(text: string, examCode: string): Promise<ScreenResult> {
   return structuredJson<ScreenResult>({
     model: MODELS.haiku,
     purpose: "community_screen_post",
-    system:
-      "You screen user-generated posts on a UPPSC exam-prep community for abuse, spam, and PII. " +
-      "is_abusive: harassment, hate speech, threats, or sexual content. is_spam: unsolicited " +
-      "advertising, off-topic promotional links, or repetitive gibberish. has_pii: the poster's own " +
-      "or another named person's phone number, email, home address, or government ID number. Normal " +
-      "exam-prep discussion, disagreement, or criticism of content is NOT abusive. Give a one-sentence " +
-      "reason either way.",
+    system: buildScreenSystem(examCode),
     content: text,
     schema: {
       type: "object",
@@ -55,9 +71,9 @@ async function flag(table: "discussion_threads" | "discussion_posts", id: string
  * that created it (never awaited on the response path) — a screening failure
  * degrades to "leave it visible," never blocks or retroactively fails the post.
  */
-export async function screenPost(postId: string, body: string): Promise<void> {
+export async function screenPost(postId: string, body: string, examCode: string): Promise<void> {
   try {
-    const result = await screenText(body);
+    const result = await screenText(body, examCode);
     await supabase()
       .from("post_screenings")
       .insert({
@@ -81,9 +97,9 @@ export async function screenPost(postId: string, body: string): Promise<void> {
  * can itself be abusive/spam independent of the body). Flags the thread (and,
  * separately, the post is screened via screenPost by the same call site).
  */
-export async function screenThread(threadId: string, title: string, body: string): Promise<void> {
+export async function screenThread(threadId: string, title: string, body: string, examCode: string): Promise<void> {
   try {
-    const result = await screenText(`Title: ${title}\n\nBody: ${body}`);
+    const result = await screenText(`Title: ${title}\n\nBody: ${body}`, examCode);
     await supabase()
       .from("post_screenings")
       .insert({
