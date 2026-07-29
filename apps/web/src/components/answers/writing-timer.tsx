@@ -2,13 +2,36 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pause, Play, RotateCcw, Timer as TimerIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { cn } from "@/lib/utils";
 
-// UPPSC time-pressure presets: roughly 3.5 min per 125-word sub-answer, scaled up.
-const PRESETS = [
-  { key: "125", words: 125, minutes: 7 },
-  { key: "200", words: 200, minutes: 11 },
-] as const;
+interface TimerPreset {
+  key: string;
+  words: number;
+  minutes: number;
+}
+
+/**
+ * Time-pressure presets, PER EXAM and authored per exam.
+ *
+ * These are not derivable from `exams.paper_structure`: it carries a paper's
+ * total marks and duration, never the per-question word limits a commission's
+ * papers actually use, nor the pace an aspirant should train at. Both are
+ * judgment about a specific commission's papers — exactly the category
+ * `lib/exam-config.ts` refuses to template by string-replacing the exam name.
+ *
+ * So this mirrors that module's UNAUTHORED convention on the client: uppsc's
+ * values are the ones this app has always shipped (~3.5 min per 125-word
+ * sub-answer, scaled up); the other exams have no entry, and an exam with no
+ * entry gets NO presets rather than UPPSC's borrowed numbers. Authoring them is
+ * part of per-exam content work (U6 — docs/OUTSTANDING.md §8).
+ */
+const PRESETS_BY_EXAM: Record<string, TimerPreset[]> = {
+  uppsc: [
+    { key: "125", words: 125, minutes: 7 },
+    { key: "200", words: 200, minutes: 11 },
+  ],
+};
 
 function formatClock(totalSeconds: number): string {
   const s = Math.max(0, Math.floor(totalSeconds));
@@ -19,8 +42,10 @@ function formatClock(totalSeconds: number): string {
 
 export function WritingTimer() {
   const { t } = useTranslation();
+  const { examCode } = useCurrentExam();
+  const presets = PRESETS_BY_EXAM[examCode] ?? [];
   const [presetKey, setPresetKey] = useState<string | null>(null);
-  const preset = PRESETS.find((p) => p.key === presetKey) ?? null;
+  const preset = presets.find((p) => p.key === presetKey) ?? null;
   const [remaining, setRemaining] = useState(0);
   const [running, setRunning] = useState(false);
 
@@ -37,10 +62,14 @@ export function WritingTimer() {
 
   const low = preset !== null && remaining <= 60;
 
+  // No authored presets for this exam — render nothing rather than offering
+  // another commission's word limits and pace as if they were this one's.
+  if (presets.length === 0) return null;
+
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="flex overflow-hidden rounded-full border border-border text-xs">
-        {PRESETS.map((p) => (
+        {presets.map((p) => (
           <button
             key={p.key}
             type="button"

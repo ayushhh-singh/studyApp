@@ -8,19 +8,14 @@ import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { scoreBandColor } from "@/lib/score-band";
 import { useDailyAnswerSet } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { formatScoreValue } from "@/lib/format-score";
-
-/** Short bilingual-ish paper label; falls back to the raw code. */
-function paperLabel(code: string, t: (k: string, o?: Record<string, unknown>) => string): string {
-  const key = `Answers.paper_${code}`;
-  const label = t(key);
-  return label === key ? code : label;
-}
 
 function AnswerRow({ item }: { item: DailyAnswerItem }) {
   const { t } = useTranslation();
   const locale = useLocale();
+  const { label: paperLabel } = usePaperCatalog();
   const evaluated = item.status === "evaluated";
   const pct =
     item.overall_score != null && item.max_score ? (item.overall_score / item.max_score) * 100 : null;
@@ -39,7 +34,7 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
-          {paperLabel(item.paper_code, t)}
+          {paperLabel(item.paper_code)}
         </span>
         {item.kind === "essay" && (
           <span className="inline-flex items-center gap-1 rounded-full bg-marigold/15 px-2 py-0.5 text-[11px] font-semibold text-marigold">

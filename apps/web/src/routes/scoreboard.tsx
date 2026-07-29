@@ -9,6 +9,7 @@ import { BoardTable } from "@/components/scoreboard/board-table";
 import { MainsOptInCard } from "@/components/scoreboard/mains-opt-in-card";
 import { DimensionBestsPanel } from "@/components/scoreboard/dimension-bests-panel";
 import { MyRanksCard } from "@/components/profile/my-ranks-card";
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import {
   useDailyQuizTodayBoard,
   useDailyQuizWeeklyBoard,
@@ -40,11 +41,6 @@ type MainsSub = (typeof MAINS_SUBS)[number];
 function isMainsSub(v: string | null): v is MainsSub {
   return !!v && (MAINS_SUBS as readonly string[]).includes(v);
 }
-
-const MOCK_PAPERS = [
-  { code: "PRE_GS1", label: "GS-I" },
-  { code: "PRE_CSAT", label: "CSAT" },
-] as const;
 
 function BoardSkeleton() {
   return (
@@ -103,7 +99,13 @@ function DailyQuizPanel() {
 
 function MocksPanel() {
   const { t } = useTranslation();
-  const [paperCode, setPaperCode] = useState<string>(MOCK_PAPERS[0].code);
+  // The exam's own objective prelims papers, from the registry — not a
+  // hardcoded ["PRE_GS1", "PRE_CSAT"]. An exam with no ingested papers yields an
+  // empty list and the panel renders its normal empty board.
+  const { papers, label } = usePaperCatalog();
+  const mockPapers = papers.filter((p) => p.stage === "prelims" && p.format === "objective");
+  const [picked, setPicked] = useState<string>("");
+  const paperCode = picked || (mockPapers[0]?.paper_code ?? "");
   const [testId, setTestId] = useState<string>("");
   const series = useMockSeriesBoard(paperCode);
   const tests = useScoreboardMockTests(paperCode);
@@ -112,23 +114,23 @@ function MocksPanel() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
-        {MOCK_PAPERS.map((p) => (
+        {mockPapers.map((p) => (
           <button
-            key={p.code}
+            key={p.paper_code}
             type="button"
             onClick={() => {
-              setPaperCode(p.code);
+              setPicked(p.paper_code);
               setTestId("");
             }}
-            aria-pressed={paperCode === p.code}
+            aria-pressed={paperCode === p.paper_code}
             className={
               "min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors " +
-              (paperCode === p.code
+              (paperCode === p.paper_code
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-border text-muted-foreground hover:text-foreground")
             }
           >
-            {p.label}
+            {label(p.paper_code)}
           </button>
         ))}
       </div>

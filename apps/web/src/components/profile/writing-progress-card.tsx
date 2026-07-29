@@ -23,6 +23,7 @@ import {
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 import { cn } from "@/lib/utils";
 
@@ -133,6 +134,7 @@ export function WritingProgressCard({
   isLoading: boolean;
 }) {
   const { t, i18n } = useTranslation();
+  const { name: examName } = useCurrentExam();
   const hasData = useMemo(() => (trend ?? []).length > 0, [trend]);
   // A one-time recalibration (2026-07-26) made scoring stricter. When the trend
   // straddles that boundary, a step-down is expected — say so, so it doesn't read
@@ -186,7 +188,7 @@ export function WritingProgressCard({
           )}
           {spansRecalibration && (
             <p className="col-span-full border-t border-border pt-3 text-xs text-muted-foreground">
-              {t("Profile.recalibrationNote", { date: recalibratedOn })}
+              {t("Profile.recalibrationNote", { date: recalibratedOn, exam: examName })}
             </p>
           )}
         </div>

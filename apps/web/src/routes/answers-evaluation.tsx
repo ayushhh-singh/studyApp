@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { FileQuestion, Loader2, PenLine, Share2, Sparkles } from "lucide-react";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
@@ -42,6 +43,7 @@ const PHASE_LABEL_KEYS: Record<string, string> = {
 
 export function Component() {
   const { t } = useTranslation();
+  const { name: examName } = useCurrentExam();
   const locale = useLocale();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -133,7 +135,7 @@ export function Component() {
       />
       <PageHeader
         title={t("Answers.evaluationTitle")}
-        description={formattedQuestionText ?? t("Answers.evaluationDescription")}
+        description={formattedQuestionText ?? t("Answers.evaluationDescription", { exam: examName })}
       />
 
       {stream.error && (

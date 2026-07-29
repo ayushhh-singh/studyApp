@@ -8,10 +8,17 @@ import {
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-export function useTimeAttackTopics(paper: TimeAttackPaperCode) {
+/**
+ * `paper` is nullable because the caller derives it from the exam registry, which
+ * may not have resolved yet — or may hold no paper this single-exam endpoint
+ * accepts. Querying with a null paper would 400, so the query stays disabled
+ * until there is a real one.
+ */
+export function useTimeAttackTopics(paper: TimeAttackPaperCode | null) {
   return useQuery({
-    queryKey: queryKeys.timeAttackTopics(paper),
-    queryFn: () => api.get("/api/v1/time-attack/topics", timeAttackTopicsResponseSchema, { paper }),
+    queryKey: queryKeys.timeAttackTopics(paper ?? "none"),
+    queryFn: () => api.get("/api/v1/time-attack/topics", timeAttackTopicsResponseSchema, { paper: paper! }),
+    enabled: !!paper,
   });
 }
 

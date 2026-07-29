@@ -11,33 +11,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAllQuestions } from "@/hooks/use-questions";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { useLocale } from "@/hooks/use-locale";
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { groupByYearDescending } from "@/lib/group-by-year";
 import { cn } from "@/lib/utils";
-
-/** Fixed display order for Mains papers — GS I-VI in syllabus order, then Essay, then General Hindi. */
-const MAINS_PAPER_ORDER = [
-  "MAINS_GS1",
-  "MAINS_GS2",
-  "MAINS_GS3",
-  "MAINS_GS4",
-  "MAINS_GS5",
-  "MAINS_GS6",
-  "MAINS_ESSAY",
-  "MAINS_GH",
-];
-
-/** Short bilingual tab labels — the paper root's own title_i18n is a full syllabus heading, too long for a pill. */
-const MAINS_TAB_LABEL: Record<string, Record<Locale, string>> = {
-  MAINS_GS1: { en: "GS I", hi: "जीएस I" },
-  MAINS_GS2: { en: "GS II", hi: "जीएस II" },
-  MAINS_GS3: { en: "GS III", hi: "जीएस III" },
-  MAINS_GS4: { en: "GS IV", hi: "जीएस IV" },
-  MAINS_GS5: { en: "GS V", hi: "जीएस V" },
-  MAINS_GS6: { en: "GS VI", hi: "जीएस VI" },
-  MAINS_ESSAY: { en: "Essay", hi: "निबंध" },
-  MAINS_GH: { en: "Gen. Hindi", hi: "सामान्य हिंदी" },
-};
 
 /** Years beyond the most recent this many stay collapsed on first render, to keep it short. */
 const DEFAULT_EXPANDED_YEARS = 2;
@@ -172,18 +149,19 @@ export function PyqPicker() {
     refetch: refetchPapers,
   } = usePaperSummaries();
 
+  // Paper order and the compact tab labels come from the exam registry — the
+  // previous hardcoded MAINS_PAPER_ORDER array and inline bilingual label
+  // dictionary were both UPPSC paper codes, and the dictionary bypassed i18n
+  // entirely. See usePaperCatalog.
+  const { label: paperLabel, compare } = usePaperCatalog();
   const papers = useMemo(() => {
     // Answer Writing is Mains-only (descriptive PYQs) — Prelims papers are
     // entirely MCQ, so listing them here just leads to a real, confusingly
     // empty "no PYQs" state once picked. Mirrors the inverse filter already
     // used by the MCQ custom-test-builder (Prelims-only there).
     const mains = (allPapers ?? []).filter((p) => p.exam_stage !== "prelims");
-    return [...mains].sort((a, b) => {
-      const ai = MAINS_PAPER_ORDER.indexOf(a.paper_code);
-      const bi = MAINS_PAPER_ORDER.indexOf(b.paper_code);
-      return (ai === -1 ? MAINS_PAPER_ORDER.length : ai) - (bi === -1 ? MAINS_PAPER_ORDER.length : bi);
-    });
-  }, [allPapers]);
+    return [...mains].sort((a, b) => compare(a.paper_code, b.paper_code));
+  }, [allPapers, compare]);
 
   const [activePaper, setActivePaper] = useState("");
   const paper =
@@ -216,7 +194,7 @@ export function PyqPicker() {
           <div data-tour-anchor="answers">
             <TabsList aria-label={t("Answers.pyqPickerPaperFilter")}>
               {papers.map((p) => {
-                const label = MAINS_TAB_LABEL[p.paper_code]?.[locale] ?? p.title_i18n[locale];
+                const label = paperLabel(p.paper_code);
                 return (
                   <TabsTrigger
                     key={p.paper_code}
@@ -246,9 +224,7 @@ export function PyqPicker() {
             <PaperPyqList
               key={paper}
               paperCode={paper}
-              paperLabel={
-                MAINS_TAB_LABEL[paper]?.[locale] ?? papers.find((p) => p.paper_code === paper)?.title_i18n[locale] ?? paper
-              }
+              paperLabel={paperLabel(paper)}
               locale={locale}
             />
           </TabsContent>

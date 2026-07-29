@@ -11,35 +11,7 @@ import { TestCard } from "@/components/practice/test-card";
 import { useTests } from "@/hooks/use-tests";
 import { useCreateFreshMockSet } from "@/hooks/use-create-fresh-set";
 import { useLocale } from "@/hooks/use-locale";
-
-/** Canonical paper order for the mock sub-tabs: prelims papers, then mains GS1-6. */
-const PAPER_ORDER = [
-  "PRE_GS1",
-  "PRE_CSAT",
-  "MAINS_GS1",
-  "MAINS_GS2",
-  "MAINS_GS3",
-  "MAINS_GS4",
-  "MAINS_GS5",
-  "MAINS_GS6",
-  "MAINS_ESSAY",
-  "MAINS_GH",
-];
-
-/**
- * Compact, exam-standard paper label for a tab (GS-I / CSAT / GS1..GS6). Kept as
- * the latin abbreviation in both locales — the same convention TestCard already
- * uses for the raw paper_code subtitle, and how UPPSC aspirants refer to the papers.
- */
-function paperLabel(code: string | null): string {
-  if (code === "PRE_GS1") return "GS-I";
-  if (code === "PRE_CSAT") return "CSAT";
-  if (code === "MAINS_ESSAY") return "Essay";
-  if (code === "MAINS_GH") return "Hindi";
-  const m = code?.match(/^MAINS_GS(\d)$/);
-  if (m) return `GS${m[1]}`;
-  return code ?? "—";
-}
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 
 /** Numeric mock index from the slug (`mock:PRE_GS1:3` → 3), for 1→N sequencing. */
 function mockIndex(test: TestSummary): number {
@@ -146,6 +118,10 @@ export function MockPaperTabs({
   /** Overrides the TestCard link — mains descriptive mocks start a timed answer session, not the MCQ player. */
   hrefFor?: (test: TestSummary) => string;
 }) {
+  // Order and labels come from the exam's own registry entry, not a hardcoded
+  // paper-code list — see usePaperCatalog. A paper the registry doesn't know
+  // (an exam mid-ingest) still gets a tab, sorted last under its raw code.
+  const { label: paperLabel, compare } = usePaperCatalog();
   const byPaper = useMemo(() => {
     const groups = new Map<string, TestSummary[]>();
     for (const t of tests) {
@@ -153,15 +129,8 @@ export function MockPaperTabs({
       (groups.get(code) ?? groups.set(code, []).get(code)!).push(t);
     }
     for (const list of groups.values()) list.sort((a, b) => mockIndex(a) - mockIndex(b));
-    return [...groups.entries()].sort(([a], [b]) => {
-      const ia = PAPER_ORDER.indexOf(a);
-      const ib = PAPER_ORDER.indexOf(b);
-      if (ia === -1 && ib === -1) return a.localeCompare(b);
-      if (ia === -1) return 1;
-      if (ib === -1) return -1;
-      return ia - ib;
-    });
-  }, [tests]);
+    return [...groups.entries()].sort(([a], [b]) => compare(a, b));
+  }, [tests, compare]);
 
   if (byPaper.length === 0) return null;
   // A single paper needs no selector — just the sequenced list.

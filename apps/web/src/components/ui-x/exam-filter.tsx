@@ -1,10 +1,19 @@
 import { useTranslation } from "react-i18next";
 import type { ExamCode } from "@neev/shared";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { cn } from "@/lib/utils";
 
 /**
- * The "UPPSC only / All exams" filter used on Practice, Learn node pages, and
- * Trends. `value === undefined` means all exams; `"uppsc"` narrows to UPPSC.
+ * The "<my exam> only / All exams" filter used on Practice, Learn node pages,
+ * and Trends. `value === undefined` means all exams; the narrow option selects
+ * the viewer's own target exam.
+ *
+ * The narrowing VALUE is a provenance code (`questions.exam_code` — "which exam
+ * asked this"), not a product-exam id, which is why the filter can offer "all
+ * exams" at all: the bank also holds RO/ARO and UPSSSC-PET papers that overlap
+ * the syllabus. The two enums overlap on exactly the three product exams, so the
+ * viewer's target exam is always a valid provenance value here.
+ *
  * A compact segmented control so it reads as a scope switch, not a form field.
  */
 export function ExamFilter({
@@ -17,8 +26,9 @@ export function ExamFilter({
   className?: string;
 }) {
   const { t } = useTranslation();
+  const { examCode, name } = useCurrentExam();
   const options: { label: string; value: ExamCode | undefined }[] = [
-    { label: t("Exam.uppscOnly"), value: "uppsc" },
+    { label: t("Exam.examOnly", { exam: name }), value: examCode as ExamCode },
     { label: t("Exam.allExams"), value: undefined },
   ];
   return (

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { TestCard } from "@/components/practice/test-card";
 import { useDailyQuizArchive, useEnsureTodayQuiz } from "@/hooks/use-daily";
 import { useLocale } from "@/hooks/use-locale";
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -23,13 +24,6 @@ function groupOf(scheduledDate: string): "today" | "older" {
   return scheduledDate === istDate(0) ? "today" : "older";
 }
 
-/** Short paper chip label for a daily quiz — GS / CSAT / (legacy blended: none). */
-function paperChip(paperCode: string | null, t: (k: string) => string): string | null {
-  if (paperCode === "PRE_GS1") return t("Practice.dailyPaperGs");
-  if (paperCode === "PRE_CSAT") return t("Practice.dailyPaperCsat");
-  return null; // legacy pre-split blended quiz — the title already reads "Daily Quiz — <date>"
-}
-
 function ArchiveRow({
   item,
   showHeader,
@@ -40,8 +34,11 @@ function ArchiveRow({
 }) {
   const { t } = useTranslation();
   const locale = useLocale();
+  const { label: paperLabel } = usePaperCatalog();
   const group = groupOf(item.scheduled_date);
-  const chip = paperChip(item.paper_code, t);
+  // A legacy pre-split blended quiz has no paper_code and gets no chip — its
+  // title already reads "Daily Quiz — <date>".
+  const chip = item.paper_code ? paperLabel(item.paper_code) : null;
   // Yesterday's quiz is still the one real makeup opportunity (per the page's
   // own description: "today's quiz, yesterday's makeup, and every past day")
   // — the badge marks that specific quiz regardless of which group header

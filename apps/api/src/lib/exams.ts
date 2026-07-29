@@ -11,7 +11,8 @@
  * exam with no content: an empty papers grid, no PYQs, no chapters, no
  * countdown. Verified against the live DB before this guard existed.
  */
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, examSchema, type Exam } from "@neev/shared";
+import { z } from "zod";
 import { supabase } from "./supabase.js";
 import { HttpError, badRequest } from "./http-error.js";
 
@@ -28,6 +29,38 @@ export async function listExams(): Promise<ExamRow[]> {
     .order("sort_order", { ascending: true });
   if (error) throw new HttpError(500, `exam lookup failed: ${error.message}`);
   return (data ?? []) as ExamRow[];
+}
+
+/**
+ * The FULL registry row for every exam — the client-facing shape.
+ *
+ * Deliberately a second query rather than widening `listExams`: that one is
+ * called on hot paths (`liveExamCodes` runs inside the CA triage loop) and only
+ * ever needs two columns, while this one drags the whole `paper_structure` and
+ * `launch_scope_i18n` jsonb along. Same table, different cost profile.
+ *
+ * Non-live exams are INCLUDED. `launch_scope_i18n` exists precisely to state,
+ * honestly, what an exam does and does not cover BEFORE a user commits to it —
+ * hiding the row would leave the client unable to say "not available yet" with
+ * the registry's own words. `is_live` travels with the row so the client can
+ * gate selection on it (the server still enforces that in
+ * `assertSelectableExam`; the flag here is for copy, never for authorisation).
+ *
+ * Parsed with the shared `examSchema` so a malformed jsonb becomes a loud 500
+ * here rather than a silently-wrong paper structure rendered as marks and
+ * qualifying thresholds in the UI.
+ */
+export async function listExamsDetailed(): Promise<Exam[]> {
+  const { data, error } = await supabase()
+    .from("exams")
+    .select("exam_code, display_name_i18n, is_live, paper_structure, launch_scope_i18n, sort_order")
+    .order("sort_order", { ascending: true });
+  if (error) throw new HttpError(500, `exam registry lookup failed: ${error.message}`);
+  const parsed = z.array(examSchema).safeParse(data ?? []);
+  if (!parsed.success) {
+    throw new HttpError(500, `exam registry row failed validation: ${parsed.error.message}`);
+  }
+  return parsed.data;
 }
 
 /**

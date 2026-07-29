@@ -6,6 +6,7 @@ import type { PaperSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { StatCardSkeleton } from "@/components/ui-x/skeleton";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
@@ -84,6 +85,7 @@ function PaperGroup({ title, papers }: { title: string; papers: PaperSummary[] }
 
 export function Component() {
   const { t } = useTranslation();
+  const { name: examName } = useCurrentExam();
   const locale = useLocale();
   const { data, isLoading } = usePaperSummaries();
 
@@ -97,7 +99,7 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("Learn.title")} description={t("Learn.description")} tourAnchor="learn" />
+      <PageHeader title={t("Learn.title")} description={t("Learn.description", { exam: examName })} tourAnchor="learn" />
 
       {!isLoading && data && data.length > 0 && (
         <Link

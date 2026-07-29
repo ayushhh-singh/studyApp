@@ -1,6 +1,8 @@
 import type { Difficulty, ExamCode, ExamStage, QuestionType } from "@neev/shared";
 
 export const queryKeys = {
+  /** The exam registry — one global list, identical for every user (no key input). */
+  exams: () => ["exams"] as const,
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,
   paperSummaries: () => ["syllabus", "papers"] as const,
   paperTree: (paperCode: string, exam?: ExamCode, difficulty?: Difficulty) =>

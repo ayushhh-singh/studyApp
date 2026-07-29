@@ -3,18 +3,34 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { Flame, Timer, Trophy, X, Zap } from "lucide-react";
 import type { TimeAttackPaperCode, TimeAttackResult, TimeAttackStart, TimeAttackTopic } from "@neev/shared";
-import { TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE } from "@neev/shared";
+import { TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE, timeAttackPaperCodeSchema } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { TestPlayer } from "@/components/practice/test-player";
 import { useTimeAttackTopics, useStartTimeAttack, useFinishTimeAttack } from "@/hooks/use-time-attack";
 import { useLocale } from "@/hooks/use-locale";
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { cn } from "@/lib/utils";
 
-const PAPERS: { code: TimeAttackPaperCode; labelKey: string }[] = [
-  { code: "PRE_GS1", labelKey: "TimeAttack.paperGs1" },
-  { code: "PRE_CSAT", labelKey: "TimeAttack.paperCsat" },
-];
+/**
+ * The papers Time Attack can offer, from the exam registry — its objective
+ * prelims papers, narrowed to those the API actually accepts.
+ *
+ * `timeAttackPaperCodeSchema` is a two-value enum of UPPSC paper codes, i.e.
+ * this feature's server contract is still single-exam (its own slice of work).
+ * Deriving the list and then narrowing keeps the client honest about that: a
+ * second exam's papers are simply not offered, and the picker renders its normal
+ * "not enough questions yet" state rather than a UPPSC paper the user never
+ * chose.
+ */
+function useTimeAttackPapers(): { code: TimeAttackPaperCode; label: string }[] {
+  const { papers, label } = usePaperCatalog();
+  return papers
+    .filter((p) => p.stage === "prelims" && p.format === "objective")
+    .map((p) => ({ parsed: timeAttackPaperCodeSchema.safeParse(p.paper_code), code: p.paper_code }))
+    .filter((p) => p.parsed.success)
+    .map((p) => ({ code: p.code as TimeAttackPaperCode, label: label(p.code) }));
+}
 
 function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => void }) {
   const { t } = useTranslation();
@@ -34,11 +50,19 @@ function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => 
   );
 }
 
-function PaperToggle({ paper, onChange }: { paper: TimeAttackPaperCode; onChange: (p: TimeAttackPaperCode) => void }) {
-  const { t } = useTranslation();
+function PaperToggle({
+  papers,
+  paper,
+  onChange,
+}: {
+  papers: { code: TimeAttackPaperCode; label: string }[];
+  paper: TimeAttackPaperCode | null;
+  onChange: (p: TimeAttackPaperCode) => void;
+}) {
+  if (papers.length < 2) return null;
   return (
     <div role="tablist" className="inline-flex w-fit gap-1 rounded-lg bg-muted p-1">
-      {PAPERS.map((p) => (
+      {papers.map((p) => (
         <button
           key={p.code}
           type="button"
@@ -50,7 +74,7 @@ function PaperToggle({ paper, onChange }: { paper: TimeAttackPaperCode; onChange
             paper === p.code ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
           )}
         >
-          {t(p.labelKey)}
+          {p.label}
         </button>
       ))}
     </div>
@@ -62,15 +86,21 @@ function TopicPicker({
   onPaperChange,
   onPick,
 }: {
-  paper: TimeAttackPaperCode;
+  paper: TimeAttackPaperCode | null;
   onPaperChange: (p: TimeAttackPaperCode) => void;
   onPick: (topic: TimeAttackTopic) => void;
 }) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data: topics, isLoading } = useTimeAttackTopics(paper);
+  const { label } = usePaperCatalog();
+  const papers = useTimeAttackPapers();
+  // Nothing is picked until the registry resolves, so the first supported paper
+  // stands in — never a hardcoded "PRE_GS1".
+  const active = paper ?? papers[0]?.code ?? null;
+  const { data: topics, isLoading } = useTimeAttackTopics(active);
+  // No supported paper for this exam — the honest state is the same "not enough
+  // questions yet" message, never another exam's paper.
   const startTA = useStartTimeAttack();
-  const allLabelKey = paper === "PRE_CSAT" ? "TimeAttack.allCsat" : "TimeAttack.allGs1";
 
   return (
     <div className="flex flex-col gap-5">
@@ -79,7 +109,7 @@ function TopicPicker({
         <p className="text-sm text-muted-foreground">
           {t("TimeAttack.rules", { count: TIME_ATTACK_SIZE, minutes: TIME_ATTACK_MINUTES })}
         </p>
-        <PaperToggle paper={paper} onChange={onPaperChange} />
+        <PaperToggle papers={papers} paper={active} onChange={onPaperChange} />
       </div>
       {isLoading ? (
         <div className="flex flex-col gap-2">
@@ -102,7 +132,7 @@ function TopicPicker({
             >
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate font-semibold" lang={locale}>
-                  {topic.is_paper_root ? t(allLabelKey) : topic.title_i18n[locale]}
+                  {topic.is_paper_root ? t("TimeAttack.allPaper", { paper: label(active) }) : topic.title_i18n[locale]}
                 </span>
                 <span className="text-xs text-muted-foreground">
                   {t("TimeAttack.available", { count: topic.available })}
@@ -181,7 +211,7 @@ function EndScreen({
 export function Component() {
   const navigate = useNavigate();
   const locale = useLocale();
-  const [paper, setPaper] = useState<TimeAttackPaperCode>("PRE_GS1");
+  const [paper, setPaper] = useState<TimeAttackPaperCode | null>(null);
   const [start, setStart] = useState<TimeAttackStart | null>(null);
   const [result, setResult] = useState<TimeAttackResult | null>(null);
   const comboBestRef = useRef(0);

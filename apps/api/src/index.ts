@@ -36,6 +36,7 @@ import { communityRouter } from "./routes/community.js";
 import { scoreboardRouter } from "./routes/scoreboard.js";
 import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./routes/billing.js";
 import { guestAuthPublicRouter, guestAuthRouter } from "./routes/auth.js";
+import { examsPublicRouter } from "./routes/exams.js";
 import { pushRouter } from "./routes/push.js";
 import { tourRouter } from "./routes/tour.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
@@ -117,6 +118,10 @@ app.use("/api/v1", billingPublicRouter);
 
 // Public — the per-IP guest-session checkpoint (called before signInAnonymously).
 app.use("/api/v1", guestAuthPublicRouter);
+
+// Public — the exam registry (paper structures, display names, launch scope).
+// Reference data about the product, identical for every caller; see the router.
+app.use("/api/v1", examsPublicRouter);
 
 // Everything below requires a valid Supabase session. requireAuth verifies the
 // JWT, derives the user id, and binds it to the request's async context.

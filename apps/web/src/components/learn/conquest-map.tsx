@@ -6,6 +6,7 @@ import type { ExamCode, Locale, MasteryNode } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useMastery } from "@/hooks/use-mastery";
 import { getAccessToken } from "@/lib/auth";
 import { MASTERY_COLOR, MASTERY_LEVELS, masteryLevelKey, masteryTileFill } from "@/lib/mastery";
@@ -106,6 +107,7 @@ function Tile({
 
 export function ConquestMap({ paperCode, locale, exam }: { paperCode: string; locale: Locale; exam?: ExamCode }) {
   const { t } = useTranslation();
+  const { name: examName } = useCurrentExam();
   const { data, isLoading, isError, refetch } = useMastery(paperCode, exam);
 
   // The drill path: [] = top-level (paper's direct sections). Each entry is
@@ -207,7 +209,7 @@ export function ConquestMap({ paperCode, locale, exam }: { paperCode: string; lo
       {path.length > 0 ? (
         <Breadcrumb path={path} rootTitle={rootTitle} locale={locale} onJump={setPath} />
       ) : (
-        <p className="text-sm text-muted-foreground">{t("Learn.mapIntro")}</p>
+        <p className="text-sm text-muted-foreground">{t("Learn.mapIntro", { exam: examName })}</p>
       )}
       <div className="relative aspect-[4/3] w-full">
         {rects.map((r) => (

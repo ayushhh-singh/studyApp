@@ -3,6 +3,7 @@ import { useParams } from "react-router";
 import { MapPin, Newspaper, Star } from "lucide-react";
 import type { CurrentAffairsFactKind, Locale, MagazineFactEntry, MagazineItemBlock } from "@neev/shared";
 import { useMagazinePrelims } from "@/hooks/use-magazine";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -102,6 +103,7 @@ function ItemBlock({ item, locale }: { item: MagazineItemBlock; locale: Locale }
 
 export function Component() {
   const { t } = useTranslation();
+  const { name: examName } = useCurrentExam();
   const locale = useLocale();
   const { month = "" } = useParams<{ month: string }>();
   const { data: mag, isLoading, isError, refetch } = useMagazinePrelims(month);
@@ -236,7 +238,7 @@ export function Component() {
             )}
 
             <footer className="mt-10 border-t border-border pt-4 text-center text-xs text-muted-foreground">
-              {t("Magazine.footer")}
+              {t("Magazine.footer", { exam: examName })}
             </footer>
           </>
         )}

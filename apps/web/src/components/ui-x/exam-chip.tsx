@@ -1,23 +1,21 @@
 import { useTranslation } from "react-i18next";
 import type { BilingualText, ExamCode } from "@neev/shared";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
+import { PROVENANCE_EXAM_LABEL } from "@/lib/exam-label";
 import { cn } from "@/lib/utils";
-
-/** Fallback labels when a row has no denormalised exam_label_i18n (legacy rows). */
-const EXAM_FALLBACK: Record<ExamCode, BilingualText> = {
-  uppsc: { en: "UPPSC", hi: "यूपीपीएससी" },
-  upsc: { en: "UPSC", hi: "यूपीएससी" },
-  mppsc: { en: "MPPSC", hi: "एमपीपीएससी" },
-  up_ro_aro: { en: "UP RO/ARO", hi: "यूपी आरओ/एआरओ" },
-  upsssc_pet: { en: "UPSSSC PET", hi: "यूपीएसएसएससी पीईटी" },
-  other: { en: "Other", hi: "अन्य" },
-};
 
 /**
  * The "exam + year" attribution chip rendered wherever a question shows
  * (PYQ lists, the in-test player). Reads the row's denormalised
- * exam_label_i18n, falling back to a per-exam-code label. When the question is
- * out of the UPPSC syllabus, an unobtrusive marker flags it.
+ * exam_label_i18n, falling back to a per-exam-code label.
+ *
+ * The fallback map is PROVENANCE-keyed and stays that way — see
+ * lib/exam-label.ts. `examCode` here answers "which commission set this
+ * question", which is a different question from "which exam is the viewer
+ * preparing for": a UPPSC aspirant legitimately sees an RO/ARO chip on a
+ * borrowed PYQ. Only the out-of-syllabus marker, which IS about the viewer's own
+ * syllabus, reads the target exam.
  */
 export function ExamYearChip({
   examCode,
@@ -34,7 +32,8 @@ export function ExamYearChip({
 }) {
   const locale = useLocale();
   const { t } = useTranslation();
-  const label = (examLabel ?? EXAM_FALLBACK[examCode])[locale];
+  const { name: currentExamName } = useCurrentExam();
+  const label = (examLabel ?? PROVENANCE_EXAM_LABEL[examCode])[locale];
   return (
     <span
       className={cn(
@@ -45,7 +44,7 @@ export function ExamYearChip({
       <span>{year ? `${label} · ${year}` : label}</span>
       {outOfSyllabus && (
         <span
-          title={t("Learn.outOfSyllabus")}
+          title={t("Learn.outOfSyllabus", { exam: currentExamName })}
           className="rounded-sm bg-marigold/20 px-1 text-[0.65rem] font-semibold text-marigold-foreground"
         >
           {t("Learn.outOfSyllabusShort")}

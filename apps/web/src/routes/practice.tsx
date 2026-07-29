@@ -16,6 +16,7 @@ import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
 import { MockTestsPanel } from "@/components/practice/mock-paper-tabs";
 import { AttemptHistoryList } from "@/components/practice/attempt-history-list";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useTests } from "@/hooks/use-tests";
 import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useLocale } from "@/hooks/use-locale";
@@ -208,6 +209,7 @@ function TimeAttackPanel() {
 
 export function Component() {
   const { t } = useTranslation();
+  const { name: examName } = useCurrentExam();
   const [searchParams, setSearchParams] = useSearchParams();
   const nodeFilter = searchParams.get("node");
   const tab: Tab = isTab(searchParams.get("tab")) ? (searchParams.get("tab") as Tab) : "pyq";
@@ -262,7 +264,7 @@ export function Component() {
           </SectionCard>
         </TabsContent>
         <TabsContent value="mock">
-          <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription")}>
+          <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription", { exam: examName })}>
             <MockTestsPanel stage="prelims" />
           </SectionCard>
         </TabsContent>
