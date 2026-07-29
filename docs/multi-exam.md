@@ -27,9 +27,16 @@ Every synthetic row was deleted by an id captured at insert time and
 left in `syllabus_nodes` / `tests` / `evaluations` / `questions` /
 `current_affairs_items` / `users_profile` / `discussion_threads`.
 
-Still open: §8c's ops items (M11-M14) and the new **M20** (the CA magazine and
-its two UPPSC-shaped fields, deferred together — see §5 below), plus the product
-decisions in §4, of which **M17 is now decided: community is exam-separated**.
+Still open: §8c's ops items (M11-M14, M21) and the new **M20** (the CA magazine
+and its two UPPSC-shaped fields, deferred together — see §3 item 7).
+
+**The product decisions in §4 are now closed** (founder, 2026-07-29): community
+is exam-separated (M17, §3e), **study chapters stay exam-specific and are
+drafted from the corresponding UPPSC chapter — see §5, which every future
+chapter-generation session must read first** (M15), pricing stays one
+exam-agnostic ladder (M18), and questions are not shared across exams (M19).
+Only **M16** (one exam per user, or several concurrently?) remains open, and the
+schema already answers it "one".
 
 ---
 
@@ -244,11 +251,17 @@ Items 1-4 were the blocking set. **All four are now CLOSED** (migrations
    been swept into the GS board. `RubricDefinition` now carries
    `examCode`/`kind`/`paperCodes`/`defaults`; new exams name their versions
    `<exam>-<kind>-v<n>`. See §3d.
-6. **Decide the chapters question** (0106 §13): duplicate the 284 fact-audited
-   chapters per exam (~90% identical content, 3x authoring and fact-audit cost),
-   or make chapter bodies exam-agnostic with a `note_syllabus_nodes` join table
-   plus a per-exam state-angle overlay replacing the hardcoded `up_angle`. This
-   is a content-strategy call with a real cost, deliberately left open.
+6. ✅ **The chapters question is DECIDED (M15, founder, 2026-07-29): chapters
+   stay exam-SPECIFIC — one row per node, `notes.syllabus_node_id` stays UNIQUE,
+   no `note_syllabus_nodes` join table.** The "3x authoring and fact-audit cost"
+   that made this a hard call is a **one-time cost paid in free coding-agent
+   time, not recurring API spend** (all 284 existing chapters were authored that
+   way — see `docs/OUTSTANDING.md` A1), which is what makes duplication
+   affordable. It is NOT blank-slate re-authoring either: where a topic is
+   genuinely common across exams, the corresponding UPPSC chapter is the
+   starting draft, then tailored and expanded for the target exam's real
+   emphasis. **The full rule, and the four things that must be re-derived rather
+   than copied, are in §5 — read it before generating chapters for any exam.**
 7. **Generalise the UPPSC-shaped CA fields** — `gs_papers text[]` assumes GS1-6
    numbering and `is_up_specific` assumes UP. **Deliberately deferred, with the
    piece that makes deferring safe now shipped** (M8): the CA feed finally
@@ -440,15 +453,129 @@ cache key, so it is recorded here rather than changed as a drive-by.
 
 ---
 
-## 4. Open product decisions (not decided by the schema)
+## 4. Product decisions (not decided by the schema)
 
-The schema deliberately encodes **one exam per user at a time**
-(`users_profile.target_exam` is scalar), reinforced by two pre-existing keys:
-`study_plans unique(user_id) where is_active` and
+**Decided 2026-07-29 (founder) — four of the five are now closed.** Each is
+recorded with its reasoning in `docs/OUTSTANDING.md` §8d; the schema
+consequences are summarised here so this file stands on its own.
+
+| # | Decision | What it means for the schema |
+|---|---|---|
+| M15 | **Study chapters are exam-SPECIFIC**, authored by free coding-agent subagents, **drafted from the corresponding UPPSC chapter** where the topic is genuinely common. | Nothing changes: `notes.syllabus_node_id` stays UNIQUE, no join table, `notes:embed` / the reader / the review queue / `getPaperSummaries`' coverage counts are untouched. **The authoring rule is §5 — mandatory reading for any chapter-generation session.** |
+| M17 | **Community is exam-separated** (see §3e). | Shipped with M9 + `0110`. |
+| M18 | **One exam-agnostic price ladder**, for now. | Nothing changes: `plans` / `subscriptions` / `billing_events` carry no exam. Flagged for revisit in `docs/OUTSTANDING.md` §7 under the same "reopen only with explicit discussion" convention as the transparent-pricing call — **do not add per-exam plans as a drive-by**. |
+| M19 | **No cross-exam question sharing.** | Nothing changes: `questions.syllabus_node_id` stays scalar, no `question_syllabus_nodes` join table. The sharing case that IS worth having is already built — current affairs (§5b). |
+
+**Still open — M16: one exam per user, or several concurrently?** The schema
+encodes **one** (`users_profile.target_exam` is scalar), reinforced by two
+pre-existing keys: `study_plans unique(user_id) where is_active` and
 `daily_quiz_board_entries unique(user_id, quiz_date)`. Changing that is a
 product decision, not a migration.
 
-**Decided 2026-07-29: community is exam-separated** (see §3e). Still open:
-whether pricing stays one ladder across exams (`plans`/`subscriptions` are
-exam-agnostic today, see `docs/OUTSTANDING.md` §7); and the chapters question in
-§3.6.
+---
+
+## 5. Authoring study chapters for a second exam — READ THIS FIRST
+
+> **This section is the standing instruction for every future chapter-generation
+> session, for any exam.** It is not history. If you are about to generate,
+> assemble or roll out study chapters, the rule below applies to you.
+
+### 5a. The rule (M15 — founder decision, 2026-07-29)
+
+**1. Chapters stay exam-SPECIFIC.** One `notes` row per syllabus node;
+`notes.syllabus_node_id` stays UNIQUE. There is no `note_syllabus_nodes` join
+table and no exam-agnostic body + per-exam overlay. Nothing downstream changes:
+`notes:embed`'s per-section chunking, the reader's Study/Quick-Revision tabs,
+the review queue's resolve-then-publish gate, and `getPaperSummaries`'
+`chapters_published_count` all keep working exactly as they do for UPPSC.
+
+**2. Authoring is done by free Claude Code subagents, NOT the paid
+`notes:chapter` API path.** This is the reason duplication is affordable and it
+is the crux of the decision: the "3x authoring and fact-audit cost" that made
+M15 look expensive is a **one-time cost in agent time, not recurring API
+spend**. All 284 existing chapters were authored this way for $0 of app
+Anthropic spend (`model:'claude-code-agent'`, `meta.authored_by`) — see
+`docs/OUTSTANDING.md` A1 and CLAUDE.md Sessions 28 / 28.5 / 29 for the working
+fan-out mechanics (batches of **5**, then a checkpoint pass of assemble →
+resolve fact-audit flags → `approveNote` → `embedNotes({nodeId})` **in
+process**, never shelling out per note). The real-API path
+(`pnpm notes:chapter`) stays reserved for production/cron use.
+
+**3. Do NOT blank-slate author.** Where a topic is genuinely common across exams
+— and most GS content is — **the corresponding UPPSC chapter is the starting
+draft.** Read it, then tailor and expand it for the target exam's real emphasis.
+Blank-slate re-authoring the same topic per exam wastes agent time twice over:
+it re-does settled research, and it produces gratuitous divergence on facts that
+are identical between exams (two chapters silently disagreeing on the same
+figure is worse than one shared figure). Where a topic has **no** genuine UPPSC
+counterpart (a paper or subject the source exam does not have), author it fresh
+— the rule is "start from the counterpart where one exists", not "force a
+mapping".
+
+### 5b. What must be RE-DERIVED, never copied
+
+Drafting from the UPPSC chapter is a starting point for **prose and settled
+facts**. These five are exam-specific and must come from the target exam's own
+context pack:
+
+1. **PYQ id chips (`pyq_ids` on sections and boxes) — the one that fails
+   SILENTLY.** `validatePyqIds` in `notes/chapter-assemble.ts` checks only that
+   an id exists in `questions` **at all**; it has **no exam scoping**. So a
+   copied UPPSC `pyq_id` resolves cleanly, passes the loader without a warning,
+   and renders a chip deep-linking the reader to *another exam's* question.
+   Always take ids from the target node's own `notes:chapter:context` pack.
+   Tracked as **M21** in `docs/OUTSTANDING.md` §8c — until it is fixed, this is
+   a human-discipline guard, not an enforced one.
+2. **The state / regional angle.** `up_angle` is literally Uttar Pradesh —
+   `notes/prompts.ts` names UP in both the instruction and the JSON schema. For
+   another exam this is that exam's own state (MPPSC → Madhya Pradesh) or, for a
+   national exam, not a state angle at all. Never carry UPPSC's UP paragraphs
+   across.
+3. **Weightage-driven emphasis and section order.** The pack's
+   `weightage.total_pyqs` / `by_year` come from `mv_node_weightage` **for that
+   exam**. A topic that is heavy in UPPSC can be light in UPSC and vice versa;
+   section depth and ordering follow the target exam's numbers, not the source's.
+4. **Exam-pattern references.** Paper names, marks, word limits and stage
+   structure are per-exam and are seeded on `exams.paper_structure` (0106) — for
+   example UPPSC's UP-specific GS-V/GS-VI papers have no UPSC counterpart, and
+   UPPSC's 700-word / 50-mark essay defaults are not UPSC's.
+5. **The fact-audit for anything changed.** Every rewritten or newly added
+   decisive fact goes through the same web-search audit as a fresh chapter;
+   `approveNote` blocks publish while any flagged/unverifiable fact is
+   unresolved. A claim carried over genuinely unchanged keeps its existing audit
+   entry — that reuse is the point of drafting from the counterpart.
+
+### 5c. Mechanics
+
+- Dump the target node's pack exactly as for UPPSC:
+  `pnpm notes:chapter:context --node <uuid|PAPER_CODE> [--top N] --dir <dir>`.
+  It is already exam-correct — everything it reads is scoped through the node.
+- **There is no CLI that dumps an existing chapter.** Read the counterpart's
+  `notes.study_content_i18n` for the UPPSC node directly (service-role select,
+  or the reader route). If cross-exam drafting becomes routine, the natural
+  wiring is a `--source-node` flag on `notes:chapter:context` that inlines the
+  counterpart chapter into the pack — deliberately not built ahead of a real
+  second-exam rollout.
+- Finding the counterpart is a **judgement call, not a title match**: syllabus
+  trees differ in shape between exams, so one target node may draw on two UPPSC
+  chapters or half of one. Say which source chapter(s) a draft came from in the
+  session log.
+- Load via `pnpm notes:chapter:assemble --file|--dir`, which is byte-identical
+  downstream to a real-API chapter apart from the recorded author.
+
+### 5d. Where sharing IS the right answer (M19's other half)
+
+M19 decided questions are **not** shared across exams — `questions.
+syllabus_node_id` stays scalar. That is not a blanket "never share"; it is the
+right answer for questions specifically, because a PYQ is an artefact of one
+commission's paper and its provenance (`questions.exam_code`) is a fact about
+which exam asked it.
+
+The case where sharing genuinely is right is **already built, and is the model
+to follow if another one appears**: current affairs. `current_affairs_items.
+syllabus_node_ids` is a bare `uuid[]` (no FK, no cardinality limit) and
+`exam_codes` is an array read with `overlaps`, so one national story maps into
+several exams' trees from **one row** — never duplicated, never re-triaged and
+re-enriched per exam (the two most expensive calls in `ca:run`), and its single
+embedding row is stamped `exam_code = NULL`, meaning "shared across all exams"
+(`ca/embed-exam.ts`). No schema change is needed for that case anywhere.

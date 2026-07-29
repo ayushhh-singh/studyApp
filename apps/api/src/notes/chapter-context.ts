@@ -6,6 +6,12 @@
  * grounding) as JSON. Used to author a chapter OUTSIDE the app's Anthropic API
  * (agent + web tools) with byte-identical inputs, then load via
  * notes:chapter:assemble. A real-API run gets the same pack from loadChapterContext.
+ *
+ * GENERATING CHAPTERS FOR A SECOND EXAM? Read `docs/multi-exam.md` §5 FIRST.
+ * Chapters are exam-specific (M15) and must be DRAFTED FROM the corresponding
+ * UPPSC chapter where the topic is common — not authored blank-slate — and five
+ * things must be re-derived rather than copied, `pyq_ids` most urgently (it
+ * fails silently; see validatePyqIds in chapter-assemble.ts).
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";

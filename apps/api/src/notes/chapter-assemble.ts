@@ -42,7 +42,16 @@ export const chapterAssembleInputSchema = z.object({
 });
 export type ChapterAssembleInput = z.infer<typeof chapterAssembleInputSchema>;
 
-/** Validate every real pyq_id referenced actually exists in the bank (id-linked chips must resolve). */
+/**
+ * Validate every real pyq_id referenced actually exists in the bank (id-linked chips must resolve).
+ *
+ * KNOWN GAP (docs/OUTSTANDING.md §8c M21): this checks EXISTENCE only, not that the
+ * question belongs to the same exam as the chapter's node. Harmless while uppsc is the
+ * only exam with chapters — but M15 makes "draft from the corresponding UPPSC chapter"
+ * the recommended starting point, so a carried-over UPPSC pyq_id would resolve here,
+ * load with no warning, and render a chip linking to another exam's question. Scope this
+ * by the node's exam as the FIRST step of any real second-exam chapter rollout.
+ */
 async function validatePyqIds(input: ChapterAssembleInput): Promise<string[]> {
   const ids = new Set<string>();
   for (const s of input.sections) {

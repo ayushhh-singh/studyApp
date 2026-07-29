@@ -10,6 +10,11 @@
  * ESTIMATE is shown BEFORE running (per-chapter × count), gated on NOTES_CHAPTER_MAX_USD.
  * Chapters land as needs_review for the Review Queue Notes tab. When the app has no
  * Anthropic credit, author chapters via the agent + `notes:chapter:assemble` instead.
+ *
+ * NOTE (M15, founder decision 2026-07-29): bulk chapter authoring — including a
+ * second exam's whole rollout — is done with FREE coding-agent subagents via
+ * notes:chapter:context + notes:chapter:assemble, NOT this paid path, which stays
+ * reserved for production/cron use. The standing rule is `docs/multi-exam.md` §5.
  */
 import { createInterface } from "node:readline/promises";
 import { resolvePaperCode, topWeightageNodes, existingNoteNodeIds } from "./generate.js";
