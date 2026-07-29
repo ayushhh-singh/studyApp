@@ -69,10 +69,17 @@ function buildTree(rows: SyllabusRow[]): SyllabusNode[] {
   return roots;
 }
 
-export async function getSyllabusTree(stage?: ExamStage): Promise<SyllabusNode[]> {
+/**
+ * The whole tree for ONE exam. `examCode` is required, not optional-with-a-
+ * default: this feeds the command palette, and an unscoped read would put a
+ * second exam's every topic into a UPPSC aspirant's search results. Making the
+ * caller name the exam is what forces that decision to be visible.
+ */
+export async function getSyllabusTree(examCode: string, stage?: ExamStage): Promise<SyllabusNode[]> {
   let query = supabase()
     .from("syllabus_nodes")
     .select("id, exam_stage, paper_code, title_i18n, description_i18n, order_index, depth, path, parent_id")
+    .eq("exam_code", examCode)
     .order("paper_code", { ascending: true })
     .order("order_index", { ascending: true });
   if (stage) query = query.eq("exam_stage", stage);
@@ -85,18 +92,25 @@ export async function getSyllabusTree(stage?: ExamStage): Promise<SyllabusNode[]
 // ---------------------------------------------------------------------------
 // Papers grid — one row per paper root (syllabus_nodes.depth = 0).
 // ---------------------------------------------------------------------------
-export async function getPaperSummaries(userId: string): Promise<PaperSummary[]> {
+export async function getPaperSummaries(userId: string, examCode: string): Promise<PaperSummary[]> {
   // depth=1 rows are the top-level chapters shown as the outline's first
   // level (what "N topics" on a paper card should count) — NOT every node at
   // every depth, which would silently include every subtopic too.
+  //
+  // Both syllabus_nodes reads are exam-scoped: without it the papers grid
+  // renders EVERY exam's papers to every user. The paper_code-keyed maps built
+  // below (PYQs, notes, accuracy) need no exam filter of their own — they are
+  // only ever read back for `rootRows`' own paper codes, and paper_code is
+  // globally unique across exams (docs/multi-exam.md §0).
   const [rootsResult, topicsResult, questionsResult, notesResult, graded] = await Promise.all([
     supabase()
       .from("syllabus_nodes")
       .select("id, exam_stage, paper_code, title_i18n")
+      .eq("exam_code", examCode)
       .eq("depth", 0)
       .order("exam_stage", { ascending: true })
       .order("paper_code", { ascending: true }),
-    supabase().from("syllabus_nodes").select("paper_code").eq("depth", 1),
+    supabase().from("syllabus_nodes").select("paper_code").eq("exam_code", examCode).eq("depth", 1),
     // Count only user-visible questions (published AND approved) that are
     // actually mapped to a syllabus_node_id, matching getPaperTree's
     // own_pyq_count rollup below (which skips null-node rows entirely) — a

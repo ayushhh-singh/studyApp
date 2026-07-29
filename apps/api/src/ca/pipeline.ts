@@ -61,6 +61,9 @@ import { loadFewShot, loadNodeContext } from "../qgen/generate.js";
 import { buildCriticParams, parseCritic, QGEN_PROMPT_VERSION, type FewShotQuestion } from "../qgen/prompts.js";
 import { CandidatePrefilter, PREFILTER_TOP_K, PREFILTER_TOP_K_DEVANAGARI } from "./candidate-prefilter.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
+import { caEmbeddingExamCode } from "./embed-exam.js";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
+import { liveExamCodes } from "../lib/exams.js";
 import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
@@ -198,6 +201,8 @@ interface EmbedTask {
   itemId: string;
   locale: "hi" | "en";
   text: string;
+  /** Which exam this chunk belongs to; null = shared. See ./embed-exam.ts. */
+  examCode: string | null;
 }
 
 /** What happened to one triaged item downstream. `duplicate` and `archived` are expected, terminal, and NOT failures. */
@@ -397,6 +402,9 @@ async function insertMainsQuestionForItem(opts: {
       node: {
         id: opts.syllabusNodeId ?? "",
         paperCode: CURRENT_AFFAIRS_PAPER_CODE,
+        // Synthetic node stub for the critic prompt only — it is never used for
+        // retrieval, so the default exam is the honest placeholder here.
+        examCode: DEFAULT_EXAM_CODE,
         stage: "mains",
         title_i18n: { hi: "", en: opts.title },
         description_i18n: null,
@@ -685,7 +693,7 @@ export async function runPipeline(
   // Loaded before anything else because BOTH phases need it: collect
   // reconstructs each row's shown-candidate list from it, submit narrows
   // against it.
-  const candidates = await loadSyllabusCandidates();
+  const candidates = await loadSyllabusCandidates({ examCodes: await liveExamCodes() });
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
   log(`syllabus candidates for mapping: ${candidates.length}`);
 
@@ -974,6 +982,7 @@ export async function runPipeline(
         locale: t.locale,
         chunk_text: t.text,
         embedding: toVectorLiteral(vectors[j]),
+        exam_code: t.examCode,
       }));
       const { error } = await supabase()
         .from("embeddings")
@@ -1016,6 +1025,18 @@ export async function processTriagedItem(
   const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
   const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
 
+  // Which exams this item actually landed in — derived from the nodes triage
+  // chose, NOT left to the `{uppsc}` column default. The default is a lie the
+  // moment a second exam's nodes are mappable, and the item's embedding row is
+  // stamped from this same set (see caEmbeddingExamCode below), so the row and
+  // its vector can never disagree. An item that mapped to no node keeps the
+  // default rather than being written as belonging to nothing.
+  // (Closes the second half of docs/OUTSTANDING.md §8b M8.)
+  const mappedExams = [
+    ...new Set(triage.syllabus_node_ids.map((id) => candidateById.get(id)?.examCode).filter((e): e is string => !!e)),
+  ];
+  const itemExamCodes = mappedExams.length > 0 ? mappedExams : [DEFAULT_EXAM_CODE];
+
   // --- 2. Hard gate -----------------------------------------------------
   if (bestScore < RELEVANCE_GATE) {
     const { error: archiveError } = await supabase()
@@ -1030,6 +1051,7 @@ export async function processTriagedItem(
         gs_papers: triage.gs_papers,
         title_i18n: { hi: "", en: title },
         syllabus_node_ids: triage.syllabus_node_ids,
+        exam_codes: itemExamCodes,
         mcq_question_ids: [],
         content_hash: hash,
         source_id: sourceId,
@@ -1134,8 +1156,9 @@ export async function processTriagedItem(
   if (hasPrelims && hasMains) result.dualLife++;
 
   if (isPublished) {
-    embedTasks.push({ itemId, locale: "hi", text: `${enrich.title_i18n.hi}. ${enrich.summary_i18n.hi}` });
-    embedTasks.push({ itemId, locale: "en", text: `${enrich.title_i18n.en}. ${enrich.summary_i18n.en}` });
+    const embedExam = caEmbeddingExamCode(itemExamCodes);
+    embedTasks.push({ itemId, locale: "hi", text: `${enrich.title_i18n.hi}. ${enrich.summary_i18n.hi}`, examCode: embedExam });
+    embedTasks.push({ itemId, locale: "en", text: `${enrich.title_i18n.en}. ${enrich.summary_i18n.en}`, examCode: embedExam });
   }
 
   // --- 5. Dual quiz generation ------------------------------------------

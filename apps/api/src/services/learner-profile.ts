@@ -15,6 +15,7 @@
 import type { BilingualText, DimensionScore, LearnerProfile, Locale } from "@neev/shared";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
 import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
@@ -43,16 +44,22 @@ interface NodeRow {
  * return the weakest-first and strongest-first buckets that have ≥3 answers
  * (so a single lucky/unlucky question doesn't dominate).
  */
-async function buildNodeBuckets(userId: string) {
+async function buildNodeBuckets(userId: string, examCode: string) {
   const graded = await getGradedAnswers(userId);
   const nodeIds = new Set(graded.map((g) => g.questions?.syllabus_node_id).filter((x): x is string => !!x));
   if (nodeIds.size === 0) return { weak: [], strong: [] };
 
-  const { data: nodes, error } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, paper_code, path, depth, title_i18n");
-  if (error) throw new HttpError(500, `syllabus nodes lookup failed: ${error.message}`);
-  const nodeRows = (nodes ?? []) as NodeRow[];
+  // Exam-scoped + paged, for the same reason as the dashboard weakness radar
+  // this mirrors: an unscoped whole-table read grows with every added exam and
+  // silently truncates at PostgREST's 1000-row cap, dropping ancestor rows and
+  // so whole sections from the mentor's picture of the learner.
+  const nodeRows = await selectAll<NodeRow>(() =>
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, paper_code, path, depth, title_i18n")
+      .eq("exam_code", examCode)
+      .order("id", { ascending: true }),
+  );
   const nodeById = new Map(nodeRows.map((n) => [n.id, n]));
   const topByKey = new Map(nodeRows.filter((n) => n.depth === 1).map((n) => [`${n.paper_code}::${n.path}`, n]));
 
@@ -231,11 +238,12 @@ export async function computeLearnerProfile(userId: string): Promise<LearnerProf
   if (profileError) throw new HttpError(500, `profile lookup failed: ${profileError.message}`);
 
   // Exam-scoped since 0106 — see lib/exam-calendar.ts.
+  const examCode = (profileRow?.target_exam as string) || DEFAULT_EXAM_CODE;
   const { data: examRows } = await upcomingExamsQuery(today);
-  const exam = pickNextExam(examRows, (profileRow?.target_exam as string) || DEFAULT_EXAM_CODE);
+  const exam = pickNextExam(examRows, examCode);
 
   const [buckets, evaluation, recent_nodes, activity_last_7d] = await Promise.all([
-    buildNodeBuckets(userId),
+    buildNodeBuckets(userId, examCode),
     buildEvaluationTrend(userId),
     buildRecentNodes(userId),
     buildActivity(userId),

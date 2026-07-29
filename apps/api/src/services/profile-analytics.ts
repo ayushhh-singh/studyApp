@@ -17,6 +17,7 @@ import type {
 } from "@neev/shared";
 import { RUBRIC_DIMENSION_KEYS, isPreRecalibration } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { getUserExam } from "../lib/exams.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 
@@ -35,7 +36,7 @@ interface AttemptTrajectoryRow {
   tests: { paper_code: string | null } | null;
 }
 
-async function getScoreTrajectory(userId: string): Promise<PaperScoreTrajectory[]> {
+async function getScoreTrajectory(userId: string, examCode: string): Promise<PaperScoreTrajectory[]> {
   const [attemptsRes, rootsRes] = await Promise.all([
     supabase()
       .from("attempts")
@@ -44,7 +45,11 @@ async function getScoreTrajectory(userId: string): Promise<PaperScoreTrajectory[
       .not("submitted_at", "is", null)
       .order("submitted_at", { ascending: false })
       .limit(200),
-    supabase().from("syllabus_nodes").select("paper_code, title_i18n").eq("depth", 0),
+    // Paper-title lookup, scoped to the user's exam. Every paper this user can
+    // attempt belongs to their own exam, so pulling other exams' roots only adds
+    // rows that are never read back — and one day pushes this past the 1000-row
+    // cap for a title map that is meant to be exhaustive.
+    supabase().from("syllabus_nodes").select("paper_code, title_i18n").eq("exam_code", examCode).eq("depth", 0),
   ]);
   if (attemptsRes.error) throw new HttpError(500, `attempts trajectory query failed: ${attemptsRes.error.message}`);
   if (rootsRes.error) throw new HttpError(500, `paper roots query failed: ${rootsRes.error.message}`);
@@ -238,8 +243,9 @@ export async function getImprovementProof(
 
 // ---------------------------------------------------------------------------
 export async function getProfileAnalytics(userId: string): Promise<ProfileAnalytics> {
+  const examCode = await getUserExam(userId);
   const [score_trajectory, accuracy_time_buckets, evaluationTrend, improvement_proof] = await Promise.all([
-    getScoreTrajectory(userId),
+    getScoreTrajectory(userId, examCode),
     getAccuracyTimeBuckets(userId),
     fetchRecentEvaluations(userId, 30),
     getImprovementProof(userId),

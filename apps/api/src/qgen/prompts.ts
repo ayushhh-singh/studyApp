@@ -42,6 +42,8 @@ export interface FewShotQuestion {
 export interface NodeContext {
   id: string;
   paperCode: string;
+  /** Product exam that owns this node — the retrieval scope for generation. */
+  examCode: string;
   stage: "prelims" | "mains";
   title_i18n: BilingualPair;
   description_i18n: BilingualPair | null;

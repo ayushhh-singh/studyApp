@@ -30,6 +30,7 @@ import {
 } from "./prompts.js";
 import { RELEVANCE_GATE } from "./pipeline.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
+import { liveExamCodes } from "../lib/exams.js";
 import { selectAll } from "../lib/paginate.js";
 import { CandidatePrefilter } from "./candidate-prefilter.js";
 import type {
@@ -142,7 +143,7 @@ type Log = (msg: string) => void;
 
 export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<BackfillRunResult> {
   const log = opts.log ?? (() => {});
-  const candidates = await loadSyllabusCandidates();
+  const candidates = await loadSyllabusCandidates({ examCodes: await liveExamCodes() });
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
   const prefilter = await CandidatePrefilter.create(candidates);
   const all = await loadItemsNeedingBackfill();

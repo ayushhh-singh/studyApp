@@ -109,6 +109,10 @@ export interface SyllabusCandidate {
   // lets pipeline.ts pick a PRELIMS match from triage's own classification for
   // MCQ placement without a second model call. Purely additive to this type.
   paperCode: string;
+  // Also prompt-invisible: the node's own exam, so the pipeline can record which
+  // exams an item actually landed in (and stamp its embedding to match) from the
+  // nodes triage chose, rather than leaning on the `{uppsc}` column default.
+  examCode: string;
 }
 
 // ---------------------------------------------------------------------------

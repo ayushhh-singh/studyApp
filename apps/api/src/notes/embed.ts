@@ -19,7 +19,7 @@
  */
 import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
-import { hasChapter, type NoteBody, type StudyContent } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, hasChapter, type NoteBody, type StudyContent } from "@neev/shared";
 import { computeEmbedCoverage } from "../ingest/embed-coverage.js";
 
 type Locale = "hi" | "en";
@@ -31,6 +31,7 @@ interface Chunk {
   locale: Locale;
   chunk_index: number;
   chunk_text: string;
+  exam_code: string;
 }
 
 /** Light markdown → plain text (drop table pipes, bold, headings, mermaid fences). */
@@ -92,6 +93,7 @@ interface NoteRow {
   id: string;
   content_i18n: { hi: NoteBody; en: NoteBody };
   study_content_i18n: StudyContent | null;
+  syllabus_nodes: { exam_code: string | null } | { exam_code: string | null }[] | null;
 }
 
 export interface EmbedNotesResult {
@@ -109,7 +111,13 @@ export interface EmbedNotesResult {
  * post-rollout audit) and needlessly slow (a fresh Supabase/OpenAI client per call).
  */
 export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; limit?: number } = {}): Promise<EmbedNotesResult> {
-  let q = supabase().from("notes").select("id, content_i18n, study_content_i18n").eq("status", "published");
+  // exam_code comes from the note's own syllabus node — the tree is what defines
+  // which exam a chapter belongs to (`notes.syllabus_node_id` is UNIQUE, so a
+  // note has exactly one).
+  let q = supabase()
+    .from("notes")
+    .select("id, content_i18n, study_content_i18n, syllabus_nodes(exam_code)")
+    .eq("status", "published");
   if (opts.nodeId) q = q.eq("syllabus_node_id", opts.nodeId);
   if (opts.noteIds) q = q.in("id", opts.noteIds); // note.id === embeddings.source_id (see embed-coverage.ts)
   const { data, error } = await q;
@@ -125,7 +133,12 @@ export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; li
     if (isChapter) chapterCount++;
     for (const loc of LOCALES) {
       const texts = isChapter ? chapterSectionTexts(n.study_content_i18n!, loc) : splitText(digestText(n.content_i18n[loc]));
-      texts.forEach((chunk_text, chunk_index) => chunks.push({ source_id: n.id, locale: loc, chunk_index, chunk_text }));
+      const sn = n.syllabus_nodes;
+      // PostgREST returns a to-one embed as an object or a single-element array.
+      const examCode = (Array.isArray(sn) ? sn[0]?.exam_code : sn?.exam_code) ?? DEFAULT_EXAM_CODE;
+      texts.forEach((chunk_text, chunk_index) =>
+        chunks.push({ source_id: n.id, locale: loc, chunk_index, chunk_text, exam_code: examCode }),
+      );
     }
   }
   if (chunks.length === 0) return { noteCount: notes.length, chapterCount, chunkCount: 0 };
@@ -150,6 +163,7 @@ export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; li
       chunk_index: c.chunk_index,
       chunk_text: c.chunk_text,
       embedding: toVectorLiteral(vectors[j]),
+      exam_code: c.exam_code,
     }));
     const { error: upErr } = await supabase()
       .from("embeddings")

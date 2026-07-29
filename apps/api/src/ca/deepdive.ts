@@ -20,6 +20,7 @@ import { selectAll } from "../lib/paginate.js";
 import { MODELS, estimateCostUsd } from "../lib/models.js";
 import { BATCH_DISCOUNT, runBatch, structuredParams, type BatchRequest, type LlmUsage } from "../lib/anthropic.js";
 import { retrieveGrounding } from "../services/evaluation/grounding.js";
+import { examCodeForNode } from "../lib/exams.js";
 import { loadNodeWeightage } from "../lib/weightage.js";
 import { monthBounds } from "../lib/month.js";
 import { RELEVANCE_GATE } from "./pipeline.js";
@@ -197,11 +198,15 @@ async function buildRequests(issues: RankedIssue[]): Promise<DeepDiveRequest[]> 
   const out: DeepDiveRequest[] = [];
   for (const issue of issues) {
     const primaryNodeId = issue.item.syllabus_node_ids[0] ?? null;
+    // A CA item can map into several exams' trees; the deep dive is written for
+    // the exam that owns the node it is primarily filed under.
+    const examCode = await examCodeForNode(primaryNodeId);
     const [grounding, pyqText] = await Promise.all([
       retrieveGrounding({
         questionText: `${issue.item.title_i18n.en} ${issue.item.mains_brief.why_in_news_i18n.en}`,
         locale: "en",
         syllabusNodeId: primaryNodeId,
+        examCode,
         k: 6,
       }),
       loadRelatedPyqs(issue.item.syllabus_node_ids),

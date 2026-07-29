@@ -11,6 +11,7 @@
  * and record one generation_batches row (requested/accepted/cost) per node.
  */
 import type { BilingualText, Difficulty, GenerationMeta, QuestionType } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { logger } from "../lib/logger.js";
 import {
@@ -105,7 +106,7 @@ function difficultyOf(c: Candidate): Difficulty {
 export async function loadNodeContext(nodeId: string): Promise<NodeContext> {
   const { data, error } = await supabase()
     .from("syllabus_nodes")
-    .select("id, paper_code, exam_stage, title_i18n, description_i18n")
+    .select("id, paper_code, exam_code, exam_stage, title_i18n, description_i18n")
     .eq("id", nodeId)
     .maybeSingle();
   if (error) throw new Error(`syllabus node lookup failed: ${error.message}`);
@@ -113,6 +114,7 @@ export async function loadNodeContext(nodeId: string): Promise<NodeContext> {
   return {
     id: data.id as string,
     paperCode: data.paper_code as string,
+    examCode: (data.exam_code as string | null) ?? DEFAULT_EXAM_CODE,
     stage: data.exam_stage as "prelims" | "mains",
     title_i18n: data.title_i18n as { hi: string; en: string },
     description_i18n: (data.description_i18n as { hi: string; en: string } | null) ?? null,
@@ -187,7 +189,8 @@ async function loadGenContext(node: NodeContext, kind: QuestionType): Promise<Ge
   const query = groundingQueryFor(node);
   const [examples, grounding] = await Promise.all([
     loadFewShot(node, kind),
-    retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, k: 6 }),
+    // Generated questions must be grounded in their own exam's material.
+    retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, examCode: node.examCode, k: 6 }),
   ]);
   return { node, examples, grounding };
 }
@@ -261,6 +264,7 @@ async function loadGenContextsBatch(plans: GeneratePlan[]): Promise<GenContext[]
           questionText: queries[i],
           locale: "en",
           syllabusNodeId: plan.node.id,
+          examCode: plan.node.examCode,
           k: 6,
           queryEmbedding: vecs[i],
         }),

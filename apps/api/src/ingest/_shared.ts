@@ -10,7 +10,13 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { PDFParse } from "pdf-parse";
 import { PDFDocument } from "pdf-lib";
-import { examCodeSchema, type ExamCode as SharedExamCode } from "@neev/shared";
+import {
+  DEFAULT_EXAM_CODE,
+  TARGET_EXAM_CODES,
+  examCodeSchema,
+  type ExamCode as SharedExamCode,
+  type TargetExamCode,
+} from "@neev/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // apps/api/src/ingest -> repo root is four levels up.
@@ -183,65 +189,126 @@ export function isMojibakeHindi(hi: string, en: string): boolean {
 
 // ---------------------------------------------------------------------------
 // Paper definitions — globally-unique paper_code per paper so the
-// (paper_code, path) upsert key never collides across exam stages.
+// (paper_code, path) upsert key never collides across exam stages OR EXAMS.
+//
+// `exam` (added closing M1) is what `ingest:syllabus` stamps onto
+// `syllabus_nodes.exam_code`. It is a PRODUCT exam (what a user can target),
+// not the provenance `ExamCode` on `questions.exam_code` — the two enums are
+// deliberately different (see packages/shared/src/exams.ts).
+//
+// !! THE LOAD-BEARING INVARIANT (docs/multi-exam.md §0): `paper_code` is unique
+// !! ACROSS exams, not just within one. ~30 call sites filter by `paper_code`
+// !! alone and are correct only because of it, and the upsert conflict target
+// !! here is (paper_code, path) — so a second exam reusing a bare `PRE_GS1`
+// !! would OVERWRITE the UPPSC tree in place rather than insert its own.
+// !! A non-default exam's paper codes MUST therefore be exam-prefixed
+// !! (`UPSC_PRE_GS1`). `assertPaperCodeScoped` below enforces that at ingest
+// !! time so the rule cannot be broken by convention alone.
 // ---------------------------------------------------------------------------
 export type ExamStage = "prelims" | "mains";
 
 export interface PaperDef {
+  /** Product exam this paper belongs to — written to `syllabus_nodes.exam_code`. */
+  exam: TargetExamCode;
   paperCode: string;
   stage: ExamStage;
   title: I18n;
 }
 
+/**
+ * The paper-code prefix a given exam's papers must carry. The default exam
+ * (uppsc) keeps its historical bare codes — every existing row, test slug,
+ * `like 'PRE_%'` scan and board key depends on them — so only a SECOND exam
+ * pays the prefix cost.
+ */
+export function paperCodePrefixFor(exam: TargetExamCode): string {
+  return exam === DEFAULT_EXAM_CODE ? "" : `${exam.toUpperCase()}_`;
+}
+
+/**
+ * Throw unless `paperCode` is correctly scoped for `exam`. Called before the
+ * first write of any paper's tree: a violation here is a loud failure at ingest
+ * instead of a silent in-place overwrite of another exam's syllabus.
+ */
+export function assertPaperCodeScoped(exam: TargetExamCode, paperCode: string): void {
+  const prefix = paperCodePrefixFor(exam);
+  if (prefix && !paperCode.startsWith(prefix)) {
+    throw new Error(
+      `paper_code "${paperCode}" is not scoped to exam "${exam}" — it must start with "${prefix}". ` +
+        `syllabus_nodes.paper_code is globally unique across exams (see docs/multi-exam.md §0); ` +
+        `a bare code would overwrite another exam's tree through the (paper_code, path) upsert key.`,
+    );
+  }
+  // The converse: a default-exam paper must not wear another exam's prefix.
+  if (!prefix) {
+    for (const other of TARGET_EXAM_CODES) {
+      const p = paperCodePrefixFor(other);
+      if (p && paperCode.startsWith(p)) {
+        throw new Error(`paper_code "${paperCode}" is prefixed for "${other}" but is being ingested as "${exam}".`);
+      }
+    }
+  }
+}
+
 export const PAPERS: PaperDef[] = [
   // Prelims
   {
+    exam: "uppsc",
     paperCode: "PRE_GS1",
     stage: "prelims",
     title: { hi: "प्रारंभिक — सामान्य अध्ययन प्रथम प्रश्नपत्र", en: "Prelims — General Studies Paper I" },
   },
   {
+    exam: "uppsc",
     paperCode: "PRE_CSAT",
     stage: "prelims",
     title: { hi: "प्रारंभिक — सी-सैट (सामान्य अध्ययन द्वितीय प्रश्नपत्र)", en: "Prelims — CSAT (General Studies Paper II)" },
   },
   // Reformed Mains (8 papers)
   {
+    exam: "uppsc",
     paperCode: "MAINS_GH",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य हिन्दी", en: "Mains — General Hindi" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_ESSAY",
     stage: "mains",
     title: { hi: "मुख्य — निबंध", en: "Mains — Essay" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_GS1",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन प्रथम प्रश्नपत्र", en: "Mains — General Studies Paper I" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_GS2",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन द्वितीय प्रश्नपत्र", en: "Mains — General Studies Paper II" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_GS3",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन तृतीय प्रश्नपत्र", en: "Mains — General Studies Paper III" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_GS4",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन चतुर्थ प्रश्नपत्र", en: "Mains — General Studies Paper IV" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_GS5",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन पंचम प्रश्नपत्र (उत्तर प्रदेश विशेष)", en: "Mains — General Studies Paper V (UP-specific)" },
   },
   {
+    exam: "uppsc",
     paperCode: "MAINS_GS6",
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन षष्ठम प्रश्नपत्र (उत्तर प्रदेश विशेष)", en: "Mains — General Studies Paper VI (UP-specific)" },

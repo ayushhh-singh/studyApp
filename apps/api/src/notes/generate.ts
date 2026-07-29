@@ -36,6 +36,8 @@ export type Log = (msg: string) => void;
 export interface NoteNodeRow {
   id: string;
   paper_code: string;
+  /** Product exam that owns this node — the retrieval scope for anything authored about it. */
+  exam_code: string;
   exam_stage: "prelims" | "mains";
   path: string;
   title_i18n: { hi: string; en: string };
@@ -60,7 +62,7 @@ export interface GenerateNoteResult {
 export async function loadNoteNode(nodeId: string): Promise<NoteNodeRow> {
   const { data, error } = await supabase()
     .from("syllabus_nodes")
-    .select("id, paper_code, exam_stage, path, title_i18n, description_i18n")
+    .select("id, paper_code, exam_code, exam_stage, path, title_i18n, description_i18n")
     .eq("id", nodeId)
     .maybeSingle();
   if (error) throw new Error(`syllabus node lookup failed: ${error.message}`);
@@ -171,7 +173,9 @@ export async function generateNoteForNode(
   const query = `${node.title_i18n.en}. ${node.description_i18n?.en ?? ""}`.trim();
   const [pyqs, grounding] = await Promise.all([
     loadNotePyqs(nodeIds),
-    retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, k: 8 }),
+    // Grounded in the node's OWN exam: a note about a UPPSC topic must never be
+    // written from another exam's chapters, however semantically close they are.
+    retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, examCode: row.exam_code, k: 8 }),
   ]);
 
   let costUsd = 0;

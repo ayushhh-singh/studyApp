@@ -48,6 +48,7 @@ async function match(params: {
   queryEmbedding: string;
   matchCount: number;
   locale: Locale;
+  examCode: string;
   sourceType?: string;
   sourceId?: string;
 }): Promise<MatchRow[]> {
@@ -57,6 +58,11 @@ async function match(params: {
     filter_locale: params.locale,
     filter_source_type: params.sourceType ?? null,
     filter_source_id: params.sourceId ?? null,
+    // Filtered INSIDE the RPC (0107), never on the returned rows: this is an
+    // `ORDER BY vector <=> q LIMIT k` against an HNSW index, so post-filtering
+    // the top-k can legitimately leave zero rows when another exam happens to
+    // own the nearest chapters.
+    filter_exam_code: params.examCode,
   });
   if (error) throw new Error(`match_embeddings failed: ${error.message}`);
   return (data ?? []) as MatchRow[];
@@ -71,6 +77,15 @@ export async function retrieveGrounding(opts: {
   questionText: string;
   locale: Locale;
   syllabusNodeId: string | null;
+  /**
+   * Which exam's content may ground this. REQUIRED on purpose: a default would
+   * silently make every caller retrieve UPPSC content, which is exactly the bug
+   * this parameter exists to prevent (docs/OUTSTANDING.md §8a M3). Content
+   * pipelines pass the exam of the node/question they are generating for; the
+   * user-facing evaluation path passes the user's own target exam. Chunks with
+   * a NULL exam_code (shared current affairs) match every value.
+   */
+  examCode: string;
   k?: number;
   /**
    * Precomputed embedding for `questionText`, skipping the internal embed()
@@ -94,12 +109,13 @@ export async function retrieveGrounding(opts: {
           queryEmbedding: literal,
           matchCount: k,
           locale: opts.locale,
+          examCode: opts.examCode,
           sourceType: "syllabus",
           sourceId: opts.syllabusNodeId,
         })
       : [];
 
-    const globalRows = await match({ queryEmbedding: literal, matchCount: k, locale: opts.locale });
+    const globalRows = await match({ queryEmbedding: literal, matchCount: k, locale: opts.locale, examCode: opts.examCode });
 
     const seen = new Set<string>();
     const merged: MatchRow[] = [];

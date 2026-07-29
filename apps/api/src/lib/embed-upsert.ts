@@ -15,6 +15,21 @@ export interface EmbeddingRow {
   chunk_index: number;
   chunk_text: string;
   embedding: string; // pgvector literal, e.g. "[0.1,0.2,…]" — see toVectorLiteral
+  /**
+   * Which exam's content this chunk is, denormalized from the source row so
+   * `match_embeddings` can filter it inside the ANN query (0107).
+   *
+   * REQUIRED, not optional-with-a-default: the column's DB default is 'uppsc',
+   * so an omitted field is silently WRONG for any other exam rather than being
+   * caught. Making it a required field means the compiler asks every writer
+   * where its exam comes from.
+   *
+   * `null` means shared across all exams — the only legitimate user is a
+   * current-affairs item mapped into more than one exam's tree (0106 §11 keeps
+   * those deliberately un-duplicated, and there is one embedding row per item
+   * per locale, so a scalar exam cannot represent them).
+   */
+  exam_code: string | null;
 }
 
 /** number[] → the pgvector text literal PostgREST accepts for an `embedding` column. */

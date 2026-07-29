@@ -72,7 +72,7 @@ export async function embedQuery(text: string): Promise<string | null> {
 
 async function matchEmbeddings(
   vectorLiteral: string,
-  opts: { locale: Locale; matchCount: number; sourceType?: string; sourceId?: string },
+  opts: { locale: Locale; matchCount: number; examCode: string; sourceType?: string; sourceId?: string },
 ): Promise<MatchRow[]> {
   const { data, error } = await supabase().rpc("match_embeddings", {
     query_embedding: vectorLiteral,
@@ -80,6 +80,11 @@ async function matchEmbeddings(
     filter_locale: opts.locale,
     filter_source_type: opts.sourceType ?? null,
     filter_source_id: opts.sourceId ?? null,
+    // Inside the RPC, not applied to the returned rows (0107). Post-filtering an
+    // ANN top-k is not a filter, it is a truncation: another exam's chapter on
+    // the same topic embeds almost identically, so it can occupy the entire
+    // top-k and leave the user with no grounding at all.
+    filter_exam_code: opts.examCode,
   });
   if (error) throw new Error(`match_embeddings failed: ${error.message}`);
   return (data ?? []) as MatchRow[];
@@ -192,6 +197,13 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
 export async function retrieveContext(opts: {
   vectorLiteral: string | null;
   locale: Locale;
+  /**
+   * The asking user's own exam. Required, not defaulted — this decides which
+   * exam's chapters the mentor may quote and cite, and a default would quietly
+   * make that "UPPSC" for everyone. Chunks with a NULL exam_code (shared current
+   * affairs) match every exam.
+   */
+  examCode: string;
   nodeId?: string;
 }): Promise<MentorContext> {
   if (!opts.vectorLiteral) {
@@ -202,11 +214,16 @@ export async function retrieveContext(opts: {
       ? await matchEmbeddings(opts.vectorLiteral, {
           locale: opts.locale,
           matchCount: RETRIEVE_K,
+          examCode: opts.examCode,
           sourceType: "syllabus",
           sourceId: opts.nodeId,
         })
       : [];
-    const globalRows = await matchEmbeddings(opts.vectorLiteral, { locale: opts.locale, matchCount: RETRIEVE_K });
+    const globalRows = await matchEmbeddings(opts.vectorLiteral, {
+      locale: opts.locale,
+      matchCount: RETRIEVE_K,
+      examCode: opts.examCode,
+    });
 
     const seen = new Set<string>();
     const merged: MatchRow[] = [];
@@ -253,6 +270,7 @@ export interface FaqCandidate {
 export async function lookupFaqCandidates(
   vectorLiteral: string | null,
   locale: Locale,
+  examCode: string,
 ): Promise<FaqCandidate[]> {
   if (!vectorLiteral) return [];
   try {
@@ -260,6 +278,12 @@ export async function lookupFaqCandidates(
       query_embedding: vectorLiteral,
       filter_locale: locale,
       match_count: FAQ_CANDIDATE_COUNT,
+      // Scopes the cache in BOTH directions, because upsertFaqCache reuses this
+      // same lookup as its near-duplicate check: one exam's user can never be
+      // served another exam's framing (silently, at >= 0.95, with no model call
+      // and nothing in the UI to show it), and one exam's regenerated answer can
+      // never overwrite another exam's cached row.
+      filter_exam_code: examCode,
     });
     if (error) throw error;
     return ((data ?? []) as {
@@ -292,6 +316,8 @@ export async function upsertFaqCache(opts: {
   questionText: string;
   vectorLiteral: string | null;
   locale: Locale;
+  /** The exam this answer was FRAMED for — part of the dedup key, not metadata. */
+  examCode: string;
   answer: string;
   citations: MentorCitation[];
   mode: FaqMode;
@@ -301,12 +327,16 @@ export async function upsertFaqCache(opts: {
     question_text: opts.questionText.slice(0, 2000),
     embedding: opts.vectorLiteral,
     locale: opts.locale,
+    exam_code: opts.examCode,
     answer: opts.answer,
     citations: opts.citations,
     mode: opts.mode,
   };
   try {
-    const candidates = await lookupFaqCandidates(opts.vectorLiteral, opts.locale);
+    // Same-exam candidates only — see the filter in lookupFaqCandidates. Without
+    // it "newest wins" would let a UPPSC answer UPDATE the MPPSC row it happens
+    // to sit within 0.95 of, destroying the other exam's cached answer.
+    const candidates = await lookupFaqCandidates(opts.vectorLiteral, opts.locale, opts.examCode);
     const dup = candidates.find((c) => c.mode === opts.mode && c.similarity >= FAQ_SILENT_THRESHOLD);
     if (dup) {
       const { error } = await supabase().from("doubt_faq_cache").update(row).eq("id", dup.id);

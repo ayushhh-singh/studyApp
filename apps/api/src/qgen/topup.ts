@@ -16,6 +16,7 @@
  * richest in real PYQs — so at today's bank size it generates 0; its value is
  * doing the RIGHT thing the next time the floor actually fires.
  */
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { estimateCostUsd, MODELS } from "../lib/models.js";
@@ -97,11 +98,19 @@ async function computeNodeTargets(
   band: FloorBand,
   demand: DemandRow[],
   log: (msg: string) => void,
+  examCode: string = DEFAULT_EXAM_CODE,
 ): Promise<NodeTarget[]> {
-  // All nodes for the matching papers.
+  // All nodes for the matching papers, in this exam.
+  //
+  // The `like 'PRE_%'` pattern is only UPPSC-specific by CONVENTION — the paper-
+  // code invariant (docs/multi-exam.md §0) mandates an exam prefix for a second
+  // exam, so `UPSC_PRE_GS1` would not match `PRE_%`. That is a convention doing
+  // load-bearing work; the explicit exam filter makes it structural instead, and
+  // keeps working if a future exam's codes ever break the prefix habit.
   const { data: nodes, error: nodesErr } = await supabase()
     .from("syllabus_nodes")
     .select("id, path, depth, paper_code, title_i18n")
+    .eq("exam_code", examCode)
     .like("paper_code", paperLike);
   if (nodesErr) throw new Error(`syllabus nodes query failed: ${nodesErr.message}`);
   const rows = (nodes ?? []) as NodeRow[];

@@ -1,8 +1,9 @@
 /**
- * ingest:syllabus — build the full UPPSC syllabus_nodes tree from the real
- * downloaded syllabus PDFs.
+ * ingest:syllabus — build a syllabus_nodes tree from the real downloaded
+ * syllabus PDFs. Multi-exam aware: each PaperDef names its own exam, which is
+ * stamped onto every node it writes.
  *
- *   pnpm ingest:syllabus [--paper PRE_GS1] [--dry-run] [--limit-nodes N]
+ *   pnpm ingest:syllabus [--exam uppsc] [--paper PRE_GS1] [--dry-run] [--limit-nodes N]
  *
  * Flow:
  *   1. Extract text from the official 2026 syllabus PDFs (Hindi + English).
@@ -27,6 +28,7 @@ import {
   extractPdf,
   pdfDocumentBlock,
   PAPERS,
+  assertPaperCodeScoped,
   ensureParsedDir,
   PARSED_DIR,
   parseArgs,
@@ -273,6 +275,13 @@ async function upsertNode(
   meta: Record<string, unknown>,
 ): Promise<string> {
   const row = {
+    // The conflict target below is (paper_code, path) and is deliberately
+    // UNCHANGED — it is what makes the paper-code invariant (docs/multi-exam.md
+    // §0) a hard 23505 rather than a convention. exam_code is stamped as data,
+    // never as part of the key: adding it to the key would let two exams share a
+    // bare paper code, which ~30 paper_code-only reads elsewhere would then
+    // silently mix.
+    exam_code: paper.exam,
     exam_stage: paper.stage,
     paper_code: paper.paperCode,
     path,
@@ -297,6 +306,9 @@ async function ingestPaper(
   sources: LangSource[],
   opts: { dryRun: boolean; limitNodes?: number },
 ): Promise<{ nodes: number; machineTranslated: number }> {
+  // Fail BEFORE any model spend or any write: a mis-scoped paper code would
+  // upsert straight onto another exam's tree through (paper_code, path).
+  assertPaperCodeScoped(paper.exam, paper.paperCode);
   const raw = await structurePaper(paper, sources);
   const limited = opts.limitNodes ? raw.slice(0, opts.limitNodes) : raw;
 
@@ -363,6 +375,7 @@ async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const dryRun = !!args["dry-run"];
   const onlyPaper = typeof args.paper === "string" ? args.paper : null;
+  const onlyExam = typeof args.exam === "string" ? args.exam : null;
   const limitNodes = typeof args["limit-nodes"] === "string" ? Number(args["limit-nodes"]) : undefined;
 
   report.section(`ingest:syllabus${dryRun ? " (dry-run — writes JSON, no DB)" : ""}`);
@@ -383,14 +396,23 @@ async function main(): Promise<void> {
   const viaVision = sources.filter((s) => s.viaVision).map((s) => s.lang);
   if (viaVision.length) report.warn(`Vision-extracted languages (flag for review): ${viaVision.join(", ")}`);
 
-  const papers = onlyPaper ? PAPERS.filter((p) => p.paperCode === onlyPaper) : PAPERS;
-  if (papers.length === 0) throw new Error(`Unknown --paper ${onlyPaper}. Known: ${PAPERS.map((p) => p.paperCode).join(", ")}`);
+  let papers = PAPERS;
+  if (onlyExam) {
+    papers = papers.filter((p) => p.exam === onlyExam);
+    if (papers.length === 0) {
+      throw new Error(`No papers defined for --exam ${onlyExam}. Known exams: ${[...new Set(PAPERS.map((p) => p.exam))].join(", ")}`);
+    }
+  }
+  if (onlyPaper) {
+    papers = papers.filter((p) => p.paperCode === onlyPaper);
+    if (papers.length === 0) throw new Error(`Unknown --paper ${onlyPaper}. Known: ${PAPERS.map((p) => p.paperCode).join(", ")}`);
+  }
 
   report.section("Structuring papers");
   let totalNodes = 0;
   let totalMt = 0;
   for (const paper of papers) {
-    report.step(`→ ${paper.paperCode} (${paper.title.en})`);
+    report.step(`→ [${paper.exam}] ${paper.paperCode} (${paper.title.en})`);
     const { nodes, machineTranslated } = await ingestPaper(paper, sources, { dryRun, limitNodes });
     totalNodes += nodes;
     totalMt += machineTranslated;

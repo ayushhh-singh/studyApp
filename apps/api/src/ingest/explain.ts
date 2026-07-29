@@ -21,6 +21,7 @@ import { runBatch, structuredParams, MODELS, type BatchRequest } from "../lib/an
 import { estimateCostUsd } from "../lib/models.js";
 import { supabase } from "../lib/supabase.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
+import { examCodeForNode } from "../lib/exams.js";
 import { pMap } from "../audit/shared.js";
 
 /** Format retrieved passages for the prompt (same shape as the on-demand path). */
@@ -139,6 +140,7 @@ async function main(): Promise<void> {
       questionText: `${stemEn(q)}\n${optionsEn(q)}`,
       locale: "en",
       syllabusNodeId: q.syllabus_node_id,
+      examCode: await examCodeForNode(q.syllabus_node_id),
       k: 6,
     });
     return groundingBlockText(g);

@@ -24,6 +24,7 @@ import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { MODELS, structuredJson, translateBatch } from "../lib/anthropic.js";
 import { embedQuery, retrieveContext } from "./mentor/retrieval.js";
+import { getUserExam } from "../lib/exams.js";
 
 const EMPTY_BODY: NoteBody = {
   overview: "",
@@ -195,12 +196,19 @@ interface SourceMessageRow {
   doubt_threads: { user_id: string } | { user_id: string }[] | null;
 }
 
-async function inferNode(content: string, metaNodeId: string | null | undefined, locale: Locale): Promise<string | null> {
+async function inferNode(
+  content: string,
+  metaNodeId: string | null | undefined,
+  locale: Locale,
+  examCode: string,
+): Promise<string | null> {
   if (metaNodeId) return metaNodeId;
   // Fall back to a semantic match: embed the answer, take the top syllabus hit.
+  // Scoped to the user's exam — inferring a node from ANOTHER exam's tree would
+  // file the personal note under a topic they can't even open.
   try {
     const vectorLiteral = await embedQuery(content.slice(0, 4000));
-    const ctx = await retrieveContext({ vectorLiteral, locale });
+    const ctx = await retrieveContext({ vectorLiteral, locale, examCode });
     const syllabusCite = ctx.citations.find((c) => c.source_type === "syllabus");
     return syllabusCite?.source_id ?? null;
   } catch (err) {
@@ -236,7 +244,9 @@ export async function saveMessageAsNote(
   // Node link: explicit value wins (including an explicit null to unlink);
   // undefined → infer from the message's teacher meta or a semantic match.
   const nodeId =
-    opts.nodeId === undefined ? await inferNode(msg.content, msg.meta?.node_id, locale) : opts.nodeId;
+    opts.nodeId === undefined
+      ? await inferNode(msg.content, msg.meta?.node_id, locale, await getUserExam(userId))
+      : opts.nodeId;
 
   const { body, title, cards } = await convertAnswerToBody(userId, msg.content, locale, sources);
   if (!body.overview.trim()) throw new HttpError(502, "Couldn't turn this answer into notes — try a fuller answer.");

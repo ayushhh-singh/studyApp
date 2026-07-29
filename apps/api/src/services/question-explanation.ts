@@ -23,6 +23,7 @@ import { structuredJson } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { retrieveGrounding, type GroundingResult } from "./evaluation/grounding.js";
+import { examCodeForNode } from "../lib/exams.js";
 
 interface ExplainQuestion {
   id: string;
@@ -115,7 +116,14 @@ export async function generateGroundedExplanation(
 ): Promise<BilingualText> {
   const q = await fetchQuestion(questionId);
   const text = `${q.stem_i18n.en ?? q.stem_i18n.hi ?? ""}\n${optionsEn(q)}`;
-  const g = await retrieveGrounding({ questionText: text, locale: "en", syllabusNodeId: q.syllabus_node_id, k: 6 });
+  const g = await retrieveGrounding({
+    questionText: text,
+    locale: "en",
+    syllabusNodeId: q.syllabus_node_id,
+    // The exam that owns the question's node, not its provenance exam_code.
+    examCode: await examCodeForNode(q.syllabus_node_id),
+    k: 6,
+  });
   const expl = await authorExplanation(q, g, opts.userId);
   await writeExplanation(questionId, expl, opts.force ?? false);
   return expl;
@@ -133,6 +141,12 @@ export async function groundingForExplain(question: {
 }): Promise<string> {
   const opts = (question.options_i18n ?? []).map((o) => `${o.key}) ${o.text_i18n.en ?? o.text_i18n.hi ?? ""}`).join("\n");
   const text = `${question.stem_i18n.en ?? question.stem_i18n.hi ?? ""}\n${opts}`;
-  const g = await retrieveGrounding({ questionText: text, locale: "en", syllabusNodeId: question.syllabus_node_id ?? null, k: 6 });
+  const g = await retrieveGrounding({
+    questionText: text,
+    locale: "en",
+    syllabusNodeId: question.syllabus_node_id ?? null,
+    examCode: await examCodeForNode(question.syllabus_node_id),
+    k: 6,
+  });
   return groundingBlockText(g);
 }

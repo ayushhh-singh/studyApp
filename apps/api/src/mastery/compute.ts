@@ -7,6 +7,7 @@
  * Runs after each attempt submit (best-effort) and nightly — see daily/scheduler.
  */
 import type { BilingualText, ExamCode, MasteryMap, MasteryNode } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
@@ -148,14 +149,36 @@ export async function recomputeMastery(userId: string): Promise<number> {
 /** Fraction of a paper's high-weight sections that get the "study next" pulse. */
 const HIGH_WEIGHT_FRACTION = 0.4;
 
-export async function getMasteryMap(userId: string, paperCode?: string, exam?: ExamCode): Promise<MasteryMap> {
-  let nodeQuery = supabase()
-    .from("syllabus_nodes")
-    .select("id, paper_code, parent_id, title_i18n, depth, path, order_index");
-  if (paperCode) nodeQuery = nodeQuery.eq("paper_code", paperCode);
-  const { data: nodeData, error: nErr } = await nodeQuery;
-  if (nErr) throw new HttpError(500, `node lookup failed: ${nErr.message}`);
-  const nodes = (nodeData ?? []) as NodeRow[];
+/**
+ * The Conquest Map for one user.
+ *
+ * TWO DIFFERENT EXAM CONCEPTS, deliberately kept apart — do not merge them:
+ *  - `targetExam` scopes which SYLLABUS TREE is drawn (the user's own product
+ *    exam). Without it, omitting `paperCode` renders every exam's papers as
+ *    territories on one map.
+ *  - `exam` is the PROVENANCE filter on `questions.exam_code` — the UI's
+ *    "UPPSC-asked questions only" toggle, which only affects tile WEIGHT.
+ * `docs/multi-exam.md` §8a called this "already takes an unused exam arg — just
+ * wire it"; that is not right, the existing arg is the provenance one and is
+ * already used. The tree scoping needed its own parameter.
+ */
+export async function getMasteryMap(
+  userId: string,
+  paperCode?: string,
+  exam?: ExamCode,
+  targetExam: string = DEFAULT_EXAM_CODE,
+): Promise<MasteryMap> {
+  // Paged as well as scoped: `pk(paper_code, path)` resolution below needs the
+  // COMPLETE node set for the papers in play — a truncated read silently loses
+  // ancestors, which shows up as tiles with zero weight rather than as an error.
+  const nodes = await selectAll<NodeRow>(() => {
+    let q = supabase()
+      .from("syllabus_nodes")
+      .select("id, paper_code, parent_id, title_i18n, depth, path, order_index")
+      .eq("exam_code", targetExam);
+    if (paperCode) q = q.eq("paper_code", paperCode);
+    return q.order("id", { ascending: true });
+  });
   if (nodes.length === 0) return { paper_code: paperCode ?? null, total_pyq_count: 0, nodes: [] };
 
   const nodeById = new Map(nodes.map((n) => [n.id, n]));

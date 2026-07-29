@@ -13,8 +13,9 @@ import type {
   TestSummary,
   TodayPlanTask,
 } from "@neev/shared";
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { selectAll } from "../lib/paginate.js";
+import { getUserExam } from "../lib/exams.js";
 import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
@@ -45,19 +46,25 @@ function daysBetween(fromDateStr: string, toDateStr: string): number {
   return Math.round((to - from) / (24 * 3600 * 1000));
 }
 
-async function getGreeting(userId: string, today: string, streak: StreakState): Promise<DashboardGreeting> {
+async function getGreeting(
+  userId: string,
+  today: string,
+  streak: StreakState,
+  examCode: string,
+): Promise<DashboardGreeting> {
   const { data: profile, error: profileError } = await supabase()
     .from("users_profile")
-    .select("display_name, target_exam")
+    .select("display_name")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw new HttpError(500, `profile lookup failed: ${profileError.message}`);
 
   // Exam-scoped since 0106: without the pick, a UPPSC aspirant counts down to
-  // whichever exam happens to have the nearest date.
+  // whichever exam happens to have the nearest date. The exam is resolved once
+  // by the caller and shared with the weakness radar, so the two can't disagree.
   const { data: examRows, error: examError } = await upcomingExamsQuery(today);
   if (examError) throw new HttpError(500, `exam calendar lookup failed: ${examError.message}`);
-  const exam = pickNextExam(examRows, (profile?.target_exam as string) || DEFAULT_EXAM_CODE);
+  const exam = pickNextExam(examRows, examCode);
   const examRow = exam as unknown as {
     exam_stage: ExamStage;
     title_i18n: BilingualText;
@@ -272,6 +279,7 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
 
 async function getPerformanceAndWeakness(
   userId: string,
+  examCode: string,
 ): Promise<{ performance: DashboardPerformance; weakness_radar: DashboardWeaknessNode[] }> {
   const { data: submitted, error: submittedError } = await supabase()
     .from("attempts")
@@ -316,17 +324,26 @@ async function getPerformanceAndWeakness(
 
   let weaknessRadar: DashboardWeaknessNode[] = [];
   if (nodeIdsWithAnswers.size > 0) {
-    const { data: nodes, error: nodesError } = await supabase()
-      .from("syllabus_nodes")
-      .select("id, paper_code, path, depth, title_i18n");
-    if (nodesError) throw new HttpError(500, `syllabus nodes lookup failed: ${nodesError.message}`);
-    const nodeRows = (nodes ?? []) as {
+    // Exam-scoped AND paged. This read was previously the whole table with no
+    // range: at 294 UPPSC nodes it fits, but every added exam pushes it toward
+    // PostgREST's 1000-row cap, and a truncated node registry silently drops
+    // ancestors — whole topics vanish from the radar with no error. Scoping to
+    // the user's own exam is both the correctness fix (they never see another
+    // exam's sections) and what keeps the set bounded; `selectAll` is the
+    // belt-and-braces this repo has needed three times before.
+    const nodeRows = await selectAll<{
       id: string;
       paper_code: string;
       path: string;
       depth: number;
       title_i18n: BilingualText;
-    }[];
+    }>(() =>
+      supabase()
+        .from("syllabus_nodes")
+        .select("id, paper_code, path, depth, title_i18n")
+        .eq("exam_code", examCode)
+        .order("id", { ascending: true }),
+    );
 
     const nodeById = new Map(nodeRows.map((n) => [n.id, n]));
     const topNodeByKey = new Map(
@@ -419,11 +436,14 @@ export async function getDashboardSummary(userId: string): Promise<DashboardSumm
   // Record a Perfect Day if the whole checklist is done — best-effort so it never
   // blocks the dashboard; the nightly job also settles it.
   recordPerfectDay(userId, today, progress).catch((err) => logger.error({ err }, "perfect-day record failed"));
+  // One resolution of the user's exam, shared by the countdown and the weakness
+  // radar — resolving it twice risks the two disagreeing mid-request.
+  const examCode = await getUserExam(userId);
   const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
-    getGreeting(userId, today, streak),
+    getGreeting(userId, today, streak, examCode),
     getContinue(userId),
     getToday(userId, today, progress),
-    getPerformanceAndWeakness(userId),
+    getPerformanceAndWeakness(userId, examCode),
     getAnswerSpotlight(userId),
   ]);
 

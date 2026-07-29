@@ -11,6 +11,7 @@
  * exam with no content: an empty papers grid, no PYQs, no chapters, no
  * countdown. Verified against the live DB before this guard existed.
  */
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "./supabase.js";
 import { HttpError, badRequest } from "./http-error.js";
 
@@ -27,6 +28,62 @@ export async function listExams(): Promise<ExamRow[]> {
     .order("sort_order", { ascending: true });
   if (error) throw new HttpError(500, `exam lookup failed: ${error.message}`);
   return (data ?? []) as ExamRow[];
+}
+
+/**
+ * The exam a piece of CONTENT belongs to, derived from its syllabus node.
+ *
+ * For a content pipeline (notes, chapters, qgen, explanations, CA deep dives)
+ * this — not the user's target exam — is the right retrieval scope: the output
+ * is being written for that node's exam, so it must be grounded in that exam's
+ * material.
+ *
+ * NOT `questions.exam_code`, which is PROVENANCE ("which exam asked this") and
+ * whose domain deliberately includes exams we ingest PYQs from but never sell
+ * (up_ro_aro, upsssc_pet, other). A RO/ARO question mapped onto the UPPSC tree
+ * must ground in UPPSC content, not in an exam nobody can select.
+ *
+ * A null/unknown node falls back to the default exam, matching every such row
+ * in the database today; `out_of_syllabus` questions have no node at all and are
+ * an acknowledged open question (docs/OUTSTANDING.md §8d M19).
+ */
+export async function examCodeForNode(nodeId: string | null | undefined): Promise<string> {
+  if (!nodeId) return DEFAULT_EXAM_CODE;
+  const { data, error } = await supabase()
+    .from("syllabus_nodes")
+    .select("exam_code")
+    .eq("id", nodeId)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `node exam lookup failed: ${error.message}`);
+  return ((data as { exam_code?: string | null } | null)?.exam_code) || DEFAULT_EXAM_CODE;
+}
+
+/** Just the LIVE exams' codes — the set any user-facing content may belong to. */
+export async function liveExamCodes(): Promise<string[]> {
+  return (await listExams()).filter((e) => e.is_live).map((e) => e.exam_code);
+}
+
+/**
+ * The exam a user's content should be scoped to — `users_profile.target_exam`,
+ * defaulting for a row written before 0106 (or a profile that vanished).
+ *
+ * Prefer threading an exam the CALLER already has (most of these paths already
+ * read the profile for something else) over calling this: it is one extra
+ * indexed read, and on hot endpoints like the dashboard that adds up. It exists
+ * for the call sites that genuinely have only a user id — a route handler
+ * holding `currentUserId()` and nothing else.
+ *
+ * NOTE this is the PRODUCT exam (what content the user sees), never the
+ * provenance `questions.exam_code` ("which exam asked this question").
+ */
+export async function getUserExam(userId: string): Promise<string> {
+  const { data, error } = await supabase()
+    .from("users_profile")
+    .select("target_exam")
+    .eq("id", userId)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `target exam lookup failed: ${error.message}`);
+  return ((data as { target_exam?: string } | null)?.target_exam) || DEFAULT_EXAM_CODE;
 }
 
 /**

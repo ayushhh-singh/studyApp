@@ -15,6 +15,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import {
   getNodeDetail,
   getPaperSummaries,
@@ -32,7 +33,9 @@ syllabusRouter.get(
   "/syllabus/tree",
   asyncHandler(async (req, res) => {
     const query = parse(syllabusTreeQuerySchema, req.query);
-    const tree = await getSyllabusTree(query.stage);
+    // Scoped to the caller's own exam — the tree feeds the command palette, so
+    // an unscoped read would surface another exam's topics in their search.
+    const tree = await getSyllabusTree(await getUserExam(currentUserId()), query.stage);
     res.json(syllabusTreeResponseSchema.parse({ data: tree, error: null }));
   }),
 );
@@ -40,7 +43,8 @@ syllabusRouter.get(
 syllabusRouter.get(
   "/syllabus/papers",
   asyncHandler(async (_req, res) => {
-    const papers = await getPaperSummaries(currentUserId());
+    const userId = currentUserId();
+    const papers = await getPaperSummaries(userId, await getUserExam(userId));
     res.json(papersResponseSchema.parse({ data: papers, error: null }));
   }),
 );

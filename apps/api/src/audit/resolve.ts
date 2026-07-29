@@ -16,6 +16,7 @@ import { MODELS } from "../lib/models.js";
 import { structuredParams, webResearch } from "../lib/anthropic.js";
 import type { LlmUsage } from "../lib/anthropic.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
+import { examCodeForNode } from "../lib/exams.js";
 import { groundTruth, renderOptionsEn, type AuditQuestion } from "./shared.js";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,15 @@ function groundingText(g: GroundingResult): string {
 
 export async function groundingForQuestion(q: AuditQuestion): Promise<GroundingResult> {
   const text = `${q.stem_i18n.en ?? q.stem_i18n.hi ?? ""}\n${renderOptionsEn(q.options_i18n ?? [])}`;
-  return retrieveGrounding({ questionText: text, locale: "en", syllabusNodeId: q.syllabus_node_id, k: 6 });
+  // Ground in the exam that OWNS this question's syllabus node — not its
+  // provenance exam_code, which may name an exam we only ingest PYQs from.
+  return retrieveGrounding({
+    questionText: text,
+    locale: "en",
+    syllabusNodeId: q.syllabus_node_id,
+    examCode: await examCodeForNode(q.syllabus_node_id),
+    k: 6,
+  });
 }
 
 // ---------------------------------------------------------------------------

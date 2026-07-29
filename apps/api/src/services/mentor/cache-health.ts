@@ -9,6 +9,7 @@
  * ERROR log, not a swallowed warn, when broken) and feeds a line into the
  * /health detail so it's visible without reading logs.
  */
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { logger } from "../../lib/logger.js";
 import { EMBEDDING_DIMENSIONS } from "../../lib/embeddings.js";
@@ -38,15 +39,22 @@ async function probe(): Promise<MentorCacheHealth> {
   // (a) table present + selectable, AND carries the post-0070 `mode` column
   // (selecting `mode` fails on a pre-0070 table even when the cache is empty,
   // which the RPC probe below can't catch on an empty cache).
-  const { error: tableErr } = await db.from("doubt_faq_cache").select("id, mode").limit(1);
+  // `exam_code` extends the same idea to 0106/0107: selecting it fails on a
+  // pre-0106 table even when the cache is empty.
+  const { error: tableErr } = await db.from("doubt_faq_cache").select("id, mode, exam_code").limit(1);
   const tableOk = !tableErr;
 
   // (b) RPC present, runs, and returns the mode column (proves 0070 applied)
   let rpcOk = false;
+  // Passing filter_exam_code also proves the post-0107 signature is live: a
+  // pre-0107 function rejects the unknown named argument outright, so a stale
+  // RPC (which would serve one exam's cached answers to another exam's users)
+  // is reported at boot rather than discovered from a user complaint.
   const { data: rpcData, error: rpcErr } = await db.rpc("match_doubt_faq", {
     query_embedding: probeVectorLiteral(),
     filter_locale: "en",
     match_count: 1,
+    filter_exam_code: DEFAULT_EXAM_CODE,
   });
   if (!rpcErr) {
     const rows = (rpcData ?? []) as Record<string, unknown>[];
@@ -57,8 +65,8 @@ async function probe(): Promise<MentorCacheHealth> {
   const detail = tableOk && rpcOk
     ? "ok"
     : [
-        !tableOk ? "doubt_faq_cache table missing or pre-0070 (migrations 0049/0070)" : null,
-        tableOk && !rpcOk ? "match_doubt_faq RPC missing or pre-0070 (migrations 0049/0070)" : null,
+        !tableOk ? "doubt_faq_cache table missing or pre-0107 (migrations 0049/0070/0106/0107)" : null,
+        tableOk && !rpcOk ? "match_doubt_faq RPC missing or pre-0107 (migrations 0049/0070/0107)" : null,
       ]
         .filter(Boolean)
         .join("; ");

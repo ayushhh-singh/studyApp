@@ -1,0 +1,22 @@
+-- 0108_drop_redundant_embeddings_index.sql
+-- Drops `embeddings_exam_locale_source_idx`, created by 0107 §2.
+--
+-- It is column-for-column identical to `embeddings_exam_locale_idx`, which 0106
+-- §9 had already created on (exam_code, locale, source_type). Two identical
+-- btrees buy nothing and cost write amplification on the hottest-inserted table
+-- in the app — every embed batch maintains both.
+--
+-- Kept as its own migration rather than edited out of 0107: 0107 is already
+-- applied and recorded in the ledger, and this repo has been burned once by the
+-- ledger and the files disagreeing (docs/OUTSTANDING.md §0c). Migrations here are
+-- append-only; a fresh replay creating the index and immediately dropping it is
+-- cheap and honest.
+--
+-- Measured while verifying 0107 against the live DB (22,148 embedding rows):
+-- the exam predicate does NOT slow retrieval — an UNFILTERED call
+-- (filter_exam_code := null, i.e. the exact pre-0107 behaviour) took ~7-8s and
+-- often hit `statement timeout`, while filter_exam_code := 'uppsc' took ~5.8s
+-- and filter_exam_code := 'upsc' (a small partition) ~0.2s. The slowness is the
+-- pre-existing `match_embeddings` cost on this database, already noted in
+-- CLAUDE.md; the filter is neutral-to-helpful, never the cause.
+drop index if exists public.embeddings_exam_locale_source_idx;

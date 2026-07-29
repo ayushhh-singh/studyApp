@@ -26,6 +26,7 @@ import type {
 import { MAX_DOUBT_CHARS, mentorQuotaCost } from "@neev/shared";
 import { getMentorQuota, LIMITS, assertNotGuest } from "../entitlements.js";
 import { supabase } from "../../lib/supabase.js";
+import { getUserExam } from "../../lib/exams.js";
 import { HttpError, badRequest, notFound } from "../../lib/http-error.js";
 import { logger } from "../../lib/logger.js";
 import { MODELS, streamChat, streamText, structuredJson, webResearch } from "../../lib/anthropic.js";
@@ -192,6 +193,14 @@ export interface DoubtPlan {
   /** "Answer fresh" — skip the FAQ cache and force a fresh model answer. */
   bypassCache: boolean;
   /**
+   * The asking user's own exam, resolved once at plan time (alongside the
+   * history snapshot and the embed, so it costs no extra wait). It scopes BOTH
+   * the RAG retrieval and the FAQ answer cache — see 0107. Carried on the plan
+   * rather than re-read in executeDoubtStream so retrieval and the cache lookup
+   * can never end up scoped to different exams within one answer.
+   */
+  examCode: string;
+  /**
    * The question embedded once at plan time (overlapped with the history
    * snapshot), passed through so executeDoubtStream fires retrieval + the cache
    * lookup immediately, with no second embed. Null if embedding failed.
@@ -233,7 +242,7 @@ export async function planDoubtMessage(
   // executeDoubtStream can fire retrieval + the cache lookup the moment it
   // starts, with no second embed. (Both run after the daily-limit gate so an
   // over-quota request never spends an embedding call.)
-  const [priorRes, vectorLiteral] = await Promise.all([
+  const [priorRes, vectorLiteral, examCode] = await Promise.all([
     supabase()
       .from("doubt_messages")
       .select("role, content, created_at")
@@ -241,6 +250,7 @@ export async function planDoubtMessage(
       .order("created_at", { ascending: false })
       .limit(HISTORY_LIMIT),
     embedQuery(question),
+    getUserExam(userId),
   ]);
   if (priorRes.error) throw new HttpError(500, `history lookup failed: ${priorRes.error.message}`);
   const history = (priorRes.data ?? [])
@@ -274,6 +284,7 @@ export async function planDoubtMessage(
     locale,
     history,
     bypassCache: body.bypass_cache ?? false,
+    examCode,
     vectorLiteral,
   };
 }
@@ -372,7 +383,7 @@ async function logDoubtLookup(
 export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: MentorEmit, signal?: AbortSignal): Promise<void> {
   if (plan.teach) return executeTeacherStream(userId, plan, emit, signal);
 
-  const { locale, question, mode, nodeId, bypassCache, vectorLiteral } = plan;
+  const { locale, question, mode, nodeId, bypassCache, vectorLiteral, examCode } = plan;
   const threadId = plan.thread.id;
 
   // Latency instrumentation (Session 26.5): time-to-first-token + total.
@@ -390,7 +401,7 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
   // lookup both key off the vector we already have; the learner profile only for
   // personal doubts. Retrieval starts immediately (not gated behind the cache
   // lookup), so on a miss its result is already in flight.
-  const retrievalPromise = retrieveContext({ vectorLiteral, locale, nodeId });
+  const retrievalPromise = retrieveContext({ vectorLiteral, locale, examCode, nodeId });
   const profilePromise: Promise<string> = personal
     ? getLearnerProfile(userId)
         .then((p) => formatProfileForPrompt(p))
@@ -400,7 +411,7 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
         })
     : Promise.resolve("");
   const candidatesPromise: Promise<FaqCandidate[]> =
-    !personal && !bypassCache ? lookupFaqCandidates(vectorLiteral, locale) : Promise.resolve([]);
+    !personal && !bypassCache ? lookupFaqCandidates(vectorLiteral, locale, examCode) : Promise.resolve([]);
 
   // --- FAQ two-tier cache fast path (non-personal, non-bypass) --------------
   let nearestSimilarity: number | null = null;
@@ -448,6 +459,7 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
             questionText: question,
             vectorLiteral,
             locale,
+            examCode,
             answer: served,
             citations: decision.entry.citations,
             mode: "revision",
@@ -537,7 +549,7 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
 
   // Cache non-personal answers for future no-model reuse (newest wins on regen).
   if (!personal && answer.trim()) {
-    await upsertFaqCache({ questionText: question, vectorLiteral, locale, answer, citations: context.citations, mode });
+    await upsertFaqCache({ questionText: question, vectorLiteral, locale, examCode, answer, citations: context.citations, mode });
   }
 
   emit("done", { message_id: messageId, thread_id: threadId });
@@ -584,7 +596,7 @@ async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: Mento
 
   emit("teacher", { depth, node_id: nodeId ?? null });
   emit("status", { phase: "retrieving" });
-  const context = await retrieveContext({ vectorLiteral, locale, nodeId });
+  const context = await retrieveContext({ vectorLiteral, locale, examCode: plan.examCode, nodeId });
   if (signal?.aborted) return;
   emit("citations", { citations: context.citations, weak: context.weak });
   emit("source", { from_cache: false });

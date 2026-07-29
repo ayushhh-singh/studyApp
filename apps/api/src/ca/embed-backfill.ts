@@ -22,6 +22,7 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { embeddings } from "../lib/embeddings.js";
 import { toVectorLiteral, upsertEmbeddingRows, type EmbeddingRow } from "../lib/embed-upsert.js";
+import { caEmbeddingExamCode } from "./embed-exam.js";
 import { computeEmbedCoverage } from "../ingest/embed-coverage.js";
 
 type Loc = "hi" | "en";
@@ -31,6 +32,7 @@ interface CaItemRow {
   id: string;
   title_i18n: { hi?: string; en?: string } | null;
   summary_i18n: { hi?: string; en?: string } | null;
+  exam_codes: string[] | null;
 }
 
 /** Exactly the pipeline's per-locale embed text: `${title}. ${summary}`. */
@@ -62,13 +64,15 @@ async function main(): Promise<void> {
   // Every published item (bilingual publish gate guarantees title+summary in both
   // locales; page past PostgREST's 1000-row cap — the published set exceeds 1000).
   const items = await selectAll<CaItemRow>(() =>
-    supabase().from("current_affairs_items").select("id, title_i18n, summary_i18n").eq("status", "published").order("id"),
+    supabase().from("current_affairs_items").select("id, title_i18n, summary_i18n, exam_codes").eq("status", "published").order("id"),
   );
 
   interface Task {
     id: string;
     locale: Loc;
     text: string;
+    /** null = shared across exams — see ./embed-exam.ts. */
+    examCode: string | null;
   }
   const tasks: Task[] = [];
   let skippedEmptyLocale = 0;
@@ -83,7 +87,7 @@ async function main(): Promise<void> {
         skippedEmptyLocale++;
         continue;
       }
-      tasks.push({ id: it.id, locale: loc, text: embedText(title, summary) });
+      tasks.push({ id: it.id, locale: loc, text: embedText(title, summary), examCode: caEmbeddingExamCode(it.exam_codes) });
     }
   }
 
@@ -106,6 +110,7 @@ async function main(): Promise<void> {
       chunk_index: 0,
       chunk_text: t.text,
       embedding: toVectorLiteral(vectors[j]),
+      exam_code: t.examCode,
     }));
     await upsertEmbeddingRows(rows, { batchSize: 12, onWarn: (m) => console.warn(`  (warn) ${m}`) });
     done += rows.length;

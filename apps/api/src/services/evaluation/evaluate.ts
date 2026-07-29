@@ -30,6 +30,7 @@ import { badRequest, conflict, HttpError, notFound } from "../../lib/http-error.
 import { MODELS, streamText, structuredJson, translateBatch, type LlmUsage } from "../../lib/anthropic.js";
 import { touchFeature } from "../../lib/feature-touch.js";
 import { retrieveGrounding } from "./grounding.js";
+import { examCodeForNode, getUserExam } from "../../lib/exams.js";
 import {
   computeOverallScore,
   DEFAULT_MAX_SCORE,
@@ -515,6 +516,13 @@ export async function executeEvaluation(
       questionText: plan.questionText,
       locale: language,
       syllabusNodeId: plan.syllabusNodeId,
+      // A catalogued question is graded against ITS OWN exam's material; a
+      // custom prompt has no node, so fall back to the writer's target exam.
+      // Either way the reference points can never come from an exam the answer
+      // was not written for.
+      examCode: plan.syllabusNodeId
+        ? await examCodeForNode(plan.syllabusNodeId)
+        : await getUserExam(userId),
     });
     if (signal?.aborted) return;
 

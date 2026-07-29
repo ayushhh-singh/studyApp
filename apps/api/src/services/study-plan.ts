@@ -13,7 +13,6 @@ import type {
   PlanTaskKind,
   StudyPlan,
 } from "@neev/shared";
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { conflict, HttpError, notFound, badRequest } from "../lib/http-error.js";
@@ -21,6 +20,7 @@ import { istDateString, istToday, shiftDate } from "../lib/ist.js";
 import { MODELS, structuredJson } from "../lib/anthropic.js";
 import { assertNotGuest } from "./entitlements.js";
 import { getMasteryMap } from "../mastery/compute.js";
+import { getUserExam } from "../lib/exams.js";
 
 const PLAN_DAYS = 7;
 
@@ -91,8 +91,12 @@ export interface GeneratePlanInput {
 
 async function loadWeakSections(
   userId: string,
+  examCode: string,
 ): Promise<{ title_i18n: BilingualText; pyq_count: number; mastery_level: string }[]> {
-  const map = await getMasteryMap(userId);
+  // Scoped to the user's own syllabus tree — an unscoped map would draw "weak
+  // sections" from every exam and plan a week of study against papers the user
+  // is not sitting.
+  const map = await getMasteryMap(userId, undefined, undefined, examCode);
   const priority = map.nodes
     .filter((n) => n.depth === 1 && n.is_priority)
     .sort((a, b) => b.pyq_count - a.pyq_count)
@@ -120,11 +124,14 @@ export async function planGenerate(userId: string, hoursPerDay: number): Promise
   }
 
   const today = istToday();
+  // Resolved before the fan-out so both the countdown and the weak-section pick
+  // use the same exam (and neither has to wait on the other's profile read).
+  const examCode = await getUserExam(userId);
   const [{ data: profile, error: profileError }, examRes, weakSections, srsDueRes] = await Promise.all([
-    supabase().from("users_profile").select("display_name, target_exam_year, target_exam, medium").eq("id", userId).maybeSingle(),
+    supabase().from("users_profile").select("display_name, target_exam_year, medium").eq("id", userId).maybeSingle(),
     // Exam-scoped since 0106 — narrowed to the user's own exam below.
     upcomingExamsQuery(today),
-    loadWeakSections(userId),
+    loadWeakSections(userId, examCode),
     supabase()
       .from("srs_cards")
       .select("id", { count: "exact", head: true })
@@ -135,7 +142,7 @@ export async function planGenerate(userId: string, hoursPerDay: number): Promise
   if (examRes.error) throw new HttpError(500, `exam calendar lookup failed: ${examRes.error.message}`);
   if (srsDueRes.error) throw new HttpError(500, `SRS due count failed: ${srsDueRes.error.message}`);
 
-  const examRow = pickNextExam(examRes.data, (profile?.target_exam as string) || DEFAULT_EXAM_CODE) as
+  const examRow = pickNextExam(examRes.data, examCode) as
     | { title_i18n: BilingualText; exam_date: string }
     | null;
   const nextExam = examRow

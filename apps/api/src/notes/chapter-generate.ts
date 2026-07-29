@@ -150,7 +150,8 @@ export async function loadChapterContext(nodeId: string): Promise<ChapterContext
   const query = `${node.title_en}. ${node.description_en ?? ""}`.trim();
   const [pyqs, grounding] = await Promise.all([
     loadPyqsWithIds(nodeIds),
-    retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, k: 10 }),
+    // Same rule as the digest generator: ground a chapter only in its own exam.
+    retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, examCode: row.exam_code, k: 10 }),
   ]);
   return { node, weightage, pyqs, grounding, nodeIds };
 }

@@ -43,11 +43,14 @@ async function main(): Promise<void> {
   // --- Syllabus nodes per paper ---
   const { data: nodes, error: nErr } = await db
     .from("syllabus_nodes")
-    .select("paper_code, exam_stage, meta");
+    .select("paper_code, exam_code, exam_stage, meta");
   if (nErr) throw new Error(nErr.message);
-  const byPaper = new Map<string, { total: number; mt: number; stage: string }>();
+  // Grouped by paper_code (globally unique across exams — docs/multi-exam.md §0)
+  // but the exam is PRINTED, so a second exam's papers are distinguishable in the
+  // report instead of silently blending into one undifferentiated list.
+  const byPaper = new Map<string, { total: number; mt: number; stage: string; exam: string }>();
   for (const n of nodes ?? []) {
-    const cur = byPaper.get(n.paper_code) ?? { total: 0, mt: 0, stage: n.exam_stage };
+    const cur = byPaper.get(n.paper_code) ?? { total: 0, mt: 0, stage: n.exam_stage, exam: (n.exam_code as string) ?? "?" };
     cur.total++;
     if ((n.meta as { machine_translated?: boolean })?.machine_translated) cur.mt++;
     byPaper.set(n.paper_code, cur);
@@ -57,11 +60,11 @@ async function main(): Promise<void> {
   for (const code of [...byPaper.keys()].sort()) {
     const v = byPaper.get(code)!;
     console.log(
-      `  ${code.padEnd(12)} ${v.stage.padEnd(8)} ${String(v.total).padStart(4)} nodes` +
+      `  ${v.exam.padEnd(8)} ${code.padEnd(16)} ${v.stage.padEnd(8)} ${String(v.total).padStart(4)} nodes` +
         (v.mt ? `  (${v.mt} machine-translated)` : ""),
     );
   }
-  console.log(`  ${"TOTAL".padEnd(12)} ${" ".padEnd(8)} ${String(nodes?.length ?? 0).padStart(4)} nodes`);
+  console.log(`  ${" ".padEnd(8)} ${"TOTAL".padEnd(16)} ${" ".padEnd(8)} ${String(nodes?.length ?? 0).padStart(4)} nodes`);
 
   // --- Questions per year/paper + bilingual / answer-key coverage ---
   const qs = await fetchAllRows<{
