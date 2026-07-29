@@ -27,7 +27,7 @@ Every synthetic row was deleted by an id captured at insert time and
 left in `syllabus_nodes` / `tests` / `evaluations` / `questions` /
 `current_affairs_items` / `users_profile` / `discussion_threads`.
 
-Still open: §8c's ops items (M11-M14, M21) and the new **M20** (the CA magazine
+Still open: §8c's ops items (M11-M14, M21, M22) and the new **M20** (the CA magazine
 and its two UPPSC-shaped fields, deferred together — see §3 item 7).
 
 **The product decisions in §4 are now closed** (founder, 2026-07-29): community
@@ -291,7 +291,15 @@ second half of `docs/OUTSTANDING.md` §8b **M8** ("nothing recomputes it"). The
 rest of M8 — `gs_papers` assuming GS1-6 numbering and `is_up_specific` assuming
 UP — is untouched.
 
-### 3d. Found by the post-commit edge-case audit (2026-07-29)
+### 3f. Found by the post-commit edge-case audit (2026-07-29)
+
+<!-- Renumbered 3d → 3f (2026-07-29): this file had TWO sections numbered 3d
+     (this one and "3d. Answer-writing boards + the rubric registry"), and both
+     were already being referenced with different meanings — CLAUDE.md's M1-M4
+     entry meant this one, while multi-exam.md §3 item 5 and CLAUDE.md's M5-M9
+     entry meant the rubric one. Only this section was renumbered, so every
+     existing "§3d" reference to the rubric section stays correct. -->
+
 
 Checked failure paths rather than re-running the happy path. Three fixed, three
 recorded.
@@ -472,7 +480,7 @@ consequences are summarised here so this file stands on its own.
 | M15 | **Study chapters are exam-SPECIFIC**, authored by free coding-agent subagents, **drafted from the corresponding UPPSC chapter** where the topic is genuinely common. | Nothing changes: `notes.syllabus_node_id` stays UNIQUE, no join table, `notes:embed` / the reader / the review queue / `getPaperSummaries`' coverage counts are untouched. **The authoring rule is §5 — mandatory reading for any chapter-generation session.** |
 | M17 | **Community is exam-separated** (see §3e). | Shipped with M9 + `0110`. |
 | M18 | **One exam-agnostic price ladder**, for now. | Nothing changes: `plans` / `subscriptions` / `billing_events` carry no exam. Flagged for revisit in `docs/OUTSTANDING.md` §7 under the same "reopen only with explicit discussion" convention as the transparent-pricing call — **do not add per-exam plans as a drive-by**. |
-| M19 | **No cross-exam question sharing.** | Nothing changes: `questions.syllabus_node_id` stays scalar, no `question_syllabus_nodes` join table. The sharing case that IS worth having is already built — current affairs (§5b). |
+| M19 | **No cross-exam question sharing.** | Nothing changes: `questions.syllabus_node_id` stays scalar, no `question_syllabus_nodes` join table. The sharing case that IS worth having is already built — current affairs (§5d). |
 
 **Still open — M16: one exam per user, or several concurrently?** The schema
 encodes **one** (`users_profile.target_exam` is scalar), reinforced by two
@@ -501,9 +509,14 @@ the review queue's resolve-then-publish gate, and `getPaperSummaries`'
 `notes:chapter` API path.** This is the reason duplication is affordable and it
 is the crux of the decision: the "3x authoring and fact-audit cost" that made
 M15 look expensive is a **one-time cost in agent time, not recurring API
-spend**. All 284 existing chapters were authored this way for $0 of app
-Anthropic spend (`model:'claude-code-agent'`, `meta.authored_by`) — see
-`docs/OUTSTANDING.md` A1 and CLAUDE.md Sessions 28 / 28.5 / 29 for the working
+spend**. **283 of the 284** existing chapters were authored this way for $0 of
+app Anthropic spend (`model:'claude-code-agent'`, `meta.authored_by` — verified
+live, not assumed). The single exception is one PRE_CSAT node regenerated
+through the real API during an unrelated caching investigation on 2026-07-23
+(`model:'claude-sonnet-5'`, `meta.authored_by:'api'`, $1.83) — which is also the
+only per-chapter API cost ever actually measured, and it is roughly the ~$1.2
+estimate `chapter-cli.ts` uses. See `docs/OUTSTANDING.md` A1 and CLAUDE.md
+Sessions 28 / 28.5 / 29 for the working
 fan-out mechanics (batches of **5**, then a checkpoint pass of assemble →
 resolve fact-audit flags → `approveNote` → `embedNotes({nodeId})` **in
 process**, never shelling out per note). The real-API path
@@ -534,8 +547,12 @@ context pack:
    Always take ids from the target node's own `notes:chapter:context` pack.
    Tracked as **M21** in `docs/OUTSTANDING.md` §8c — until it is fixed, this is
    a human-discipline guard, not an enforced one.
-2. **The state / regional angle.** `up_angle` is literally Uttar Pradesh —
-   `notes/prompts.ts` names UP in both the instruction and the JSON schema. For
+2. **The state / regional angle.** In the DIGEST layer this is a literal field:
+   `up_angle` on `noteBodySchema`, with `notes/prompts.ts` naming Uttar Pradesh
+   in both the instruction and the JSON schema (a chapter has no such field —
+   `chapter-persist.ts` writes `up_angle: ""` when it has to synthesise a digest
+   — so in a chapter the angle lives in ordinary prose, boxes and section
+   headings, which is exactly what makes it easy to carry across unnoticed). For
    another exam this is that exam's own state (MPPSC → Madhya Pradesh) or, for a
    national exam, not a state angle at all. Never carry UPPSC's UP paragraphs
    across.
@@ -557,7 +574,13 @@ context pack:
 
 - Dump the target node's pack exactly as for UPPSC:
   `pnpm notes:chapter:context --node <uuid|PAPER_CODE> [--top N] --dir <dir>`.
-  It is already exam-correct — everything it reads is scoped through the node.
+  Everything it reads is scoped through the node, so it is exam-correct with one
+  caveat: the weightage block comes from `mv_node_weightage` via
+  `loadNodeWeightage`, which **every caller still invokes bare** and intersects
+  by node id (§1c). That is correct today and stays correct under M19 (a
+  question maps into exactly one exam's tree), but it sums across exams if a
+  question tagged with one exam's *provenance* is ever mapped onto another
+  exam's node — pass the exam if you hit that.
 - **There is no CLI that dumps an existing chapter.** Read the counterpart's
   `notes.study_content_i18n` for the UPPSC node directly (service-role select,
   or the reader route). If cross-exam drafting becomes routine, the natural
@@ -570,6 +593,14 @@ context pack:
   session log.
 - Load via `pnpm notes:chapter:assemble --file|--dir`, which is byte-identical
   downstream to a real-API chapter apart from the recorded author.
+- **If you reach for the paid `pnpm notes:chapter` path anyway, know that it is
+  UPPSC-hardcoded** — `notes/chapter-prompts.ts` names UPPSC in **8** places
+  (outline persona, research persona, section-authoring persona, the grounding
+  header, and both fact-audit personas) and takes no exam, so it would produce
+  UPPSC-framed, UPPSC-fact-checked chapters for another exam **silently**. There
+  is no guard. Tracked as **M22** in `docs/OUTSTANDING.md` §8c; the free-subagent
+  path this decision mandates is unaffected, because its instructions are
+  written per rollout rather than baked into that module.
 
 ### 5d. Where sharing IS the right answer (M19's other half)
 
@@ -585,5 +616,7 @@ syllabus_node_ids` is a bare `uuid[]` (no FK, no cardinality limit) and
 `exam_codes` is an array read with `overlaps`, so one national story maps into
 several exams' trees from **one row** — never duplicated, never re-triaged and
 re-enriched per exam (the two most expensive calls in `ca:run`), and its single
-embedding row is stamped `exam_code = NULL`, meaning "shared across all exams"
-(`ca/embed-exam.ts`). No schema change is needed for that case anywhere.
+embedding row is stamped `exam_code = NULL` — "shared across all exams" — by
+`ca/embed-exam.ts`, **precisely when it maps to more than one** (an item scoped
+to a single exam is stamped with that exam, as it should be). No schema change
+is needed for that case anywhere.
