@@ -4,6 +4,7 @@ import { HttpError, conflict } from "../lib/http-error.js";
 import { istToday, daysBetween } from "../lib/ist.js";
 import { normalizeTourState } from "./tour.js";
 import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
+import { assertSelectableExam } from "../lib/exams.js";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 
 interface ExamInfo {
@@ -36,17 +37,20 @@ const PROFILE_COLUMNS =
  * the countdown never serialises behind it (0106). Narrowed to the user's own
  * exam by `examInfoFor` once the profile row is in hand.
  */
-async function fetchUpcomingExams(): Promise<unknown> {
-  const { data, error } = await upcomingExamsQuery(istToday());
+async function fetchUpcomingExams(today: string): Promise<unknown> {
+  const { data, error } = await upcomingExamsQuery(today);
   if (error) throw new HttpError(500, `exam calendar lookup failed: ${error.message}`);
   return data;
 }
 
-function examInfoFor(rows: unknown, examCode: string): ExamInfo {
+// `today` is threaded rather than re-derived: calling istToday() once for the
+// query bound and again for the day count can straddle IST midnight and yield
+// an off-by-one countdown.
+function examInfoFor(rows: unknown, examCode: string, today: string): ExamInfo {
   const row = pickNextExam(rows, examCode);
   if (!row) return { days_to_exam: null, next_exam_label_i18n: null };
   return {
-    days_to_exam: daysBetween(istToday(), row.exam_date),
+    days_to_exam: daysBetween(today, row.exam_date),
     next_exam_label_i18n: row.title_i18n as BilingualText,
   };
 }
@@ -57,9 +61,10 @@ function examCodeOf(row: unknown): string {
 }
 
 export async function getProfile(userId: string): Promise<Profile> {
+  const today = istToday();
   const [{ data, error }, examRows] = await Promise.all([
     supabase().from("users_profile").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle(),
-    fetchUpcomingExams(),
+    fetchUpcomingExams(today),
   ]);
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
   // A valid, unexpired JWT that resolves to a user with NO profile row means the
@@ -68,16 +73,21 @@ export async function getProfile(userId: string): Promise<Profile> {
   // 404) so the client's existing 401→signOut path clears the dead session and
   // the app self-heals into a fresh one, instead of looping on profile errors.
   if (!data) throw new HttpError(401, "Session no longer valid — please sign in again.");
-  return toProfile(data, examInfoFor(examRows, examCodeOf(data)));
+  return toProfile(data, examInfoFor(examRows, examCodeOf(data), today));
 }
 
 export async function updateProfile(userId: string, patch: ProfileUpdateBody): Promise<Profile> {
+  const today = istToday();
+  // The FK on target_exam only proves the exam EXISTS. A non-live exam has no
+  // syllabus, questions or chapters, so switching to one would strand the user
+  // in an empty app — reject it as a 400 rather than persist it.
+  if (patch.target_exam) await assertSelectableExam(patch.target_exam);
   const [{ data, error }, examRows] = await Promise.all([
     supabase().from("users_profile").update(patch).eq("id", userId).select(PROFILE_COLUMNS).single(),
-    fetchUpcomingExams(),
+    fetchUpcomingExams(today),
   ]);
   if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
-  return toProfile(data, examInfoFor(examRows, examCodeOf(data)));
+  return toProfile(data, examInfoFor(examRows, examCodeOf(data), today));
 }
 
 /**
@@ -87,6 +97,7 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
  * for another.
  */
 export async function completeOnboarding(userId: string, body: OnboardingBody): Promise<Profile> {
+  const today = istToday();
   const [{ data, error }, examRows] = await Promise.all([
     supabase()
       .from("users_profile")
@@ -102,13 +113,13 @@ export async function completeOnboarding(userId: string, body: OnboardingBody): 
       .eq("id", userId)
       .select(PROFILE_COLUMNS)
       .single(),
-    fetchUpcomingExams(),
+    fetchUpcomingExams(today),
   ]);
   if (error) {
     if (error.code === "23505") throw conflict("That handle is already taken");
     throw new HttpError(500, `onboarding failed: ${error.message}`);
   }
-  return toProfile(data, examInfoFor(examRows, examCodeOf(data)));
+  return toProfile(data, examInfoFor(examRows, examCodeOf(data), today));
 }
 
 /**

@@ -10,6 +10,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { PDFParse } from "pdf-parse";
 import { PDFDocument } from "pdf-lib";
+import { examCodeSchema, type ExamCode as SharedExamCode } from "@neev/shared";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 // apps/api/src/ingest -> repo root is four levels up.
@@ -255,10 +256,21 @@ export function paperByCode(code: string): PaperDef | undefined {
 // Multi-exam attribution + source provenance (matches the questions columns
 // added in migration 0036).
 // ---------------------------------------------------------------------------
-export type ExamCode = "uppsc" | "upsc" | "up_ro_aro" | "upsssc_pet" | "other";
+/**
+ * RE-EXPORTED, not redeclared. This was a local duplicate of the shared enum and
+ * it had already drifted: when `examCodeSchema` gained 'mppsc' (migration 0106
+ * extended the matching `questions.exam_code` CHECK), this copy did not, so the
+ * ingest pipeline silently could not classify or label an MPPSC paper — with no
+ * typecheck error, because it was a separate declaration. Deriving it from the
+ * single source of truth makes that drift impossible.
+ */
+export type ExamCode = SharedExamCode;
 export type SourceKind = "official" | "compilation" | "generated" | "manual";
 
-const EXAM_PREFIXES: ExamCode[] = ["uppsc", "upsc", "up_ro_aro", "upsssc_pet"];
+/** Every exam code except the 'other' catch-all, which is never a filename prefix. */
+const EXAM_PREFIXES: ExamCode[] = examCodeSchema.options.filter(
+  (c): c is Exclude<ExamCode, "other"> => c !== "other",
+);
 
 /** Bilingual attribution label per exam × stage — rendered as the chip's exam half. */
 const EXAM_LABELS: Record<ExamCode, { prelims: I18n; mains: I18n }> = {
@@ -277,6 +289,10 @@ const EXAM_LABELS: Record<ExamCode, { prelims: I18n; mains: I18n }> = {
   upsssc_pet: {
     prelims: { en: "UPSSSC PET", hi: "यूपीएसएसएससी पीईटी" },
     mains: { en: "UPSSSC PET", hi: "यूपीएसएसएससी पीईटी" },
+  },
+  mppsc: {
+    prelims: { en: "MPPSC Prelims", hi: "एमपीपीएससी प्रारंभिक" },
+    mains: { en: "MPPSC Mains", hi: "एमपीपीएससी मुख्य" },
   },
   other: {
     prelims: { en: "Other exam", hi: "अन्य परीक्षा" },
@@ -329,7 +345,11 @@ export function isCompilationEntry(entry: ManifestEntry): boolean {
 export function classifyPyqId(
   id: string,
 ): { examCode: ExamCode; paperCode: string; year: number; stage: ExamStage } | null {
-  const m = id.match(/^(uppsc|upsc|up_ro_aro|upsssc_pet)_(prelims|mains)_(\d{4})_([a-z0-9_]+?)(_mirror)?$/);
+  // Built from EXAM_PREFIXES rather than hardcoded, so adding an exam to the
+  // shared enum cannot leave this pattern silently behind.
+  const m = id.match(
+    new RegExp(`^(${EXAM_PREFIXES.join("|")})_(prelims|mains)_(\\d{4})_([a-z0-9_]+?)(_mirror)?$`),
+  );
   if (!m) return null;
   const [, examRaw, stageRaw, yearRaw, paperRaw] = m;
   const examCode = examRaw as ExamCode;

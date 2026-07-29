@@ -187,6 +187,49 @@ Non-blocking but worth doing with (2): `community.ts:91`, `on-demand.ts:154` and
 `tests.ts:259` accept untrusted node ids and assert only a shared `paper_code`;
 they should assert a shared `exam_code` too.
 
+### 3a. Daily quiz — three sites that ride on the §0 invariant
+
+Found by a post-commit edge-case audit. None is a defect today; each breaks the
+moment a second exam builds daily quizzes.
+
+- `services/daily.ts` `findDailyQuizRow` — selects by `(kind, is_published,
+  scheduled_date, paper_code)` and ends in `.maybeSingle()`. Two exams sharing a
+  paper code on the same date would make it **throw PGRST116 → 500**, not return
+  the wrong row. Add `.eq("exam_code", …)`.
+- `daily/quiz.ts` `upsertDailyQuizTest` — writes with `onConflict: "slug"` and
+  never sets `exam_code`, so a second exam's quiz would be silently tagged
+  `uppsc` by the column default. Set it explicitly.
+- `daily/quiz.ts` `recentlyUsedInDailyQuiz` — filters on `paper_code` alone, so
+  two exams' question-recency windows would blend.
+
+Note `tests.paper_code` is plain `text` with **no FK**, so nothing at the DB
+level enforces §0 for that table — only `syllabus_nodes` is protected by a
+unique index. Daily-quiz idempotency itself is keyed on `tests.slug` (globally
+unique, untouched), so the 0106 index widening cannot cause duplicates.
+
+### 3b. Fixed during the audit rather than deferred
+
+- **`users_profile.target_exam` accepted a non-live exam.** `PATCH /profile
+  {"target_exam":"upsc"}` validated and persisted, stranding the user in an app
+  with zero syllabus nodes, questions and chapters, with no UI path back. The FK
+  proves an exam EXISTS but cannot express "and it is ready". Fixed with
+  `lib/exams.ts` `assertSelectableExam`, called from `updateProfile` — a 400.
+- **`ingest/_shared.ts` redeclared `ExamCode`** as a local copy of the shared
+  enum and had already drifted: it never gained `mppsc`, so the ingest pipeline
+  could not classify or label an MPPSC paper — silently, with no typecheck error.
+  It now re-exports the shared type, and both `EXAM_PREFIXES` and
+  `classifyPyqId`'s regex derive from `examCodeSchema.options` so the pattern
+  cannot fall behind the enum again.
+
+### 3c. Known naming trap left in place (deliberate)
+
+`GET /daily/cutoffs` takes a query param literally named `exam` whose value is a
+PAPER code (`PRE_GS1`), mirrored in `use-mocks.ts`'s `useCutoffs(exam)` and its
+query key. This is the exact collision 0106 §7 renamed the DB column to kill,
+surviving one layer up at the HTTP boundary. It is behaviourally correct today
+and predates this work; renaming it changes a public query param and a client
+cache key, so it is recorded here rather than changed as a drive-by.
+
 ---
 
 ## 4. Open product decisions (not decided by the schema)

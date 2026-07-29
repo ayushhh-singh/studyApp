@@ -150,6 +150,10 @@ export function rankWeakNodes(entries: { id: string; weakness: number; hot: numb
  * a question would look "repeated" to everyone taking the shared quiz. Legacy
  * pre-split rows (paper_code NULL) are ignored — the paper filter excludes
  * them — so a paper's recency window is clean of the old blended pool.
+ *
+ * NOT exam-scoped (0106): this filters on paper_code alone, which is correct only
+ * while paper codes are globally unique across exams. A second exam building daily
+ * quizzes needs an exam_code filter here, or the two exams' recency windows blend.
  */
 async function recentlyUsedInDailyQuiz(days: number, paperCode: string): Promise<Set<string>> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);

@@ -211,9 +211,12 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
   if (caError) throw new HttpError(500, `current affairs today count failed: ${caError.message}`);
 
   // Today's two daily quizzes — GS (primary) + CSAT (secondary), paper-scoped.
-  // Legacy pre-split blended rows (paper_code NULL) are ignored. The
-  // (scheduled_date, paper_code) unique index (0078) makes each variant at most
-  // one row, so no order/limit dance is needed.
+  // Legacy pre-split blended rows (paper_code NULL) are ignored. At most one row
+  // per variant, so no order/limit dance is needed — but note the guarantee moved
+  // in 0106: the unique index is now (exam_code, scheduled_date, paper_code), so
+  // "one row per variant" holds for a SINGLE exam. It relies on paper codes being
+  // globally unique across exams (see 0106's header); add an exam_code filter here
+  // when a second exam starts building daily quizzes.
   const { data: quizzes, error: quizError } = await supabase()
     .from("tests")
     .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)")
