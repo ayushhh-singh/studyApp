@@ -27,12 +27,22 @@ Every synthetic row was deleted by an id captured at insert time and
 left in `syllabus_nodes` / `tests` / `evaluations` / `questions` /
 `current_affairs_items` / `users_profile` / `discussion_threads`.
 
-Still open: §8c's ops items (M12, M13, M21, M22, **M23**) and **M20** (the CA magazine
+Still open: §8c's ops items (M12, M21, **M23**) and **M20** (the CA magazine
 and its two UPPSC-shaped fields, deferred together — see §3 item 7). **M11 and M14
 closed 2026-07-29** — M11 as a reasoned decision *not* to add a paper-code FK
 registry (§0a, which also records the one place the invariant genuinely leaks:
 the unguarded PYQ-ingest writer, now **M23**), M14 as a verified idempotency fix
 to `0106`.
+
+**The prompt layer landed 2026-07-30 and has its own standing instruction: §6.**
+Every model-facing string in `apps/api` that named UPPSC now reads from
+`lib/exam-config.ts`, verified by a 128-prompt byte-identity harness
+(`pnpm prompts:snapshot`); the web app reads the registry through a new public
+`GET /exams`. That closed **M13** (no exams route) and **M22** (chapter prompts
+hardcoded UPPSC), and left **U6** — 74 unauthored config slots per non-UPPSC
+exam, the authoring work a second exam actually needs (`docs/OUTSTANDING.md`
+§8f). **§6 is required reading before authoring a second exam or touching any
+`cache: true`.**
 
 **The product decisions in §4 are now closed** (founder, 2026-07-29): community
 is exam-separated (M17, §3e), **study chapters stay exam-specific and are
@@ -656,14 +666,17 @@ context pack:
   session log.
 - Load via `pnpm notes:chapter:assemble --file|--dir`, which is byte-identical
   downstream to a real-API chapter apart from the recorded author.
-- **If you reach for the paid `pnpm notes:chapter` path anyway, know that it is
-  UPPSC-hardcoded** — `notes/chapter-prompts.ts` names UPPSC in **8** places
-  (outline persona, research persona, section-authoring persona, the grounding
-  header, and both fact-audit personas) and takes no exam, so it would produce
-  UPPSC-framed, UPPSC-fact-checked chapters for another exam **silently**. There
-  is no guard. Tracked as **M22** in `docs/OUTSTANDING.md` §8c; the free-subagent
-  path this decision mandates is unaffected, because its instructions are
-  written per rollout rather than baked into that module.
+- **The paid `pnpm notes:chapter` path is no longer UPPSC-hardcoded — but it now
+  FAILS LOUDLY for an unauthored exam, which is the intended behaviour, not a
+  bug.** M22 (resolved 2026-07-30, §6): `notes/chapter-prompts.ts` and
+  `notes/prompts.ts` read `lib/exam-config.ts`, and `chapter-generate.ts` derives
+  the exam from the node's own row (`row.exam_code`). Where it once would have
+  produced UPPSC-framed, UPPSC-fact-checked chapters for another exam
+  **silently**, it now throws naming the first unauthored field (e.g.
+  `notes.outlineFacultyFraming`). **So running it for a second exam is gated on
+  authoring that exam's `notes.*` config slots first (U6, §6a)** — the
+  free-subagent path this decision mandates stays unaffected either way, because
+  its instructions are written per rollout rather than baked into that module.
 
 ### 5d. Where sharing IS the right answer (M19's other half)
 
@@ -683,3 +696,167 @@ embedding row is stamped `exam_code = NULL` — "shared across all exams" — by
 `ca/embed-exam.ts`, **precisely when it maps to more than one** (an item scoped
 to a single exam is stamped with that exam, as it should be). No schema change
 is needed for that case anywhere.
+
+---
+
+## 6. The prompt layer — `lib/exam-config.ts` — READ THIS BEFORE AUTHORING A SECOND EXAM
+
+> **This section is a standing instruction, like §5.** Every model-facing string
+> in `apps/api` that named UPPSC now reads from one module. If you are adding an
+> exam, adding a prompt, or touching `cache: true`, the rules below apply to you.
+
+Landed 2026-07-30 as a 9-commit sweep (`14a1493`..`27fd7d9`). Schema-side nothing
+changed; `uppsc` remains the only `is_live` exam.
+
+### 6a. The one rule: parameterise STRUCTURE, never JUDGMENT
+
+`apps/api/src/lib/exam-config.ts` is the single source of every per-exam prompt
+string. Each `uppsc` value is copied **byte-for-byte** out of the prompt it came
+from — that is what made byte-identity provable. For `upsc` and `mppsc`, every
+judgment-bearing slot is the `UNAUTHORED` sentinel: **uppsc 98/98 filled, upsc
+and mppsc 74 unauthored each** (tracked as **U6** in `docs/OUTSTANDING.md` §8f).
+
+**It is wrong to author a second exam's value by string-replacing "UPPSC" with
+"UPSC" in UPPSC's text.** The severity anchor encodes empirical findings about
+how Mains is *actually* marked (topper percentages, the 45-55%-per-answer
+calibration recorded in `services/evaluation/prompts.ts`); the qgen, CA-relevance
+and mentor slots encode one commission's examiner judgment. Those do not transfer
+by renaming. Building any converted prompt for an unauthored exam **throws**,
+naming the exam and the exact field:
+
+```
+exam-config: "evaluation.examinerFraming" is UNAUTHORED for exam "upsc".
+This slot carries examiner judgment and must be researched and authored for
+upsc — never derived from another exam's text by substitution (U6).
+```
+
+Two type-level decisions worth not re-litigating:
+
+- **`UNAUTHORED` is a `unique symbol`, not a sentinel string** — verified
+  empirically, not assumed: TypeScript refuses to interpolate it (TS2731),
+  concatenate it (TS2469), or pass it where a string is wanted (TS2345). A
+  sentinel *string* would have compiled and shipped into a live prompt. Even a
+  forced cast renders `Symbol(unauthored-exam-config)`, not plausible prose.
+- **`EXAM_CONFIGS` is typed `Record<TargetExamCode, ExamConfig>`**, so adding a
+  fourth exam to the shared enum is a **compile error here until it is
+  configured** — verified by temporarily adding `"bpsc"` (TS2741), then
+  reverting. Do not weaken that type to a partial.
+
+`TargetExamCode` / `TARGET_EXAM_CODES` / `DEFAULT_EXAM_CODE` are **imported from
+`@neev/shared`, never redeclared**, and `paper_structure` / `launch_scope_i18n`
+are **not copied into TypeScript** — they stay DB-authoritative (0106, verified
+against commission notification PDFs), with `assertExamConfigMatchesRegistry()`
+as a boot-time drift guard. This is the lesson of `ingest/_shared.ts`, which once
+redeclared `ExamCode` as a local copy and **silently drifted on the very first
+extension with no typecheck error** (§3b).
+
+### 6b. The cache-partitioning rule, and the `[0]+[1]` gotcha
+
+The sweep's central claim is that **per-exam text partitions every prompt cache
+and destroys none.** A cache breakpoint keys on the segment *and everything
+before it*, so:
+
+- **Per-EXAM text is free.** It turns one cache entry into one entry per exam.
+  Each exam keeps its own stable prefix and its own hit rate.
+- **Per-REQUEST text in a cached prefix is fatal.** It makes the prefix vary per
+  call and destroys the entry outright. Nothing per-request was added.
+
+**⚑ The refinement that is easy to get wrong.** In the four two-segment builders
+(`buildMcqGenParams`, `buildDescGenParams`, `buildNoteGenParams`,
+`buildSectionParams`) the `cache: true` sits on segment `[1]`, so the cached
+prefix is `[0]+[1]` — **the "uncached-looking" persona segment `[0]` is inside
+the cache key.** Per-exam text there partitions correctly (that is what the
+sweep added); anything per-request there would silently destroy `[1]`'s entry.
+
+`sharedFeedbackContext` (evaluation strengths/improvements, cached segment `[0]`
+shared byte-identically by both sibling calls) **deliberately carries no exam
+text and gained none** — interpolating there would kill the N=2 sibling hit. Its
+byte-identity between the two calls was re-verified in the audit.
+
+### 6c. Minimum cacheable prefix — the trap that makes `cache: true` a silent no-op
+
+A `cache: true` whose prefix is below the model's minimum simply does not cache.
+No error, no warning, `cache_creation_input_tokens` just stays 0 forever.
+
+| Model | Minimum cacheable prefix |
+|---|---|
+| `claude-haiku-4-5` | **4096** tokens |
+| `claude-sonnet-5` | **1024** tokens |
+| Opus 4.6 / 4.5 | 4096 tokens |
+| Newest Opus | 512 tokens |
+
+Two facts that make this un-guessable: haiku-4-5's minimum is **four times**
+sonnet-5's, and the minimum is **not monotonic across generations**, so it cannot
+be inferred from model recency — look it up. And **measure, do not estimate**:
+`chars / 4` under-counts by ~30% at this codebase's real ~2.85 chars/token and
+will tell you a failing prompt passes. Use `client.messages.countTokens` (free).
+
+Of the **14** executable `cache: true` flags in `apps/api/src`, **5 are measured
+no-ops** — all pre-existing, none caused by the sweep, each now annotated in
+place with its own measured count: qgen `verifySystem` **107** (haiku, ~38× short
+— no realistic growth reaches 4096), notes `CRITIC_SYSTEM` **206**, OCR
+`buildTranscribeSystem` **270/280**, qgen `criticSystem` **611**, and
+`buildTeacherPersona` **879 (en) / 888 (hi)**, the closest near-miss. Flags were
+left in place deliberately: a below-minimum prefix is not billed the 1.25× write
+premium either, and they become correct for free if a prompt grows. The canonical
+write-up lives on `PromptSegment` in `lib/anthropic.ts`, where someone typing
+`cache: true` actually looks.
+
+**⚑ A REAL SECOND-EXAM TRAP: the mentor persona has +22 tokens of headroom.**
+`buildMentorPersona` is the **only** cached segment on the generic-doubt path and
+measures **1046 tokens (en) / 1055 (hi)** against sonnet-5's 1024 — of which
+**102 tokens now come from config** (`mentor.testingLens` 81,
+`mentor.platformFraming` 21). A second exam whose framing is **≥23 tokens
+terser** silently drops under the minimum and Anthropic just stops caching: no
+error, and every mentor doubt re-bills the full persona forever. **Shorter
+per-exam text kills a cache just as surely as per-request text does.** Guarded by
+a 2950-char floor in the snapshot harness (which runs in `--write` mode too, so
+`--write` cannot bless a persona that fell below the line) and recorded at both
+config keys. The WARN it prints for uppsc is accurate, not noise — the margin
+genuinely is 22 tokens, and the honest fix if it becomes irritating is to
+lengthen the persona, not to lower the threshold.
+
+Separately, `ca/prompts.ts` has **zero** executable `cache: true` and its
+item-text-first ordering is **load-bearing for quality**, not incidental —
+hoisting the candidate list into `system` to cache it did cache (98.9%
+`cache_read`) but regressed gate survivors 14 → 8 and mapped nodes 37 → 25,
+about 3× beyond a 3-arm control's noise floor. Exam text is free there precisely
+because nothing is cached. **Do not reorder that file.**
+
+### 6d. The workflow — `pnpm prompts:snapshot`
+
+`apps/api/scripts/prompt-snapshot.ts` assembles every reachable model-facing
+prompt from **fixed fixtures** (no clock, random, DB or network) and diffs it
+against the committed baseline at
+`apps/api/scripts/__snapshots__/prompts.baseline.json` — currently **128 keys**.
+Multi-segment systems are captured as `{segments:[{text,cache}]}`, so segment
+boundaries and cache flags are part of the baseline: the cached-prefix
+**structure** is guarded, not just the text. It was negative-tested (a mutated
+baseline correctly reported CHANGED/MISSING/NEW and exited 1) — a harness that
+always passes is worthless.
+
+**Run it before and after any prompt-layer change.** For a second exam:
+
+1. `pnpm prompts:snapshot` on a clean tree — it must report 128 byte-identical.
+2. Author the exam's config values. **Every `UNAUTHORED` slot you fill is
+   research, not translation** (§6a).
+3. `pnpm prompts:snapshot` again — **the uppsc keys must still be byte-identical.**
+   A new exam adds no keys (the harness snapshots uppsc); a diff there means you
+   changed shared structure, not exam content.
+4. Watch the mentor-persona floor WARN (§6c). Below 2950 chars, the harness fails.
+
+**Byte-identity alone is not sufficient proof** — it would also pass if nothing
+had been parameterised. That is why each slice separately asserted that building
+a converted prompt for `upsc`/`mppsc` **throws**, naming its own first-needed
+field. And where a prompt was not snapshot-reachable, the stronger check is
+comparing against the **pre-refactor literal extracted mechanically from
+`git show <pre-refactor-sha>:<path>`** — never against today's output, which
+would merely bless whatever the sweep produced.
+
+Two limits of the harness, recorded honestly: prompts living in module-private
+consts or inlined into the model call itself are only reachable once **exported**
+(the sweep exported them as `memoisePerExam` builders, which is what makes them
+verifiable at all); and for a CLI whose module ends in a bare `main().catch()`,
+prompts were moved into a side-effect-free `ingest/prompts.ts` rather than
+guarded with `argv` — this repo has a recorded incident where a scratch filename
+ending in the same substring self-triggered a CLI.
