@@ -10,6 +10,7 @@ import { MainsOptInCard } from "@/components/scoreboard/mains-opt-in-card";
 import { DimensionBestsPanel } from "@/components/scoreboard/dimension-bests-panel";
 import { MyRanksCard } from "@/components/profile/my-ranks-card";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
+import { isAwaitingData } from "@/lib/query-state";
 import {
   useDailyQuizTodayBoard,
   useDailyQuizWeeklyBoard,
@@ -102,14 +103,21 @@ function MocksPanel() {
   // The exam's own objective prelims papers, from the registry — not a
   // hardcoded ["PRE_GS1", "PRE_CSAT"]. An exam with no ingested papers yields an
   // empty list and the panel renders its normal empty board.
-  const { papers, label } = usePaperCatalog();
+  const { papers, latinLabel, isLoading: catalogLoading } = usePaperCatalog();
   const mockPapers = papers.filter((p) => p.stage === "prelims" && p.format === "objective");
   const [picked, setPicked] = useState<string>("");
   const paperCode = picked || (mockPapers[0]?.paper_code ?? "");
   const [testId, setTestId] = useState<string>("");
   const series = useMockSeriesBoard(paperCode);
-  const tests = useScoreboardMockTests(paperCode);
+  const tests = useScoreboardMockTests(paperCode || undefined);
   const testBoard = useScoreboardTestBoard(testId || undefined);
+
+  // While the registry is in flight `paperCode` is "" — which is NOT "this exam
+  // has no mock papers", and both dependent queries are disabled because of it.
+  // Rendering on through would show the disabled series board's
+  // `isLoading:false` as a permanent skeleton and the pills as absent. Hold a
+  // real loading state instead; see lib/query-state.ts.
+  if (catalogLoading) return <MocksPanelSkeleton />;
 
   return (
     <div className="flex flex-col gap-4">
@@ -130,18 +138,22 @@ function MocksPanel() {
                 : "border-border text-muted-foreground hover:text-foreground")
             }
           >
-            {label(p.paper_code)}
+            {latinLabel(p.paper_code)}
           </button>
         ))}
       </div>
 
       <SectionCard title={t("Scoreboard.seriesTitle")}>
-        {series.isLoading || !series.data ? (
+        {/* `paperCode &&` matters: with the registry resolved but holding no
+            mock paper, the series query stays disabled ON PURPOSE and an empty
+            board is the honest answer — gating on the query alone would strand
+            a skeleton there forever. */}
+        {paperCode && isAwaitingData(series) ? (
           <BoardSkeleton />
         ) : (
           <BoardTable
-            rows={series.data.rows}
-            participants={series.data.participants}
+            rows={series.data?.rows ?? []}
+            participants={series.data?.participants ?? 0}
             showMocksAttempted
             emptyTitle={t("Scoreboard.emptyBoardTitle")}
             emptyDescription={t("Scoreboard.emptyBoardDescription")}
@@ -168,18 +180,32 @@ function MocksPanel() {
       >
         {!testId ? (
           <p className="text-sm text-muted-foreground">{t("Scoreboard.pickTestPlaceholder")}</p>
-        ) : testBoard.isLoading || !testBoard.data ? (
+        ) : isAwaitingData(testBoard) ? (
           <BoardSkeleton />
         ) : (
           <BoardTable
-            rows={testBoard.data.rows}
-            participants={testBoard.data.participants}
+            rows={testBoard.data?.rows ?? []}
+            participants={testBoard.data?.participants ?? 0}
             showTime
             emptyTitle={t("Scoreboard.emptyBoardTitle")}
             emptyDescription={t("Scoreboard.emptyBoardDescription")}
           />
         )}
       </SectionCard>
+    </div>
+  );
+}
+
+/** Mirrors MocksPanel's real shape (paper pills + two boards) while the registry loads. */
+function MocksPanelSkeleton() {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Skeleton className="h-9 w-20 rounded-full" />
+        <Skeleton className="h-9 w-20 rounded-full" />
+      </div>
+      <BoardSkeleton />
+      <BoardSkeleton />
     </div>
   );
 }
@@ -210,12 +236,12 @@ function SectionalsPanel() {
     >
       {!testId ? (
         <p className="text-sm text-muted-foreground">{t("Scoreboard.pickTestPlaceholder")}</p>
-      ) : testBoard.isLoading || !testBoard.data ? (
+      ) : isAwaitingData(testBoard) ? (
         <BoardSkeleton />
       ) : (
         <BoardTable
-          rows={testBoard.data.rows}
-          participants={testBoard.data.participants}
+          rows={testBoard.data?.rows ?? []}
+          participants={testBoard.data?.participants ?? 0}
           showTime
           emptyTitle={t("Scoreboard.emptyBoardTitle")}
           emptyDescription={t("Scoreboard.emptyBoardDescription")}

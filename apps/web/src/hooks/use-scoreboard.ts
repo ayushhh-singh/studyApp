@@ -28,6 +28,15 @@ export function useDailyQuizWeeklyBoard() {
   });
 }
 
+/**
+ * Mock tests for ONE paper. `enabled` is mandatory here, unlike its sectional
+ * sibling below: the only caller derives `paperCode` from the async exam
+ * registry, so before that resolves it is `undefined` — and without the guard
+ * this fired `?paper_code=` with an EMPTY value, which the server reads as
+ * "no filter" and answers with every mock of every paper. The Prelims mock
+ * picker listed 59 tests including Mains General Hindi and Essay until the
+ * registry landed. An unfiltered list is the wrong answer, not a cheap one.
+ */
 export function useScoreboardMockTests(paperCode?: string) {
   return useQuery({
     queryKey: queryKeys.scoreboardMockTests(paperCode),
@@ -35,6 +44,7 @@ export function useScoreboardMockTests(paperCode?: string) {
       api.get("/api/v1/scoreboard/prelims/mocks/tests", scoreboardTestListResponseSchema, {
         paper_code: paperCode,
       }),
+    enabled: !!paperCode,
   });
 }
 

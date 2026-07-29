@@ -40,17 +40,40 @@ const STAGE_RANK: Record<ExamStructureStage, number> = { prelims: 0, mains: 1, i
  * An exam whose registry papers carry `paper_code: null` (every non-UPPSC exam
  * today — no syllabus ingested) yields an EMPTY catalog. Callers must render an
  * honest empty state; there is no borrowed UPPSC paper list to fall back to.
+ *
+ * ── CALLERS MUST GATE ON `isLoading`. THIS IS NOT OPTIONAL. ──────────────────
+ * The catalog is EMPTY while `GET /exams` is in flight, and an empty catalog is
+ * indistinguishable from "this exam has no papers" unless you check the flag.
+ * Rendering through it produces one of two live regressions, both shipped once:
+ *   - a paper code derived as `papers[0]?.paper_code ?? ""` disables the
+ *     dependent query it is passed to, whose `isLoading:false` then renders as
+ *     "no data" — a skeleton that never resolves. See lib/query-state.ts.
+ *   - `compare` falls back to `localeCompare` of RAW CODES for papers it does
+ *     not know yet, so a list renders in provisional alphabetical order
+ *     (MAINS_ESSAY before MAINS_GS1) and visibly reshuffles a few seconds
+ *     later — and an uncontrolled `defaultValue` tab keeps the wrong default.
+ * Hold a loading state until this flag clears; do not render a provisional
+ * order and do not render an empty state.
  */
 export function usePaperCatalog(): {
   papers: CatalogPaper[];
   byCode: Map<string, CatalogPaper>;
   /** Compact display label for a paper code — safe for any code, including unknown ones. */
   label: (code: string | null | undefined) => string;
+  /**
+   * The paper's LATIN abbreviation in both locales ("GS-I", "CSAT") — see the
+   * note on the returned implementation for why some surfaces want this rather
+   * than {@link label}.
+   */
+  latinLabel: (code: string | null | undefined) => string;
   /** Sort comparator over paper codes, following the catalog order. */
   compare: (a: string | null | undefined, b: string | null | undefined) => number;
+  /** True while `GET /exams` is in flight — see the gating rule above. */
   isLoading: boolean;
+  /** The registry request FAILED. Distinct from an empty catalog; say so, don't render "absent". */
+  isError: boolean;
 } {
-  const { exam, isLoading } = useCurrentExam();
+  const { exam, isLoading, isError } = useCurrentExam();
   const locale = useLocale();
   const { t } = useTranslation();
 
@@ -85,6 +108,24 @@ export function usePaperCatalog(): {
         if (override !== key) return override;
         return byCode.get(code)?.name_i18n[locale] ?? code;
       },
+      // DELIBERATE PRODUCT DECISION, restored after the registry refactor
+      // localized these and was caught in review: on the compact paper
+      // SELECTORS (mock sub-tabs, scoreboard mock pills) the label stays the
+      // latin abbreviation in BOTH locales — "GS-I" / "CSAT", never "जीएस-I" /
+      // "सीसैट". That is how UPPSC aspirants actually refer to the papers, and
+      // it matches the raw `paper_code` subtitle TestCard already shows beside
+      // them. It is a paper's short NAME, not prose, so it does not translate.
+      // Prose surfaces (an empty-state sentence, a cut-off card's copy) keep
+      // using `label` and stay localized — the split is intentional.
+      // Reads the `en` bundle explicitly rather than the active locale; both
+      // bundles are preloaded in lib/i18n.ts, so this is synchronous.
+      latinLabel: (code) => {
+        if (!code) return "—";
+        const key = `Paper.${code}`;
+        const override = t(key, { lng: "en" });
+        if (override !== key) return override;
+        return byCode.get(code)?.name_i18n.en ?? code;
+      },
       compare: (a, b) => {
         const ra = a ? (byCode.get(a)?.rank ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
         const rb = b ? (byCode.get(b)?.rank ?? Number.MAX_SAFE_INTEGER) : Number.MAX_SAFE_INTEGER;
@@ -94,7 +135,8 @@ export function usePaperCatalog(): {
         return ra - rb;
       },
       isLoading,
+      isError,
     }),
-    [papers, byCode, locale, t, isLoading],
+    [papers, byCode, locale, t, isLoading, isError],
   );
 }

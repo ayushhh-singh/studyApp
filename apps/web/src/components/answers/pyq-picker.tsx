@@ -153,7 +153,7 @@ export function PyqPicker() {
   // previous hardcoded MAINS_PAPER_ORDER array and inline bilingual label
   // dictionary were both UPPSC paper codes, and the dictionary bypassed i18n
   // entirely. See usePaperCatalog.
-  const { label: paperLabel, compare } = usePaperCatalog();
+  const { label: paperLabel, compare, isLoading: catalogLoading } = usePaperCatalog();
   const papers = useMemo(() => {
     // Answer Writing is Mains-only (descriptive PYQs) — Prelims papers are
     // entirely MCQ, so listing them here just leads to a real, confusingly
@@ -175,7 +175,13 @@ export function PyqPicker() {
           anchor that only exists once tabs render would strand that step with
           no spotlight and no visible Next/Skip, since GuidedTourCoachmark only
           renders once it finds a matching element. */}
-      {papersLoading ? (
+      {/* catalogLoading, not just papersLoading: the tab ORDER comes from the
+          exam registry, and until it resolves `compare` falls back to
+          localeCompare of the raw paper codes — which puts MAINS_ESSAY first
+          and default-selects Essay, then visibly reshuffles to GS-I once the
+          registry lands. Hold the same skeleton instead of rendering a
+          provisional order. See usePaperCatalog's gating note. */}
+      {papersLoading || catalogLoading ? (
         <div data-tour-anchor="answers" className="flex flex-col gap-2">
           <ListRowSkeleton />
           <ListRowSkeleton />

@@ -28,11 +28,17 @@ export function useCurrentExam(): {
   exam: Exam | null;
   name: string;
   isLoading: boolean;
+  /**
+   * The registry request FAILED, so `exam` is null for a reason that is NOT
+   * "this exam has nothing". Surfaced separately so a caller can say
+   * "couldn't load" instead of silently rendering an absent/empty state.
+   */
+  isError: boolean;
 } {
   const { session } = useAuth();
   const locale = useLocale();
   const { data: profile } = useProfile({ enabled: !!session });
-  const { data: exams, isLoading: examsLoading } = useExams();
+  const { data: exams, isLoading: examsLoading, isError: examsError } = useExams();
 
   const examCode = profile?.target_exam ?? DEFAULT_EXAM_CODE;
   const exam = exams?.find((e) => e.exam_code === examCode) ?? null;
@@ -42,5 +48,6 @@ export function useCurrentExam(): {
     exam,
     name: shortExamName(exam, locale, examCode),
     isLoading: examsLoading || (!!session && !profile),
+    isError: examsError,
   };
 }

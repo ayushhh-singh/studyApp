@@ -10,6 +10,7 @@ import { TestPlayer } from "@/components/practice/test-player";
 import { useTimeAttackTopics, useStartTimeAttack, useFinishTimeAttack } from "@/hooks/use-time-attack";
 import { useLocale } from "@/hooks/use-locale";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
+import { isAwaitingData } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 
 /**
@@ -92,14 +93,22 @@ function TopicPicker({
 }) {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { label } = usePaperCatalog();
+  const { label, isLoading: catalogLoading } = usePaperCatalog();
   const papers = useTimeAttackPapers();
   // Nothing is picked until the registry resolves, so the first supported paper
   // stands in — never a hardcoded "PRE_GS1".
   const active = paper ?? papers[0]?.code ?? null;
-  const { data: topics, isLoading } = useTimeAttackTopics(active);
-  // No supported paper for this exam — the honest state is the same "not enough
-  // questions yet" message, never another exam's paper.
+  const topicsQuery = useTimeAttackTopics(active);
+  const topics = topicsQuery.data;
+  // Until the registry resolves, `active` is null and the topics query is
+  // DISABLED — reporting isLoading:false with no data. Reading that as "no
+  // topics" made this whole page unreachable: it rendered the empty state
+  // instantly, and PaperToggle hides itself below two papers, so the copy said
+  // "try the other paper" with no paper picker on screen. Wait for the registry
+  // first; only once it has resolved AND still yields no supported paper (a
+  // second exam, whose codes this single-exam endpoint doesn't accept) is the
+  // empty state the honest answer. See lib/query-state.ts.
+  const awaiting = catalogLoading || (!!active && isAwaitingData(topicsQuery));
   const startTA = useStartTimeAttack();
 
   return (
@@ -111,7 +120,7 @@ function TopicPicker({
         </p>
         <PaperToggle papers={papers} paper={active} onChange={onPaperChange} />
       </div>
-      {isLoading ? (
+      {awaiting ? (
         <div className="flex flex-col gap-2">
           <Skeleton className="h-16 w-full" />
           <Skeleton className="h-16 w-full" />

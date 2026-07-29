@@ -121,7 +121,9 @@ export function MockPaperTabs({
   // Order and labels come from the exam's own registry entry, not a hardcoded
   // paper-code list — see usePaperCatalog. A paper the registry doesn't know
   // (an exam mid-ingest) still gets a tab, sorted last under its raw code.
-  const { label: paperLabel, compare } = usePaperCatalog();
+  // `latinLabel`, not `label`: these compact sub-tabs stay "GS-I"/"CSAT" in
+  // both locales — see the note on latinLabel for why.
+  const { latinLabel: paperLabel, compare, isLoading: catalogLoading } = usePaperCatalog();
   const byPaper = useMemo(() => {
     const groups = new Map<string, TestSummary[]>();
     for (const t of tests) {
@@ -132,6 +134,21 @@ export function MockPaperTabs({
     return [...groups.entries()].sort(([a], [b]) => compare(a, b));
   }, [tests, compare]);
 
+  // Until the registry resolves, `compare` knows none of these codes and falls
+  // back to localeCompare of the RAW code, which orders CSAT before GS-I (and,
+  // in the mains grid, Essay before GS-I). The tabs then visibly reshuffle a
+  // few seconds later — and worse, `defaultValue` below is uncontrolled, so the
+  // wrong first tab STAYS selected after the reorder. Hold rather than render a
+  // provisional order. See usePaperCatalog's gating note.
+  if (catalogLoading) {
+    return (
+      <div className="flex flex-col gap-2">
+        <ListRowSkeleton />
+        <ListRowSkeleton />
+        <ListRowSkeleton />
+      </div>
+    );
+  }
   if (byPaper.length === 0) return null;
   // A single paper needs no selector — just the sequenced list.
   if (byPaper.length === 1)

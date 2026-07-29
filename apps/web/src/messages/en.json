@@ -324,7 +324,7 @@
     "cutoffProvisional": "provisional",
     "cutoffQualified": "You'd clear the {{paper}} qualifying bar",
     "cutoffNotQualified": "Below the {{paper}} qualifying bar",
-    "cutoffCsatHint": "CSAT qualifies at 33% (66/200). Your equivalent: {{your}}/200.",
+    "cutoffUnavailable": "Couldn't load the qualifying details for this paper. Try reloading.",
     "leaveConfirmTitle": "Leave this test?",
     "leaveConfirmDescription": "Your progress on this attempt hasn't been submitted yet. If you leave now, you can still resume later — your answers are autosaved — but the timer keeps running.",
     "leaveConfirmStay": "Stay",

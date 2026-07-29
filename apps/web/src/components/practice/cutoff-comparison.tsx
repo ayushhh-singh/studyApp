@@ -3,8 +3,10 @@ import { useTranslation } from "react-i18next";
 import { CheckCircle2, XCircle } from "lucide-react";
 import type { AttemptResultDetail, ExamCutoff, PaperMinimum } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
+import { Skeleton } from "@/components/ui-x/skeleton";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { useCutoffs } from "@/hooks/use-mocks";
+import { isAwaitingData } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 
 /**
@@ -35,9 +37,10 @@ import { cn } from "@/lib/utils";
 export function CutoffComparison({ result }: { result: AttemptResultDetail }) {
   const { t } = useTranslation();
   const paperCode = result.test?.paper_code ?? null;
-  const { byCode, label } = usePaperCatalog();
+  const { byCode, label, isLoading: catalogLoading, isError: catalogError } = usePaperCatalog();
   const paper = paperCode ? (byCode.get(paperCode) ?? null) : null;
-  const { data: cutoffs } = useCutoffs(paperCode);
+  const cutoffsQuery = useCutoffs(paperCode);
+  const cutoffs = cutoffsQuery.data;
   const scorePct = result.score_pct ?? 0;
   const paperName = label(paperCode);
 
@@ -73,7 +76,37 @@ export function CutoffComparison({ result }: { result: AttemptResultDetail }) {
   const scale = outOf ?? rows[0]?.out_of ?? null;
   const yourEquivalent = yourMark ?? (scale === null ? null : Math.max(0, Math.round((scorePct / 100) * scale)));
 
-  if (!minimum && rowsAll.length === 0) return null;
+  // NOTHING TO SHOW — but "nothing" has three very different causes, and the
+  // first two must not look like the third.
+  //
+  // CSAT is the case that made this matter: `exam_cutoffs` has zero PRE_CSAT
+  // rows, so its whole card hangs on the registry's `minimum`. Rendering
+  // `null` while `GET /exams` was still in flight (or had failed) made the
+  // card silently vanish with no error and no fallback — while GS-I looked
+  // fine, because it falls back to `rows[0].out_of`. See lib/query-state.ts.
+  //
+  // The cut-offs query is only "awaiting" when it has a paper to ask about;
+  // with `paperCode` null it is disabled on purpose and stays pending forever.
+  const awaiting = catalogLoading || (!!paperCode && isAwaitingData(cutoffsQuery));
+  if (!minimum && rowsAll.length === 0) {
+    if (awaiting) {
+      return (
+        <SectionCard title={t("Practice.cutoffTitle")}>
+          <Skeleton className="h-16 w-full" />
+        </SectionCard>
+      );
+    }
+    // Genuinely failed to load — say so rather than disappear. (No paper code
+    // means this attempt has no pass-mark concept at all: still `null`.)
+    if (catalogError && paperCode) {
+      return (
+        <SectionCard title={t("Practice.cutoffTitle")}>
+          <p className="text-sm text-muted-foreground">{t("Practice.cutoffUnavailable")}</p>
+        </SectionCard>
+      );
+    }
+    return null;
+  }
 
   const description =
     rows.length === 0 || yourEquivalent === null || scale === null
