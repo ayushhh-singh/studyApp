@@ -431,14 +431,16 @@ export async function getDashboardSummary(userId: string): Promise<DashboardSumm
   const today = todayDateString();
   // Compute the day's progress once, then reuse it for the streak refresh AND the
   // Today checklist so they agree and don't double-query.
-  const progress = await getDailyProgress(userId, today);
+  // The exam is resolved ONCE and shared by the countdown and the weakness radar
+  // (resolving it twice risks them disagreeing mid-request), and it is fetched
+  // alongside the day's progress rather than before it — this is the app's
+  // hottest endpoint, and a serial read here would add a round trip to every
+  // dashboard load for a single short column.
+  const [progress, examCode] = await Promise.all([getDailyProgress(userId, today), getUserExam(userId)]);
   const streak = await refreshStreak(userId, today, progress);
   // Record a Perfect Day if the whole checklist is done — best-effort so it never
   // blocks the dashboard; the nightly job also settles it.
   recordPerfectDay(userId, today, progress).catch((err) => logger.error({ err }, "perfect-day record failed"));
-  // One resolution of the user's exam, shared by the countdown and the weakness
-  // radar — resolving it twice risks the two disagreeing mid-request.
-  const examCode = await getUserExam(userId);
   const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
     getGreeting(userId, today, streak, examCode),
     getContinue(userId),

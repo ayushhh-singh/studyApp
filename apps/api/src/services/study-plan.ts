@@ -96,7 +96,7 @@ async function loadWeakSections(
   // Scoped to the user's own syllabus tree — an unscoped map would draw "weak
   // sections" from every exam and plan a week of study against papers the user
   // is not sitting.
-  const map = await getMasteryMap(userId, undefined, undefined, examCode);
+  const map = await getMasteryMap(userId, { targetExam: examCode });
   const priority = map.nodes
     .filter((n) => n.depth === 1 && n.is_priority)
     .sort((a, b) => b.pyq_count - a.pyq_count)

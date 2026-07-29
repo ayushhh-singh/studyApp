@@ -53,28 +53,43 @@ interface Bucket {
  */
 export async function recomputeMastery(userId: string): Promise<number> {
   // 1) submitted attempts (id -> submitted_at, the "when practised" timestamp).
-  const { data: attempts, error: aErr } = await supabase()
-    .from("attempts")
-    .select("id, submitted_at")
-    .eq("user_id", userId)
-    .not("submitted_at", "is", null);
-  if (aErr) throw new HttpError(500, `attempt lookup failed: ${aErr.message}`);
-  const submittedAt = new Map((attempts ?? []).map((r) => [r.id as string, r.submitted_at as string]));
+  // Paged + `.in()`-chunked, same reasoning as lib/graded-answers.ts: not
+  // truncating for today's heaviest account (359 graded answers), but a few
+  // full 150-question mocks cross the 1000-row cap, and a truncated read here
+  // silently DOWNGRADES mastery levels rather than erroring.
+  const attempts = await selectAll<{ id: string; submitted_at: string }>(() =>
+    supabase()
+      .from("attempts")
+      .select("id, submitted_at")
+      .eq("user_id", userId)
+      .not("submitted_at", "is", null)
+      .order("id", { ascending: true }),
+  );
+  const submittedAt = new Map(attempts.map((r) => [r.id, r.submitted_at]));
   const attemptIds = [...submittedAt.keys()];
   if (attemptIds.length === 0) return 0;
 
   // 2) graded answers joined to their question's node.
-  const { data: answers, error: ansErr } = await supabase()
-    .from("attempt_answers")
-    .select("attempt_id, is_correct, questions(paper_code, syllabus_node_id)")
-    .in("attempt_id", attemptIds)
-    .not("is_correct", "is", null);
-  if (ansErr) throw new HttpError(500, `graded answer lookup failed: ${ansErr.message}`);
-  const rows = (answers ?? []) as unknown as {
+  interface AnswerRow {
     attempt_id: string;
     is_correct: boolean;
     questions: { paper_code: string; syllabus_node_id: string | null } | null;
-  }[];
+  }
+  const IN_BATCH = 100;
+  const rows: AnswerRow[] = [];
+  for (let i = 0; i < attemptIds.length; i += IN_BATCH) {
+    const slice = attemptIds.slice(i, i + IN_BATCH);
+    rows.push(
+      ...(await selectAll<AnswerRow>(() =>
+        supabase()
+          .from("attempt_answers")
+          .select("id, attempt_id, is_correct, questions(paper_code, syllabus_node_id)")
+          .in("attempt_id", slice)
+          .not("is_correct", "is", null)
+          .order("id", { ascending: true }),
+      )),
+    );
+  }
 
   const paperCodes = [...new Set(rows.map((r) => r.questions?.paper_code).filter((c): c is string => !!c))];
   if (paperCodes.length === 0) return 0;
@@ -164,10 +179,21 @@ const HIGH_WEIGHT_FRACTION = 0.4;
  */
 export async function getMasteryMap(
   userId: string,
-  paperCode?: string,
-  exam?: ExamCode,
-  targetExam: string = DEFAULT_EXAM_CODE,
+  opts: {
+    paperCode?: string;
+    /** PROVENANCE filter on questions.exam_code — affects tile weight only. */
+    exam?: ExamCode;
+    /**
+     * Which syllabus tree to draw. REQUIRED, and the reason this function takes
+     * an options object at all: a trailing optional parameter (which is all TS
+     * allows after `paperCode?`/`exam?`) could be forgotten, and forgetting it
+     * would silently draw the UPPSC tree for a non-UPPSC user — exactly the bug
+     * the parameter exists to prevent.
+     */
+    targetExam: string;
+  },
 ): Promise<MasteryMap> {
+  const { paperCode, exam, targetExam } = opts;
   // Paged as well as scoped: `pk(paper_code, path)` resolution below needs the
   // COMPLETE node set for the papers in play — a truncated read silently loses
   // ancestors, which shows up as tiles with zero weight rather than as an error.

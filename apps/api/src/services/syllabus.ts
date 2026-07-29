@@ -120,20 +120,37 @@ export async function getPaperSummaries(userId: string, examCode: string): Promi
     // disagreed with the outline's own total (529 vs 501 for PRE_GS1); "M
     // PYQs" is meant to describe PYQs actually distributed across those N
     // topics, not the raw unmapped catalog total.
-    supabase()
-      .from("questions")
-      .select("paper_code")
-      .eq("is_published", true)
-      .eq("review_state", "approved")
-      .not("syllabus_node_id", "is", null),
+    //
+    // PAGED. Found live while auditing the exam-scoping change: this was an
+    // unranged select over 4,252 matching rows, so PostgREST returned 1,000 and
+    // every paper card's "M PYQs" badge was under-reporting by ~76% — silently,
+    // since a truncated select looks exactly like a small result set. Pre-dates
+    // the multi-exam work (it broke when the bank tripled), but it is the same
+    // 1000-row-cap class the rest of this change had to fix, in a query this
+    // function already owned.
+    selectAll<{ paper_code: string }>(() =>
+      supabase()
+        .from("questions")
+        .select("paper_code")
+        .eq("is_published", true)
+        .eq("review_state", "approved")
+        .not("syllabus_node_id", "is", null)
+        .order("id", { ascending: true }),
+    ),
     // Published study notes per paper (via the node's paper_code) → coverage %.
     // chapter_version > 0 distinguishes a full Study chapter from a digest note.
-    supabase().from("notes").select("chapter_version, syllabus_nodes(paper_code)").eq("status", "published"),
+    // Paged too — 284 rows today, but it grows one row per node per exam.
+    selectAll<{ chapter_version: number | null; syllabus_nodes: unknown }>(() =>
+      supabase()
+        .from("notes")
+        .select("chapter_version, syllabus_nodes(paper_code)")
+        .eq("status", "published")
+        .order("id", { ascending: true }),
+    ),
     getGradedAnswers(userId),
   ]);
   if (rootsResult.error) throw new HttpError(500, `paper roots lookup failed: ${rootsResult.error.message}`);
   if (topicsResult.error) throw new HttpError(500, `topic count lookup failed: ${topicsResult.error.message}`);
-  if (questionsResult.error) throw new HttpError(500, `question count lookup failed: ${questionsResult.error.message}`);
 
   const rootRows = (rootsResult.data ?? []) as {
     id: string;
@@ -149,14 +166,14 @@ export async function getPaperSummaries(userId: string, examCode: string): Promi
   }
 
   const pyqByPaper = new Map<string, number>();
-  for (const row of questionsResult.data ?? []) {
-    const code = row.paper_code as string;
+  for (const row of questionsResult) {
+    const code = row.paper_code;
     pyqByPaper.set(code, (pyqByPaper.get(code) ?? 0) + 1);
   }
 
   const notesByPaper = new Map<string, number>();
   const chaptersByPaper = new Map<string, number>();
-  for (const row of notesResult.data ?? []) {
+  for (const row of notesResult) {
     // PostgREST embeds the to-one join as an object or a single-element array.
     const r = row as unknown as {
       chapter_version: number | null;

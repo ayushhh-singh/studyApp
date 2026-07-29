@@ -20,7 +20,7 @@ masteryRouter.get(
     // `exam` (query param) is the PROVENANCE filter on questions; the user's own
     // target exam is what scopes which syllabus tree the map is drawn from.
     const userId = currentUserId();
-    const map = await getMasteryMap(userId, paper, exam, await getUserExam(userId));
+    const map = await getMasteryMap(userId, { paperCode: paper, exam, targetExam: await getUserExam(userId) });
     res.json(masteryMapResponseSchema.parse({ data: map, error: null }));
   }),
 );
@@ -34,7 +34,7 @@ masteryRouter.get(
       req.query,
     );
     const userId = currentUserId();
-    const map = await getMasteryMap(userId, paper, undefined, await getUserExam(userId));
+    const map = await getMasteryMap(userId, { paperCode: paper, targetExam: await getUserExam(userId) });
     const png = await renderMasteryMapPng(map, locale);
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");

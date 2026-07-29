@@ -248,6 +248,52 @@ second half of `docs/OUTSTANDING.md` §8b **M8** ("nothing recomputes it"). The
 rest of M8 — `gs_papers` assuming GS1-6 numbering and `is_up_specific` assuming
 UP — is untouched.
 
+### 3d. Found by the post-commit edge-case audit (2026-07-29)
+
+Checked failure paths rather than re-running the happy path. Three fixed, three
+recorded.
+
+**Fixed:**
+
+- **The papers grid's "M PYQs" badge was truncated to 1,000 rows** —
+  `getPaperSummaries`' question-count select was unranged over 4,252 matching
+  rows, so **PRE_GS1 rendered 110 instead of 1,003** and PRE_CSAT 193 instead of
+  870. Live, user-visible, and it pre-dates the multi-exam work (it broke when
+  the PYQ bank tripled) — but it sat inside a query this change already owned.
+  Now paged; verified per paper against exact counts, all 10 match.
+- **`getMasteryMap`'s `targetExam` could be forgotten.** TypeScript cannot make a
+  parameter required after two optional ones, so it was `targetExam?: string` —
+  i.e. exactly the silently-defaults-to-UPPSC shape M2 exists to remove. Changed
+  to an options object so the compiler demands it.
+- **`getGradedAnswers` and `recomputeMastery` read unranged.** Not truncating
+  today (the heaviest real account has 359 graded answers), but a handful of full
+  150-question mocks crosses the cap, and a truncated read there does not error —
+  it silently drops answers from the weakness radar, the papers grid's accuracy
+  and the mentor's learner profile at once, and silently DOWNGRADES mastery
+  levels. Both paged and `.in()`-chunked.
+- **A latency regression this change introduced**: `dashboard.ts` resolved the
+  user's exam serially before its fan-out, adding a round trip to the app's
+  hottest endpoint for one short column. Now fetched in parallel with the day's
+  progress.
+
+**Recorded, not fixed:**
+
+- **Existing current-affairs embeddings are stamped `uppsc`, not shared.** All
+  3,588 of them, from 0106's backfill. Correct today (every CA item is
+  UPPSC-only), but `caEmbeddingExamCode` only applies to NEW writes — so before a
+  second exam goes live, existing CA items need `exam_codes` recomputed and a
+  `ca:embed --all` re-embed, or genuinely national items stay invisible to it.
+  This is the one caveat to "no re-embed was needed"; it is true for syllabus,
+  question and note chunks, and only conditionally true for CA.
+- **40 published questions have no syllabus node**, so nothing derives their exam
+  and their embeddings fall back to the default. Already an open question
+  (`docs/OUTSTANDING.md` §8d M19); `ingest:embed` now warns with the count
+  instead of being silent about it.
+- **`getScoreTrajectory` renders a raw paper code** for an attempt on another
+  exam's paper, since the title map is now exam-scoped. Unreachable today (there
+  is no exam-switching UI — M13), and dropping such attempts silently would be
+  worse than labelling them plainly.
+
 ### 3a. Daily quiz — three sites that ride on the §0 invariant
 
 Found by a post-commit edge-case audit. None is a defect today; each breaks the
