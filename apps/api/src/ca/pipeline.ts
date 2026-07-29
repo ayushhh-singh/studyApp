@@ -103,6 +103,27 @@ import {
 /** Items scoring below this on BOTH lives are archived (the hard gate). */
 export const RELEVANCE_GATE = 2;
 
+/**
+ * Which exam's framing a CA prompt should use.
+ *
+ * A current-affairs item is deliberately MULTI-EXAM (migration 0106 §11: one
+ * national story maps into several exams' trees from ONE row, so it is never
+ * duplicated or re-triaged per exam). A prompt, however, has to name exactly one
+ * commission. THE RULE, used everywhere in this pipeline: if the relevant set
+ * resolves to exactly ONE exam, use it; otherwise fall back to the default exam
+ * rather than inventing a per-exam fan-out of the pipeline.
+ *
+ * Applied at two different scopes, both derived from real data:
+ *  - TRIAGE runs BEFORE any node is chosen, so its scope is the run's own
+ *    candidate pool: the single LIVE exam if only one is live, else the default.
+ *  - Everything downstream of triage (enrich, MCQ + Mains generation) knows the
+ *    nodes the item actually landed on, so its scope is `exam_codes` — the same
+ *    set the item row and its embedding are stamped from.
+ */
+export function caPromptExamCode(examCodes: readonly string[]): string {
+  return examCodes.length === 1 ? examCodes[0] : DEFAULT_EXAM_CODE;
+}
+
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 function istDateString(d: Date): string {
   return new Date(d.getTime() + IST_OFFSET_MS).toISOString().slice(0, 10);
@@ -215,6 +236,8 @@ interface ProcessCtx {
   candidateById: Map<string, SyllabusCandidate>;
   /** PRE_GS1 candidates only (never PRE_CSAT), excluding the pooled fallback node — for classifyPrelimsMcqNode. */
   prelimsCandidates: SyllabusCandidate[];
+  /** The run-scope exam for triage (see caPromptExamCode) — the same value in both modes. */
+  runExamCode: string;
   onUsage: (u: LlmUsage) => void;
   log: (msg: string) => void;
 }
@@ -333,6 +356,8 @@ async function insertMcqsForItem(opts: {
   syllabusNodeId: string | null;
   title: string;
   facts: string[];
+  /** The item's own exam (see caPromptExamCode) — whose prelims style to write in. */
+  examCode: string;
   onUsage: (u: LlmUsage) => void;
   log: (msg: string) => void;
 }): Promise<string[]> {
@@ -345,7 +370,13 @@ async function insertMcqsForItem(opts: {
   // has always passed it). generateMcqs now returns 0-2 questions (only the
   // exam-worthy facts earn one), so an empty result is the expected outcome for
   // a colour-only item, not a failure — the early return below handles it.
-  const mcqs = await generateMcqs({ title: opts.title, facts: opts.facts, examples, onUsage: opts.onUsage });
+  const mcqs = await generateMcqs({
+    title: opts.title,
+    facts: opts.facts,
+    examples,
+    examCode: opts.examCode,
+    onUsage: opts.onUsage,
+  });
   if (mcqs.length === 0) return [];
 
   // No inline blind-verify here (deliberately): ca:run is already close to
@@ -392,9 +423,16 @@ async function insertMainsQuestionForItem(opts: {
   syllabusNodeId: string | null;
   title: string;
   brief: CurrentAffairsMainsBrief;
+  /** The item's own exam (see caPromptExamCode) — whose Mains norms to write to. */
+  examCode: string;
   onUsage: (u: LlmUsage) => void;
 }): Promise<string | null> {
-  const q = await generateMainsQuestion({ title: opts.title, brief: opts.brief, onUsage: opts.onUsage });
+  const q = await generateMainsQuestion({
+    title: opts.title,
+    brief: opts.brief,
+    examCode: opts.examCode,
+    onUsage: opts.onUsage,
+  });
 
   // Session-11 qgen critic gate — reject anything not exam-worthy.
   const criticJson = await structuredJson({
@@ -403,8 +441,10 @@ async function insertMainsQuestionForItem(opts: {
         id: opts.syllabusNodeId ?? "",
         paperCode: CURRENT_AFFAIRS_PAPER_CODE,
         // Synthetic node stub for the critic prompt only — it is never used for
-        // retrieval, so the default exam is the honest placeholder here.
-        examCode: DEFAULT_EXAM_CODE,
+        // retrieval. The exam is the item's own (caPromptExamCode), so the
+        // critic judges the question against the commission it was written for
+        // rather than against whichever exam happens to be the default.
+        examCode: opts.examCode,
         stage: "mains",
         title_i18n: { hi: "", en: opts.title },
         description_i18n: null,
@@ -579,6 +619,7 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
           snippet: row.payload.snippet,
           sourceIsUp: row.payload.sourceIsUp,
           candidates: shown,
+          examCode: ctx.runExamCode,
           onUsage: ctx.onUsage,
         });
         log(
@@ -693,15 +734,20 @@ export async function runPipeline(
   // Loaded before anything else because BOTH phases need it: collect
   // reconstructs each row's shown-candidate list from it, submit narrows
   // against it.
-  const candidates = await loadSyllabusCandidates({ examCodes: await liveExamCodes() });
+  const live = await liveExamCodes();
+  const candidates = await loadSyllabusCandidates({ examCodes: live });
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
   log(`syllabus candidates for mapping: ${candidates.length}`);
+
+  // Triage happens before any node is chosen, so its framing is run-scoped: the
+  // single live exam when only one is live, else the default (caPromptExamCode).
+  const runExamCode = caPromptExamCode(live);
 
   const pooledNodeId = await getPrelimsCurrentAffairsNodeId();
   const prelimsCandidates = candidates.filter((c) => c.paperCode === "PRE_GS1" && c.id !== pooledNodeId);
 
   const embedTasks: EmbedTask[] = [];
-  const ctx: ProcessCtx = { result, embedTasks, candidateById, prelimsCandidates, onUsage, log };
+  const ctx: ProcessCtx = { result, embedTasks, candidateById, prelimsCandidates, runExamCode, onUsage, log };
 
   // -------------------------------------------------------------------------
   // REAP + COLLECT FIRST, in BOTH modes. The ordering is load-bearing:
@@ -834,7 +880,7 @@ export async function runPipeline(
         try {
           // --- 1. Triage ------------------------------------------------------
           const itemCandidates = await prefilter.narrow(title, snippet, (u) => (result.costUsd += u.costUsd));
-          const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, onUsage });
+          const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, examCode: runExamCode, onUsage });
           seenHashes.add(hash); // never re-triage this link again, kept or archived
           takenFromSource++;
           // --- 2-5. Shared downstream (verbatim the same code the batch-collect
@@ -876,7 +922,7 @@ export async function runPipeline(
           candidateIds: itemCandidates.map((c) => c.id),
         },
         params: structuredParams(
-          triageParams({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates }),
+          triageParams({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, examCode: runExamCode }),
         ),
       });
       // Mirrors the sync path exactly: the hash is banked so the same link is
@@ -1036,6 +1082,11 @@ export async function processTriagedItem(
     ...new Set(triage.syllabus_node_ids.map((id) => candidateById.get(id)?.examCode).filter((e): e is string => !!e)),
   ];
   const itemExamCodes = mappedExams.length > 0 ? mappedExams : [DEFAULT_EXAM_CODE];
+  // The ONE exam every downstream prompt for this item is framed against — the
+  // item's own single exam when it has one, else the default (caPromptExamCode).
+  // Derived from the same set the row and its embedding are stamped from, so the
+  // material can never be written for an exam the item is not filed under.
+  const itemExamCode = caPromptExamCode(itemExamCodes);
 
   // --- 2. Hard gate -----------------------------------------------------
   if (bestScore < RELEVANCE_GATE) {
@@ -1093,6 +1144,7 @@ export async function processTriagedItem(
     hasPrelimsLife: hasPrelims,
     hasMainsLife: hasMains,
     linkedNodes,
+    examCode: itemExamCode,
     onUsage,
   });
 
@@ -1187,11 +1239,22 @@ export async function processTriagedItem(
       // back to the pooled "Current Events" node — see ca/prelims-node.ts.
       const prelimsNodeId =
         pickPrelimsMcqNode(triage.syllabus_node_ids, candidateById) ??
-        (await classifyPrelimsMcqNode({ title: enrich.title_i18n.en, facts: factsEn, prelimsCandidates, onUsage }));
+        (await classifyPrelimsMcqNode({
+          title: enrich.title_i18n.en,
+          facts: factsEn,
+          prelimsCandidates,
+          // The exam that OWNS the candidate list, not the item's — the prompt
+          // names the curriculum the model must choose from, so it has to agree
+          // with the nodes actually shown. Falls back to the item's exam only
+          // when the list is empty (in which case the call short-circuits).
+          examCode: prelimsCandidates[0]?.examCode ?? itemExamCode,
+          onUsage,
+        }));
       const mcqIds = await insertMcqsForItem({
         syllabusNodeId: prelimsNodeId ?? (await getPrelimsCurrentAffairsNodeId()),
         title: enrich.title_i18n.en,
         facts: factsEn,
+        examCode: itemExamCode,
         onUsage,
         log,
       });
@@ -1213,6 +1276,7 @@ export async function processTriagedItem(
         syllabusNodeId: nodeId,
         title: enrich.title_i18n.en,
         brief: mainsBrief,
+        examCode: itemExamCode,
         onUsage,
       });
       if (mainsQId) result.mainsQuestionsGenerated++;

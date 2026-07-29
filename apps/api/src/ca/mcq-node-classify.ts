@@ -35,15 +35,38 @@
  * (measured: $0.0124 across 5 calls in one run) — not proportionate.
  */
 import { MODELS, structuredJson, type LlmUsage } from "../lib/anthropic.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { logger } from "../lib/logger.js";
 import type { SyllabusCandidate } from "./prompts.js";
 
-export const MCQ_NODE_CLASSIFY_SYSTEM =
-  "You are mapping an already-confirmed prelims-relevant current-affairs item to ONE specific UPPSC Prelims " +
-  "General Studies Paper I curriculum topic, from the candidate list, that its facts most concretely belong to " +
-  "(e.g. a scheme/appointment/report belongs to its subject area; a monument/place to History or Geography). " +
-  "Choose \"none\" if the item is genuinely generic breaking news with no better specific fit than plain current " +
-  "events — do not force a stretch mapping. Give a one-line reason.";
+/**
+ * The system prompt, per exam. Was a module-level const (one string instance);
+ * it is now a memoised per-exam builder, so repeated calls still reuse one
+ * instance per exam. The NAME is deliberately unchanged (it is the key this
+ * file's prompt-snapshot entry is recorded under) even though it is now a
+ * function — call it as `MCQ_NODE_CLASSIFY_SYSTEM(examCode)`.
+ *
+ * NO CACHE BOUNDARY EXISTS HERE (see this file's header): the prompt is a plain
+ * string `system`, far below haiku's minimum cacheable prefix, so the per-exam
+ * text is free and cannot move anything across a breakpoint.
+ */
+const classifySystemCache = new Map<string, string>();
+export function MCQ_NODE_CLASSIFY_SYSTEM(examCode: string): string {
+  const hit = classifySystemCache.get(examCode);
+  if (hit !== undefined) return hit;
+  const framing = requireAuthored(
+    getExamConfig(examCode).ca.nodeClassifyFraming,
+    examCode,
+    "ca.nodeClassifyFraming",
+  );
+  const built =
+    `You are mapping an already-confirmed prelims-relevant current-affairs item to ${framing}, from the candidate list, that its facts most concretely belong to ` +
+    "(e.g. a scheme/appointment/report belongs to its subject area; a monument/place to History or Geography). " +
+    "Choose \"none\" if the item is genuinely generic breaking news with no better specific fit than plain current " +
+    "events — do not force a stretch mapping. Give a one-line reason.";
+  classifySystemCache.set(examCode, built);
+  return built;
+}
 
 export function buildMcqNodeClassifySchema(validIds: string[]): Record<string, unknown> {
   return {
@@ -67,6 +90,12 @@ export async function classifyPrelimsMcqNode(opts: {
   facts: string[];
   /** Already filtered to PRE_GS1 (never PRE_CSAT — see pickPrelimsMcqNode's comment in pipeline.ts). */
   prelimsCandidates: SyllabusCandidate[];
+  /**
+   * Whose prelims curriculum the model is choosing from — i.e. the exam that
+   * OWNS `prelimsCandidates`, not the item's own exam. The prompt names the
+   * paper the candidate list was drawn from, so it must agree with that list.
+   */
+  examCode: string;
   onUsage: (u: LlmUsage) => void;
 }): Promise<string | null> {
   if (opts.prelimsCandidates.length === 0) return null;
@@ -81,7 +110,7 @@ export async function classifyPrelimsMcqNode(opts: {
     const out = await structuredJson<ClassifyResult>({
       model: MODELS.haiku,
       maxTokens: 300,
-      system: MCQ_NODE_CLASSIFY_SYSTEM,
+      system: MCQ_NODE_CLASSIFY_SYSTEM(opts.examCode),
       content,
       schema: buildMcqNodeClassifySchema(validIds),
       purpose: "ca_mcq_node_classify",

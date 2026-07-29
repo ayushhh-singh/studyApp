@@ -141,6 +141,13 @@ export interface ChapterContext {
   pyqs: ChapterPyq[];
   grounding: GroundingResult;
   nodeIds: string[];
+  /**
+   * The exam that OWNS this node (syllabus_nodes.exam_code) — the same value the
+   * grounding above was scoped to, and the key every chapter prompt reads its
+   * exam-specific framing from. Additive: the context-pack CLI destructures a
+   * subset and is unaffected.
+   */
+  examCode: string;
 }
 
 export async function loadChapterContext(nodeId: string): Promise<ChapterContext> {
@@ -153,7 +160,7 @@ export async function loadChapterContext(nodeId: string): Promise<ChapterContext
     // Same rule as the digest generator: ground a chapter only in its own exam.
     retrieveGrounding({ questionText: query, locale: "en", syllabusNodeId: node.id, examCode: row.exam_code, k: 10 }),
   ]);
-  return { node, weightage, pyqs, grounding, nodeIds };
+  return { node, weightage, pyqs, grounding, nodeIds, examCode: row.exam_code };
 }
 
 // ---------------------------------------------------------------------------
@@ -165,7 +172,7 @@ export async function generateChapterForNode(
   log: Log = () => {},
 ): Promise<GenerateChapterResult> {
   const useWeb = opts.web !== false;
-  const { node, weightage, pyqs, grounding, nodeIds } = await loadChapterContext(nodeId);
+  const { node, weightage, pyqs, grounding, nodeIds, examCode } = await loadChapterContext(nodeId);
   log(`  loading context for "${node.title_en}" (${node.paperCode}) — ${weightage.totalPyqs} PYQs…`);
 
   let costUsd = 0;
@@ -181,7 +188,7 @@ export async function generateChapterForNode(
   // 1 — OUTLINE
   log("  [1/6] outline…");
   const outline = await structuredJson<OutlineResult>({
-    ...buildOutlineParams({ node, weightage, pyqs }),
+    ...buildOutlineParams({ node, weightage, pyqs, examCode }),
     purpose: "notes_chapter_outline",
     onUsage,
   });
@@ -195,8 +202,8 @@ export async function generateChapterForNode(
   if (useWeb) {
     log("  [2/6] web research…");
     const r = await webResearch({
-      system: CHAPTER_RESEARCH_SYSTEM,
-      content: buildChapterResearchContent(node),
+      system: CHAPTER_RESEARCH_SYSTEM(examCode),
+      content: buildChapterResearchContent(node, examCode),
       maxUses: 6,
       purpose: "notes_chapter_research",
       onUsage,
@@ -208,7 +215,7 @@ export async function generateChapterForNode(
     capCheck();
   }
 
-  const context = chapterContextBlock({ node, weightage, grounding, research, sources, pyqs });
+  const context = chapterContextBlock({ node, weightage, grounding, research, sources, pyqs, examCode });
   const allHeadings = outline.sections.map((s) => s.heading_en);
   const pyqById = new Map(pyqs.map((p) => [p.n, p.id]));
   const resolvePyqIds = (refs: number[]): string[] =>
@@ -219,7 +226,7 @@ export async function generateChapterForNode(
   const rawSections: { id: string; heading_en: string; raw: SectionRaw }[] = [];
   for (const s of outline.sections) {
     const raw = await structuredJson<SectionRaw>({
-      ...buildSectionParams({ context, section: s, allHeadings }),
+      ...buildSectionParams({ context, section: s, allHeadings, examCode }),
       purpose: "notes_chapter_section",
       onUsage,
     });
@@ -259,7 +266,7 @@ export async function generateChapterForNode(
   const auditedFacts: AuditedFact[] = [];
   if (flatFacts.length > 0) {
     const classified = await structuredJson<{ facts: AuditClassification[] }>({
-      ...buildAuditParams({ facts: flatFacts.map((f) => ({ index: f.index, claim: f.claim })), context }),
+      ...buildAuditParams({ facts: flatFacts.map((f) => ({ index: f.index, claim: f.claim })), context, examCode }),
       purpose: "notes_chapter_audit",
       onUsage,
     });
@@ -275,7 +282,12 @@ export async function generateChapterForNode(
       if (useWeb && status !== "verified" && costUsd < NOTES_CHAPTER_MAX_USD) {
         try {
           const esc = await webResearch({
-            system: FACT_ESCALATE_SYSTEM,
+            system: FACT_ESCALATE_SYSTEM(examCode),
+            // NOT PARAMETERISED — this user turn's "a UPPSC study chapter" is a
+            // bare exam mention with no field in ExamNotesConfig
+            // (notes.factEscalateFraming covers the SYSTEM prompt's phrasing
+            // only, and is not grammatically reusable here). Reported as a
+            // config decomposition gap rather than forked locally.
             content: `Verify this decisive fact from a UPPSC study chapter:\n"${f.claim}"`,
             maxUses: 4,
             maxTokens: 2500,
@@ -335,6 +347,9 @@ export async function generateChapterForNode(
       if (s.raw.diagram.caption.trim()) jobs.push({ key: `${si}:diagram:caption`, text: s.raw.diagram.caption });
     }
   });
+  // NOT PARAMETERISED — this translate domainHint names the exam, but
+  // ExamMiscConfig has hints for evaluations, questions, explanations and
+  // personal notes, none for chapter study material. Reported as a gap.
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     "hi",

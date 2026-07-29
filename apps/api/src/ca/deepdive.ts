@@ -21,6 +21,7 @@ import { MODELS, estimateCostUsd } from "../lib/models.js";
 import { BATCH_DISCOUNT, runBatch, structuredParams, type BatchRequest, type LlmUsage } from "../lib/anthropic.js";
 import { retrieveGrounding } from "../services/evaluation/grounding.js";
 import { examCodeForNode } from "../lib/exams.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { loadNodeWeightage } from "../lib/weightage.js";
 import { monthBounds } from "../lib/month.js";
 import { RELEVANCE_GATE } from "./pipeline.js";
@@ -130,14 +131,28 @@ const DEEP_DIVE_SCHEMA = {
   ],
 };
 
-const DEEP_DIVE_SYSTEM =
-  "You are writing one long-form 'Deep Dive' analysis for a UPPSC Mains current-affairs magazine — the kind of " +
+/**
+ * The deep-dive system prompt, per exam. Was a module-level const; now a
+ * memoised per-exam builder (same one-instance-per-exam property), reading its
+ * exam-specific framing from lib/exam-config.ts.
+ *
+ * NO CACHE BOUNDARY: this goes out as a plain-string `system` inside
+ * structuredParams() on the Message Batches path — no `cache: true` anywhere in
+ * this file — so the per-exam text is free and cannot cross a breakpoint.
+ */
+const deepDiveSystemCache = new Map<string, string>();
+function DEEP_DIVE_SYSTEM(examCode: string): string {
+  const hit = deepDiveSystemCache.get(examCode);
+  if (hit !== undefined) return hit;
+  const cfg = getExamConfig(examCode).ca;
+  const built =
+  `You are writing one long-form 'Deep Dive' analysis for ${requireAuthored(cfg.deepDiveFraming, examCode, "ca.deepDiveFraming")} — the kind of ` +
   "synthesis a serious aspirant reads to build an examiner-ready understanding of one issue, well beyond a single " +
   "news brief. Write ENTIRELY IN YOUR OWN WORDS from the material given (never copy source sentences verbatim). " +
   "Produce BOTH Hindi (Devanagari) and English, faithful translations of each other, same structure, same number " +
   "of points in every list field.\n" +
   "- title_i18n: a sharp, examiner-style issue title (not the raw news headline).\n" +
-  "- intro_i18n: 2-3 sentences framing why this issue matters for UPPSC Mains right now.\n" +
+  `- intro_i18n: 2-3 sentences framing ${requireAuthored(cfg.deepDiveIntroFraming, examCode, "ca.deepDiveIntroFraming")}.\n` +
   "- synthesis_i18n: 4-6 substantial analytical paragraphs (own-words synthesis of the background, the current " +
   "development, and its multiple dimensions — polity/economy/social/environment as relevant) — this is the core " +
   "of the deep dive, go well beyond a single article's worth of analysis using every source given.\n" +
@@ -147,8 +162,11 @@ const DEEP_DIVE_SYSTEM =
   "(empty arrays are fine if none are well-supported — never fabricate a case example).\n" +
   "Ground every factual claim in the material provided; if the material is thin on a dimension, keep that part " +
   "brief rather than inventing detail. Return strict JSON, no markdown.";
+  deepDiveSystemCache.set(examCode, built);
+  return built;
+}
 
-function buildContext(issue: RankedIssue, notesText: string, pyqText: string): string {
+function buildContext(issue: RankedIssue, notesText: string, pyqText: string, examCode: string): string {
   const b = issue.item.mains_brief;
   const parts = [
     `PRIMARY ISSUE: ${issue.item.title_i18n.en}`,
@@ -168,7 +186,12 @@ function buildContext(issue: RankedIssue, notesText: string, pyqText: string): s
     );
   }
   if (notesText) parts.push("\nBACKGROUND FROM STUDY NOTES / SYLLABUS:", notesText);
-  if (pyqText) parts.push("\nRELATED PAST UPPSC QUESTIONS (for angle, not to answer):", pyqText);
+  if (pyqText) {
+    parts.push(
+      requireAuthored(getExamConfig(examCode).ca.deepDivePyqHeader, examCode, "ca.deepDivePyqHeader"),
+      pyqText,
+    );
+  }
   return parts.join("\n");
 }
 
@@ -192,6 +215,8 @@ interface DeepDiveRequest {
   issue: RankedIssue;
   context: string;
   sources: { id: string; title: string; url: string }[];
+  /** The exam this deep dive is written for — the same one its grounding was scoped to. */
+  examCode: string;
 }
 
 async function buildRequests(issues: RankedIssue[]): Promise<DeepDiveRequest[]> {
@@ -219,7 +244,7 @@ async function buildRequests(issues: RankedIssue[]): Promise<DeepDiveRequest[]> 
       { id: issue.item.id, title: issue.item.title_i18n.en, url: `current_affairs_item:${issue.item.id}` },
       ...issue.relatedItems.map((r) => ({ id: r.id, title: r.title_i18n.en, url: `current_affairs_item:${r.id}` })),
     ];
-    out.push({ issue, context: buildContext(issue, notesText, pyqText), sources });
+    out.push({ issue, context: buildContext(issue, notesText, pyqText, examCode), sources, examCode });
   }
   return out;
 }
@@ -279,7 +304,7 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
     params: structuredParams({
       model: MODELS.sonnet,
       effort: "high",
-      system: DEEP_DIVE_SYSTEM,
+      system: DEEP_DIVE_SYSTEM(r.examCode),
       content: r.context,
       schema: DEEP_DIVE_SCHEMA,
       maxTokens: 8000,

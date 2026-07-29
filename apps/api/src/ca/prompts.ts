@@ -48,6 +48,7 @@
  * CLAUDE.md's "Extended-TTL prompt caching investigated" session note.
  */
 import { MODELS, structuredJson, type LlmUsage, type StructuredParams } from "../lib/anthropic.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { fewShotBlock, type FewShotQuestion } from "../qgen/prompts.js";
 import type {
   CurrentAffairsCategory,
@@ -56,6 +57,30 @@ import type {
   CurrentAffairsMainsBrief,
   CurrentAffairsPossibleQuestions,
 } from "@neev/shared";
+
+/**
+ * Every exam-specific string below comes from `lib/exam-config.ts`, unwrapped
+ * through `requireAuthored` so an exam whose current-affairs curation lens has
+ * not been authored fails LOUDLY at prompt-build time rather than silently
+ * triaging another commission's news feed against this one's bar (U6).
+ *
+ * CACHE BOUNDARY — there ISN'T ONE, and that is deliberate: see the long
+ * NO PROMPT CACHING note above. Every call site here passes a PLAIN STRING
+ * `system` with no `cache: true` anywhere in the file, so per-exam text is FREE
+ * (it partitions nothing because nothing is cached) and no config read can move
+ * text across a breakpoint. Do not add a breakpoint to "make the exam text
+ * cacheable" — these prompts are all below their models' minimum cacheable
+ * prefix, and the ONE block big enough (triage's candidate list) was measured to
+ * cost ~a third of kept CA items when reordered to be cacheable.
+ *
+ * ORDERING IS UNCHANGED BY THIS PARAMETERISATION. Exam strings are substituted
+ * strictly IN PLACE: the item text still comes FIRST in `content`, with the
+ * candidate list adjacent to it, exactly as the A/B that settled this file's
+ * shape required.
+ */
+function caConfig(examCode: string) {
+  return getExamConfig(examCode).ca;
+}
 
 const CATEGORIES: CurrentAffairsCategory[] = [
   "polity_governance",
@@ -140,12 +165,29 @@ export function triageParams(opts: {
   snippet: string;
   sourceIsUp: boolean;
   candidates: SyllabusCandidate[];
+  /** Whose curation lens + strategist framing to triage against. */
+  examCode: string;
 }): StructuredParams {
+  const { examCode } = opts;
+  const cfg = caConfig(examCode);
+  const lens = getExamConfig(examCode).relevanceLens;
   const candidateLines = opts.candidates.map((c) => `${c.id}: ${c.title}`).join("\n");
+  // `is_up_specific` and the GS5_UP/GS6_UP labels are PERSISTED IDENTIFIERS (a
+  // real column on current_affairs_items, and enum values of
+  // CurrentAffairsGsPaper). Only the human-readable prose describing them is
+  // exam-configurable — never the key or the enum value.
+  const stateGsPapersNote = requireAuthored(lens.stateGsPapersNote, examCode, "relevanceLens.stateGsPapersNote");
+  const curationDirective = requireAuthored(lens.curationDirective, examCode, "relevanceLens.curationDirective");
+  // The "source hints at <state> focus" signal only exists under a STATE lens
+  // (it is fed by CA_SOURCES[].isUpSource). A nationally-scoped exam has no
+  // state to hint at, so the line is omitted rather than rendered with an empty
+  // or borrowed state name. Byte-identical for uppsc, which is state_specific.
+  const stateFocusLine =
+    lens.kind === "state_specific" ? `Source hints at ${lens.state.nameEn} focus: ${opts.sourceIsUp}\n` : "";
   return {
     model: MODELS.haiku,
     system:
-      "You are a UPPSC (UP state civil services) exam strategist triaging a news item. Score its TWO independent " +
+      `You are ${requireAuthored(cfg.strategistFraming, examCode, "ca.strategistFraming")} triaging a news item. Score its TWO independent ` +
       "exam lives, each 0-3:\n" +
       "- prelims_relevance: does it carry a concrete, IDENTIFIABLE fact a prelims MCQ could test — a named scheme, " +
       "report/index (+rank), appointment, place/monument/river/park, organisation/institution, species, book/award, " +
@@ -161,13 +203,12 @@ export function triageParams(opts: {
       "BOTH and must be dropped. But MANY genuine current-affairs items carry BOTH a named prelims fact AND an " +
       "analytical mains angle — do not force a single life; score each honestly on its own merits.\n" +
       "Also return: `category` (one fixed value), `gs_papers` (which Mains GS papers the item feeds — [] if mains " +
-      "isn't relevant; GS5_UP/GS6_UP are UP-specific papers), `is_up_specific` (true ONLY for items specifically " +
-      "about Uttar Pradesh state government/policy/a UP event of state significance), and 0-3 `syllabus_node_ids` " +
+      `isn't relevant; ${stateGsPapersNote}), \`is_up_specific\` (${curationDirective}), and 0-3 \`syllabus_node_ids\` ` +
       "chosen ONLY from the candidate list by id. Give a ONE-LINE justification for each relevance score.",
     content:
       `Title: ${opts.title}\n` +
       `Snippet: ${opts.snippet}\n` +
-      `Source hints at Uttar Pradesh focus: ${opts.sourceIsUp}\n\n` +
+      `${stateFocusLine}\n` +
       `Candidate syllabus nodes (id: title):\n${candidateLines}`,
     schema: {
       type: "object",
@@ -219,6 +260,7 @@ export async function triageItem(opts: {
   snippet: string;
   sourceIsUp: boolean;
   candidates: SyllabusCandidate[];
+  examCode: string;
   onUsage?: (u: LlmUsage) => void;
 }): Promise<TriageResult> {
   const out = await structuredJson<TriageResult>({
@@ -261,6 +303,8 @@ export interface EnrichParamsOpts {
   hasPrelimsLife: boolean;
   hasMainsLife: boolean;
   linkedNodes: SyllabusCandidate[];
+  /** Whose aspirants this material is written for, and whose exam-worthiness bar applies. */
+  examCode: string;
 }
 
 /**
@@ -275,6 +319,8 @@ const MAX_NODE_SIGNIFICANCE_NODES = 3;
 
 /** The StructuredParams for an enrichment call — shared by the sync path and the batch backfill. */
 export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
+  const { examCode } = opts;
+  const cfg = caConfig(examCode);
   const linkedNodes = opts.linkedNodes.slice(0, MAX_NODE_SIGNIFICANCE_NODES);
   const lives = [
     opts.hasPrelimsLife ? "PRELIMS (fill prelims_facts + possible_questions.prelims_i18n)" : null,
@@ -289,7 +335,7 @@ export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
   return {
     model: MODELS.haiku,
     system:
-      "You write exam-oriented current-affairs material for UPPSC aspirants, in BOTH Hindi (Devanagari) and English. " +
+      `You write exam-oriented current-affairs material for ${requireAuthored(cfg.enrichAudience, examCode, "ca.enrichAudience")}, in BOTH Hindi (Devanagari) and English. ` +
       "ALWAYS write in your own words — never copy sentences verbatim from the source title/snippet (that text is " +
       "only context; copying it violates the source's copyright). Be concise, factual, neutral.\n" +
       "This item has these active exam lives: fill ONLY those; leave every field of an INACTIVE life empty " +
@@ -300,8 +346,7 @@ export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
       "worth it; NEVER pad to a count). Each has fact_i18n, a `kind` (scheme/report_index/place/org/species/" +
       "appointment/day_theme/misc), and `extras` (fill ministry/publisher/rank/location ONLY when applicable, else " +
       "omit the key). Prefer crisp who/what/when/how-much facts anchored on a NAMED, examinable entity.\n" +
-      "  EXAM-WORTHINESS BAR — apply to EVERY fact before writing it: ask 'would a real UPPSC prelims paper plausibly " +
-      "ask this, or is it just colour/context from the news story?'. A named scheme, report/index (+rank), " +
+      `  EXAM-WORTHINESS BAR — apply to EVERY fact before writing it: ask '${requireAuthored(cfg.examWorthinessBar, examCode, "ca.examWorthinessBar")}'. A named scheme, report/index (+rank), ` +
       "appointment, place/monument/river/park, organisation, species, treaty, book/award, or day/theme clears the " +
       "bar easily. The `misc` kind is a LAST RESORT held to a MATERIALLY HIGHER bar than every other kind: use it " +
       "ONLY for a genuinely high-yield fact that fits no better kind, NEVER for an incidental detail that merely " +
@@ -444,20 +489,23 @@ export async function generateMcqs(opts: {
    * degrades to the generic "follow general UPPSC style" instruction.
    */
   examples?: FewShotQuestion[];
+  /** Whose prelims style + exam-relevance filter to write against. */
+  examCode: string;
   onUsage?: (u: LlmUsage) => void;
 }): Promise<GeneratedMcq[]> {
+  const { examCode } = opts;
+  const cfg = caConfig(examCode);
   const out = await structuredJson<{ questions: GeneratedMcq[] }>({
     model: MODELS.haiku,
     purpose: "ca_mcq_gen",
     onUsage: opts.onUsage,
     system:
-      "You write UPPSC-Prelims objective questions (bilingual, Hindi Devanagari + English) to test a current-affairs " +
-      "item, in the style of the REAL past-year UPPSC questions shown below. Rules:\n" +
+      `You write ${requireAuthored(cfg.mcqStyleFraming, examCode, "ca.mcqStyleFraming")} (bilingual, Hindi Devanagari + English) to test a current-affairs ` +
+      `item, in the style of ${requireAuthored(cfg.mcqExamplesFraming, examCode, "ca.mcqExamplesFraming")}. Rules:\n` +
       "- Each question has exactly 4 options keyed A/B/C/D, exactly one unambiguously correct, three plausible-but-" +
       "wrong distractors, and a short explanation. Base every question ONLY on the facts given — never invent a fact " +
       "not present in them. Plain text only, no markdown.\n" +
-      "- EXAM-RELEVANCE FILTER (the important part): write a question for a fact ONLY if a real UPPSC prelims paper " +
-      "would plausibly test it — a named scheme, report/index (+rank), appointment, place, organisation, species, " +
+      `- EXAM-RELEVANCE FILTER (the important part): ${requireAuthored(cfg.mcqRelevanceFilter, examCode, "ca.mcqRelevanceFilter")} — a named scheme, report/index (+rank), appointment, place, organisation, species, ` +
       "treaty, award, or a significant first/location. DO NOT build a question around an incidental detail that " +
       "merely appeared in the story (a headcount, a date mentioned in passing, an unremarkable statistic, " +
       "who-said-what) — those are NOT examinable, however factually accurate. Match the difficulty, framing, and " +
@@ -466,9 +514,9 @@ export async function generateMcqs(opts: {
       "of the facts is genuinely exam-worthy, return an EMPTY `questions` array. Never pad with a weak question to " +
       "reach a count: one strong question beats two mediocre ones, and zero beats one a real paper would never ask.",
     content:
-      `${fewShotBlock(opts.examples ?? [])}\n\n` +
+      `${fewShotBlock(opts.examples ?? [], examCode)}\n\n` +
       `CURRENT-AFFAIRS ITEM TO TEST\nTitle: ${opts.title}\nFacts:\n${opts.facts.map((f) => `- ${f}`).join("\n")}\n\n` +
-      `Write 0-2 UPPSC-Prelims MCQs, ONLY for the exam-worthy facts, in the style of the examples above.`,
+      `Write 0-2 ${requireAuthored(cfg.mcqOutputLabel, examCode, "ca.mcqOutputLabel")}, ONLY for the exam-worthy facts, in the style of the examples above.`,
     schema: {
       type: "object",
       additionalProperties: false,
@@ -524,8 +572,12 @@ export interface GeneratedMainsQuestion {
 export async function generateMainsQuestion(opts: {
   title: string;
   brief: CurrentAffairsMainsBrief;
+  /** Whose Mains paper-setting norms to write against. */
+  examCode: string;
   onUsage?: Parameters<typeof structuredJson>[0]["onUsage"];
 }): Promise<GeneratedMainsQuestion> {
+  const { examCode } = opts;
+  const cfg = caConfig(examCode);
   const briefText = [
     `Why in news: ${opts.brief.why_in_news_i18n.en}`,
     `Background: ${opts.brief.background_i18n.en}`,
@@ -540,11 +592,10 @@ export async function generateMainsQuestion(opts: {
     purpose: "ca_mains_gen",
     onUsage: opts.onUsage,
     system:
-      "You are an experienced UPPSC Mains paper setter. Write ONE original, exam-standard DESCRIPTIVE (long-answer) " +
+      `You are ${requireAuthored(cfg.mainsSetterFraming, examCode, "ca.mainsSetterFraming")}. Write ONE original, exam-standard DESCRIPTIVE (long-answer) ` +
       "question, in BOTH Hindi (Devanagari) and English, on the current-affairs issue described below. Rules:\n" +
-      "- Open with a real UPPSC directive verb (Examine / Critically analyse / Discuss / Evaluate / Comment / To " +
-      "what extent / Elucidate) and demand analysis, not recall.\n" +
-      "- Realistic UPPSC Mains marks + word limit (typically 125 words / 7 marks or 200 words / 10 marks).\n" +
+      `- Open with ${requireAuthored(cfg.mainsDirectiveVerbGuidance, examCode, "ca.mainsDirectiveVerbGuidance")} and demand analysis, not recall.\n` +
+      `- ${requireAuthored(cfg.mainsMarksNorm, examCode, "ca.mainsMarksNorm")}\n` +
       "- Provide a marking-points outline (4-7 crisp points a strong answer must cover) in BOTH languages, same " +
       "points same order. Ground every factual expectation in the brief or well-established knowledge; never " +
       "fabricate. Hindi and English must be faithful translations. Return strict JSON.",

@@ -28,7 +28,7 @@ import {
   type SyllabusCandidate,
   type TriageResult,
 } from "./prompts.js";
-import { RELEVANCE_GATE } from "./pipeline.js";
+import { RELEVANCE_GATE, caPromptExamCode } from "./pipeline.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import { liveExamCodes } from "../lib/exams.js";
 import { selectAll } from "../lib/paginate.js";
@@ -143,8 +143,13 @@ type Log = (msg: string) => void;
 
 export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<BackfillRunResult> {
   const log = opts.log ?? (() => {});
-  const candidates = await loadSyllabusCandidates({ examCodes: await liveExamCodes() });
+  const live = await liveExamCodes();
+  const candidates = await loadSyllabusCandidates({ examCodes: live });
   const candidateById = new Map(candidates.map((c) => [c.id, c]));
+  // Same rule as the live pipeline (caPromptExamCode): triage is run-scoped
+  // (before any node is known), enrichment is item-scoped (the nodes triage
+  // actually chose).
+  const runExamCode = caPromptExamCode(live);
   const prefilter = await CandidatePrefilter.create(candidates);
   const all = await loadItemsNeedingBackfill();
   log(`items needing backfill: ${all.length}; budget cap: $${opts.maxUsd.toFixed(2)}`);
@@ -184,7 +189,7 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
     );
     const triageReqs: BatchRequest[] = chunk.map((it, i) => ({
       customId: `t_${i}`,
-      params: structuredParams(triageParams({ title: it.title, snippet: it.snippet, sourceIsUp: it.is_up_specific, candidates: chunkCandidates[i] })),
+      params: structuredParams(triageParams({ title: it.title, snippet: it.snippet, sourceIsUp: it.is_up_specific, candidates: chunkCandidates[i], examCode: runExamCode })),
       purpose: "ca_triage",
     }));
     const triageRes = await runBatch(triageReqs, { onUsage: (u) => (result.costUsd += u.costUsd) });
@@ -234,6 +239,9 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
         const linkedNodes = s.triage.syllabus_node_ids
           .map((id) => candidateById.get(id))
           .filter((n): n is SyllabusCandidate => !!n);
+        // The item's own exam(s), from the nodes triage chose — identical
+        // derivation to the live pipeline's itemExamCodes.
+        const itemExamCodes = [...new Set(linkedNodes.map((n) => n.examCode))];
         return {
           customId: `e_${j}`,
           params: structuredParams(
@@ -244,6 +252,7 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
               hasPrelimsLife: hasPrelims,
               hasMainsLife: hasMains,
               linkedNodes,
+              examCode: itemExamCodes.length > 0 ? caPromptExamCode(itemExamCodes) : runExamCode,
             }),
           ),
           purpose: "ca_enrich",

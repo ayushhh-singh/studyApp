@@ -190,8 +190,8 @@ export async function generateNoteForNode(
   if (useWeb) {
     log("  researching current facts via web_search…");
     const r = await webResearch({
-      system: RESEARCH_SYSTEM_PROMPT,
-      content: buildResearchContent(node),
+      system: RESEARCH_SYSTEM_PROMPT(row.exam_code),
+      content: buildResearchContent(node, row.exam_code),
       maxUses: 5,
       purpose: "notes_research",
       onUsage,
@@ -205,7 +205,7 @@ export async function generateNoteForNode(
   // Stage 2 — author the note.
   log("  authoring bilingual note…");
   const genJson = await structuredJson({
-    ...buildNoteGenParams({ node, pyqs, weightage: snapshot, ca, grounding, research, sources }),
+    ...buildNoteGenParams({ node, pyqs, weightage: snapshot, ca, grounding, research, sources, examCode: row.exam_code }),
     purpose: "notes_generate",
     onUsage,
   });
@@ -216,7 +216,7 @@ export async function generateNoteForNode(
   let critic: NoteCriticVerdict | null = null;
   try {
     const criticJson = await structuredJson({
-      ...buildNoteCriticParams({ node, content }),
+      ...buildNoteCriticParams({ node, content, examCode: row.exam_code }),
       purpose: "notes_critic",
       onUsage,
     });

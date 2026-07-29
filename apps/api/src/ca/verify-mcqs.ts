@@ -20,6 +20,7 @@ import { estimateCostUsd, MODELS } from "../lib/models.js";
 import { BATCH_DISCOUNT, runBatch, structuredParams, type BatchRequest } from "../lib/anthropic.js";
 import { buildVerifyParams, parseVerify } from "../qgen/prompts.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
 const PAGE_SIZE = 1000;
@@ -39,6 +40,33 @@ interface PendingMcq {
   stem_i18n: BilingualPair;
   options_i18n: { key: string; text_i18n: BilingualPair }[];
   correct_option_key: string;
+  /** The topic this MCQ was placed on — how its exam is derived (see examForNodes). */
+  syllabus_node_id: string | null;
+}
+
+/**
+ * node id → owning exam, for the verifier's per-exam framing.
+ *
+ * Derived from the QUESTION'S SYLLABUS NODE, never from `questions.exam_code`:
+ * that column is PROVENANCE ("which exam asked this") and its domain includes
+ * exams we ingest from but never sell — the same distinction lib/exams.ts's
+ * examCodeForNode documents. Chunked because an unchunked `.in()` over hundreds
+ * of ids overruns PostgREST's URL length.
+ */
+async function examForNodes(nodeIds: string[]): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const unique = [...new Set(nodeIds)];
+  for (let i = 0; i < unique.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("syllabus_nodes")
+      .select("id, exam_code")
+      .in("id", unique.slice(i, i + 100));
+    if (error) throw new Error(`node exam lookup failed: ${error.message}`);
+    for (const row of (data ?? []) as { id: string; exam_code: string | null }[]) {
+      if (row.exam_code) map.set(row.id, row.exam_code);
+    }
+  }
+  return map;
 }
 
 async function loadPendingMcqs(): Promise<PendingMcq[]> {
@@ -47,7 +75,7 @@ async function loadPendingMcqs(): Promise<PendingMcq[]> {
   for (;;) {
     const { data, error } = await supabase()
       .from("questions")
-      .select("id, stem_i18n, options_i18n, correct_option_key")
+      .select("id, stem_i18n, options_i18n, correct_option_key, syllabus_node_id")
       .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
       .eq("type", "mcq")
       .eq("review_state", "needs_review")
@@ -111,6 +139,9 @@ export async function runVerifyMcqs(opts: { maxUsd: number; log?: Log }): Promis
   const log = opts.log ?? (() => {});
   const [pending, factsByQuestionId] = await Promise.all([loadPendingMcqs(), loadFactsByQuestionId()]);
   log(`pending CA MCQs needing a confidence check: ${pending.length}; budget cap: $${opts.maxUsd.toFixed(2)}`);
+  // The verifier prompt frames the model as an aspirant sitting a specific
+  // exam, so it must name the exam that OWNS the question's topic.
+  const examByNode = await examForNodes(pending.map((q) => q.syllabus_node_id).filter((n): n is string => !!n));
 
   const result: VerifyMcqRunResult = {
     processed: 0,
@@ -158,7 +189,17 @@ export async function runVerifyMcqs(opts: { maxUsd: number; log?: Log }): Promis
         // Message Batches custom_id must match ^[a-zA-Z0-9_-]{1,64}$ — a bare
         // question uuid (hyphens + alphanumerics only) satisfies that directly.
         customId: q.id,
-        params: structuredParams(buildVerifyParams({ stemEn: q.stem_i18n.en, options: q.options_i18n, grounding })),
+        params: structuredParams(
+          buildVerifyParams({
+            stemEn: q.stem_i18n.en,
+            options: q.options_i18n,
+            grounding,
+            // Explicit, never left to buildVerifyParams' back-compat default:
+            // a question whose node has vanished (or was never set) falls back
+            // to the default exam exactly as lib/exams.ts's examCodeForNode does.
+            examCode: (q.syllabus_node_id && examByNode.get(q.syllabus_node_id)) || DEFAULT_EXAM_CODE,
+          }),
+        ),
         purpose: "ca_mcq_verify",
       };
     });

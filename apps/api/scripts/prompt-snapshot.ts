@@ -547,6 +547,7 @@ async function collectCaPrompts(): Promise<void> {
           snippet: "Fixture snippet describing the launch and its coverage.",
           sourceIsUp: true,
           candidates: CA_CANDIDATES as never,
+          examCode: "uppsc",
         }),
       ),
     );
@@ -558,6 +559,7 @@ async function collectCaPrompts(): Promise<void> {
           snippet: "Fixture national snippet.",
           sourceIsUp: false,
           candidates: [],
+          examCode: "uppsc",
         }),
       ),
     );
@@ -570,6 +572,7 @@ async function collectCaPrompts(): Promise<void> {
         hasPrelimsLife: true,
         hasMainsLife: true,
         linkedNodes: CA_CANDIDATES,
+        examCode: "uppsc",
         ...over,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;
@@ -584,7 +587,7 @@ async function collectCaPrompts(): Promise<void> {
 
   const classify = await load<typeof import("../src/ca/mcq-node-classify.js")>("../src/ca/mcq-node-classify.js");
   if (classify) {
-    put("ca/MCQ_NODE_CLASSIFY_SYSTEM", classify.MCQ_NODE_CLASSIFY_SYSTEM);
+    put("ca/MCQ_NODE_CLASSIFY_SYSTEM", classify.MCQ_NODE_CLASSIFY_SYSTEM("uppsc"));
     put(
       "ca/buildMcqNodeClassifySchema",
       classify.buildMcqNodeClassifySchema(CA_CANDIDATES.map((c) => c.id)),
@@ -596,11 +599,11 @@ async function collectNotesPrompts(): Promise<void> {
   const mod = await load<typeof import("../src/notes/prompts.js")>("../src/notes/prompts.js");
   if (mod) {
     put("notes/NOTES_PROMPT_VERSION", mod.NOTES_PROMPT_VERSION);
-    put("notes/RESEARCH_SYSTEM_PROMPT", mod.RESEARCH_SYSTEM_PROMPT);
-    put("notes/buildResearchContent:with-desc", mod.buildResearchContent(NOTES_NODE as never));
+    put("notes/RESEARCH_SYSTEM_PROMPT", mod.RESEARCH_SYSTEM_PROMPT("uppsc"));
+    put("notes/buildResearchContent:with-desc", mod.buildResearchContent(NOTES_NODE as never, "uppsc"));
     put(
       "notes/buildResearchContent:no-desc-prelims",
-      mod.buildResearchContent({ ...NOTES_NODE, stage: "prelims", description_i18n: null } as never),
+      mod.buildResearchContent({ ...NOTES_NODE, stage: "prelims", description_i18n: null } as never, "uppsc"),
     );
     put("notes/NOTE_GEN_SCHEMA", mod.NOTE_GEN_SCHEMA);
     put("notes/NOTE_CRITIC_SCHEMA", mod.NOTE_CRITIC_SCHEMA);
@@ -617,6 +620,7 @@ async function collectNotesPrompts(): Promise<void> {
         grounding: GROUNDING,
         research: RESEARCH_TEXT,
         sources: WEB_SOURCES,
+        examCode: "uppsc",
         ...over,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       }) as any;
@@ -653,7 +657,11 @@ async function collectNotesPrompts(): Promise<void> {
     put(
       "notes/buildNoteCriticParams",
       paramsSnapshot(
-        mod.buildNoteCriticParams({ node: NOTES_NODE as never, content: { en: noteBody, hi: noteBody } as never }),
+        mod.buildNoteCriticParams({
+          node: NOTES_NODE as never,
+          content: { en: noteBody, hi: noteBody } as never,
+          examCode: "uppsc",
+        }),
       ),
     );
   }
@@ -662,15 +670,15 @@ async function collectNotesPrompts(): Promise<void> {
   if (!chapter) return;
 
   put("notes/CHAPTER_PROMPT_VERSION", chapter.CHAPTER_PROMPT_VERSION);
-  put("notes/CHAPTER_RESEARCH_SYSTEM", chapter.CHAPTER_RESEARCH_SYSTEM);
-  put("notes/FACT_ESCALATE_SYSTEM", chapter.FACT_ESCALATE_SYSTEM);
+  put("notes/CHAPTER_RESEARCH_SYSTEM", chapter.CHAPTER_RESEARCH_SYSTEM("uppsc"));
+  put("notes/FACT_ESCALATE_SYSTEM", chapter.FACT_ESCALATE_SYSTEM("uppsc"));
   put("notes/OUTLINE_SCHEMA", chapter.OUTLINE_SCHEMA);
   put("notes/SECTION_SCHEMA", chapter.SECTION_SCHEMA);
   put("notes/COHERENCE_SCHEMA", chapter.COHERENCE_SCHEMA);
   put("notes/AUDIT_SCHEMA", chapter.AUDIT_SCHEMA);
 
-  put("notes/buildChapterResearchContent:full", chapter.buildChapterResearchContent(CHAPTER_NODE as never));
-  put("notes/buildChapterResearchContent:bare", chapter.buildChapterResearchContent(CHAPTER_NODE_BARE as never));
+  put("notes/buildChapterResearchContent:full", chapter.buildChapterResearchContent(CHAPTER_NODE as never, "uppsc"));
+  put("notes/buildChapterResearchContent:bare", chapter.buildChapterResearchContent(CHAPTER_NODE_BARE as never, "uppsc"));
 
   const PYQS = [
     { n: 1, id: "88888888-8888-4888-8888-888888888881", year: 2021, stem_en: "Fixture chapter PYQ one.", explanation_en: "Fixture reason." },
@@ -679,12 +687,12 @@ async function collectNotesPrompts(): Promise<void> {
 
   put(
     "notes/buildOutlineParams:full",
-    paramsSnapshot(chapter.buildOutlineParams({ node: CHAPTER_NODE as never, weightage: WEIGHTAGE, pyqs: PYQS })),
+    paramsSnapshot(chapter.buildOutlineParams({ node: CHAPTER_NODE as never, weightage: WEIGHTAGE, pyqs: PYQS, examCode: "uppsc" })),
   );
   put(
     "notes/buildOutlineParams:bare",
     paramsSnapshot(
-      chapter.buildOutlineParams({ node: CHAPTER_NODE_BARE as never, weightage: WEIGHTAGE_EMPTY, pyqs: [] }),
+      chapter.buildOutlineParams({ node: CHAPTER_NODE_BARE as never, weightage: WEIGHTAGE_EMPTY, pyqs: [], examCode: "uppsc" }),
     ),
   );
 
@@ -695,6 +703,7 @@ async function collectNotesPrompts(): Promise<void> {
     research: RESEARCH_TEXT,
     sources: WEB_SOURCES,
     pyqs: PYQS,
+    examCode: "uppsc",
   });
   const ctxBlockBare = chapter.chapterContextBlock({
     node: CHAPTER_NODE_BARE as never,
@@ -703,6 +712,7 @@ async function collectNotesPrompts(): Promise<void> {
     research: "",
     sources: [],
     pyqs: [],
+    examCode: "uppsc",
   });
   put("notes/chapterContextBlock:full", ctxBlockFull);
   put("notes/chapterContextBlock:bare", ctxBlockBare);
@@ -722,6 +732,7 @@ async function collectNotesPrompts(): Promise<void> {
         context: ctxBlockFull,
         section,
         allHeadings: ["Fixture Section Heading", "Other Section A", "Other Section B"],
+        examCode: "uppsc",
       }),
     ),
   );
@@ -732,6 +743,7 @@ async function collectNotesPrompts(): Promise<void> {
         context: ctxBlockBare,
         section: { ...section, planned_boxes: [] as never, needs_diagram: false, diagram_hint: "" },
         allHeadings: ["Fixture Section Heading"],
+        examCode: "uppsc",
       }),
     ),
   );
@@ -754,6 +766,7 @@ async function collectNotesPrompts(): Promise<void> {
           { index: 1, claim: "Fixture decisive claim two." },
         ],
         context: ctxBlockFull,
+        examCode: "uppsc",
       }),
     ),
   );
