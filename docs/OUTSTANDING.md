@@ -127,6 +127,60 @@ These are still described as open in `CLAUDE.md` but the code says otherwise. Fl
 
 ---
 
+## 8. Multi-exam — remaining work  *(recorded 2026-07-29, after `0106`)*
+
+**What landed:** migration `0106_multi_exam_foundation.sql` — the `exams` registry (uppsc live; upsc + mppsc seeded as verified reference rows with **zero** content), `syllabus_nodes.exam_code`, `users_profile.target_exam`, and exam columns on `tests` / `exam_calendar` / `exam_cutoffs` / `embeddings` / `doubt_faq_cache` / `current_affairs_items` / `discussion_threads`. Deep reference: **`docs/multi-exam.md`** (full `syllabus_nodes` call-site audit + the ordered prerequisites). This section is the actionable index.
+
+> **⚑ THE LOAD-BEARING INVARIANT.** `syllabus_nodes.paper_code` is **globally unique across exams**, enforced by retaining `syllabus_nodes_paper_path_key`. ~30 call sites filter by `paper_code` alone and are correct *only* because of it. **A second exam's paper codes MUST be exam-PREFIXED** (`UPSC_PRE_GS1`), never a bare `PRE_GS1`. Do not drop that index — it converts silent cross-exam corruption into a loud `23505` at ingest. Proven live (duplicate bare code → 23505; prefixed → accepted; unknown exam → 23503 by FK).
+
+### 8a. Blocking — must land BEFORE any second exam's content is ingested
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| M1 | **`ingest:syllabus` cannot load a second exam.** `upsertNode`'s conflict target *is* `(paper_code, path)` and it never sets `exam_code`; `PaperDef` (`ingest/_shared.ts`) has no exam field. With a colliding paper code this **overwrites the UPPSC tree in place** rather than inserting. | 🔴 | Nothing else matters if this is wrong — do it first. Fix: add an exam to `PaperDef`, set `exam_code` on the row literal, keep the conflict target. |
+| M2 | **~10 `syllabus_nodes` reads are not exam-scoped** and will return cross-exam rows: `syllabus.ts` `getSyllabusTree` (whole table, feeds the command palette) + `getPaperSummaries` (the papers grid — renders every exam's papers and double-counts topics), `dashboard.ts:319` + `learner-profile.ts:50` (whole-table weakness buckets, `paper_code::path` key collides), `profile-analytics.ts:47` (all paper roots — duplicate keys silently overwrite paper titles), `ca/syllabus-candidates.ts` (whole tree into the CA triage prompt: ~3× cost + cross-exam misclassification), `mastery/compute.ts:152` `getMasteryMap` (already takes an unused `exam?` arg — just wire it), `qgen/topup.ts` (`like 'PRE_%'`), `ingest/verify.ts`, `ingest/embed-coverage.ts`. | 🔴 | Full per-site table with classifications in `docs/multi-exam.md` §1. Most need the caller's `users_profile.target_exam` threaded through. |
+| M3 | **`embeddings.exam_code` is inert.** The column exists and backfills `uppsc`, but `match_embeddings` (0027) has no exam filter and `lib/embed-upsert.ts` still writes the default. A vector ANN search **cannot** be post-filtered by exam without destroying recall (the whole top-k can be another exam's near-identical chapter), so this must be a filter *inside* the RPC. | 🔴 | Until fixed, a second exam's chunks are written as `uppsc` and the mentor cites the wrong exam's chapters. Needs: RPC param + writers stamping the real exam + a re-embed. |
+| M4 | **`doubt_faq_cache.exam_code` is inert.** Same shape: `match_doubt_faq` (0070) and `upsertFaqCache`'s near-duplicate match ignore it. This is a *global* semantic answer cache — an MPPSC user asking "explain the amendment procedure" would be served a cached UPPSC-framed answer (with UPPSC PYQ references) at ≥0.95 similarity, **silently, with no model call and no visible tell**. | 🔴 | Add to the RPC filter and to the upsert dedup key. |
+
+### 8b. Needed before a second exam goes LIVE to users
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| M5 | **`mv_mains_weekly_board` has no exam dimension** — it would rank three exams' answer-writing against each other. Fixing it also forces the **rubric registry to gain an exam dimension**: the `rubric_version <> 'essay-v1'` split is hardcoded in `0069` and `services/scoreboard.ts`, and UPSC/MPPSC Mains have different mark schemes. | 🟠 | `mv_test_leaderboard`, `mv_mock_series_board` and `scoreboard_rank_snapshots.board_key` are safe **only** because of the paper-code invariant — one more reason not to drop it. |
+| M6 | **Daily-quiz trio rides on the invariant.** `services/daily.ts` `findDailyQuizRow` ends in `.maybeSingle()` → would **throw PGRST116 → 500** if two exams shared a paper code on one date; `daily/quiz.ts` `upsertDailyQuizTest` never sets `exam_code` so a second exam's quiz is silently tagged `uppsc` by the default; `recentlyUsedInDailyQuiz` filters `paper_code` only, so two exams' question-recency windows blend. | 🟠 | Comments at both sites corrected in place (2026-07-29) to stop asserting a guarantee `0106` moved. Idempotency itself is keyed on the untouched global `tests.slug`, so no duplicate risk today. |
+| M7 | **Untrusted node ids validated only for a shared `paper_code`**, never a shared exam: `community.ts:91` `assertAnchorExists`, `on-demand.ts:154` `resolveNodes`, `tests.ts:259` `resolveOrderedNodes`. A caller could mix exams in one custom set / anchor a thread to another exam's node. | 🟠 | Cheap to add alongside M2. |
+| M8 | **CA fields still assume UPPSC.** `current_affairs_items.gs_papers text[]` encodes UPPSC's GS1-6 numbering and `is_up_specific` assumes UP. Left alone rather than half-migrated. | 🟠 | Also: `exam_codes[]` is *denormalized* from the linked nodes and nothing recomputes it — the pipeline relies on the `{uppsc}` default, so mapping a second exam's nodes will not update it. |
+| M9 | **`discussion_threads.exam_code` is nullable and nothing writes it.** Every existing thread is NULL (= cross-exam, visible to all). If community is later exam-separated, decide the backfill. | 🟡 | The column + partial index exist; the product decision (§8d) does not. |
+
+### 8c. Ops / cosmetic
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| M10 | **`supabase db push` is BLOCKED for this repo.** The remote ledger contains `0079`–`0100` with **no local migration files** (a concurrent branch), so the CLI refuses: *"Remote migration versions not found in local migrations directory"* — and `--include-all` does not help. `0104`/`0105` are applied but **unrecorded** in the ledger. **Do NOT run the `supabase migration repair --status reverted 0079 …` the CLI suggests** — those migrations ARE applied, and marking them reverted makes a later push try to re-run them. | 🔴 ops | `0106` was applied by running the file in one transaction over a direct `pg` connection and inserting its own ledger row. Recorded in the `supabase-headless-migrations` memory. **The real fix is to reconcile the branches** so the local migration set matches remote. |
+| M11 | **The paper-code invariant is DB-enforced only on `syllabus_nodes`.** `tests.paper_code` is plain `text` with no FK and no cross-exam uniqueness; `tests.slug`, `exam_cutoffs.paper_code`, and `mv_mock_series_board`'s `(paper_code, user_id)` key all rely on it by convention. | 🟡 | Acceptable while one exam is live; revisit if the invariant is ever relaxed. |
+| M12 | **Naming trap surviving one layer up.** `GET /daily/cutoffs` takes a query param literally named `exam` whose value is a **paper** code (`PRE_GS1`), mirrored in `use-mocks.ts` `useCutoffs(exam)` and its query key. This is the exact collision `0106` §7 renamed the DB column to eliminate. | 🟡 | Behaviourally correct and predates this work. Renaming changes a public query param **and** a client cache key, so it was recorded rather than done as a drive-by. |
+| M13 | **No `GET /exams` route.** `examSchema` / `examsResponseSchema` / `examPaperStructureSchema` have no consumer in `apps/**` yet, and there is no exam-picker UI. `paper_structure` and `launch_scope_i18n` are seeded and unread. | 🟡 | Intentional — `0106` is schema-only. This is the natural next feature slice. |
+| M14 | **`0106` is not re-runnable** (`create table public.exams` / `create policy` lack `IF NOT EXISTS`). | ⚪ | Harmless: it is ledger-gated and ran in a single transaction, so partial application is impossible. Only relevant if hand-replaying onto a database that already has it. |
+
+### 8d. Open product decisions (recorded so they aren't silently decided)
+
+| # | Decision | Current schema position |
+|---|---|---|
+| M15 | **Do study chapters get duplicated per exam, or shared?** `notes.syllabus_node_id` is UNIQUE per node and node trees are per-exam, so today's answer is **duplicate**: ~284 fact-audited chapters re-authored per exam, ~90% identical content at 3× authoring **and** 3× fact-audit cost. The alternative is exam-agnostic chapter bodies + a `note_syllabus_nodes` join table + a per-exam state-angle overlay replacing the hardcoded `up_angle` — which drops the UNIQUE and touches `notes:embed`, the reader, the review queue and `getPaperSummaries`' coverage counts. | Deliberately **not decided** in `0106`. This is a content-strategy call with a real cost, not a mechanical schema fix. |
+| M16 | **One exam per user, or several concurrently?** | Schema says **one**: `users_profile.target_exam` is scalar, reinforced by two pre-existing keys — `study_plans unique(user_id) where is_active` and `daily_quiz_board_entries unique(user_id, quiz_date)`. |
+| M17 | **Is community cross-exam or exam-separated?** | Schema allows **both** — `discussion_threads.exam_code` is nullable (NULL = general thread). Nothing writes it yet (M9). |
+| M18 | **One price ladder across exams, or per-exam plans?** | `plans` / `subscriptions` / `billing_events` are exam-agnostic. See §7's transparent-pricing decision before changing this. |
+| M19 | **Can one question map into more than one exam's syllabus tree?** | No — `questions.syllabus_node_id` is scalar. Cross-exam question reuse would need a `question_syllabus_nodes` join table. Note `questions.exam_code` is **provenance** ("which exam asked it") and deliberately stays a CHECK, not an FK, because its domain includes exams we ingest PYQs from but never sell (`up_ro_aro`, `upsssc_pet`, `other`). Also unresolved: `out_of_syllabus=true` rows have `syllabus_node_id IS NULL`, so nothing derives their owning exam. |
+
+### 8e. Measured facts worth not re-deriving
+
+- **Zero questions are tagged non-`uppsc`.** `upsc` / `up_ro_aro` / `upsssc_pet` / `other` are all **0 rows** — the Session-27.5 contamination purge deleted the 399 that once existed. A UPSC rollout therefore starts from **zero** questions and zero node coverage; there is no 0036-era overlap corpus to inherit.
+- `0036`'s CHECK permitted `upsc` but **not `mppsc`**; `0106` extended it, and `examCodeSchema` in `packages/shared/src/types.ts` to match.
+- Backfills verified 100% `uppsc`: 294 syllabus nodes · 141 profiles · 290 tests · 21,994 embeddings · 2,955 CA items · 40 FAQ-cache rows · 20 cut-offs.
+- `exams` is readable by the real **anon** key (the documented `42501` trap for a table created outside `db push` did not bite — `0015`'s default privileges cover it); anon writes are blocked `42501`.
+
+---
+
 ## Suggested sequencing (recommendation only — human decides)
 
 1. **Before any real launch (🔴):** D7 + V2 (run the launch checklist), B1 (rotate founder password). These gate `v1.0.0`.
@@ -134,6 +188,7 @@ These are still described as open in `CLAUDE.md` but the code says otherwise. Fl
 3. **Content depth (🟠, ongoing):** A2-residuals (Mains-descriptive Hindi overlay + CSAT single-language sections + the option-completeness DB repair — A2 prelims-MCQ overlay ✅ done 2026-07-13). *(A1 study-chapter rollout ✅ resolved 2026-07-19 — 284/284 nodes, full syllabus coverage. A3 2021 GS-I key ✅ resolved 2026-07-15 — booklet-series fix. A4/A4-followups ✅ resolved — key-provenance gate + the 2026-07-15 CSAT official-key upgrade for 2019/2020/2021/2023; 2022 confirmed to have no retrievable official source, an accepted 🟡 limitation, not a followup.)*
 4. **Ops/cosmetic (🟡):** D4/D5/D6/D8/D9/D10, B4/B5, A5-A8.
 5. **Nice-to-have (⚪):** C1-C3.
+6. **Multi-exam (§8) — only when a second exam is actually being built.** Nothing here blocks the current UPPSC product; every item is dormant while `uppsc` is the sole `is_live` exam. Order: M1 (the `ingest:syllabus` writer — nothing else matters if it is wrong) → M2 (exam-scope the unfiltered reads) → M3/M4 (the two inert columns, `embeddings` + `doubt_faq_cache`, both silent-wrongness) → M5-M9 before going live to users. **M10 is the exception: it is live ops pain right now** — `supabase db push` is blocked for this repo until the migration ledger is reconciled.
 
 ---
 
