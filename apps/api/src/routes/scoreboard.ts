@@ -16,6 +16,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import { touchFeatureOnRequest } from "../lib/feature-touch.js";
 import {
   getDailyQuizTodayBoard,
@@ -55,7 +56,7 @@ scoreboardRouter.get(
   "/scoreboard/prelims/mocks/tests",
   asyncHandler(async (req, res) => {
     const { paper_code } = parse(z.object({ paper_code: z.string().optional() }), req.query);
-    const tests = await listScoreboardTests("mock", paper_code);
+    const tests = await listScoreboardTests(await getUserExam(currentUserId()), "mock", paper_code);
     res.json(scoreboardTestListResponseSchema.parse({ data: tests, error: null }));
   }),
 );
@@ -73,7 +74,7 @@ scoreboardRouter.get(
   "/scoreboard/prelims/sectionals/tests",
   asyncHandler(async (req, res) => {
     const { paper_code } = parse(z.object({ paper_code: z.string().optional() }), req.query);
-    const tests = await listScoreboardTests("sectional", paper_code);
+    const tests = await listScoreboardTests(await getUserExam(currentUserId()), "sectional", paper_code);
     res.json(scoreboardTestListResponseSchema.parse({ data: tests, error: null }));
   }),
 );

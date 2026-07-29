@@ -746,7 +746,12 @@ export async function listSharedAnswers(
     .from("discussion_threads")
     .select("id, anchor_id, created_at", { count: "exact" })
     .eq("anchor_type", "shared_answer")
-    .eq("moderation_status", "visible")
+    // Visible-or-mine, matching listThreadsForAnchor rather than a bare
+    // `moderation_status = 'visible'`. This function previously had NO
+    // moderation filter at all — a flagged peer-review thread's answer stayed
+    // in the feed — so tightening it to "visible" alone would have silently
+    // hidden a user's own flagged share from them too.
+    .or(`moderation_status.eq.visible,user_id.eq.${viewerId}`)
     .or(examVisibilityFilter(examCode))
     .order("created_at", { ascending: false })
     .range(from, to);

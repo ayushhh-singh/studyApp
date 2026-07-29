@@ -234,11 +234,17 @@ async function pyqPool(paperCode: string, seen: Set<string>): Promise<PoolItem[]
   return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
 }
 
-async function currentAffairsPool(days: number): Promise<PoolItem[]> {
+async function currentAffairsPool(days: number, examCode: string): Promise<PoolItem[]> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data: items, error: itemsErr } = await supabase()
     .from("current_affairs_items")
     .select("mcq_question_ids")
+    // The other three slices are exam-scoped through `paper_code`, but CA MCQs
+    // all sit under the synthetic CURRENT_AFFAIRS paper, so this slice has no
+    // paper to scope by — without the exam filter a second exam's quiz would
+    // pull the UPPSC pipeline's current affairs. `overlaps`, not equality: one
+    // national story is deliberately relevant to several exams (0106 §11).
+    .overlaps("exam_codes", [examCode])
     .eq("is_published", true)
     .gte("date", cutoff);
   if (itemsErr) throw new Error(`current affairs lookup failed: ${itemsErr.message}`);
@@ -411,7 +417,7 @@ export async function buildDailyQuizVariant(
     pyqPool(paperCode, seen),
     // Current affairs is GS content only — the CSAT variant never includes it
     // (its ratio is 0 too, so this is belt-and-suspenders).
-    variant.includeCurrentAffairs ? currentAffairsPool(cfg.currentAffairsDays) : Promise.resolve([]),
+    variant.includeCurrentAffairs ? currentAffairsPool(cfg.currentAffairsDays, examCode) : Promise.resolve([]),
     randomPool(paperCode),
   ]);
   const pools: Record<QuizSlice, PoolItem[]> = { generated: gen, pyq, current_affairs: ca, random: rand };

@@ -11,6 +11,7 @@ import type {
   SrsStats,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { getUserExam } from "../lib/exams.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from "../lib/fsrs.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
@@ -215,10 +216,16 @@ export async function addCurrentAffairsFactToRevision(
   itemId: string,
   factIndex: number,
 ): Promise<SrsCard> {
+  // `itemId` is untrusted request body, and the CA feed is exam-scoped, so an
+  // item outside the caller's exam is not something they can legitimately have
+  // reached — same check (and same 404, not 403) as the other untrusted-id
+  // sites. The CARD stays exam-agnostic on purpose (0106 §13: a user who
+  // switches exams keeps their deck); it is the SOURCE that is scoped.
   const { data: item, error: itemError } = await supabase()
     .from("current_affairs_items")
     .select("title_i18n, prelims_facts, detail_i18n->key_facts_i18n")
     .eq("id", itemId)
+    .overlaps("exam_codes", [await getUserExam(userId)])
     .eq("is_published", true)
     .maybeSingle();
   if (itemError) throw new HttpError(500, `current affairs item lookup failed: ${itemError.message}`);

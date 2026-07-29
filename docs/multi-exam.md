@@ -353,6 +353,14 @@ plus a **fourth site the fix itself surfaced**:
 - `daily/quiz.ts` `recentlyUsedInDailyQuiz` — filtered on `paper_code` alone, so
   two exams' recency windows blended and one exam's quiz would suppress
   questions a different cohort had never seen. Now exam-scoped.
+- **`currentAffairsPool` (found by the post-commit edge-case audit).** The other
+  three slices scope through `paper_code`, but CA MCQs all sit under the
+  synthetic `CURRENT_AFFAIRS` paper, so this one had nothing to scope by and
+  pulled the UPPSC pipeline's current affairs into any exam's quiz. Proven by
+  reverting the fix: a UPSC quiz with `includeCurrentAffairs: true` pulled a
+  real UPPSC CA MCQ. Now filters `overlaps(exam_codes, [exam])`, matching the
+  feed. (The original M6 verification missed it because the test variant had
+  `includeCurrentAffairs: false`.)
 - **`tests.slug`, the idempotency key (new).** It was `daily:<date>:<gs|csat>`,
   so two exams both building a "gs" quiz on one date would upsert onto the SAME
   row, each overwriting the other's paper, title and membership. A non-default

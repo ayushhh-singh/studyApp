@@ -285,11 +285,23 @@ export async function getDailyQuizWeeklyBoard(userId: string): Promise<DailyQuiz
 // mv_mock_series_board (first non-ghost attempt per user per test only).
 // ---------------------------------------------------------------------------
 
+/**
+ * The board picker. Exam-scoped: paper codes are globally unique, so a board
+ * reached WITH a paper code was always the right exam's — but this listing is
+ * the discovery surface in front of them, and unscoped it would offer a second
+ * exam's users a menu of UPPSC mocks they have never sat.
+ */
 export async function listScoreboardTests(
+  examCode: string,
   kind: "mock" | "sectional",
   paperCode?: string,
 ): Promise<ScoreboardTestSummary[]> {
-  let query = supabase().from("tests").select("id, title_i18n, paper_code").eq("kind", kind).eq("is_published", true);
+  let query = supabase()
+    .from("tests")
+    .select("id, title_i18n, paper_code")
+    .eq("exam_code", examCode)
+    .eq("kind", kind)
+    .eq("is_published", true);
   if (paperCode) query = query.eq("paper_code", paperCode);
   const { data, error } = await query.order("created_at", { ascending: false });
   if (error) throw new HttpError(500, `scoreboard test list failed: ${error.message}`);
@@ -301,18 +313,20 @@ export async function listScoreboardTests(
 }
 
 export async function getTestBoard(userId: string, testId: string): Promise<TestBoard> {
-  const { data: test, error: testError } = await supabase()
-    .from("tests")
-    .select("id, title_i18n, kind, is_published")
-    .eq("id", testId)
-    .maybeSingle();
+  const [{ data: test, error: testError }, examCode] = await Promise.all([
+    supabase().from("tests").select("id, title_i18n, kind, is_published, exam_code").eq("id", testId).maybeSingle(),
+    getUserExam(userId),
+  ]);
   if (testError) throw new HttpError(500, `test lookup failed: ${testError.message}`);
   // is_published matters here: without it, an unpublished draft test's real
   // attempt data (from internal testing before publish) could be read by
   // guessing its id, even though it never appears in listScoreboardTests.
+  // `testId` is likewise an untrusted path param, so the exam is checked here
+  // and not left to the listing that normally leads here.
   if (!test || !test.is_published || (test.kind !== "mock" && test.kind !== "sectional")) {
     throw notFound("Test not found");
   }
+  if ((test as { exam_code: string }).exam_code !== examCode) throw notFound("Test not found");
 
   const { data, error } = await supabase()
     .from("mv_test_leaderboard")
