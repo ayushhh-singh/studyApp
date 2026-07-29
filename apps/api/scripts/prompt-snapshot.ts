@@ -217,7 +217,12 @@ const FEW_SHOT = [
 const QGEN_NODE = {
   id: "33333333-3333-4333-8333-333333333333",
   paperCode: "FIXTURE_PAPER",
-  examCode: "fixture-exam",
+  // NodeContext.examCode is now the key into lib/exam-config.ts for qgen's
+  // persona/critic/verify/few-shot/grounding text, so it must name a REAL exam:
+  // explicit "uppsc", so the fixture never relies on getExamConfig()'s
+  // unknown-code fallback to produce the uppsc baseline. (Same reasoning as the
+  // evaluation fixture's examCode.) It never appears in prompt text itself.
+  examCode: "uppsc",
   stage: "prelims" as const,
   title_i18n: { en: "Fixture Topic Title", hi: "फिक्स्चर विषय" },
   description_i18n: { en: "Fixture topic description.", hi: "फिक्स्चर विवरण।" },
@@ -394,12 +399,12 @@ async function collectMentorPrompts(): Promise<void> {
   const mod = await load<typeof import("../src/services/mentor/prompts.js")>("../src/services/mentor/prompts.js");
   if (!mod) return;
 
-  put("mentor/buildMentorPersona:en", mod.buildMentorPersona("en"));
-  put("mentor/buildMentorPersona:hi", mod.buildMentorPersona("hi"));
-  put("mentor/buildTeacherPersona:en", mod.buildTeacherPersona("en"));
-  put("mentor/buildTeacherPersona:hi", mod.buildTeacherPersona("hi"));
-  put("mentor/buildRevisionCompressionSystem:en", mod.buildRevisionCompressionSystem("en"));
-  put("mentor/buildRevisionCompressionSystem:hi", mod.buildRevisionCompressionSystem("hi"));
+  put("mentor/buildMentorPersona:en", mod.buildMentorPersona("uppsc", "en"));
+  put("mentor/buildMentorPersona:hi", mod.buildMentorPersona("uppsc", "hi"));
+  put("mentor/buildTeacherPersona:en", mod.buildTeacherPersona("uppsc", "en"));
+  put("mentor/buildTeacherPersona:hi", mod.buildTeacherPersona("uppsc", "hi"));
+  put("mentor/buildRevisionCompressionSystem:en", mod.buildRevisionCompressionSystem("uppsc", "en"));
+  put("mentor/buildRevisionCompressionSystem:hi", mod.buildRevisionCompressionSystem("uppsc", "hi"));
   put("mentor/buildProfileSegment:filled", mod.buildProfileSegment("Weak in polity. 12-day streak. 40 cards due."));
   put("mentor/buildProfileSegment:empty", mod.buildProfileSegment("   "));
 
@@ -439,8 +444,8 @@ async function collectQgenPrompts(): Promise<void> {
   if (!mod) return;
 
   put("qgen/QGEN_PROMPT_VERSION", mod.QGEN_PROMPT_VERSION);
-  put("qgen/fewShotBlock:with-examples", mod.fewShotBlock(FEW_SHOT as never));
-  put("qgen/fewShotBlock:empty", mod.fewShotBlock([]));
+  put("qgen/fewShotBlock:with-examples", mod.fewShotBlock(FEW_SHOT as never, "uppsc"));
+  put("qgen/fewShotBlock:empty", mod.fewShotBlock([], "uppsc"));
 
   const genOpts = (over: Record<string, unknown> = {}) =>
     ({
@@ -509,12 +514,24 @@ async function collectQgenPrompts(): Promise<void> {
   );
   put(
     "qgen/buildVerifyParams:grounded",
-    paramsSnapshot(mod.buildVerifyParams({ stemEn: mcq.stem_i18n.en, options: mcq.options, grounding: GROUNDING as never })),
+    paramsSnapshot(
+      mod.buildVerifyParams({
+        stemEn: mcq.stem_i18n.en,
+        options: mcq.options,
+        grounding: GROUNDING as never,
+        examCode: "uppsc",
+      }),
+    ),
   );
   put(
     "qgen/buildVerifyParams:ungrounded",
     paramsSnapshot(
-      mod.buildVerifyParams({ stemEn: mcq.stem_i18n.en, options: mcq.options, grounding: EMPTY_GROUNDING as never }),
+      mod.buildVerifyParams({
+        stemEn: mcq.stem_i18n.en,
+        options: mcq.options,
+        grounding: EMPTY_GROUNDING as never,
+        examCode: "uppsc",
+      }),
     ),
   );
 }

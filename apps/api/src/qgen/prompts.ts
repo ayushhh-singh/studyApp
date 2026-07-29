@@ -14,9 +14,35 @@
  * docs/qgen.md; bump QGEN_PROMPT_VERSION on any prompt change so
  * generation_meta records which version produced a row.
  */
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { MODELS, type StructuredParams } from "../lib/anthropic.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import type { CriticVerdict, Difficulty, VerifyResult } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
+
+/**
+ * Every exam-specific string below comes from `lib/exam-config.ts`, unwrapped
+ * through `requireAuthored` so an exam whose question-setting style has not been
+ * authored fails LOUDLY at prompt-build time rather than silently generating
+ * questions in a different commission's format (U6).
+ *
+ * CACHE BOUNDARY — read before moving any of this:
+ *  - `buildMcqGenParams`/`buildDescGenParams` send TWO system segments:
+ *    [0] the persona (`mcqSystem`/`descSystem`, no cache flag) and
+ *    [1] `generationContextBlock(...)` marked cache:true. The cached prefix is
+ *    [0] + [1] — a breakpoint caches everything BEFORE it — so per-exam text in
+ *    the "uncached-looking" [0] still shapes the cache. That is fine: it
+ *    PARTITIONS the entry per exam (one stable prefix each). Putting anything
+ *    PER-REQUEST in [0] would make the prefix vary per call and destroy [1]'s
+ *    entry outright.
+ *  - `buildCriticParams`/`buildVerifyParams` send ONE cache:true segment. These
+ *    were module-level consts with a single global cache entry; reading the exam
+ *    makes them per-exam functions, i.e. one entry PER EXAM. Also a partition.
+ *    They are memoised below so repeated calls reuse one string instance.
+ */
+function qgenConfig(examCode: string) {
+  return getExamConfig(examCode).qgen;
+}
 
 // qgen-v2 (question-bank trust hardening): the Stage-B critic now receives the
 // node RAG passages and must enumerate the answer's decisive facts, each tagged
@@ -64,53 +90,85 @@ function nodeLine(node: NodeContext): string {
   return `Topic: ${node.title_i18n.en}${desc ? ` — ${desc}` : ""}\nPaper: ${node.paperCode} (${node.stage})`;
 }
 
-export function fewShotBlock(examples: FewShotQuestion[]): string {
+/**
+ * @param examCode which exam's few-shot framing to use.
+ *   ⚠ OPTIONAL ONLY FOR BACKWARD COMPATIBILITY: `ca/prompts.ts`'s `generateMcqs`
+ *   calls `fewShotBlock(opts.examples ?? [])` and is owned by a later slice, so a
+ *   required parameter would break the build there. Every qgen call site passes
+ *   the node's real exam. Make this required when the CA slice threads an exam
+ *   through `generateMcqs` (multi-exam slice 2c).
+ */
+export function fewShotBlock(examples: FewShotQuestion[], examCode: string = DEFAULT_EXAM_CODE): string {
+  const cfg = qgenConfig(examCode);
   if (examples.length === 0) {
-    return "No sample past-year questions were available for this exact topic; follow the general UPPSC style described above.";
+    return requireAuthored(cfg.fewShotFallback, examCode, "qgen.fewShotFallback");
   }
+  const attribution = requireAuthored(cfg.fewShotAttribution, examCode, "qgen.fewShotAttribution");
   const lines = examples.map((q, i) => {
     const opts = (q.options_i18n ?? [])
       .map((o) => `    ${o.key}) ${o.text_i18n.en}  /  ${o.text_i18n.hi}`)
       .join("\n");
     return (
-      `Example ${i + 1} (UPPSC${q.year ? ` ${q.year}` : ""}, difficulty ${q.difficulty}):\n` +
+      `Example ${i + 1} (${attribution}${q.year ? ` ${q.year}` : ""}, difficulty ${q.difficulty}):\n` +
       `  Stem EN: ${q.stem_i18n.en}\n` +
       `  Stem HI: ${q.stem_i18n.hi}\n` +
       (opts ? `  Options:\n${opts}\n` : "") +
       (q.correct_option_key ? `  Correct: ${q.correct_option_key}` : "")
     );
   });
-  return `REAL UPPSC PAST-YEAR QUESTIONS FOR THIS TOPIC (match their stem length, option style, and trap patterns):\n\n${lines.join("\n\n")}`;
+  return `${requireAuthored(cfg.fewShotHeader, examCode, "qgen.fewShotHeader")}\n\n${lines.join("\n\n")}`;
 }
 
-function groundingBlock(grounding: GroundingResult): string {
+function groundingBlock(grounding: GroundingResult, examCode: string): string {
+  const cfg = qgenConfig(examCode);
   if (grounding.chunks.length === 0) {
-    return "No reference passages were retrieved. Use only well-established, verifiable facts about this topic from the UPPSC syllabus; do not invent specifics you are unsure of.";
+    const fallback = requireAuthored(cfg.groundingFallbackLabel, examCode, "qgen.groundingFallbackLabel");
+    return `No reference passages were retrieved. Use only well-established, verifiable facts about this topic from ${fallback}; do not invent specifics you are unsure of.`;
   }
+  const store = requireAuthored(cfg.groundingStoreLabel, examCode, "qgen.groundingStoreLabel");
   const lines = grounding.chunks.map((c, i) => `${i + 1}. [${c.source_type}] ${c.chunk_text}`);
-  return `REFERENCE PASSAGES (from the official UPPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n${lines.join("\n")}`;
+  return `REFERENCE PASSAGES (from the ${store} — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n${lines.join("\n")}`;
 }
 
 /** The per-node cached block: instructions tail + few-shot + grounding. Byte-identical across a node's chunks → prompt-cache hits after the first. */
 function generationContextBlock(node: NodeContext, examples: FewShotQuestion[], grounding: GroundingResult): string {
-  return `${nodeLine(node)}\n\n${fewShotBlock(examples)}\n\n${groundingBlock(grounding)}`;
+  return `${nodeLine(node)}\n\n${fewShotBlock(examples, node.examCode)}\n\n${groundingBlock(grounding, node.examCode)}`;
 }
 
 // ---------------------------------------------------------------------------
 // Stage A — MCQ generation (claude-sonnet-5, strict JSON, bilingual)
 // ---------------------------------------------------------------------------
-const MCQ_SYSTEM =
-  "You are an experienced UPPSC (Uttar Pradesh Public Service Commission) Prelims question setter. You " +
+/**
+ * Memoise each exam's assembled system prompt. These were module-level consts
+ * (one string instance, one global prompt-cache entry); per-exam functions keep
+ * the same property PER EXAM instead of rebuilding the string on every call.
+ */
+function memoisePerExam(build: (examCode: string) => string): (examCode: string) => string {
+  const cache = new Map<string, string>();
+  return (examCode: string) => {
+    const hit = cache.get(examCode);
+    if (hit !== undefined) return hit;
+    const built = build(examCode);
+    cache.set(examCode, built);
+    return built;
+  };
+}
+
+const mcqSystem = memoisePerExam((examCode) => {
+  const cfg = qgenConfig(examCode);
+  return (
+  `You are ${requireAuthored(cfg.prelimsSetterFraming, examCode, "qgen.prelimsSetterFraming")}. You ` +
   "write original, exam-standard objective questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n" +
   "- Exactly 4 options keyed A, B, C, D, with EXACTLY ONE unambiguously correct answer; the other three must be " +
   "clearly wrong to a well-prepared aspirant, yet plausible enough to be real distractors (not jokes, not trivially absurd).\n" +
-  "- The stem must be self-contained and answerable from the option set alone. Prefer UPPSC's real formats: single " +
-  "statement, 'Consider the following statements', matching, assertion-reason, correctly-matched-pairs.\n" +
+  `- The stem must be self-contained and answerable from the option set alone. ${requireAuthored(cfg.formatGuidance, examCode, "qgen.formatGuidance")}\n` +
   "- Base every factual claim on the reference passages provided or on well-established knowledge; NEVER invent a " +
   "statistic, date, constitutional article, committee, or scheme detail. If you are not sure a fact is true, do not use it.\n" +
   "- Hindi and English must be faithful translations of each other. The explanation states why the correct option is " +
   "right and, briefly, why each other option is wrong. Plain text only — no markdown.\n" +
-  "- Stay strictly within the given topic and paper's syllabus. Return strict JSON matching the schema.";
+  "- Stay strictly within the given topic and paper's syllabus. Return strict JSON matching the schema."
+  );
+});
 
 export interface GeneratedMcq {
   stem_i18n: BilingualPair;
@@ -164,11 +222,17 @@ export function buildMcqGenParams(opts: {
     effort: "medium",
     maxTokens: 8000,
     system: [
-      { text: MCQ_SYSTEM },
+      // [0] uncached-looking, but the cached PREFIX is [0]+[1] — see the cache
+      // note at the top of this file. Per-exam text partitions; per-request kills.
+      { text: mcqSystem(opts.node.examCode) },
       { text: generationContextBlock(opts.node, opts.examples, opts.grounding), cache: true },
     ],
+    // User content, so never inside a cached prefix. Deliberately reads qgen's OWN
+    // label rather than the byte-identical `ca.mcqOutputLabel`: borrowing another
+    // namespace's field would fork the config the first time one exam wants a
+    // different phrasing for CA-derived vs bank-generated MCQs.
     content:
-      `Generate ${opts.count} distinct UPPSC-Prelims MCQs on the topic above. ${opts.difficultyHint} ` +
+      `Generate ${opts.count} distinct ${requireAuthored(qgenConfig(opts.node.examCode).mcqOutputLabel, opts.node.examCode, "qgen.mcqOutputLabel")} on the topic above. ${opts.difficultyHint} ` +
       `${opts.variantHint} Make them genuinely different from one another in the sub-aspect they test. ` +
       `Return JSON only.`,
     schema: MCQ_GEN_SCHEMA,
@@ -182,17 +246,19 @@ export function parseMcqGen(json: unknown): GeneratedMcq[] {
 // ---------------------------------------------------------------------------
 // Stage A — descriptive (Mains) generation
 // ---------------------------------------------------------------------------
-const DESC_SYSTEM =
-  "You are an experienced UPPSC Mains paper setter. You write original, exam-standard DESCRIPTIVE (long-answer) " +
+const descSystem = memoisePerExam((examCode) => {
+  const cfg = qgenConfig(examCode);
+  return (
+  `You are ${requireAuthored(cfg.mainsSetterFraming, examCode, "qgen.mainsSetterFraming")}. You write original, exam-standard DESCRIPTIVE (long-answer) ` +
   "questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n" +
-  "- Open with a real UPPSC directive verb (Examine / Critically analyse / Discuss / Evaluate / Comment / To what " +
-  "extent / Elucidate) and demand analysis, not mere recall.\n" +
-  "- Assign realistic marks and a word limit that match UPPSC Mains norms (typically 125 words / 7 marks, or 200 " +
-  "words / 10 marks; longer for higher marks).\n" +
+  `- Open with ${requireAuthored(cfg.directiveVerbGuidance, examCode, "qgen.directiveVerbGuidance")} and demand analysis, not mere recall.\n` +
+  `- Assign realistic marks and a word limit that match ${requireAuthored(cfg.marksNormGuidance, examCode, "qgen.marksNormGuidance")}.\n` +
   "- Provide a marking-points outline: 4-7 crisp points a strong answer must cover (used later to ground the " +
   "AI evaluator). Give the outline in BOTH languages, same points in the same order.\n" +
   "- Stay strictly within the given topic and paper's syllabus, and ground every factual expectation in the reference " +
-  "passages or well-established knowledge. Hindi and English must be faithful translations. Return strict JSON.";
+  "passages or well-established knowledge. Hindi and English must be faithful translations. Return strict JSON."
+  );
+});
 
 export interface GeneratedDescriptive {
   stem_i18n: BilingualPair;
@@ -246,11 +312,13 @@ export function buildDescGenParams(opts: {
     effort: "medium",
     maxTokens: 8000,
     system: [
-      { text: DESC_SYSTEM },
+      // Same [0]+[1] cached-prefix contract as buildMcqGenParams above.
+      { text: descSystem(opts.node.examCode) },
       { text: generationContextBlock(opts.node, opts.examples, opts.grounding), cache: true },
     ],
+    // User content, never inside a cached prefix.
     content:
-      `Generate ${opts.count} distinct UPPSC-Mains descriptive questions on the topic above. ${opts.difficultyHint} ` +
+      `Generate ${opts.count} distinct ${requireAuthored(qgenConfig(opts.node.examCode).descOutputLabel, opts.node.examCode, "qgen.descOutputLabel")} on the topic above. ${opts.difficultyHint} ` +
       `${opts.variantHint} Vary the directive verb and the sub-theme across the set. Return JSON only.`,
     schema: DESC_GEN_SCHEMA,
   };
@@ -263,15 +331,21 @@ export function parseDescGen(json: unknown): GeneratedDescriptive[] {
 // ---------------------------------------------------------------------------
 // Stage B — critic (claude-sonnet-5). One call per generated question.
 // ---------------------------------------------------------------------------
-const CRITIC_SYSTEM =
-  "You are a strict UPPSC question-quality reviewer. You are given ONE candidate exam question (with its intended " +
+const criticSystem = memoisePerExam((examCode) => {
+  const cfg = qgenConfig(examCode);
+  return (
+  `You are ${requireAuthored(cfg.criticFraming, examCode, "qgen.criticFraming")}. You are given ONE candidate exam question (with its intended ` +
   "answer/marking scheme), the syllabus topic it targets, and REFERENCE PASSAGES retrieved for that topic. Judge it " +
   "rigorously against the passages — do NOT rely on the question's own explanation for the facts. Return JSON:\n" +
   "- single_correct_answer: for an MCQ, is there EXACTLY ONE defensibly-correct option and are the other three " +
   "genuinely wrong? (for a descriptive question, is the task well-posed and answerable within its word limit?)\n" +
   "- options_plausible: are the distractors plausible and non-trivial (not obviously absurd, not near-duplicates of " +
   "the answer)? (descriptive: is the marking outline complete and on-point?)\n" +
-  "- uppsc_tone: does it read like a real UPPSC question in difficulty, phrasing, and format?\n" +
+  // ⚠ `uppsc_tone` is NOT prompt copy — it is a key of CRITIC_SCHEMA, a required
+  // field of CriticVerdict in @neev/shared, and a key inside every persisted
+  // questions.generation_meta row. NEVER rename it. Only the human-readable
+  // criterion text after the colon is exam-configurable.
+  `- uppsc_tone: ${requireAuthored(cfg.toneCriterion, examCode, "qgen.toneCriterion")}\n` +
   "- out_of_syllabus: is any part outside the stated topic/paper syllabus?\n" +
   "- decisive_facts: list EVERY proper noun, date, article/section number, statistic, or named person/scheme the " +
   "answer turns on. For each, set status = 'grounded' if a reference passage supports it, 'well_established' if it is " +
@@ -282,7 +356,9 @@ const CRITIC_SYSTEM =
   "- approve: true ONLY if it is single-correct (or well-posed), plausible, on-tone, in-syllabus, has NO factual red " +
   "flags, and NO decisive fact is 'unverifiable'. We do not publish unverifiable trivia. Be conservative — reject " +
   "anything you would not put in front of a real aspirant.\n" +
-  "Return strict JSON only.";
+  "Return strict JSON only."
+  );
+});
 
 export const CRITIC_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -340,9 +416,11 @@ export function buildCriticParams(opts: { node: NodeContext; rendered: string; g
     model: MODELS.sonnet,
     effort: "medium",
     maxTokens: 1600,
-    system: [{ text: CRITIC_SYSTEM, cache: true }],
+    // ONE cache:true segment — was a module const with a single global entry,
+    // now one entry PER EXAM. A partition, not a per-request prefix.
+    system: [{ text: criticSystem(opts.node.examCode), cache: true }],
     content:
-      `SYLLABUS TOPIC:\n${nodeLine(opts.node)}\n\n${groundingBlock(opts.grounding)}\n\n` +
+      `SYLLABUS TOPIC:\n${nodeLine(opts.node)}\n\n${groundingBlock(opts.grounding, opts.node.examCode)}\n\n` +
       `CANDIDATE QUESTION:\n${opts.rendered}\n\nReturn your JSON verdict.`,
     schema: CRITIC_SCHEMA,
   };
@@ -371,11 +449,13 @@ export function parseCritic(json: unknown): CriticVerdict {
 // ---------------------------------------------------------------------------
 // Stage C — blind verify (claude-haiku-4-5). MCQ only; the key is HIDDEN.
 // ---------------------------------------------------------------------------
-const VERIFY_SYSTEM =
-  "You are a top UPPSC aspirant sitting the exam. You are shown one multiple-choice question, its four options, and " +
-  "some REFERENCE PASSAGES, with NO answer key. Choose the single best option using the passages and your own " +
-  "well-established knowledge. Return JSON: chosen_key (A/B/C/D) and confidence (0 to 1). If two options seem equally " +
-  "correct or none is correct, pick the closest and set a low confidence. Do not explain. Return strict JSON only.";
+const verifySystem = memoisePerExam(
+  (examCode) =>
+    `You are ${requireAuthored(qgenConfig(examCode).verifierFraming, examCode, "qgen.verifierFraming")}. You are shown one multiple-choice question, its four options, and ` +
+    "some REFERENCE PASSAGES, with NO answer key. Choose the single best option using the passages and your own " +
+    "well-established knowledge. Return JSON: chosen_key (A/B/C/D) and confidence (0 to 1). If two options seem equally " +
+    "correct or none is correct, pick the closest and set a low confidence. Do not explain. Return strict JSON only.",
+);
 
 export const VERIFY_SCHEMA: Record<string, unknown> = {
   type: "object",
@@ -391,15 +471,24 @@ export function buildVerifyParams(opts: {
   stemEn: string;
   options: { key: string; text_i18n: BilingualPair }[];
   grounding: GroundingResult;
+  /**
+   * ⚠ OPTIONAL ONLY FOR BACKWARD COMPATIBILITY: `ca/verify-mcqs.ts` (owned by a
+   * later slice) calls this without an exam. qgen's own call sites pass the
+   * node's real exam. Make it required when the CA slice threads one through
+   * (multi-exam slice 2c).
+   */
+  examCode?: string;
 }): StructuredParams {
+  const examCode = opts.examCode ?? DEFAULT_EXAM_CODE;
   const opts_ = opts.options.map((o) => `${o.key}) ${o.text_i18n.en}`).join("\n");
   return {
     model: MODELS.haiku,
     maxTokens: 400,
-    system: [{ text: VERIFY_SYSTEM, cache: true }],
+    // ONE cache:true segment — one entry per exam (see the critic note above).
+    system: [{ text: verifySystem(examCode), cache: true }],
     content:
       `Question:\n${opts.stemEn}\n\nOptions:\n${opts_}\n\n` +
-      `Reference passages:\n${groundingBlock(opts.grounding)}\n\nWhich option is correct?`,
+      `Reference passages:\n${groundingBlock(opts.grounding, examCode)}\n\nWhich option is correct?`,
     schema: VERIFY_SCHEMA,
   };
 }

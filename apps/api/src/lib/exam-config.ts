@@ -396,6 +396,17 @@ export interface ExamQgenConfig {
    * the human-readable criterion text after the colon, never the key.
    */
   toneCriterion: Authored<string>;
+  /**
+   * Call site: `buildMcqGenParams` user turn — `` `Generate ${n} distinct
+   * ${mcqOutputLabel} on the topic above. …` ``. User content, so never inside a
+   * cached prefix.
+   */
+  mcqOutputLabel: Authored<string>;
+  /**
+   * Call site: `buildDescGenParams` user turn — `` `Generate ${n} distinct
+   * ${descOutputLabel} on the topic above. …` ``.
+   */
+  descOutputLabel: Authored<string>;
 }
 
 /** Mentor — `services/mentor/prompts.ts` and `services/mentor/index.ts`. */
@@ -721,6 +732,8 @@ const UPPSC: ExamConfig = {
     marksNormGuidance:
       "UPPSC Mains norms (typically 125 words / 7 marks, or 200 words / 10 marks; longer for higher marks)",
     toneCriterion: "does it read like a real UPPSC question in difficulty, phrasing, and format?",
+    mcqOutputLabel: "UPPSC-Prelims MCQs",
+    descOutputLabel: "UPPSC-Mains descriptive questions",
   },
 
   mentor: {
@@ -881,6 +894,8 @@ const UPSC: ExamConfig = {
     directiveVerbGuidance: UNAUTHORED,
     marksNormGuidance: UNAUTHORED,
     toneCriterion: UNAUTHORED,
+    mcqOutputLabel: UNAUTHORED,
+    descOutputLabel: UNAUTHORED,
   },
 
   mentor: {
@@ -1022,6 +1037,8 @@ const MPPSC: ExamConfig = {
     directiveVerbGuidance: UNAUTHORED,
     marksNormGuidance: UNAUTHORED,
     toneCriterion: UNAUTHORED,
+    mcqOutputLabel: UNAUTHORED,
+    descOutputLabel: UNAUTHORED,
   },
 
   mentor: {

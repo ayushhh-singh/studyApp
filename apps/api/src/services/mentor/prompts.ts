@@ -3,18 +3,48 @@
  * the prompt-cache breakpoint; the learner profile is a second cached segment;
  * the per-message mode instruction and retrieved context sit after the cache so
  * a single stable prefix serves an entire conversation cheaply.
+ *
+ * Every exam-specific string below comes from `lib/exam-config.ts`, unwrapped
+ * through `requireAuthored` so an exam whose mentor framing has not been authored
+ * fails LOUDLY at prompt-build time rather than silently addressing its aspirants
+ * as if they were sitting a different commission's exam (U6).
+ *
+ * CACHE BOUNDARY — read before moving any of this:
+ *  - `buildMentorPersona` is index.ts's FIRST system segment, marked cache:true.
+ *    The cached prefix is that segment (plus the learner-profile segment when
+ *    present). Reading per-exam (not per-request) text here PARTITIONS the cache
+ *    by exam × locale: each exam keeps its own stable entry and its own hit rate.
+ *    That is fine. Anything PER-REQUEST here would destroy the entry entirely.
+ *  - `buildTeacherPersona` is the teacher stream's ONE cached segment — same
+ *    partition-by-exam reasoning.
+ *  - `buildRevisionCompressionSystem` is passed as a plain, uncached system
+ *    string (`compressToRevision`'s `streamText`), so exam text is free there.
+ *  - `buildProfileSegment`, `buildUserTurn` and `buildTeacherTurn` carry NO exam
+ *    text and must not gain any: the profile segment is the second cached
+ *    breakpoint, and the two turns are per-message user content that sits AFTER
+ *    every breakpoint.
  */
 import type { Locale } from "@neev/shared";
+import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
+
+function mentorConfig(examCode: string) {
+  return getExamConfig(examCode).mentor;
+}
 
 function languageName(locale: Locale): string {
   return locale === "hi" ? "Hindi (Devanagari)" : "English";
 }
 
-/** Stable persona + rules — the cache breakpoint. Varies only by locale. */
-export function buildMentorPersona(locale: Locale): string {
+/** Stable persona + rules — the cache breakpoint. Varies only by exam and locale. */
+export function buildMentorPersona(examCode: string, locale: Locale): string {
+  const cfg = mentorConfig(examCode);
   const lang = languageName(locale);
   return [
-    "You are Neev (नींव, 'foundation'), the AI mentor on Neev — a UPPSC (UP PCS) exam-prep platform. You are a",
+    `You are Neev (नींव, 'foundation'), the AI mentor on Neev — ${requireAuthored(
+      cfg.platformFraming,
+      examCode,
+      "mentor.platformFraming",
+    )}. You are a`,
     "knowledgeable, encouraging senior mentor for Hindi- and English-first aspirants preparing for one of India's",
     "toughest competitive exams. Everything you do should be judged by one question: does this actually help THIS",
     "aspirant clear THIS exam. If the student asks who you are, introduce yourself as Neev, their mentor on the",
@@ -38,9 +68,11 @@ export function buildMentorPersona(locale: Locale): string {
     "- A LEARNER PROFILE describing this student's weak/strong areas, streak, and recent activity may be provided. Use it to make answers specific and encouraging when relevant (e.g. connect the doubt to a weak topic), but never dwell on it or repeat it back verbatim.",
     "",
     "Style — calibrate to what actually helps someone preparing for THIS exam, not a generic textbook Q&A:",
-    "- Connect explanations to how UPPSC actually tests the topic — PYQ question patterns (statement-based,",
-    "  matching-type, chronological-order), commonly confused pairs/traps, and what to actually write in a Mains",
-    "  answer where relevant.",
+    // ⚠ ONE array element, not three. `mentor.testingLens` is stored WITH the
+    // source's own hard line wrapping (two embedded "\n  " sequences), so it
+    // reproduces the three original lines byte-for-byte once this array is
+    // joined by "\n". Do NOT reflow, re-indent, or split it back out.
+    `- ${requireAuthored(cfg.testingLens, examCode, "mentor.testingLens")}`,
     "- Add ONE extra layer of real value beyond the bare definition when it genuinely aids recall or scoring — a",
     "  sharp distinguishing example, a 'commonly confused with X' note, or a short mnemonic. Don't pad with",
     "  generic filler, restate the question, or over-hedge. Match length to the doubt's actual complexity: a",
@@ -59,10 +91,15 @@ export function buildMentorPersona(locale: Locale): string {
 // the model is explicitly told NOT to produce them (they'd be invented, not
 // real). The persona is a stable, locale-scoped cache breakpoint.
 // ---------------------------------------------------------------------------
-export function buildTeacherPersona(locale: Locale): string {
+export function buildTeacherPersona(examCode: string, locale: Locale): string {
+  const cfg = mentorConfig(examCode);
   const lang = languageName(locale);
   return [
-    "You are Neev (नींव), the AI mentor on the Neev UPPSC (UP PCS) exam-prep platform, now in TEACHER mode — a",
+    `You are Neev (नींव), the AI mentor on the Neev ${requireAuthored(
+      cfg.teacherPlatformFraming,
+      examCode,
+      "mentor.teacherPlatformFraming",
+    )}, now in TEACHER mode — a`,
     "patient senior teacher giving a focused lesson to a Hindi- or English-first aspirant. Judge everything by one question:",
     "does this actually help THIS aspirant learn and clear THIS exam.",
     `Always reply in ${lang}.`,
@@ -75,8 +112,13 @@ export function buildTeacherPersona(locale: Locale): string {
     "3. EXAM RELEVANCE — two labelled parts:",
     "   - a '**' PRELIMS POINTERS '**' block: a bulleted list of crisp, memorizable facts a prelims MCQ could",
     "     test (named schemes, articles, numbers, first/where/who). This is the box a student revises from.",
-    "   - a '**' MAINS ANGLES '**' block: how UPPSC frames this in a descriptive answer, and which GS paper(s)",
-    "     it feeds.",
+    // ⚠ ONE array element, not two — `mentor.mainsAnglesLens` carries the
+    // source's own line wrapping ("\n     "). Same rule as testingLens above.
+    `   - a '**' MAINS ANGLES '**' block: ${requireAuthored(
+      cfg.mainsAnglesLens,
+      examCode,
+      "mentor.mainsAnglesLens",
+    )}`,
     "",
     "STOP after Exam relevance. Do NOT write a 'Related PYQs', 'Quick check', 'Practice questions', or",
     "'Continue with' section, and do NOT invent past-year questions or MCQs — the platform attaches the REAL",
@@ -160,10 +202,15 @@ export function buildTeacherTurn(opts: {
  * revision recap" call — a revision-mode request that hits a cached NORMAL
  * answer distils it instead of regenerating from scratch (Session 26.5).
  */
-export function buildRevisionCompressionSystem(locale: Locale): string {
+export function buildRevisionCompressionSystem(examCode: string, locale: Locale): string {
+  const audience = requireAuthored(
+    mentorConfig(examCode).revisionAudience,
+    examCode,
+    "mentor.revisionAudience",
+  );
   const lang = languageName(locale);
   return [
-    `You compress an existing mentor answer into a revision cheat-sheet for a UPPSC (UP PCS) aspirant. Reply in ${lang}.`,
+    `You compress an existing mentor answer into a revision cheat-sheet for ${audience}. Reply in ${lang}.`,
     "Output EXACTLY 5 crisp '- ' bullet points capturing the essentials of the answer below — the highest-yield,",
     "most exam-relevant facts a student would revise from. No intro, no conclusion, no heading, no preamble.",
     "Keep each bullet short. Do NOT add any fact that isn't in the source answer — only distil what's there.",

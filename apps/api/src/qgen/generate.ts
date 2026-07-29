@@ -500,7 +500,12 @@ export async function generateForNode(plan: GeneratePlan, log: Log = () => {}): 
   const toVerify = candidates.filter((c) => c.kind === "mcq" && !c.reject);
   await pool(toVerify, SYNC_CONCURRENCY, async (c) => {
     const json = await structuredJson({
-      ...buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options, grounding: ctx.grounding }),
+      ...buildVerifyParams({
+        stemEn: c.mcq!.stem_i18n.en,
+        options: c.mcq!.options,
+        grounding: ctx.grounding,
+        examCode: ctx.node.examCode,
+      }),
       purpose: "qgen_verify",
       onUsage,
     });
@@ -612,7 +617,14 @@ export async function generateBatch(plans: GeneratePlan[], log: Log = () => {}):
       if (c.kind === "mcq" && !c.reject) {
         verifyReqs.push({
           customId: `verify_${pi}_${ci}`,
-          params: structuredParams(buildVerifyParams({ stemEn: c.mcq!.stem_i18n.en, options: c.mcq!.options, grounding: s.ctx.grounding })),
+          params: structuredParams(
+            buildVerifyParams({
+              stemEn: c.mcq!.stem_i18n.en,
+              options: c.mcq!.options,
+              grounding: s.ctx.grounding,
+              examCode: s.ctx.node.examCode,
+            }),
+          ),
           purpose: "qgen_verify",
         });
       }
