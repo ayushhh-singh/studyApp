@@ -10,7 +10,6 @@
  * meta.official_max_marks records the real paper's max.
  */
 import type { ExamCutoff } from "@neev/shared";
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
@@ -517,11 +516,17 @@ export function availableMockPool(paperCode: string, kind: "mcq" | "descriptive"
  * misnamed `exam_cutoffs.exam_code` column to `paper_code` (it always held
  * 'PRE_GS1') and added a real `exam_code` alongside it. Filtering on both keeps
  * the lookup correct once a second exam seeds cut-offs for its own papers.
+ *
+ * BOTH parameters are required on purpose. This function shipped with
+ * `examCode: string = DEFAULT_EXAM_CODE` and its only caller never passed one,
+ * so the exam filter was inert and every user got UPPSC's cut-offs regardless of
+ * `target_exam` — the promise in the paragraph above was not actually kept. A
+ * trailing defaulted parameter lets a caller silently keep the old behaviour;
+ * `paperCode`'s own default had to go too, since TypeScript forbids a required
+ * parameter after an optional one (the route's zod schema still defaults it).
+ * Same trap as `getMasteryMap`'s `targetExam` — see docs/multi-exam.md §3f.
  */
-export async function getCutoffs(
-  paperCode = "PRE_GS1",
-  examCode: string = DEFAULT_EXAM_CODE,
-): Promise<ExamCutoff[]> {
+export async function getCutoffs(paperCode: string, examCode: string): Promise<ExamCutoff[]> {
   const { data, error } = await supabase()
     .from("exam_cutoffs")
     .select("exam_code, paper_code, stage, year, category, cutoff, out_of, is_official")

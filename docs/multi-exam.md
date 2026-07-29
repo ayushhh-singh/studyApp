@@ -102,6 +102,11 @@ tracked:
   query param with no exam check — a second exam's user could read another
   exam's series board by passing its code. Now mirrors the guard `getTestBoard`
   already had for `test_id`.
+- **Fixed:** `getCutoffs` had an `examCode` parameter its only caller never
+  passed (M24), so `GET /mocks/cutoffs` served UPPSC's cut-offs to everyone.
+  Both parameters are required now. **A trailing defaulted exam parameter does
+  not make a caller decide — it lets the caller keep the bug silently. This is
+  the second time it has bitten** (`getMasteryMap`'s `targetExam`, §3f).
 - **⚑ TRACKED AS M23 — DO THIS BEFORE THE FIRST `ingest:pyq` RUN OF A SECOND
   EXAM.** The prefix rule is enforced in `ingest:syllabus` only.
   `classifyPyqId` (`ingest/_shared.ts`) maps `upsc_prelims_2024_gs1` to a
@@ -111,6 +116,20 @@ tracked:
   mirror of M21/M22 for chapters: fix it as step 1 of U5, not afterwards. Today
   the only thing standing in the way is the convention *"never ingest
   `upsc_*`/`upsssc_*` files"* — which U5 is by definition the act of relaxing.
+
+**Swept and deliberately LEFT paper-code-only — do not "fix" these as a
+drive-by.** Every route that takes a paper code from the request was checked.
+`getPaperTree`, `getPaperTrends` and `getTimeAttackTopics` all read
+`syllabus_nodes` / `questions` filtered by `paper_code` alone with an untrusted
+code, and that is the intended design: they serve **public, published reference
+content** (`syllabus_nodes` is a content table with public read under 0053), the
+UI never links across exams because `getPaperSummaries` is exam-scoped, and §0
+blesses exactly this pattern for ~30 call sites. The boards are the different
+case — `getTestBoard` already exam-checked `test_id`, so `getMockSeriesBoard`
+was *inconsistent with its own sibling*, and M17 decided boards/community are
+exam-separated, which makes serving another exam's board contradict a decision
+rather than merely look odd. **If you ever do want to gate public syllabus
+browsing per exam, that is a product decision, not a bug fix.**
 
 ---
 

@@ -52,8 +52,12 @@ dailyRouter.post(
 dailyRouter.get(
   "/mocks/cutoffs",
   asyncHandler(async (req, res) => {
+    // `exam` is a PAPER code despite the name (M12 — the param is public API and
+    // its rename is tracked separately). The user's real exam is a second axis,
+    // and passing it is what stops a second exam's user from being served
+    // UPPSC's cut-offs as their own.
     const { exam } = parse(z.object({ exam: z.string().default("PRE_GS1") }), req.query);
-    const cutoffs = await getCutoffs(exam);
+    const cutoffs = await getCutoffs(exam, await getUserExam(currentUserId()));
     res.json(examCutoffsResponseSchema.parse({ data: cutoffs, error: null }));
   }),
 );
