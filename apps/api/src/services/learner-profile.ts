@@ -13,7 +13,9 @@
  * prompt-cache in the mentor system prompt.
  */
 import type { BilingualText, DimensionScore, LearnerProfile, Locale } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
@@ -223,19 +225,14 @@ export async function computeLearnerProfile(userId: string): Promise<LearnerProf
 
   const { data: profileRow, error: profileError } = await supabase()
     .from("users_profile")
-    .select("streak_count, preferred_locale")
+    .select("streak_count, preferred_locale, target_exam")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw new HttpError(500, `profile lookup failed: ${profileError.message}`);
 
-  const { data: exam } = await supabase()
-    .from("exam_calendar")
-    .select("exam_date")
-    .eq("exam_stage", "prelims")
-    .gte("exam_date", today)
-    .order("exam_date", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  // Exam-scoped since 0106 — see lib/exam-calendar.ts.
+  const { data: examRows } = await upcomingExamsQuery(today);
+  const exam = pickNextExam(examRows, (profileRow?.target_exam as string) || DEFAULT_EXAM_CODE);
 
   const [buckets, evaluation, recent_nodes, activity_last_7d] = await Promise.all([
     buildNodeBuckets(userId),

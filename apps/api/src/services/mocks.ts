@@ -10,6 +10,7 @@
  * meta.official_max_marks records the real paper's max.
  */
 import type { ExamCutoff } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
@@ -511,10 +512,20 @@ export function availableMockPool(paperCode: string, kind: "mcq" | "descriptive"
   return kind === "mcq" ? availableQuestions(paperCode) : availableDescriptiveQuestions(paperCode);
 }
 
-export async function getCutoffs(examCode = "PRE_GS1"): Promise<ExamCutoff[]> {
+/**
+ * Cut-offs for a PAPER. `paperCode` (not examCode) — migration 0106 renamed the
+ * misnamed `exam_cutoffs.exam_code` column to `paper_code` (it always held
+ * 'PRE_GS1') and added a real `exam_code` alongside it. Filtering on both keeps
+ * the lookup correct once a second exam seeds cut-offs for its own papers.
+ */
+export async function getCutoffs(
+  paperCode = "PRE_GS1",
+  examCode: string = DEFAULT_EXAM_CODE,
+): Promise<ExamCutoff[]> {
   const { data, error } = await supabase()
     .from("exam_cutoffs")
-    .select("exam_code, stage, year, category, cutoff, out_of, is_official")
+    .select("exam_code, paper_code, stage, year, category, cutoff, out_of, is_official")
+    .eq("paper_code", paperCode)
     .eq("exam_code", examCode)
     .order("year", { ascending: false })
     .order("category", { ascending: true });

@@ -3,6 +3,8 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError, conflict } from "../lib/http-error.js";
 import { istToday, daysBetween } from "../lib/ist.js";
 import { normalizeTourState } from "./tour.js";
+import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 
 interface ExamInfo {
   days_to_exam: number | null;
@@ -22,35 +24,42 @@ function toProfile(row: unknown, examInfo: ExamInfo): Profile {
 }
 
 const PROFILE_COLUMNS =
-  "id, display_name, handle, preferred_locale, target_exam_year, medium, plan, streak_count, last_active_date, " +
+  "id, display_name, handle, preferred_locale, target_exam_year, target_exam, medium, plan, streak_count, last_active_date, " +
   "streak_freezes, streak_freeze_used_on, onboarding_completed, study_hours_per_day, show_on_mains_board, tour_state";
 
 /**
  * Days until the next scheduled Prelims (from exam_calendar), same lookup
  * pattern as dashboard.ts's getGreeting — null if nothing is scheduled.
  */
-async function getNextExamInfo(): Promise<ExamInfo> {
-  const today = istToday();
-  const { data, error } = await supabase()
-    .from("exam_calendar")
-    .select("title_i18n, exam_date")
-    .eq("exam_stage", "prelims")
-    .gte("exam_date", today)
-    .order("exam_date", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+/**
+ * Upcoming dates for EVERY exam, fetched in parallel with the profile read so
+ * the countdown never serialises behind it (0106). Narrowed to the user's own
+ * exam by `examInfoFor` once the profile row is in hand.
+ */
+async function fetchUpcomingExams(): Promise<unknown> {
+  const { data, error } = await upcomingExamsQuery(istToday());
   if (error) throw new HttpError(500, `exam calendar lookup failed: ${error.message}`);
-  if (!data) return { days_to_exam: null, next_exam_label_i18n: null };
+  return data;
+}
+
+function examInfoFor(rows: unknown, examCode: string): ExamInfo {
+  const row = pickNextExam(rows, examCode);
+  if (!row) return { days_to_exam: null, next_exam_label_i18n: null };
   return {
-    days_to_exam: daysBetween(today, data.exam_date as string),
-    next_exam_label_i18n: data.title_i18n as BilingualText,
+    days_to_exam: daysBetween(istToday(), row.exam_date),
+    next_exam_label_i18n: row.title_i18n as BilingualText,
   };
 }
 
+/** The user's own exam, defaulting defensively for a row written before 0106. */
+function examCodeOf(row: unknown): string {
+  return ((row as Record<string, unknown>)?.target_exam as string) || DEFAULT_EXAM_CODE;
+}
+
 export async function getProfile(userId: string): Promise<Profile> {
-  const [{ data, error }, examInfo] = await Promise.all([
+  const [{ data, error }, examRows] = await Promise.all([
     supabase().from("users_profile").select(PROFILE_COLUMNS).eq("id", userId).maybeSingle(),
-    getNextExamInfo(),
+    fetchUpcomingExams(),
   ]);
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
   // A valid, unexpired JWT that resolves to a user with NO profile row means the
@@ -59,16 +68,16 @@ export async function getProfile(userId: string): Promise<Profile> {
   // 404) so the client's existing 401→signOut path clears the dead session and
   // the app self-heals into a fresh one, instead of looping on profile errors.
   if (!data) throw new HttpError(401, "Session no longer valid — please sign in again.");
-  return toProfile(data, examInfo);
+  return toProfile(data, examInfoFor(examRows, examCodeOf(data)));
 }
 
 export async function updateProfile(userId: string, patch: ProfileUpdateBody): Promise<Profile> {
-  const [{ data, error }, examInfo] = await Promise.all([
+  const [{ data, error }, examRows] = await Promise.all([
     supabase().from("users_profile").update(patch).eq("id", userId).select(PROFILE_COLUMNS).single(),
-    getNextExamInfo(),
+    fetchUpcomingExams(),
   ]);
   if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
-  return toProfile(data, examInfo);
+  return toProfile(data, examInfoFor(examRows, examCodeOf(data)));
 }
 
 /**
@@ -78,7 +87,7 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
  * for another.
  */
 export async function completeOnboarding(userId: string, body: OnboardingBody): Promise<Profile> {
-  const [{ data, error }, examInfo] = await Promise.all([
+  const [{ data, error }, examRows] = await Promise.all([
     supabase()
       .from("users_profile")
       .update({
@@ -93,13 +102,13 @@ export async function completeOnboarding(userId: string, body: OnboardingBody): 
       .eq("id", userId)
       .select(PROFILE_COLUMNS)
       .single(),
-    getNextExamInfo(),
+    fetchUpcomingExams(),
   ]);
   if (error) {
     if (error.code === "23505") throw conflict("That handle is already taken");
     throw new HttpError(500, `onboarding failed: ${error.message}`);
   }
-  return toProfile(data, examInfo);
+  return toProfile(data, examInfoFor(examRows, examCodeOf(data)));
 }
 
 /**

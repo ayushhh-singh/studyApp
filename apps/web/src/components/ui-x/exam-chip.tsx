@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils";
 const EXAM_FALLBACK: Record<ExamCode, BilingualText> = {
   uppsc: { en: "UPPSC", hi: "यूपीपीएससी" },
   upsc: { en: "UPSC", hi: "यूपीएससी" },
+  mppsc: { en: "MPPSC", hi: "एमपीपीएससी" },
   up_ro_aro: { en: "UP RO/ARO", hi: "यूपी आरओ/एआरओ" },
   upsssc_pet: { en: "UPSSSC PET", hi: "यूपीएसएसएससी पीईटी" },
   other: { en: "Other", hi: "अन्य" },

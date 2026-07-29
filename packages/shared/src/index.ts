@@ -35,3 +35,4 @@ export * from "./scoreboard";
 export * from "./tour";
 export * from "./on-demand";
 export * from "./auth";
+export * from "./exams";

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, localeSchema } from "./types";
 import { tourStateSchema } from "./tour";
+import { targetExamCodeSchema } from "./exams";
 
 export const userPlanSchema = z.enum(["free", "pro"]);
 export type UserPlan = z.infer<typeof userPlanSchema>;
@@ -18,6 +19,12 @@ export const profileSchema = z.object({
   handle: z.string().nullable(),
   preferred_locale: localeSchema,
   target_exam_year: z.number().int().nullable(),
+  /**
+   * WHICH EXAM the user is preparing for. Note the deliberately-similar
+   * neighbour above: `target_exam_year` is WHICH YEAR. They are unrelated —
+   * do not conflate them in a query or a form. Added in migration 0106.
+   */
+  target_exam: targetExamCodeSchema,
   medium: localeSchema,
   plan: userPlanSchema,
   streak_count: z.number().int(),
@@ -41,6 +48,7 @@ export const profileUpdateBodySchema = z
     display_name: z.string().min(1).max(120).optional(),
     preferred_locale: localeSchema.optional(),
     target_exam_year: z.number().int().min(2000).max(2100).optional(),
+    target_exam: targetExamCodeSchema.optional(),
     medium: localeSchema.optional(),
     show_on_mains_board: z.boolean().optional(),
   })

@@ -6,6 +6,9 @@ import { apiEnvelopeSchema } from "./types";
  * 200, by year + category) that a mock result is measured against.
  */
 export const examCutoffSchema = z.object({
+  /** The PAPER the cut-off is on (e.g. PRE_GS1). Renamed from `exam_code` in migration 0106 — it never held an exam code. */
+  paper_code: z.string(),
+  /** Which exam these cut-offs belong to (genuinely an exam code, unlike the field above). */
   exam_code: z.string(),
   stage: z.string(),
   year: z.number().int(),

@@ -13,7 +13,9 @@ import type {
   PlanTaskKind,
   StudyPlan,
 } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { conflict, HttpError, notFound, badRequest } from "../lib/http-error.js";
 import { istDateString, istToday, shiftDate } from "../lib/ist.js";
 import { MODELS, structuredJson } from "../lib/anthropic.js";
@@ -119,15 +121,9 @@ export async function planGenerate(userId: string, hoursPerDay: number): Promise
 
   const today = istToday();
   const [{ data: profile, error: profileError }, examRes, weakSections, srsDueRes] = await Promise.all([
-    supabase().from("users_profile").select("display_name, target_exam_year, medium").eq("id", userId).maybeSingle(),
-    supabase()
-      .from("exam_calendar")
-      .select("title_i18n, exam_date")
-      .eq("exam_stage", "prelims")
-      .gte("exam_date", today)
-      .order("exam_date", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
+    supabase().from("users_profile").select("display_name, target_exam_year, target_exam, medium").eq("id", userId).maybeSingle(),
+    // Exam-scoped since 0106 — narrowed to the user's own exam below.
+    upcomingExamsQuery(today),
     loadWeakSections(userId),
     supabase()
       .from("srs_cards")
@@ -139,7 +135,9 @@ export async function planGenerate(userId: string, hoursPerDay: number): Promise
   if (examRes.error) throw new HttpError(500, `exam calendar lookup failed: ${examRes.error.message}`);
   if (srsDueRes.error) throw new HttpError(500, `SRS due count failed: ${srsDueRes.error.message}`);
 
-  const examRow = examRes.data as { title_i18n: BilingualText; exam_date: string } | null;
+  const examRow = pickNextExam(examRes.data, (profile?.target_exam as string) || DEFAULT_EXAM_CODE) as
+    | { title_i18n: BilingualText; exam_date: string }
+    | null;
   const nextExam = examRow
     ? {
         title_i18n: examRow.title_i18n,

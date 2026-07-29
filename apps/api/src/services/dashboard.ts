@@ -13,7 +13,9 @@ import type {
   TestSummary,
   TodayPlanTask,
 } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
@@ -46,21 +48,17 @@ function daysBetween(fromDateStr: string, toDateStr: string): number {
 async function getGreeting(userId: string, today: string, streak: StreakState): Promise<DashboardGreeting> {
   const { data: profile, error: profileError } = await supabase()
     .from("users_profile")
-    .select("display_name")
+    .select("display_name, target_exam")
     .eq("id", userId)
     .maybeSingle();
   if (profileError) throw new HttpError(500, `profile lookup failed: ${profileError.message}`);
 
-  const { data: exam, error: examError } = await supabase()
-    .from("exam_calendar")
-    .select("exam_stage, title_i18n, exam_date, is_tentative")
-    .eq("exam_stage", "prelims")
-    .gte("exam_date", today)
-    .order("exam_date", { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  // Exam-scoped since 0106: without the pick, a UPPSC aspirant counts down to
+  // whichever exam happens to have the nearest date.
+  const { data: examRows, error: examError } = await upcomingExamsQuery(today);
   if (examError) throw new HttpError(500, `exam calendar lookup failed: ${examError.message}`);
-  const examRow = exam as {
+  const exam = pickNextExam(examRows, (profile?.target_exam as string) || DEFAULT_EXAM_CODE);
+  const examRow = exam as unknown as {
     exam_stage: ExamStage;
     title_i18n: BilingualText;
     exam_date: string;

@@ -27,7 +27,7 @@ export const examStageSchema = z.enum(["prelims", "mains"]);
 export type ExamStage = z.infer<typeof examStageSchema>;
 
 /** Which exam a question came from. Orthogonal to paper_code (the UPPSC syllabus anchor). */
-export const examCodeSchema = z.enum(["uppsc", "upsc", "up_ro_aro", "upsssc_pet", "other"]);
+export const examCodeSchema = z.enum(["uppsc", "upsc", "mppsc", "up_ro_aro", "upsssc_pet", "other"]);
 export type ExamCode = z.infer<typeof examCodeSchema>;
 
 /** Provenance tier of the source a question was extracted from — the ingest audit trail. */
