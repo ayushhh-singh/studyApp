@@ -496,6 +496,17 @@ export interface ExamNotesConfig {
   auditorFraming: Authored<string>;
   /** Call site: `chapter-prompts.ts` `FACT_ESCALATE_SYSTEM` — `` `…verifying ${factEscalateFraming}. Use the web_search tool…` ``. */
   factEscalateFraming: Authored<string>;
+  /**
+   * Call site: `notes/chapter-generate.ts`'s fact-escalation USER turn —
+   * `` `${factEscalateUserFraming}\n"${claim}"` ``. Stored WITH its trailing
+   * colon; the newline and the quoted claim are structural.
+   *
+   * A DIFFERENT grammatical form from `factEscalateFraming`, which is the noun
+   * phrase the SYSTEM prompt embeds ("…verifying ONE decisive fact from a UPPSC
+   * study chapter"). This one is a complete imperative sentence. Neither is
+   * derivable from the other, so both exist.
+   */
+  factEscalateUserFraming: Authored<string>;
   /** Call site: `notes/prompts.ts` `CRITIC_SYSTEM` — `` `You are ${criticFraming}. You are given a syllabus topic…` ``. */
   criticFraming: Authored<string>;
   /** Call site: `chapter-prompts.ts` `OUTLINE_SYSTEM` — `` `…plan sections that map to ${outlineCompletenessLens} and what a topper must know` ``. */
@@ -512,10 +523,54 @@ export interface ExamNotesConfig {
    * See docs/multi-exam.md §5.)
    */
   stateAngleDirective: Authored<string>;
+  /**
+   * The human-readable LABEL the same block is rendered under when a finished
+   * note is shown to the critic.
+   * Call site: `notes/prompts.ts` `renderNoteForCritic` —
+   * `` `${stateAngleLabel}: ${b.up_angle}\n\nPYQ ANALYSIS: …` ``. Stored without
+   * the colon, which is structural (it matches the sibling "OVERVIEW:",
+   * "KEY FACTS:", "PYQ ANALYSIS:" labels).
+   *
+   * ⚠ SAME WARNING AS `stateAngleDirective`: `up_angle` is a PERSISTED key of
+   * `NoteContentI18n`, `NOTE_GEN_SCHEMA` and every stored `notes.content_i18n`
+   * row. This field is the rendering label only — never rename the key.
+   */
+  stateAngleLabel: Authored<string>;
+  /**
+   * Call site: `notes/prompts.ts` `AUTHOR_SYSTEM`, the `overview` block spec —
+   * `` `- overview: 2-4 short paragraphs ${authorRelevanceFraming}.\n` ``.
+   * Stored without the trailing period, matching `stateAngleDirective`'s shape.
+   *
+   * Inside the cached segment `[0]`, which PARTITIONS the prompt cache per exam
+   * — fine. See `notes/prompts.ts`'s cache-boundary note.
+   */
+  authorRelevanceFraming: Authored<string>;
+  /**
+   * Call site: `notes/prompts.ts` `AUTHOR_SYSTEM`, the `pyq_analysis` block spec —
+   * `` `- pyq_analysis: 1-2 short paragraphs on ${pyqAnalysisFraming} (use the PYQ + weightage data provided) and what to focus on.\n` ``.
+   * Same cached segment `[0]` as `authorRelevanceFraming`.
+   */
+  pyqAnalysisFraming: Authored<string>;
   /** Call site: `notes/prompts.ts` `RESEARCH_SYSTEM` — the "especially …-specific schemes, latest data/figures, …" clause. */
   researchStateFocus: Authored<string>;
   /** Call site: `chapter-prompts.ts` `CHAPTER_RESEARCH_SYSTEM` — the same clause PLUS "budget numbers"; separate field. */
   chapterResearchStateFocus: Authored<string>;
+  /**
+   * Call site: `notes/prompts.ts` `buildResearchContent` — the OPENING line, up
+   * to the interpolated stage: `` `${researchTopicFraming} ${node.stage} topic:` ``.
+   * Stored WITHOUT the stage (structural, `"prelims" | "mains"`) and without the
+   * `" topic:"` tail, so the exam qualifier is the only configurable part.
+   */
+  researchTopicFraming: Authored<string>;
+  /**
+   * Call site: `chapter-prompts.ts` `buildChapterResearchContent` — the same
+   * opening line with a different tail
+   * (`` `${x} ${node.stage} topic and its sub-topics:` ``). Byte-identical to
+   * `researchTopicFraming` for uppsc (both reference one const), but a separate
+   * field: separate call site, separate field, exactly as
+   * `researchPriorityDirective` / `chapterResearchPriorityDirective` are.
+   */
+  chapterResearchTopicFraming: Authored<string>;
   /** Call site: `notes/prompts.ts` `buildResearchContent` — the closing "Prioritise …" sentence, verbatim. */
   researchPriorityDirective: Authored<string>;
   /** Call site: `chapter-prompts.ts` `buildChapterResearchContent` — the same sentence PLUS "budget data"; separate field. */
@@ -546,6 +601,18 @@ export interface ExamMiscConfig {
   personalNotesAudience: Authored<string>;
   /** Call site: `services/user-notes.ts` translate — the `translateBatch` `domainHint` argument, verbatim (it carries a long parenthetical). */
   personalNotesTranslateDomainHint: Authored<string>;
+  /**
+   * Call site: `notes/chapter-generate.ts` step 6 — the `translateBatch`
+   * `domainHint` for the English→Hindi chapter pass, verbatim (it carries a long
+   * parenthetical naming concrete terms).
+   *
+   * Distinct from `personalNotesTranslateDomainHint`: that one is
+   * direction-agnostic ("the target language", a user's own note in either
+   * locale), this one is hard-wired to Hindi output and names study-material
+   * examples. Lives in `misc` beside the other translate hints rather than in
+   * `notes`, matching where every other `domainHint` is configured.
+   */
+  chapterTranslateDomainHint: Authored<string>;
   /**
    * Call site: `lib/anthropic.ts` `translate()` — the DEFAULT value of the
    * `domainHint` parameter.
@@ -611,6 +678,16 @@ const UPPSC_GROUNDING_STORE = "official UPPSC syllabus/PYQ store";
 
 /** The ungrounded-fallback knowledge source, shared by evaluation and qgen. */
 const UPPSC_SYLLABUS_LABEL = "the UPPSC syllabus";
+
+/**
+ * The opening clause of BOTH note-research user turns
+ * (`notes/prompts.ts`'s `buildResearchContent` and `chapter-prompts.ts`'s
+ * `buildChapterResearchContent`), up to the interpolated stage. The two
+ * sentences diverge only in their structural tail (`" topic:"` vs
+ * `" topic and its sub-topics:"`), so the exam-bearing prefix is one string —
+ * same reasoning as `UPPSC_GROUNDING_STORE`.
+ */
+const UPPSC_RESEARCH_TOPIC_FRAMING = "Research current, exam-relevant facts for this UPPSC";
 
 /**
  * The full SCORING CALIBRATION block from `buildAnalysisSystem`, verbatim,
@@ -781,10 +858,17 @@ const UPPSC: ExamConfig = {
     chapterResearcherFraming: "a UPPSC subject researcher",
     auditorFraming: "a strict UPPSC fact-checker auditing a study chapter",
     factEscalateFraming: "ONE decisive fact from a UPPSC study chapter",
+    factEscalateUserFraming: "Verify this decisive fact from a UPPSC study chapter:",
     criticFraming: "a strict UPPSC content reviewer",
     outlineCompletenessLens: "what UPPSC has actually asked (use the weightage + PYQ patterns)",
     stateAngleDirective:
       "how this topic connects specifically to Uttar Pradesh (state schemes, UP data, local relevance)",
+    // The rendering label for the SAME persisted `up_angle` block — never the key.
+    stateAngleLabel: "UP ANGLE",
+    authorRelevanceFraming: "orienting the aspirant to the topic and why it matters for UPPSC",
+    pyqAnalysisFraming: "how UPPSC has asked this topic",
+    researchTopicFraming: UPPSC_RESEARCH_TOPIC_FRAMING,
+    chapterResearchTopicFraming: UPPSC_RESEARCH_TOPIC_FRAMING,
     researchStateFocus:
       "especially Uttar-Pradesh-specific schemes, latest data/figures, recent " +
       "government initiatives, and anything that has changed recently",
@@ -810,6 +894,8 @@ const UPPSC: ExamConfig = {
     personalNotesAudience: "a UPPSC aspirant",
     personalNotesTranslateDomainHint:
       "UPPSC study note (write natural, fully-idiomatic text in the target language — no leftover source-language words for ordinary terms; keep only genuine loanwords/acronyms readers actually use as-is)",
+    chapterTranslateDomainHint:
+      "UPPSC study material (write natural, fully-Hindi text — no leftover English words for ordinary terms like 'Preamble' or 'flowchart'; keep only genuine loanwords/acronyms Hindi speakers actually use as-is)",
     translateDomainHint: "UPPSC exam-prep content",
     translatePlatformFraming: "a UP PCS exam platform",
     translateQuestionsDomainHint: "UPPSC exam questions",
@@ -932,9 +1018,15 @@ const UPSC: ExamConfig = {
     chapterResearcherFraming: UNAUTHORED,
     auditorFraming: UNAUTHORED,
     factEscalateFraming: UNAUTHORED,
+    factEscalateUserFraming: UNAUTHORED,
     criticFraming: UNAUTHORED,
     outlineCompletenessLens: UNAUTHORED,
     stateAngleDirective: UNAUTHORED,
+    stateAngleLabel: UNAUTHORED,
+    authorRelevanceFraming: UNAUTHORED,
+    pyqAnalysisFraming: UNAUTHORED,
+    researchTopicFraming: UNAUTHORED,
+    chapterResearchTopicFraming: UNAUTHORED,
     researchStateFocus: UNAUTHORED,
     chapterResearchStateFocus: UNAUTHORED,
     researchPriorityDirective: UNAUTHORED,
@@ -953,6 +1045,7 @@ const UPSC: ExamConfig = {
     studyPlanAspirantFallback: UNAUTHORED,
     personalNotesAudience: UNAUTHORED,
     personalNotesTranslateDomainHint: UNAUTHORED,
+    chapterTranslateDomainHint: UNAUTHORED,
     translateDomainHint: UNAUTHORED,
     translatePlatformFraming: UNAUTHORED,
     translateQuestionsDomainHint: UNAUTHORED,
@@ -1075,9 +1168,15 @@ const MPPSC: ExamConfig = {
     chapterResearcherFraming: UNAUTHORED,
     auditorFraming: UNAUTHORED,
     factEscalateFraming: UNAUTHORED,
+    factEscalateUserFraming: UNAUTHORED,
     criticFraming: UNAUTHORED,
     outlineCompletenessLens: UNAUTHORED,
     stateAngleDirective: UNAUTHORED,
+    stateAngleLabel: UNAUTHORED,
+    authorRelevanceFraming: UNAUTHORED,
+    pyqAnalysisFraming: UNAUTHORED,
+    researchTopicFraming: UNAUTHORED,
+    chapterResearchTopicFraming: UNAUTHORED,
     researchStateFocus: UNAUTHORED,
     chapterResearchStateFocus: UNAUTHORED,
     researchPriorityDirective: UNAUTHORED,
@@ -1096,6 +1195,7 @@ const MPPSC: ExamConfig = {
     studyPlanAspirantFallback: UNAUTHORED,
     personalNotesAudience: UNAUTHORED,
     personalNotesTranslateDomainHint: UNAUTHORED,
+    chapterTranslateDomainHint: UNAUTHORED,
     translateDomainHint: UNAUTHORED,
     translatePlatformFraming: UNAUTHORED,
     translateQuestionsDomainHint: UNAUTHORED,

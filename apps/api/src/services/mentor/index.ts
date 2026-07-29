@@ -685,7 +685,7 @@ async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: Mento
 
   const [relatedPyqs, quickCheck, continueWith] = await Promise.all([
     lessonNodeId ? loadRelatedPyqs(lessonNodeId) : Promise.resolve([]),
-    generateQuickCheck({ topic: question, facts: [...contextFacts, proseText] }),
+    generateQuickCheck({ topic: question, facts: [...contextFacts, proseText], examCode: plan.examCode }),
     lessonNodeId ? loadAdjacentNodes(lessonNodeId) : Promise.resolve([]),
   ]);
   if (signal?.aborted) return;

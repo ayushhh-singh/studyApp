@@ -18,6 +18,7 @@
  */
 import type { LlmUsage } from "../lib/anthropic.js";
 import { structuredJson, webResearch, translateBatch, MODELS } from "../lib/anthropic.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { supabase } from "../lib/supabase.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
 import { loadNodeWeightage, lastAskedYear } from "../lib/weightage.js";
@@ -283,12 +284,14 @@ export async function generateChapterForNode(
         try {
           const esc = await webResearch({
             system: FACT_ESCALATE_SYSTEM(examCode),
-            // NOT PARAMETERISED — this user turn's "a UPPSC study chapter" is a
-            // bare exam mention with no field in ExamNotesConfig
-            // (notes.factEscalateFraming covers the SYSTEM prompt's phrasing
-            // only, and is not grammatically reusable here). Reported as a
-            // config decomposition gap rather than forked locally.
-            content: `Verify this decisive fact from a UPPSC study chapter:\n"${f.claim}"`,
+            // A complete imperative sentence, so it is its OWN field rather than
+            // a reuse of notes.factEscalateFraming (the SYSTEM prompt's noun
+            // phrase) — the two are not grammatically interchangeable.
+            content: `${requireAuthored(
+              getExamConfig(examCode).notes.factEscalateUserFraming,
+              examCode,
+              "notes.factEscalateUserFraming",
+            )}\n"${f.claim}"`,
             maxUses: 4,
             maxTokens: 2500,
             purpose: "notes_chapter_audit_escalate",
@@ -347,13 +350,14 @@ export async function generateChapterForNode(
       if (s.raw.diagram.caption.trim()) jobs.push({ key: `${si}:diagram:caption`, text: s.raw.diagram.caption });
     }
   });
-  // NOT PARAMETERISED — this translate domainHint names the exam, but
-  // ExamMiscConfig has hints for evaluations, questions, explanations and
-  // personal notes, none for chapter study material. Reported as a gap.
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     "hi",
-    "UPPSC study material (write natural, fully-Hindi text — no leftover English words for ordinary terms like 'Preamble' or 'flowchart'; keep only genuine loanwords/acronyms Hindi speakers actually use as-is)",
+    requireAuthored(
+      getExamConfig(examCode).misc.chapterTranslateDomainHint,
+      examCode,
+      "misc.chapterTranslateDomainHint",
+    ),
     { purpose: "notes_chapter_translate", onUsage },
   );
   capCheck();

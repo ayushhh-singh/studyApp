@@ -124,10 +124,9 @@ const RESEARCH_SYSTEM = memoisePerExam((examCode) => {
 export function buildResearchContent(node: NoteNodeContext, examCode: string): string {
   const desc = node.description_i18n?.en?.trim();
   return (
-    // NOT PARAMETERISED — "this UPPSC <stage> topic" is a bare exam mention with
-    // no field in ExamNotesConfig (see this slice's report: the config decomposes
-    // the closing directive but not this opening line).
-    `Research current, exam-relevant facts for this UPPSC ${node.stage} topic:\n` +
+    // The stage ("prelims"/"mains") and the " topic:" tail are structural; only
+    // the exam-bearing prefix is configured.
+    `${requireAuthored(notesConfig(examCode).researchTopicFraming, examCode, "notes.researchTopicFraming")} ${node.stage} topic:\n` +
     `Topic: ${node.title_i18n.en}${desc ? ` — ${desc}` : ""}\n` +
     `Paper: ${node.paperCode}\n\n` +
     `${requireAuthored(notesConfig(examCode).researchPriorityDirective, examCode, "notes.researchPriorityDirective")} Cite sources inline as [S1], [S2], …`
@@ -146,13 +145,13 @@ const AUTHOR_SYSTEM = memoisePerExam((examCode) => {
   `You are ${requireAuthored(cfg.facultyFraming, examCode, "notes.facultyFraming")} writing STUDY NOTES for a topic, in BOTH Hindi (Devanagari) and English. ` +
   "The notes must be entirely in YOUR OWN WORDS — never reproduce sentences from any book, coaching material, or the " +
   "provided sources. Structure each language identically into these blocks:\n" +
-  "- overview: 2-4 short paragraphs orienting the aspirant to the topic and why it matters for UPPSC.\n" +
+  `- overview: 2-4 short paragraphs ${requireAuthored(cfg.authorRelevanceFraming, examCode, "notes.authorRelevanceFraming")}.\n` +
   "- key_facts: 8-14 crisp, exam-ready facts (dates, articles, figures, schemes). For any fact taken from the web " +
   "research, set its source_ref to the matching source id (e.g. \"S2\"); for well-established textbook knowledge, set " +
   "source_ref to \"\". NEVER invent a statistic, date, article number, or scheme detail.\n" +
   // ⚠ `up_angle` is the PERSISTED key — only the description is configurable.
   `- up_angle: ${requireAuthored(cfg.stateAngleDirective, examCode, "notes.stateAngleDirective")}.\n` +
-  "- pyq_analysis: 1-2 short paragraphs on how UPPSC has asked this topic (use the PYQ + weightage data provided) and " +
+  `- pyq_analysis: 1-2 short paragraphs on ${requireAuthored(cfg.pyqAnalysisFraming, examCode, "notes.pyqAnalysisFraming")} (use the PYQ + weightage data provided) and ` +
   "what to focus on.\n" +
   "- mnemonics: 2-5 memory aids or one-line hooks (empty array if none are genuinely useful — do not force them).\n" +
   "- quick_revision: 6-10 ultra-short bullet points for last-minute revision.\n" +
@@ -371,13 +370,19 @@ export const NOTE_CRITIC_SCHEMA: Record<string, unknown> = {
   required: ["factual_red_flags", "syllabus_drift", "notes", "approve"],
 };
 
-function renderNoteForCritic(node: NoteNodeContext, content: NoteContentI18n): string {
+function renderNoteForCritic(node: NoteNodeContext, content: NoteContentI18n, examCode: string): string {
   const b = content.en;
+  // ⚠ `b.up_angle` is the PERSISTED key; only the visible label is configured.
+  const angleLabel = requireAuthored(
+    notesConfig(examCode).stateAngleLabel,
+    examCode,
+    "notes.stateAngleLabel",
+  );
   return (
     `TOPIC: ${node.title_i18n.en} (${node.paperCode})\n\n` +
     `OVERVIEW: ${b.overview}\n\n` +
     `KEY FACTS:\n${b.key_facts.map((f) => `- ${f.fact}`).join("\n")}\n\n` +
-    `UP ANGLE: ${b.up_angle}\n\nPYQ ANALYSIS: ${b.pyq_analysis}`
+    `${angleLabel}: ${b.up_angle}\n\nPYQ ANALYSIS: ${b.pyq_analysis}`
   );
 }
 
@@ -394,7 +399,7 @@ export function buildNoteCriticParams(opts: {
     // ONE cache:true segment — was a module const with a single global entry,
     // now one entry PER EXAM. A partition, not a per-request prefix.
     system: [{ text: CRITIC_SYSTEM(opts.examCode), cache: true }],
-    content: `${renderNoteForCritic(opts.node, opts.content)}\n\nReturn your JSON verdict.`,
+    content: `${renderNoteForCritic(opts.node, opts.content, opts.examCode)}\n\nReturn your JSON verdict.`,
     schema: NOTE_CRITIC_SCHEMA,
   };
 }

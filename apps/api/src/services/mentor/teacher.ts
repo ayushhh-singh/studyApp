@@ -4,7 +4,6 @@
  * adjacent syllabus nodes). All are best-effort — a failure here degrades the
  * lesson gracefully (the prose still streams) rather than failing the turn.
  */
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import type {
   Locale,
   MentorContinueNode,
@@ -89,15 +88,14 @@ export async function generateQuickCheck(opts: {
   /**
    * Which exam's prelims style the quick-check questions are written in.
    *
-   * ⚠ OPTIONAL ONLY FOR BACKWARD COMPATIBILITY, and it should not stay that
-   * way: `generateMcqs` now REQUIRES an exam, but this function's only caller
-   * (`services/mentor/index.ts`, owned by the mentor slice) does not yet pass
-   * one — it already holds the real value as `plan.examCode`, which it uses for
-   * every other teacher-mode prompt. Make this required and thread
-   * `plan.examCode` through when that slice lands; until then a mentor
-   * quick-check silently uses the default exam's framing.
+   * REQUIRED, deliberately — never give this a default. A defaulted trailing
+   * parameter lets a caller silently keep the old behaviour (this repo's M24
+   * lesson), which here would mean a second exam's user getting a quick-check
+   * written in the default exam's framing, with nothing at the call site to
+   * grep for. The one caller (`services/mentor/index.ts`) already holds the
+   * real value as `plan.examCode`.
    */
-  examCode?: string;
+  examCode: string;
   onUsage?: (u: LlmUsage) => void;
 }): Promise<MentorQuizQuestion[]> {
   const facts = opts.facts.map((f) => f.replace(/\s+/g, " ").trim()).filter(Boolean).slice(0, 8);
@@ -106,7 +104,7 @@ export async function generateQuickCheck(opts: {
     const mcqs = await generateMcqs({
       title: opts.topic,
       facts,
-      examCode: opts.examCode ?? DEFAULT_EXAM_CODE,
+      examCode: opts.examCode,
       onUsage: opts.onUsage,
     });
     return mcqs.slice(0, 2).map((m) => ({

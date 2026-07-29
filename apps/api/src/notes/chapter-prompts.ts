@@ -206,10 +206,9 @@ export const CHAPTER_RESEARCH_SYSTEM = memoisePerExam((examCode) => {
 
 export function buildChapterResearchContent(node: ChapterNodeContext, examCode: string): string {
   return (
-    // NOT PARAMETERISED — "this UPPSC <stage> topic" is a bare exam mention with
-    // no field in ExamNotesConfig (see this slice's report: the config decomposes
-    // the closing directive but not this opening line).
-    `Research current, exam-relevant facts for this UPPSC ${node.stage} topic and its sub-topics:\n` +
+    // The stage and the " topic and its sub-topics:" tail are structural; only
+    // the exam-bearing prefix is configured.
+    `${requireAuthored(notesConfig(examCode).chapterResearchTopicFraming, examCode, "notes.chapterResearchTopicFraming")} ${node.stage} topic and its sub-topics:\n` +
     `Topic: ${node.title_en}${node.description_en ? ` — ${node.description_en}` : ""}\n` +
     `Paper: ${node.paperCode}\nSub-topics: ${node.childTitles.join("; ") || "—"}\n\n` +
     `${requireAuthored(notesConfig(examCode).chapterResearchPriorityDirective, examCode, "notes.chapterResearchPriorityDirective")} Cite inline as [S1], [S2], …`

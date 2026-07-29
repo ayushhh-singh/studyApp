@@ -14,7 +14,6 @@
  * docs/qgen.md; bump QGEN_PROMPT_VERSION on any prompt change so
  * generation_meta records which version produced a row.
  */
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { MODELS, type StructuredParams } from "../lib/anthropic.js";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import type { CriticVerdict, Difficulty, VerifyResult } from "@neev/shared";
@@ -91,14 +90,13 @@ function nodeLine(node: NodeContext): string {
 }
 
 /**
- * @param examCode which exam's few-shot framing to use.
- *   ⚠ OPTIONAL ONLY FOR BACKWARD COMPATIBILITY: `ca/prompts.ts`'s `generateMcqs`
- *   calls `fewShotBlock(opts.examples ?? [])` and is owned by a later slice, so a
- *   required parameter would break the build there. Every qgen call site passes
- *   the node's real exam. Make this required when the CA slice threads an exam
- *   through `generateMcqs` (multi-exam slice 2c).
+ * @param examCode which exam's few-shot framing to use. REQUIRED — never give
+ *   this a default: a defaulted trailing parameter lets a caller silently keep
+ *   the old behaviour (this repo's M24 lesson). Both call sites pass a real
+ *   exam: `buildSharedBlocks` passes `node.examCode`, and `ca/prompts.ts`'s
+ *   `generateMcqs` passes its own `examCode` (multi-exam slice 2c).
  */
-export function fewShotBlock(examples: FewShotQuestion[], examCode: string = DEFAULT_EXAM_CODE): string {
+export function fewShotBlock(examples: FewShotQuestion[], examCode: string): string {
   const cfg = qgenConfig(examCode);
   if (examples.length === 0) {
     return requireAuthored(cfg.fewShotFallback, examCode, "qgen.fewShotFallback");
@@ -472,14 +470,16 @@ export function buildVerifyParams(opts: {
   options: { key: string; text_i18n: BilingualPair }[];
   grounding: GroundingResult;
   /**
-   * ⚠ OPTIONAL ONLY FOR BACKWARD COMPATIBILITY: `ca/verify-mcqs.ts` (owned by a
-   * later slice) calls this without an exam. qgen's own call sites pass the
-   * node's real exam. Make it required when the CA slice threads one through
-   * (multi-exam slice 2c).
+   * REQUIRED — never give this a default (this repo's M24 lesson: a defaulted
+   * trailing parameter lets a caller silently keep the old behaviour). All
+   * three call sites pass a real exam: qgen's two sync/batch verify stages pass
+   * `ctx.node.examCode`, and `ca/verify-mcqs.ts` resolves the question's node
+   * exam (falling back to the default explicitly, at the call site, where it is
+   * greppable).
    */
-  examCode?: string;
+  examCode: string;
 }): StructuredParams {
-  const examCode = opts.examCode ?? DEFAULT_EXAM_CODE;
+  const examCode = opts.examCode;
   const opts_ = opts.options.map((o) => `${o.key}) ${o.text_i18n.en}`).join("\n");
   return {
     model: MODELS.haiku,
