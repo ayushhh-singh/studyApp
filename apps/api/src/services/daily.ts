@@ -10,7 +10,7 @@ import { HttpError } from "../lib/http-error.js";
 import { istToday } from "../lib/ist.js";
 import { getBestScoresByTest } from "./tests.js";
 import { buildDailyQuizVariant } from "../daily/quiz.js";
-import { DAILY_QUIZ_VARIANTS, type DailyQuizVariant } from "../daily/config.js";
+import { variantsForExam, type DailyQuizVariant } from "../daily/config.js";
 
 export const DAILY_ARCHIVE_PAGE_SIZE = 20;
 
@@ -44,6 +44,7 @@ function mapRow(row: DailyQuizRow, best: Map<string, { best: number; count: numb
 }
 
 export async function listDailyQuizzes(
+  examCode: string,
   page: number,
 ): Promise<{ items: DailyQuizArchiveItem[]; total: number }> {
   const from = (page - 1) * DAILY_ARCHIVE_PAGE_SIZE;
@@ -55,6 +56,7 @@ export async function listDailyQuizzes(
       { count: "exact" },
     )
     .eq("kind", "daily_quiz")
+    .eq("exam_code", examCode)
     .eq("is_published", true)
     .not("scheduled_date", "is", null)
     .order("scheduled_date", { ascending: false })
@@ -96,12 +98,24 @@ function toSummary(row: DailyQuizSummaryRow, best: { best: number; count: number
   };
 }
 
-/** Find one variant's daily-quiz test row for a date (paper-scoped), or null. */
+/**
+ * Find one variant's daily-quiz test row for a date (exam- + paper-scoped), or
+ * null.
+ *
+ * The `exam_code` filter is what keeps `.maybeSingle()` safe. Paper codes are
+ * globally unique across exams today (the §0 invariant), so two rows cannot
+ * match — but this query would degrade WORSE than "returns the wrong row" if
+ * that ever changed: PostgREST raises PGRST116 on multiple matches, which
+ * surfaces as a 500 on the dashboard and Practice tab for everyone. Naming the
+ * exam makes the single-row expectation true by construction rather than by
+ * an invariant enforced two tables away.
+ */
 async function findDailyQuizRow(variant: DailyQuizVariant, date: string): Promise<DailyQuizSummaryRow | null> {
   const { data, error } = await supabase()
     .from("tests")
     .select(DAILY_QUIZ_SUMMARY_COLUMNS)
     .eq("kind", "daily_quiz")
+    .eq("exam_code", variant.examCode)
     .eq("is_published", true)
     .eq("scheduled_date", date)
     .eq("paper_code", variant.paperCode)
@@ -117,10 +131,15 @@ async function findDailyQuizRow(variant: DailyQuizVariant, date: string): Promis
  * doesn't take a userId. Returns a summary per variant, or null for a variant
  * with genuinely no questions to build from.
  */
-export async function ensureTodayQuizzes(): Promise<DailyQuizzesToday> {
+export async function ensureTodayQuizzes(examCode: string): Promise<DailyQuizzesToday> {
   const today = istToday();
   const out: DailyQuizzesToday = { gs: null, csat: null };
-  for (const variant of DAILY_QUIZ_VARIANTS) {
+  // An exam with no configured variants yields {gs: null, csat: null} — the
+  // same shape as "today's quiz couldn't be built", which the client already
+  // renders as an empty state. Deliberately NOT falling back to the default
+  // exam's variants: that would serve another exam's quiz and record the
+  // attempt on its board.
+  for (const variant of variantsForExam(examCode)) {
     let row = await findDailyQuizRow(variant, today);
     if (!row) {
       const built = await buildDailyQuizVariant(variant, { date: today });

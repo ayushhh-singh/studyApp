@@ -11,6 +11,7 @@ import { supabase } from "../lib/supabase.js";
 import { roundMarks } from "../lib/marks.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
@@ -242,28 +243,41 @@ function shuffled<T>(items: T[]): T[] {
 interface CustomTestNode {
   id: string;
   paper_code: string;
+  exam_code: string;
   title_i18n: unknown;
 }
 
 /**
  * Looks up every requested topic, in the caller's selection order, and
- * enforces two invariants the single-node_id version got for free: every id
+ * enforces three invariants the single-node_id version got for free: every id
  * must resolve to a real node (a stale/typo'd id used to just be silently
  * dropped, building a test scoped to fewer topics than the user actually
- * asked for with no error), and every selected topic must belong to the same
+ * asked for with no error), every selected topic must belong to the same
  * paper (the resulting test is stamped with one paper_code from the first
- * node — mixing papers would silently mislabel a test's questions).
+ * node — mixing papers would silently mislabel a test's questions), and every
+ * topic must belong to the CALLER'S OWN EXAM.
+ *
+ * The exam check is not redundant with the paper check. `node_ids` is untrusted
+ * request body — a guessed or copy-pasted id from another exam's tree resolves
+ * fine and shares its own paper code with its siblings, so the paper assertion
+ * passes and the caller gets a test built entirely from another exam's
+ * question bank. The check is one extra column on a lookup that already runs.
  */
-async function resolveOrderedNodes(nodeIds: string[]): Promise<CustomTestNode[]> {
+async function resolveOrderedNodes(nodeIds: string[], examCode: string): Promise<CustomTestNode[]> {
   const { data: nodes, error: nodesError } = await supabase()
     .from("syllabus_nodes")
-    .select("id, paper_code, title_i18n")
+    .select("id, paper_code, exam_code, title_i18n")
     .in("id", nodeIds);
   if (nodesError) throw new HttpError(500, `syllabus node lookup failed: ${nodesError.message}`);
   const nodeById = new Map((nodes ?? []).map((n) => [n.id as string, n as CustomTestNode]));
   const missing = nodeIds.filter((id) => !nodeById.has(id));
   if (missing.length > 0) throw notFound(`Syllabus node not found: ${missing.join(", ")}`);
   const orderedNodes = nodeIds.map((id) => nodeById.get(id)!);
+  // Reported as "not found" rather than "wrong exam": another exam's node is
+  // genuinely not part of this user's syllabus, and a distinct error would
+  // confirm the id exists to a caller probing with guessed ids.
+  const foreign = orderedNodes.filter((n) => n.exam_code !== examCode);
+  if (foreign.length > 0) throw notFound(`Syllabus node not found: ${foreign.map((n) => n.id).join(", ")}`);
   const paperCodes = new Set(orderedNodes.map((n) => n.paper_code));
   if (paperCodes.size > 1) {
     throw badRequest("All selected topics must belong to the same paper");
@@ -272,7 +286,8 @@ async function resolveOrderedNodes(nodeIds: string[]): Promise<CustomTestNode[]>
 }
 
 export async function createCustomTestFromNode(body: CreateCustomTestBody): Promise<TestDetail> {
-  const orderedNodes = await resolveOrderedNodes(body.node_ids);
+  const examCode = await getUserExam(currentUserId());
+  const orderedNodes = await resolveOrderedNodes(body.node_ids, examCode);
 
   // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
   // descriptive PYQs too (Mains topics), which the player can't run. "test" scope
@@ -318,6 +333,11 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     .insert({
       title_i18n: customTestTitle(orderedNodes.map((n) => n.title_i18n as BilingualText)),
       kind: "custom",
+      // Stamped from the nodes the set was built from — resolveOrderedNodes has
+      // already proved they all belong to this exam. Left on the column default
+      // a UPSC user's custom set would be tagged uppsc and show up in that
+      // exam's test lists.
+      exam_code: examCode,
       paper_code: orderedNodes[0].paper_code,
       total_marks: totalMarks || null,
       is_published: true,
@@ -356,7 +376,8 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
  * builds the tests/test_questions row; nothing here is MCQ-specific.
  */
 export async function createCustomAnswerTest(nodeIds: string[], count: number): Promise<TestDetail> {
-  const orderedNodes = await resolveOrderedNodes(nodeIds);
+  const examCode = await getUserExam(currentUserId());
+  const orderedNodes = await resolveOrderedNodes(nodeIds, examCode);
 
   const subtreeIdSets = await Promise.all(nodeIds.map((id) => resolveSubtreeNodeIds(id)));
   const subtreeIds = [...new Set(subtreeIdSets.flat())];
@@ -390,6 +411,11 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
     .insert({
       title_i18n: customTestTitle(orderedNodes.map((n) => n.title_i18n as BilingualText)),
       kind: "custom",
+      // Stamped from the nodes the set was built from — resolveOrderedNodes has
+      // already proved they all belong to this exam. Left on the column default
+      // a UPSC user's custom set would be tagged uppsc and show up in that
+      // exam's test lists.
+      exam_code: examCode,
       paper_code: orderedNodes[0].paper_code,
       total_marks: totalMarks || null,
       is_published: true,

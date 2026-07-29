@@ -30,6 +30,7 @@
  * Legacy pre-split quizzes (slug `daily:YYYY-MM-DD`, paper_code NULL) still
  * render exactly as before — nothing rewrites them.
  */
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
@@ -155,12 +156,16 @@ export function rankWeakNodes(entries: { id: string; weakness: number; hot: numb
  * while paper codes are globally unique across exams. A second exam building daily
  * quizzes needs an exam_code filter here, or the two exams' recency windows blend.
  */
-async function recentlyUsedInDailyQuiz(days: number, paperCode: string): Promise<Set<string>> {
+async function recentlyUsedInDailyQuiz(days: number, examCode: string, paperCode: string): Promise<Set<string>> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data: tests, error: tErr } = await supabase()
     .from("tests")
     .select("id")
-    .eq("kind", "daily_quiz")
+    // Exam-scoped as well as paper-scoped: without it two exams' recency
+    // windows blend, so one exam's quiz suppresses questions the other exam's
+    // candidates have never seen — the anti-repetition rule silently thinning
+    // the pool for a cohort it was never measuring.
+    .eq("exam_code", examCode)
     .eq("paper_code", paperCode)
     .gte("scheduled_date", cutoff);
   if (tErr) throw new Error(`recent daily quizzes lookup failed: ${tErr.message}`);
@@ -280,6 +285,7 @@ async function randomPool(paperCode: string): Promise<PoolItem[]> {
 async function upsertDailyQuizTest(input: {
   slug: string;
   date: string;
+  examCode: string;
   paperCode: string;
   title: { hi: string; en: string };
   durationMinutes: number;
@@ -293,6 +299,10 @@ async function upsertDailyQuizTest(input: {
         slug: input.slug,
         title_i18n: input.title,
         kind: "daily_quiz",
+        // Stamped explicitly. Relying on the column default would silently tag
+        // every second exam's quiz `uppsc` — and because the default is a
+        // perfectly valid exam code, nothing would ever error.
+        exam_code: input.examCode,
         paper_code: input.paperCode,
         scheduled_date: input.date,
         duration_minutes: input.durationMinutes,
@@ -384,18 +394,18 @@ export async function buildDailyQuizVariant(
   const log = opts.log ?? (() => {});
   const size = clampSize(opts.size ?? cfg.defaultSize, cfg);
   const { date } = opts;
-  const { paperCode } = variant;
+  const { paperCode, examCode } = variant;
 
   const weak = await globalWeakNodeIds(cfg.weakAccuracyThreshold);
   // `recentlyUsedInDailyQuiz` returns every question (any slice) used in recent
   // daily quizzes OF THIS PAPER; the pyq and generated slices each skip that set
   // over their own window. Reuse the one query when the windows match (the
   // default) rather than hitting the DB twice for the same result.
-  const seen = await recentlyUsedInDailyQuiz(cfg.pyqRecencyDays, paperCode);
+  const seen = await recentlyUsedInDailyQuiz(cfg.pyqRecencyDays, examCode, paperCode);
   const genSeen =
     cfg.generatedRecencyDays === cfg.pyqRecencyDays
       ? seen
-      : await recentlyUsedInDailyQuiz(cfg.generatedRecencyDays, paperCode);
+      : await recentlyUsedInDailyQuiz(cfg.generatedRecencyDays, examCode, paperCode);
   const [gen, pyq, ca, rand] = await Promise.all([
     generatedPool(paperCode, weak, genSeen),
     pyqPool(paperCode, seen),
@@ -455,11 +465,18 @@ export async function buildDailyQuizVariant(
   const finalItems = shuffle([...chosen.values()]);
   const totalMarks = roundMarks(finalItems.reduce((s, it) => s + (it.marks ?? 0), 0));
   const d = formatDateBilingual(date);
-  const slug = `daily:${date}:${variant.key}`;
+  // `tests.slug` is globally unique and is this build's idempotency key, so it
+  // must carry the exam for anything but the default: two exams both building a
+  // "gs" quiz on the same date would otherwise upsert onto the SAME row, each
+  // overwriting the other's title, paper and membership. The default exam keeps
+  // its historical bare slug so no existing daily-quiz row is orphaned.
+  const slug =
+    examCode === DEFAULT_EXAM_CODE ? `daily:${date}:${variant.key}` : `daily:${date}:${examCode}:${variant.key}`;
 
   const testId = await upsertDailyQuizTest({
     slug,
     date,
+    examCode,
     paperCode,
     title: {
       en: `Daily Quiz (${variant.labelI18n.en}) — ${d.en}`,

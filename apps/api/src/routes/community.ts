@@ -149,7 +149,7 @@ communityRouter.get(
   "/community/shared-answers/:id",
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
-    const shared = await getSharedAnswer(id);
+    const shared = await getSharedAnswer(currentUserId(), id);
     res.json(sharedAnswerResponseSchema.parse({ data: shared, error: null }));
   }),
 );

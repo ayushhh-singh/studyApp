@@ -7,6 +7,8 @@ import {
   currentAffairsResponseSchema,
   currentAffairsWeeklySetsResponseSchema,
 } from "@neev/shared";
+import { getUserExam } from "../lib/exams.js";
+import { currentUserId } from "../lib/user-context.js";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
@@ -27,7 +29,7 @@ currentAffairsRouter.get(
   "/current-affairs",
   asyncHandler(async (req, res) => {
     const query = parse(currentAffairsQuerySchema, req.query);
-    const { items, total } = await listCurrentAffairs(query);
+    const { items, total } = await listCurrentAffairs(await getUserExam(currentUserId()), query);
     res.json(
       currentAffairsResponseSchema.parse({
         data: {
@@ -65,7 +67,7 @@ currentAffairsRouter.get(
 currentAffairsRouter.get(
   "/current-affairs/:id",
   asyncHandler(async (req, res) => {
-    const item = await getCurrentAffairsItemById(req.params.id);
+    const item = await getCurrentAffairsItemById(await getUserExam(currentUserId()), req.params.id);
     res.json(currentAffairsItemResponseSchema.parse({ data: item, error: null }));
   }),
 );

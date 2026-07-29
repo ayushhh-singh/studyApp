@@ -16,6 +16,7 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { screenPost, screenThread } from "../lib/community-moderation.js";
 import { assertNotGuest } from "./entitlements.js";
+import { getUserExam } from "../lib/exams.js";
 
 /**
  * Guests browse the community READ-ONLY (a deliberate design decision — an
@@ -25,6 +26,23 @@ import { assertNotGuest } from "./entitlements.js";
 const GUEST_COMMUNITY_MSG = "Create a free account to join the discussion — you'll also start your 7-day Pro trial.";
 import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+
+/**
+ * Community is separated PER EXAM (product decision, docs/OUTSTANDING.md §8d
+ * M17, confirmed 2026-07-29). A UPPSC candidate and a UPSC candidate are
+ * preparing different syllabi from different question banks; one shared feed
+ * would fill each of their hubs with threads about papers they will never sit.
+ *
+ * A NULL `exam_code` is retained as migration 0106 §12 defined it — "not
+ * exam-specific", visible to everyone — so a general prep-strategy or
+ * announcement thread stays possible. Nothing writes NULL today: every thread
+ * created through the API is stamped, and the 0110 backfill closed the
+ * pre-existing NULLs. This filter is what keeps that third state meaningful
+ * rather than accidentally unreachable.
+ */
+function examVisibilityFilter(examCode: string): string {
+  return `exam_code.eq.${examCode},exam_code.is.null`;
+}
 
 const THREAD_PAGE_SIZE = 20;
 const POST_PAGE_SIZE = 30;
@@ -77,34 +95,79 @@ async function fetchNodeLabels(threadRows: { anchor_type: DiscussionAnchorType; 
   );
 }
 
-async function assertAnchorExists(anchorType: DiscussionAnchorType, anchorId: string): Promise<void> {
+/**
+ * Assert the anchor exists AND belongs to the caller's exam, returning the exam
+ * the resulting thread should be filed under.
+ *
+ * `anchorId` is untrusted request body with no foreign key behind it (the
+ * anchor is polymorphic across four tables — see migration 0106 §12), so
+ * "it resolves to a real row" was never the same as "it is part of your
+ * syllabus". Without the exam check a caller could anchor a thread to another
+ * exam's syllabus node or PYQ, producing a thread that shows up in that node's
+ * Discussion tab for an audience who cannot see the node it is about.
+ *
+ * A cross-exam anchor is reported as NOT FOUND rather than forbidden: it is
+ * genuinely not part of this user's syllabus, and a distinct error would
+ * confirm the id exists to a caller probing with guessed ids.
+ *
+ * Returns null for an anchor with no single exam of its own — a
+ * current-affairs item deliberately maps into SEVERAL exams' trees (0106 §11),
+ * and an out-of-syllabus question has no node at all. The caller falls back to
+ * its own exam, which is the right answer in both cases.
+ */
+async function assertAnchorExists(
+  anchorType: DiscussionAnchorType,
+  anchorId: string,
+  viewerExam: string,
+): Promise<string | null> {
   if (anchorType === "question") {
+    // The question's exam comes from its SYLLABUS NODE, never questions.exam_code
+    // — that is provenance ("which exam asked this") and its domain includes
+    // exams nobody can select, e.g. a RO/ARO question mapped onto the UPPSC tree.
     const { data, error } = await supabase()
       .from("questions")
-      .select("id")
+      .select("id, syllabus_nodes(exam_code)")
       .eq("id", anchorId)
       .or(questionVisibilityOrFilter("catalog"))
       .maybeSingle();
     if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
     if (!data) throw notFound("Question not found");
-  } else if (anchorType === "node") {
-    const { data, error } = await supabase().from("syllabus_nodes").select("id").eq("id", anchorId).maybeSingle();
+    const nodeExam = (data as unknown as { syllabus_nodes: { exam_code: string } | null }).syllabus_nodes?.exam_code ?? null;
+    if (nodeExam && nodeExam !== viewerExam) throw notFound("Question not found");
+    return nodeExam;
+  }
+  if (anchorType === "node") {
+    const { data, error } = await supabase()
+      .from("syllabus_nodes")
+      .select("id, exam_code")
+      .eq("id", anchorId)
+      .maybeSingle();
     if (error) throw new HttpError(500, `syllabus node lookup failed: ${error.message}`);
     if (!data) throw notFound("Syllabus node not found");
-  } else if (anchorType === "ca_item") {
+    const nodeExam = (data as { exam_code: string }).exam_code;
+    if (nodeExam !== viewerExam) throw notFound("Syllabus node not found");
+    return nodeExam;
+  }
+  if (anchorType === "ca_item") {
     const { data, error } = await supabase()
       .from("current_affairs_items")
-      .select("id")
+      .select("id, exam_codes")
       .eq("id", anchorId)
       .eq("is_published", true)
       .maybeSingle();
     if (error) throw new HttpError(500, `current affairs item lookup failed: ${error.message}`);
     if (!data) throw notFound("Current affairs item not found");
-  } else {
-    const { data, error } = await supabase().from("shared_answers").select("id").eq("id", anchorId).maybeSingle();
-    if (error) throw new HttpError(500, `shared answer lookup failed: ${error.message}`);
-    if (!data) throw notFound("Shared answer not found");
+    // A CA item is legitimately relevant to several exams at once, so the test
+    // is membership, not equality — and the thread is filed under the reader's
+    // exam (null here), not the item's, since the discussion is per audience.
+    const examCodes = ((data as { exam_codes: string[] | null }).exam_codes ?? []) as string[];
+    if (examCodes.length > 0 && !examCodes.includes(viewerExam)) throw notFound("Current affairs item not found");
+    return null;
   }
+  const { data, error } = await supabase().from("shared_answers").select("id").eq("id", anchorId).maybeSingle();
+  if (error) throw new HttpError(500, `shared answer lookup failed: ${error.message}`);
+  if (!data) throw notFound("Shared answer not found");
+  return null;
 }
 
 interface ThreadRow {
@@ -153,11 +216,13 @@ export async function listThreadsForAnchor(
   const from = (page - 1) * THREAD_PAGE_SIZE;
   const to = from + THREAD_PAGE_SIZE - 1;
 
+  const examCode = await getUserExam(viewerId);
   const { data, count, error } = await supabase()
     .from("discussion_threads")
     .select(THREAD_COLUMNS, { count: "exact" })
     .eq("anchor_type", anchorType)
     .eq("anchor_id", anchorId)
+    .or(examVisibilityFilter(examCode))
     .or(`moderation_status.eq.visible,user_id.eq.${viewerId}`)
     .order("updated_at", { ascending: false })
     .range(from, to);
@@ -190,11 +255,22 @@ export async function createThread(
   if (anchorType === "shared_answer") {
     throw badRequest("Peer-review threads are created automatically when an answer is shared");
   }
-  await assertAnchorExists(anchorType, anchorId);
+  const userExam = await getUserExam(userId);
+  const anchorExam = await assertAnchorExists(anchorType, anchorId, userExam);
 
   const { data: thread, error } = await supabase()
     .from("discussion_threads")
-    .insert({ anchor_type: anchorType, anchor_id: anchorId, title, user_id: userId })
+    // The anchor's own exam when it has one (a syllabus node, a catalogued
+    // question), else the creator's. They agree by construction — assertAnchor
+    // Exists just rejected any anchor from another exam — so this is a
+    // preference for the more specific source, not a reconciliation.
+    .insert({
+      anchor_type: anchorType,
+      anchor_id: anchorId,
+      title,
+      user_id: userId,
+      exam_code: anchorExam ?? userExam,
+    })
     .select(THREAD_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `thread creation failed: ${error.message}`);
@@ -222,15 +298,18 @@ export async function getThreadDetail(
   threadId: string,
   page: number,
 ): Promise<DiscussionThreadDetail> {
-  const { data: threadRow, error } = await supabase()
-    .from("discussion_threads")
-    .select(THREAD_COLUMNS)
-    .eq("id", threadId)
-    .maybeSingle();
+  const [{ data: threadRow, error }, viewerExam] = await Promise.all([
+    supabase().from("discussion_threads").select(`${THREAD_COLUMNS}, exam_code`).eq("id", threadId).maybeSingle(),
+    getUserExam(viewerId),
+  ]);
   if (error) throw new HttpError(500, `thread lookup failed: ${error.message}`);
-  const row = threadRow as unknown as ThreadRow | null;
+  const row = threadRow as unknown as (ThreadRow & { exam_code: string | null }) | null;
   if (!row) throw notFound("Thread not found");
   if (row.moderation_status !== "visible" && row.user_id !== viewerId) throw notFound("Thread not found");
+  // A direct link to another exam's thread 404s rather than rendering: the
+  // list surfaces already exclude it, and a thread reachable by URL but absent
+  // from every list is worse than no thread at all.
+  if (row.exam_code !== null && row.exam_code !== viewerExam) throw notFound("Thread not found");
 
   const from = (page - 1) * POST_PAGE_SIZE;
   const to = from + POST_PAGE_SIZE - 1;
@@ -331,14 +410,17 @@ function toPost(row: PostRow, author: CommunityAuthor, myVote: -1 | 0 | 1): Disc
 
 export async function addPost(userId: string, threadId: string, body: string): Promise<DiscussionPost> {
   assertNotGuest("community", GUEST_COMMUNITY_MSG);
-  const { data: threadRow, error: threadError } = await supabase()
-    .from("discussion_threads")
-    .select("id, is_locked, moderation_status")
-    .eq("id", threadId)
-    .maybeSingle();
+  const [{ data: threadRow, error: threadError }, userExam] = await Promise.all([
+    supabase().from("discussion_threads").select("id, is_locked, moderation_status, exam_code").eq("id", threadId).maybeSingle(),
+    getUserExam(userId),
+  ]);
   if (threadError) throw new HttpError(500, `thread lookup failed: ${threadError.message}`);
   if (!threadRow) throw notFound("Thread not found");
   if ((threadRow as { moderation_status: string }).moderation_status === "removed") throw notFound("Thread not found");
+  // Same 404 as getThreadDetail — a thread you cannot read is a thread you
+  // cannot reply to, enforced here too rather than relying on the reader.
+  const threadExam = (threadRow as { exam_code: string | null }).exam_code;
+  if (threadExam !== null && threadExam !== userExam) throw notFound("Thread not found");
   if ((threadRow as { is_locked: boolean }).is_locked) throw badRequest("This thread is locked");
 
   const { data: post, error } = await supabase()
@@ -401,13 +483,18 @@ export async function votePost(
   value: -1 | 1,
 ): Promise<{ vote_score: number; my_vote: -1 | 0 | 1 }> {
   assertNotGuest("community", GUEST_COMMUNITY_MSG);
-  const { data: targetPost, error: targetError } = await supabase()
-    .from("discussion_posts")
-    .select("user_id")
-    .eq("id", postId)
-    .maybeSingle();
+  const [{ data: targetPost, error: targetError }, userExam] = await Promise.all([
+    supabase().from("discussion_posts").select("user_id, discussion_threads(exam_code)").eq("id", postId).maybeSingle(),
+    getUserExam(userId),
+  ]);
   if (targetError) throw new HttpError(500, `post lookup failed: ${targetError.message}`);
   if (!targetPost) throw notFound("Post not found");
+  // A vote is participation in a thread, so it carries the same exam gate as
+  // reading and replying — otherwise the one write that takes no body could
+  // still reach across exams by post id.
+  const postExam = (targetPost as unknown as { discussion_threads: { exam_code: string | null } | null })
+    .discussion_threads?.exam_code ?? null;
+  if (postExam !== null && postExam !== userExam) throw notFound("Post not found");
   if ((targetPost as { user_id: string }).user_id === userId) {
     throw badRequest("You cannot vote on your own post");
   }
@@ -602,6 +689,10 @@ export async function shareAnswerForPeerReview(userId: string, submissionId: str
       anchor_id: sharedRow.id,
       title: `Peer review: ${questionExcerpt}`,
       user_id: userId,
+      // Peer review is only useful from someone sitting the same paper under
+      // the same mark scheme, so the thread is filed under the author's exam
+      // like any other — this is the system-created path createThread refuses.
+      exam_code: await getUserExam(userId),
     })
     .select("id")
     .single();
@@ -610,52 +701,80 @@ export async function shareAnswerForPeerReview(userId: string, submissionId: str
   return buildSharedAnswer(sharedRow.id, submissionId, (thread as { id: string }).id, sharedRow.created_at);
 }
 
-export async function getSharedAnswer(id: string): Promise<SharedAnswer> {
+export async function getSharedAnswer(viewerId: string, id: string): Promise<SharedAnswer> {
   const { data, error } = await supabase().from("shared_answers").select("id, submission_id, created_at").eq("id", id).maybeSingle();
   if (error) throw new HttpError(500, `shared answer lookup failed: ${error.message}`);
   if (!data) throw notFound("Shared answer not found");
   const row = data as { id: string; submission_id: string; created_at: string };
-  const { data: threadRow, error: threadError } = await supabase()
-    .from("discussion_threads")
-    .select("id")
-    .eq("anchor_type", "shared_answer")
-    .eq("anchor_id", id)
-    .maybeSingle();
+  const [{ data: threadRow, error: threadError }, viewerExam] = await Promise.all([
+    supabase()
+      .from("discussion_threads")
+      .select("id, exam_code")
+      .eq("anchor_type", "shared_answer")
+      .eq("anchor_id", id)
+      .maybeSingle(),
+    getUserExam(viewerId),
+  ]);
   if (threadError) throw new HttpError(500, `thread lookup failed: ${threadError.message}`);
   if (!threadRow) throw notFound("Shared answer not found");
+  // Same exam gate as the thread it anchors — a peer-review page reachable by
+  // URL from another exam would show an answer written to a paper the viewer
+  // cannot review, and its discussion 404s anyway.
+  const threadExam = (threadRow as { exam_code: string | null }).exam_code;
+  if (threadExam !== null && threadExam !== viewerExam) throw notFound("Shared answer not found");
   return buildSharedAnswer(row.id, row.submission_id, (threadRow as { id: string }).id, row.created_at);
 }
 
+/**
+ * The peer-review feed.
+ *
+ * Paginated over `discussion_threads` rather than `shared_answers`, because the
+ * exam lives on the thread (a shared answer has no exam column of its own —
+ * 0106 §13 leaves `shared_answers` deriving through its anchor thread). Paging
+ * the answers and filtering afterwards would return short or empty pages once
+ * two exams share the feed. It also removes the per-row thread lookup this
+ * previously did — one `.in()` instead of N `.maybeSingle()`s.
+ */
 export async function listSharedAnswers(
   viewerId: string,
   page: number,
 ): Promise<{ items: SharedAnswer[]; pagination: PaginationMeta }> {
   const from = (page - 1) * SHARED_ANSWERS_PAGE_SIZE;
   const to = from + SHARED_ANSWERS_PAGE_SIZE - 1;
-  const { data, count, error } = await supabase()
-    .from("shared_answers")
-    .select("id, submission_id, user_id, created_at", { count: "exact" })
+  const examCode = await getUserExam(viewerId);
+  const { data: threadRows, count, error } = await supabase()
+    .from("discussion_threads")
+    .select("id, anchor_id, created_at", { count: "exact" })
+    .eq("anchor_type", "shared_answer")
+    .eq("moderation_status", "visible")
+    .or(examVisibilityFilter(examCode))
     .order("created_at", { ascending: false })
     .range(from, to);
   if (error) throw new HttpError(500, `shared answers list failed: ${error.message}`);
+  const threads = (threadRows ?? []) as { id: string; anchor_id: string; created_at: string }[];
+
+  const threadByShareId = new Map(threads.map((t) => [t.anchor_id, t.id]));
+  const shareRows = threads.length
+    ? ((
+        await supabase()
+          .from("shared_answers")
+          .select("id, submission_id, user_id, created_at")
+          .in("id", threads.map((t) => t.anchor_id))
+      ).data ?? [])
+    : [];
+  const shareById = new Map(
+    (shareRows as { id: string; submission_id: string; user_id: string; created_at: string }[]).map((r) => [r.id, r]),
+  );
 
   const blocked = await fetchBlockedIds(viewerId);
-  const rows = (data ?? []).filter((r) => !blocked.has(r.user_id as string)) as {
-    id: string;
-    submission_id: string;
-    user_id: string;
-    created_at: string;
-  }[];
+  const rows = threads
+    .map((t) => shareById.get(t.anchor_id))
+    .filter((r): r is { id: string; submission_id: string; user_id: string; created_at: string } => !!r)
+    .filter((r) => !blocked.has(r.user_id));
 
   const items = await Promise.all(
     rows.map(async (r) => {
-      const { data: threadRow } = await supabase()
-        .from("discussion_threads")
-        .select("id")
-        .eq("anchor_type", "shared_answer")
-        .eq("anchor_id", r.id)
-        .maybeSingle();
-      const threadId = (threadRow as { id: string } | null)?.id;
+      const threadId = threadByShareId.get(r.id);
       if (!threadId) return null;
       return buildSharedAnswer(r.id, r.submission_id, threadId, r.created_at);
     }),
@@ -677,20 +796,26 @@ export async function listSharedAnswers(
 // Community hub
 // ---------------------------------------------------------------------------
 export async function getCommunityHub(userId: string): Promise<CommunityHub> {
-  const blocked = await fetchBlockedIds(userId);
+  const [blocked, examCode] = await Promise.all([fetchBlockedIds(userId), getUserExam(userId)]);
 
   const [recentResult, sharedResult, mineResult] = await Promise.all([
     supabase()
       .from("discussion_threads")
       .select(THREAD_COLUMNS)
       .eq("moderation_status", "visible")
+      .or(examVisibilityFilter(examCode))
       .order("updated_at", { ascending: false })
       .limit(HUB_LIST_SIZE * 2),
     listSharedAnswers(userId, 1),
+    // "My threads" is exam-filtered too. A user who switched exams keeps the
+    // threads they wrote under the old one — they are about a syllabus they are
+    // no longer studying, and every one of them 404s on click (getThreadDetail),
+    // so listing them would be a wall of dead links.
     supabase()
       .from("discussion_threads")
       .select(THREAD_COLUMNS)
       .eq("user_id", userId)
+      .or(examVisibilityFilter(examCode))
       .order("updated_at", { ascending: false })
       .limit(HUB_LIST_SIZE),
   ]);

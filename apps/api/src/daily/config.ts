@@ -24,7 +24,7 @@
  * static-heavy (~80%: pyq + generated + random) with a modest current-affairs
  * share, so most of each day's GS quiz comes from static syllabus topics.
  */
-import type { MarkingScheme } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, type MarkingScheme } from "@neev/shared";
 
 /** The four slices of a daily quiz, in fill priority order. */
 export type QuizSlice = "generated" | "pyq" | "current_affairs" | "random";
@@ -131,6 +131,15 @@ export type DailyQuizPaper = "gs" | "csat";
 
 export interface DailyQuizVariant {
   key: DailyQuizPaper;
+  /**
+   * Which exam this quiz is for. Explicit rather than derived from `paperCode`:
+   * paper codes are globally unique across exams (the §0 invariant), so the
+   * derivation would be *correct* but would still leave every read and write in
+   * the daily-quiz path filtering on paper alone — which is precisely how two
+   * exams' quizzes end up sharing a `.maybeSingle()` lookup and a recency
+   * window. Naming the exam here makes it available at all three sites.
+   */
+  examCode: string;
   paperCode: string;
   includeCurrentAffairs: boolean;
   /** Title stem shown after "Daily Quiz — " ... actually the paper label; see quiz.ts titles. */
@@ -143,6 +152,7 @@ export interface DailyQuizVariant {
 export const DAILY_QUIZ_VARIANTS: DailyQuizVariant[] = [
   {
     key: "gs",
+    examCode: DEFAULT_EXAM_CODE,
     paperCode: "PRE_GS1",
     includeCurrentAffairs: true,
     labelI18n: { en: "GS", hi: "जीएस" },
@@ -151,6 +161,7 @@ export const DAILY_QUIZ_VARIANTS: DailyQuizVariant[] = [
   },
   {
     key: "csat",
+    examCode: DEFAULT_EXAM_CODE,
     paperCode: "PRE_CSAT",
     includeCurrentAffairs: false,
     labelI18n: { en: "CSAT", hi: "सीसैट" },
@@ -161,6 +172,16 @@ export const DAILY_QUIZ_VARIANTS: DailyQuizVariant[] = [
 
 /** Back-compat alias: the GS quiz is the direct descendant of the old single blended quiz. */
 export const DAILY_QUIZ_CONFIG = GS_QUIZ_CONFIG;
+
+/**
+ * The daily-quiz variants configured for one exam — EMPTY for an exam that has
+ * no daily quiz yet, which is the honest answer. Returning the default exam's
+ * variants as a fallback would serve a UPSC user a UPPSC quiz built from the
+ * UPPSC question bank, and record their attempt on the UPPSC daily board.
+ */
+export function variantsForExam(examCode: string): DailyQuizVariant[] {
+  return DAILY_QUIZ_VARIANTS.filter((v) => v.examCode === examCode);
+}
 
 /** The order slices are filled AND the order leftovers are drawn from when backfilling a short slice. */
 export const SLICE_FILL_ORDER: QuizSlice[] = ["generated", "pyq", "current_affairs", "random"];

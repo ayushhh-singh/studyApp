@@ -20,6 +20,7 @@ import type {
   Evaluation,
   EvaluationAnalysis,
   Locale,
+  RubricKind,
   Submission,
   SubmissionDetail,
   SubmissionListItem,
@@ -33,13 +34,12 @@ import { retrieveGrounding } from "./grounding.js";
 import { examCodeForNode, getUserExam } from "../../lib/exams.js";
 import {
   computeOverallScore,
-  DEFAULT_MAX_SCORE,
-  DEFAULT_WORD_LIMIT,
   ESSAY_RUBRIC_VERSION,
+  resolveRubric,
+  resolveRubricByKind,
   rubricDimensions,
-  RUBRIC_VERSION,
+  rubricKindOf,
 } from "./rubric.js";
-import { ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, ESSAY_MAX_MARKS } from "../../lib/exam-papers.js";
 import {
   analysisJsonSchema,
   buildAnalysisSystem,
@@ -99,6 +99,8 @@ interface EvaluationRow {
   submission_id: string;
   model: string;
   rubric_version: string;
+  exam_code: string;
+  rubric_kind: RubricKind;
   overall_score: number | null;
   max_score: number | null;
   dimension_scores: DimensionScore[] | null;
@@ -114,7 +116,7 @@ interface EvaluationRow {
 const SUBMISSION_COLUMNS =
   "id, user_id, question_id, custom_question_text_i18n, mode, typed_text, image_paths, ocr_text, ocr_confidence, status, language, meta, created_at";
 const EVALUATION_COLUMNS =
-  "id, submission_id, model, rubric_version, overall_score, max_score, dimension_scores, strengths_i18n, improvements_i18n, model_answer_i18n, raw_response, tokens_used, cost_usd, created_at";
+  "id, submission_id, model, rubric_version, exam_code, rubric_kind, overall_score, max_score, dimension_scores, strengths_i18n, improvements_i18n, model_answer_i18n, raw_response, tokens_used, cost_usd, created_at";
 
 // ---------------------------------------------------------------------------
 // Create submission
@@ -323,8 +325,10 @@ export type EvaluationPlan =
       syllabusNodeId: string | null;
       wordLimit: number;
       maxScore: number;
-      /** Which rubric to apply — essay-v1 for the Essay paper, else v1. */
+      /** Which rubric to apply — resolved from (exam, paper) by the registry. */
       rubricVersion: string;
+      /** The exam this answer belongs to — which Mains board it competes on. */
+      examCode: string;
       /** First page photo (handwritten mode only), fed to pass 1 for the presentation dimension. */
       pageImage?: AnalysisPageImage;
     };
@@ -335,6 +339,7 @@ async function resolveQuestionContext(submission: SubmissionRow): Promise<{
   wordLimit: number;
   maxScore: number;
   rubricVersion: string;
+  examCode: string;
 }> {
   const lang = submission.language;
   if (submission.question_id) {
@@ -347,32 +352,53 @@ async function resolveQuestionContext(submission: SubmissionRow): Promise<{
     if (!q) throw new HttpError(409, "The question for this submission no longer exists");
     const stem = q.stem_i18n as BilingualText;
     const questionText = stem[lang]?.trim() || stem.en?.trim() || stem.hi?.trim() || "";
-    // The Essay paper (निबंध) scores under the essay rubric; everything else uses v1.
-    const isEssay = q.paper_code === ESSAY_PAPER_CODE;
+    const syllabusNodeId = (q.syllabus_node_id as string | null) ?? null;
+    // The exam comes from the question's SYLLABUS NODE, never `questions.exam_code`
+    // (that is provenance — "which exam asked this" — and its domain includes
+    // exams nobody can select, e.g. up_ro_aro). A question with no node at all
+    // (out_of_syllabus) falls back to the author's own exam.
+    const examCode = syllabusNodeId
+      ? await examCodeForNode(syllabusNodeId)
+      : await getUserExam(submission.user_id);
+    // (exam, paper) -> rubric: the Essay paper scores under that EXAM's essay
+    // rubric; every other paper under that exam's default. Paper codes are
+    // globally unique across exams, so no cross-exam mismatch is possible here.
+    const rubric = resolveRubric(examCode, q.paper_code as string | null);
     return {
       questionText,
-      syllabusNodeId: (q.syllabus_node_id as string | null) ?? null,
-      wordLimit: (q.word_limit as number | null) ?? (isEssay ? ESSAY_WORD_LIMIT : DEFAULT_WORD_LIMIT),
+      syllabusNodeId,
+      wordLimit: (q.word_limit as number | null) ?? rubric.defaults.wordLimit,
       // A test may re-weight a catalogued question's marks for THIS test (a mains
       // mock re-weights every question to the real paper's 8/12 pattern so it
       // totals exactly 200); that override rides on the session submission's
       // meta.marks. Prefer it, then the question's own marks, then the default —
       // so the answer is scored out of the same number the paper displays.
-      maxScore: (submission.meta?.marks as number | null) ?? (q.marks as number | null) ?? (isEssay ? ESSAY_MAX_MARKS : DEFAULT_MAX_SCORE),
-      rubricVersion: isEssay ? ESSAY_RUBRIC_VERSION : RUBRIC_VERSION,
+      maxScore: (submission.meta?.marks as number | null) ?? (q.marks as number | null) ?? rubric.defaults.maxScore,
+      rubricVersion: rubric.version,
+      examCode,
     };
   }
   const custom = submission.custom_question_text_i18n;
   const questionText = custom?.[lang]?.trim() || custom?.en?.trim() || custom?.hi?.trim() || "";
-  // A custom prompt can opt into the essay rubric via meta.rubric = "essay-v1"
-  // (set when the writing room's essay mode is used for a non-catalogued topic).
-  const isEssay = submission.meta?.rubric === ESSAY_RUBRIC_VERSION;
+  // A custom prompt has no question and therefore no node — its exam is the
+  // author's. Captured HERE, at evaluation time, rather than read back later
+  // from the profile: a user who switches exams must not have their past
+  // answers silently re-bucketed onto the new exam's board.
+  const examCode = await getUserExam(submission.user_id);
+  // meta.rubric = "essay-v1" is the writing room's essay mode on a
+  // non-catalogued topic. It names UPPSC's essay rubric literally (it predates
+  // multi-exam), so treat it as a request for the ESSAY KIND and resolve that
+  // within the author's own exam — a UPSC user must never be graded on UPPSC's
+  // 700-word/50-mark essay scheme just because the flag spells "essay-v1".
+  const requested = submission.meta?.rubric === ESSAY_RUBRIC_VERSION ? resolveRubricByKind(examCode, "essay") : null;
+  const rubric = requested ?? resolveRubric(examCode, null);
   return {
     questionText,
     syllabusNodeId: null,
-    wordLimit: submission.meta?.word_limit ?? (isEssay ? ESSAY_WORD_LIMIT : DEFAULT_WORD_LIMIT),
-    maxScore: submission.meta?.marks ?? (isEssay ? ESSAY_MAX_MARKS : DEFAULT_MAX_SCORE),
-    rubricVersion: isEssay ? ESSAY_RUBRIC_VERSION : RUBRIC_VERSION,
+    wordLimit: submission.meta?.word_limit ?? rubric.defaults.wordLimit,
+    maxScore: submission.meta?.marks ?? rubric.defaults.maxScore,
+    rubricVersion: rubric.version,
+    examCode,
   };
 }
 
@@ -517,12 +543,11 @@ export async function executeEvaluation(
       locale: language,
       syllabusNodeId: plan.syllabusNodeId,
       // A catalogued question is graded against ITS OWN exam's material; a
-      // custom prompt has no node, so fall back to the writer's target exam.
-      // Either way the reference points can never come from an exam the answer
-      // was not written for.
-      examCode: plan.syllabusNodeId
-        ? await examCodeForNode(plan.syllabusNodeId)
-        : await getUserExam(userId),
+      // custom prompt has no node, so this fell back to the writer's target
+      // exam. Both cases are now resolved once in resolveQuestionContext (and
+      // persisted on the evaluation), so this reuses that answer instead of
+      // repeating the same two lookups per run.
+      examCode: plan.examCode,
     });
     if (signal?.aborted) return;
 
@@ -685,6 +710,7 @@ export async function executeEvaluation(
     const evaluation = await persistEvaluation({
       submissionId: submission.id,
       rubricVersion: plan.rubricVersion,
+      examCode: plan.examCode,
       overallScore,
       maxScore: plan.maxScore,
       dimensionScores,
@@ -1137,6 +1163,7 @@ async function persistStoredModelAnswer(
 async function persistEvaluation(input: {
   submissionId: string;
   rubricVersion: string;
+  examCode: string;
   overallScore: number;
   maxScore: number;
   dimensionScores: DimensionScore[];
@@ -1174,6 +1201,11 @@ async function persistEvaluation(input: {
         submission_id: input.submissionId,
         model: MODELS.sonnet,
         rubric_version: input.rubricVersion,
+        exam_code: input.examCode,
+        // Derived from the version by the registry, never passed in separately —
+        // the two can then never disagree, which is what lets the materialized
+        // Mains board split GS from Essay in SQL without knowing any version string.
+        rubric_kind: rubricKindOf(input.rubricVersion),
         overall_score: input.overallScore,
         max_score: input.maxScore,
         dimension_scores: input.dimensionScores,
@@ -1218,6 +1250,8 @@ function mapEvaluation(row: EvaluationRow): Evaluation {
     submission_id: row.submission_id,
     model: row.model,
     rubric_version: row.rubric_version,
+    exam_code: row.exam_code,
+    rubric_kind: row.rubric_kind,
     overall_score: row.overall_score === null ? null : Number(row.overall_score),
     max_score: row.max_score === null ? null : Number(row.max_score),
     dimension_scores: row.dimension_scores,

@@ -26,6 +26,25 @@ export const RUBRIC_VERSION = "v1";
 export const ESSAY_RUBRIC_VERSION = "essay-v1";
 
 /**
+ * What KIND of answer-writing a rubric grades — the axis every board, ranking
+ * and percentile pool must never mix (see migration 0069: an Essay score pooled
+ * with GS scores double-counts one skill into the other's ranking).
+ *
+ * This is deliberately SEPARATE from the version string. Before this existed,
+ * "is it an essay?" was expressed as the literal `rubric_version <> 'essay-v1'`
+ * in `0069`, `services/scoreboard.ts` and `getEvaluationPercentile` — which
+ * silently assumes UPPSC's mark scheme is the only one. A second exam's essay
+ * rubric ("upsc-essay-v1") would have been swept into the GS board by that
+ * comparison, with no error anywhere. `evaluations.rubric_kind` stores this so
+ * SQL (the materialized board) can do the split without knowing any version
+ * string, and the exam-aware registry in
+ * `apps/api/src/services/evaluation/rubric.ts` is what assigns it.
+ */
+export const RUBRIC_KINDS = ["gs", "essay"] as const;
+export const rubricKindSchema = z.enum(RUBRIC_KINDS);
+export type RubricKind = z.infer<typeof rubricKindSchema>;
+
+/**
  * Calibration-era boundary. On 2026-07-26 the answer-evaluation SCORING BANDS
  * were recalibrated to real UPPSC/UPSC Mains severity (a genuinely strong answer
  * now scores ~50-55% instead of the earlier ~75-85%). This is a change to the
@@ -201,6 +220,20 @@ export const evaluationSchema = z.object({
   submission_id: z.string().uuid(),
   model: z.string(),
   rubric_version: z.string(),
+  /**
+   * The exam this answer BELONGS to — which Mains board it competes on —
+   * stamped at persist time from the question's syllabus node, or from the
+   * author's target exam for a custom prompt. Stored rather than derived
+   * because (a) the materialized Mains board partitions on it in SQL, and
+   * (b) a custom-prompt submission has no `question_id` at all, so migration
+   * 0106 §13's "evaluations derive their exam via the question FK" does not
+   * hold for it — the only remaining derivation would be the author's CURRENT
+   * target exam, which would retroactively re-bucket their whole history the
+   * day they switch exams.
+   */
+  exam_code: z.string(),
+  /** GS vs Essay — the board/percentile segmentation axis. See RUBRIC_KINDS. */
+  rubric_kind: rubricKindSchema,
   overall_score: z.number().nullable(),
   max_score: z.number().nullable(),
   dimension_scores: z.array(dimensionScoreSchema).nullable(),

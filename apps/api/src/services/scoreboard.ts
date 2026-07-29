@@ -16,6 +16,7 @@
  */
 import type {
   BilingualText,
+  RubricKind,
   DimensionBestBoard,
   DimensionBestsData,
   EvaluationPercentile,
@@ -37,6 +38,7 @@ import { currentUserIsAnonymous } from "../lib/user-context.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
 import { PRELIMS_CSAT_PAPER_CODE } from "../lib/exam-papers.js";
+import { getUserExam } from "../lib/exams.js";
 import { RUBRIC_DIMENSION_KEYS } from "./evaluation/rubric.js";
 
 const BOARD_TOP_N = 20;
@@ -197,10 +199,17 @@ export async function recordDailyQuizResult(
 
 export async function getDailyQuizTodayBoard(userId: string): Promise<DailyQuizTodayBoard> {
   const date = istToday();
+  // Ranked within the viewer's exam. Each exam builds its OWN daily quiz from
+  // its own question bank, so pooling them ranks people against a paper they
+  // never sat. The exam is derived through the entry's test (test_id and
+  // tests.exam_code are both NOT NULL, so the inner join drops nothing) rather
+  // than stored a second time on the entry.
+  const examCode = await getUserExam(userId);
   const { data, error } = await supabase()
     .from("daily_quiz_board_entries")
-    .select("user_id, score, accuracy_pct, time_taken_seconds")
+    .select("user_id, score, accuracy_pct, time_taken_seconds, tests!inner(exam_code)")
     .eq("quiz_date", date)
+    .eq("tests.exam_code", examCode)
     .order("score", { ascending: false });
   if (error) throw new HttpError(500, `daily quiz board lookup failed: ${error.message}`);
   const entries = (data ?? []) as {
@@ -216,9 +225,11 @@ export async function getDailyQuizTodayBoard(userId: string): Promise<DailyQuizT
 export async function getDailyQuizWeeklyBoard(userId: string): Promise<DailyQuizWeeklyBoard> {
   const today = istToday();
   const weekStart = shiftDate(today, -6);
+  const examCode = await getUserExam(userId);
   const { data, error } = await supabase()
     .from("daily_quiz_board_entries")
-    .select("user_id, score, accuracy_pct")
+    .select("user_id, score, accuracy_pct, tests!inner(exam_code)")
+    .eq("tests.exam_code", examCode)
     .gte("quiz_date", weekStart)
     .lte("quiz_date", today);
   if (error) throw new HttpError(500, `daily quiz weekly board lookup failed: ${error.message}`);
@@ -373,28 +384,37 @@ interface WeeklyEvalRow {
 }
 
 /**
- * rubricScope distinguishes Essay (its own separate board) from every other
- * rubric version (the "Answer Writing" / GS board) — the two must never mix,
- * or one skill's scores dilute/double-count into the other's ranking (see
- * migration 0069). "all" is only for internal reuse where a caller filters
- * further itself; every board/percentile call site below passes a scope.
+ * `rubricKind` distinguishes Essay (its own separate board) from GS answer
+ * writing — the two must never mix, or one skill's scores dilute/double-count
+ * into the other's ranking (see migration 0069).
+ *
+ * It now filters the stored `evaluations.rubric_kind` column rather than
+ * comparing `rubric_version` against the literal 'essay-v1'. That string is
+ * UPPSC's essay rubric specifically: a second exam's essay rubric satisfies
+ * `<> 'essay-v1'` and would have been silently swept into the GS board — the
+ * exact mixing 0069 exists to prevent. See migration 0109.
+ *
+ * `examCode` is likewise required, not optional-with-a-default: an omitted
+ * filter here pools every exam's answer writing into one ranking, and a
+ * defaulted parameter would let a new call site keep that bug silently.
  */
 async function fetchWeeklyEvaluations(
   weekStart: string,
-  rubricScope: "gs" | "essay" | "all" = "all",
+  examCode: string,
+  rubricKind: RubricKind,
 ): Promise<WeeklyEvalRow[]> {
   const sunday = shiftDate(weekStart, 6);
   const startUtc = istDayRangeUtc(weekStart).startUtc;
   const endUtc = istDayRangeUtc(sunday).endUtc;
-  let query = supabase()
+  const query = supabase()
     .from("evaluations")
     .select("overall_score, max_score, answer_submissions!inner(user_id)")
     .gte("created_at", startUtc)
     .lt("created_at", endUtc)
+    .eq("exam_code", examCode)
+    .eq("rubric_kind", rubricKind)
     .not("overall_score", "is", null)
     .not("max_score", "is", null);
-  if (rubricScope === "gs") query = query.neq("rubric_version", "essay-v1");
-  if (rubricScope === "essay") query = query.eq("rubric_version", "essay-v1");
   const { data, error } = await query;
   if (error) throw new HttpError(500, `weekly evaluations lookup failed: ${error.message}`);
   const rows = (data ?? []) as unknown as {
@@ -423,10 +443,18 @@ function aggregateByUser(rows: WeeklyEvalRow[]): Map<string, { count: number; av
 
 export async function getMainsWeeklyBoard(userId: string): Promise<MainsWeeklyBoard> {
   const weekStart = istWeekStart(istToday());
+  // You are ranked against candidates preparing for YOUR exam. Without this the
+  // board pools every exam's answer writing into one ranking of scores produced
+  // by different papers under different mark schemes (migration 0109).
+  const examCode = await getUserExam(userId);
   const [{ data: mvRows, error: mvError }, profileRes, weekly] = await Promise.all([
-    supabase().from("mv_mains_weekly_board").select("user_id, avg_pct").eq("week_start", weekStart),
+    supabase()
+      .from("mv_mains_weekly_board")
+      .select("user_id, avg_pct")
+      .eq("week_start", weekStart)
+      .eq("exam_code", examCode),
     supabase().from("users_profile").select("show_on_mains_board").eq("id", userId).maybeSingle(),
-    fetchWeeklyEvaluations(weekStart, "gs"),
+    fetchWeeklyEvaluations(weekStart, examCode, "gs"),
   ]);
   if (mvError) throw new HttpError(500, `mains weekly board lookup failed: ${mvError.message}`);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
@@ -483,9 +511,10 @@ export async function getMainsWeeklyBoard(userId: string): Promise<MainsWeeklyBo
  */
 export async function getMainsEssayWeeklyBoard(userId: string): Promise<MainsWeeklyBoard> {
   const weekStart = istWeekStart(istToday());
+  const examCode = await getUserExam(userId);
 
   const [weekly, profileRes] = await Promise.all([
-    fetchWeeklyEvaluations(weekStart, "essay"),
+    fetchWeeklyEvaluations(weekStart, examCode, "essay"),
     supabase().from("users_profile").select("show_on_mains_board").eq("id", userId).maybeSingle(),
   ]);
   if (profileRes.error) throw new HttpError(500, `profile lookup failed: ${profileRes.error.message}`);
@@ -535,8 +564,13 @@ export async function getMainsEssayWeeklyBoard(userId: string): Promise<MainsWee
 
 export async function getDimensionBests(userId: string): Promise<DimensionBestsData> {
   const weekStart = istWeekStart(istToday());
+  const examCode = await getUserExam(userId);
   const [{ data, error }, profileRes] = await Promise.all([
-    supabase().from("mv_mains_weekly_board").select("user_id, dimension_bests").eq("week_start", weekStart),
+    supabase()
+      .from("mv_mains_weekly_board")
+      .select("user_id, dimension_bests")
+      .eq("week_start", weekStart)
+      .eq("exam_code", examCode),
     supabase().from("users_profile").select("show_on_mains_board").eq("id", userId).maybeSingle(),
   ]);
   if (error) throw new HttpError(500, `dimension bests lookup failed: ${error.message}`);
@@ -603,10 +637,14 @@ export async function getRankCardForAttempt(userId: string, attemptId: string): 
     // recorded — no rank card for it, matching the anti-farm rule.
     if (!entry) return null;
 
+    // Same exam scoping as getDailyQuizTodayBoard — the "you ranked N of M"
+    // card must count the same population the board shows, or the two disagree.
+    const examCode = await getUserExam(userId);
     const { data: dayRows, error: dayError } = await supabase()
       .from("daily_quiz_board_entries")
-      .select("user_id, score")
+      .select("user_id, score, tests!inner(exam_code)")
       .eq("quiz_date", entry.quiz_date)
+      .eq("tests.exam_code", examCode)
       .order("score", { ascending: false });
     if (dayError) throw new HttpError(500, `daily quiz board lookup failed: ${dayError.message}`);
     const entries = (dayRows ?? []) as { user_id: string; score: number }[];
@@ -648,19 +686,24 @@ export async function getEvaluationPercentile(userId: string, submissionId: stri
 
   const { data: evaluation, error: evalError } = await supabase()
     .from("evaluations")
-    .select("created_at, rubric_version")
+    .select("created_at, exam_code, rubric_kind")
     .eq("submission_id", submissionId)
     .maybeSingle();
   if (evalError) throw new HttpError(500, `evaluation lookup failed: ${evalError.message}`);
   if (!evaluation) return { eligible: false, participants: 0, percentile: null };
 
-  // Scope the comparison pool to the SAME rubric category as the evaluation
-  // being viewed — an Essay answer must be compared against other essays,
-  // never pooled with GS answers (see migration 0069's rationale).
-  const isEssay = evaluation.rubric_version === "essay-v1";
+  // Scope the comparison pool to the SAME rubric category AND the same exam as
+  // the evaluation being viewed — an Essay answer must be compared against other
+  // essays (migration 0069), and against other candidates for the same exam
+  // (migration 0109). Both are read from THIS evaluation's own stored columns,
+  // not from the viewer's current target exam: an answer written for a previous
+  // exam keeps being compared against that exam's pool, which is the only
+  // comparison its score is meaningful in.
+  const rubricKind = evaluation.rubric_kind as RubricKind;
+  const isEssay = rubricKind === "essay";
   const minEvaluations = isEssay ? 1 : MAINS_MIN_EVALUATIONS;
   const weekStart = istWeekStart(istDateString(Date.parse(evaluation.created_at as string)));
-  const pool = await fetchWeeklyEvaluations(weekStart, isEssay ? "essay" : "gs");
+  const pool = await fetchWeeklyEvaluations(weekStart, evaluation.exam_code as string, rubricKind);
   const byUser = aggregateByUser(pool);
 
   const mine = byUser.get(userId);

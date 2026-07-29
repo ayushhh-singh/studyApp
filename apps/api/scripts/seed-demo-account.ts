@@ -64,6 +64,7 @@ import { generateForUser as generateNotifications } from "../src/services/notifi
 import { createThread, addPost, shareAnswerForPeerReview } from "../src/services/community.js";
 import {
   rubricDimensions,
+  rubricKindOf,
   computeOverallScore,
   RUBRIC_VERSION,
   ESSAY_RUBRIC_VERSION,
@@ -578,6 +579,10 @@ async function seedOneEvaluation(
       submission_id: submissionId,
       model: MODELS.sonnet,
       rubric_version: rubricVersion,
+      // Stamped from the same registry the real pipeline uses — a seeded
+      // essay-v1 row left on the `rubric_kind` column default would land the
+      // demo account's essays on the GS board (migration 0109).
+      rubric_kind: rubricKindOf(rubricVersion),
       overall_score: overallScore,
       max_score: maxScore,
       dimension_scores: dimensionScores,

@@ -7,6 +7,8 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { examCutoffsResponseSchema } from "@neev/shared";
 import { DAILY_ARCHIVE_PAGE_SIZE, ensureTodayQuizzes, listDailyQuizzes } from "../services/daily.js";
 import { getCutoffs } from "../services/mocks.js";
+import { getUserExam } from "../lib/exams.js";
+import { currentUserId } from "../lib/user-context.js";
 
 export const dailyRouter = Router();
 dailyRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
@@ -15,7 +17,7 @@ dailyRouter.get(
   "/daily-quiz/archive",
   asyncHandler(async (req, res) => {
     const { page } = parse(z.object({ page: z.coerce.number().int().min(1).default(1) }), req.query);
-    const { items, total } = await listDailyQuizzes(page);
+    const { items, total } = await listDailyQuizzes(await getUserExam(currentUserId()), page);
     res.json(
       dailyQuizArchiveResponseSchema.parse({
         data: {
@@ -42,7 +44,7 @@ dailyRouter.get(
 dailyRouter.post(
   "/daily-quiz/today",
   asyncHandler(async (_req, res) => {
-    const quizzes = await ensureTodayQuizzes();
+    const quizzes = await ensureTodayQuizzes(await getUserExam(currentUserId()));
     res.json(dailyQuizzesTodayResponseSchema.parse({ data: quizzes, error: null }));
   }),
 );

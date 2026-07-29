@@ -43,6 +43,7 @@ import {
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import { assertMockTests } from "./entitlements.js";
+import { examCodeForNode, getUserExam } from "../lib/exams.js";
 import { touchFeature } from "../lib/feature-touch.js";
 import { getTestDetail } from "./tests.js";
 import {
@@ -145,20 +146,30 @@ async function seenDescriptiveIds(userId: string): Promise<Set<string>> {
 interface CustomNode {
   id: string;
   paper_code: string;
+  exam_code: string;
   title_i18n: BilingualText;
 }
 
-/** Validate every selected node exists and all share one paper (mirrors tests.ts's resolveOrderedNodes). */
-async function resolveNodes(nodeIds: string[]): Promise<CustomNode[]> {
+/**
+ * Validate every selected node exists, that they all share one paper, and that
+ * they belong to the CALLER'S OWN EXAM (mirrors tests.ts's resolveOrderedNodes,
+ * including why the exam check is not implied by the paper check: `node_ids` is
+ * untrusted request body, and another exam's ids are internally consistent with
+ * each other, so the paper assertion happily passes on a set drawn entirely
+ * from a foreign syllabus).
+ */
+async function resolveNodes(nodeIds: string[], examCode: string): Promise<CustomNode[]> {
   const { data, error } = await supabase()
     .from("syllabus_nodes")
-    .select("id, paper_code, title_i18n")
+    .select("id, paper_code, exam_code, title_i18n")
     .in("id", nodeIds);
   if (error) throw new HttpError(500, `syllabus node lookup failed: ${error.message}`);
   const byId = new Map((data ?? []).map((n) => [n.id as string, n as unknown as CustomNode]));
   const missing = nodeIds.filter((id) => !byId.has(id));
   if (missing.length > 0) throw notFound(`Syllabus node not found: ${missing.join(", ")}`);
   const ordered = nodeIds.map((id) => byId.get(id)!);
+  const foreign = ordered.filter((n) => n.exam_code !== examCode);
+  if (foreign.length > 0) throw notFound(`Syllabus node not found: ${foreign.map((n) => n.id).join(", ")}`);
   if (new Set(ordered.map((n) => n.paper_code)).size > 1) {
     throw badRequest("All selected topics must belong to the same paper");
   }
@@ -375,6 +386,7 @@ async function buildCustomDescriptivePool(opts: {
 
 async function insertOnDemandTest(p: {
   userId: string;
+  examCode: string;
   paperCode: string;
   title: BilingualText;
   questions: PoolQuestion[];
@@ -387,6 +399,10 @@ async function insertOnDemandTest(p: {
     .insert({
       title_i18n: p.title,
       kind: "on_demand",
+      // From the nodes the set was built from (already proved to be this user's
+      // exam by resolveNodes) — not the column default, which would tag every
+      // second exam's on-demand set `uppsc`.
+      exam_code: p.examCode,
       paper_code: p.paperCode,
       duration_minutes: p.durationMinutes,
       total_marks: totalMarks || null,
@@ -434,7 +450,8 @@ export async function createFreshCustomSet(
   userId: string,
   body: CreateFreshCustomSetBody,
 ): Promise<FreshSetResult> {
-  const nodes = await resolveNodes(body.node_ids);
+  const examCode = await getUserExam(userId);
+  const nodes = await resolveNodes(body.node_ids, examCode);
 
   // Log demand FIRST (deduped) — the signal drives tonight's reserve regardless
   // of whether this request could be filled now.
@@ -465,6 +482,7 @@ export async function createFreshCustomSet(
   const selected = pool.slice(0, body.count);
   const test = await insertOnDemandTest({
     userId,
+    examCode,
     paperCode: nodes[0].paper_code,
     title: freshCustomTitle(nodes.map((n) => n.title_i18n)),
     questions: selected,
@@ -490,8 +508,18 @@ export async function createFreshMockSet(userId: string, body: CreateFreshMockSe
   await assertMockTests(userId);
   void touchFeature(userId, "mock");
 
+  // `paper_code` is untrusted request body exactly like `node_ids` is, so the
+  // same exam check applies: resolve the paper's own exam through its root node
+  // and refuse a paper outside the caller's exam. (freshMockPaperConfig only
+  // knows UPPSC papers today, so this is currently belt-and-braces — but it is
+  // the check that keeps being right as soon as a second exam has mock configs.)
+  const examCode = await getUserExam(userId);
   const rootId = await paperRootNodeId(body.paper_code);
-  if (rootId) await logDemand(userId, [rootId], "mock", UPPSC_EXAM_CODE);
+  if (rootId) {
+    const paperExam = await examCodeForNode(rootId);
+    if (paperExam !== examCode) throw notFound("This paper is not part of your exam");
+    await logDemand(userId, [rootId], "mock", UPPSC_EXAM_CODE);
+  }
 
   const seen = cfg.kind === "mcq" ? await seenMcqIds(userId) : await seenDescriptiveIds(userId);
   const available = await availableMockPool(body.paper_code, cfg.kind);
@@ -535,6 +563,7 @@ export async function createFreshMockSet(userId: string, body: CreateFreshMockSe
   };
   const test = await insertOnDemandTest({
     userId,
+    examCode,
     paperCode: body.paper_code,
     title,
     questions,

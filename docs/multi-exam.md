@@ -4,21 +4,32 @@ Companion to migration `0106_multi_exam_foundation.sql`. That file holds the
 schema and the per-table decisions; this file holds the **call-site audit** and
 the **ordered prerequisites** for actually ingesting a second exam.
 
-Status: **the four blocking prerequisites (M1-M4) are CLOSED** — migrations
-`0107`/`0108` plus the call-site work below. `uppsc` is still the only `is_live`
-exam, and `upsc`/`mppsc` still carry **zero** syllabus nodes, questions, chapters
-or current affairs; what changed is that ingesting a second exam's content is no
-longer unsafe.
+Status: **M1-M9 are all CLOSED** — the four blocking prerequisites (M1-M4) by
+migrations `0107`/`0108`, and the go-live set (M5-M9) by `0109`/`0110`, plus the
+call-site work below. `uppsc` is still the only `is_live` exam, and
+`upsc`/`mppsc` still carry **zero** syllabus nodes, questions, chapters or
+current affairs; what changed is that ingesting a second exam's content, and
+then showing it to users, is no longer unsafe.
 
 **Verified by seeding a real second exam against the live DB, not by checking
-that uppsc still works** — a throwaway `upsc` tree (`UPSC_PRE_GS1`), its own
-embeddings, a shared NULL-exam chunk, a cached FAQ answer per exam, and a real
-throwaway user whose `target_exam` is `upsc`: **32/32 assertions passed**,
-covering isolation in *both* directions. Every synthetic row was deleted by an
-id captured at insert time, and `exams.upsc.is_live` was restored.
+that uppsc still works.** Two runs:
 
-Still open before a second exam goes LIVE: **M5-M9** (`docs/OUTSTANDING.md` §8b)
-and the product decisions in §4.
+- M1-M4 (2026-07-29): a throwaway `upsc` tree (`UPSC_PRE_GS1`), its own
+  embeddings, a shared NULL-exam chunk, a cached FAQ answer per exam, and a real
+  throwaway user whose `target_exam` is `upsc` — **32/32 assertions**.
+- M5-M9 (2026-07-29): the same tree plus its own published question bank, one
+  throwaway user per exam, real evaluations (GS and essay), a real second-exam
+  daily quiz built end to end, real threads, and a real CA item — **53/53
+  assertions**, isolation checked in *both* directions.
+
+Every synthetic row was deleted by an id captured at insert time and
+`exams.upsc.is_live` restored; a post-run audit confirmed 0 non-`uppsc` rows
+left in `syllabus_nodes` / `tests` / `evaluations` / `questions` /
+`current_affairs_items` / `users_profile` / `discussion_threads`.
+
+Still open: §8c's ops items (M11-M14) and the new **M20** (the CA magazine and
+its two UPPSC-shaped fields, deferred together — see §5 below), plus the product
+decisions in §4, of which **M17 is now decided: community is exam-separated**.
 
 ---
 
@@ -87,7 +98,7 @@ design* — filtering it to one exam would be the wrong fix, see the note there)
 |---|---|---|
 | `attempts.ts:457` | `getAttemptResult` | SAFE-BY-ID |
 | `community.ts:70` | `fetchNodeLabels` | SAFE-BY-ID |
-| `community.ts:91` | `assertAnchorExists` | SAFE-BY-ID *(should also assert exam match)* |
+| **`community.ts:91`** | `assertAnchorExists` | ✅ **FIXED (M7)** — asserts a shared exam and RETURNS it, so `createThread` stamps `discussion_threads.exam_code` from the anchor rather than guessing. A question anchor resolves through its **syllabus node** (never `questions.exam_code`, which is provenance); a `ca_item` tests **membership** in `exam_codes`, since a CA item is legitimately multi-exam. |
 | `dashboard.ts:156` | `getContinue` | SAFE-BY-ID |
 | **`dashboard.ts:319`** | `getPerformanceAndWeakness` | ✅ **FIXED (M2)** — takes `examCode`, resolved once in `getDashboardSummary` and shared with the countdown; now `.eq("exam_code", …)` **and** paged via `selectAll`. (The `paper_code::path` collision claim was wrong — see the corrections above; the unranged read was the real bug.) |
 | `entitlements.ts:320` | `listFreeNoteNodeIds` | SAFE-BY-PAPER — re-checked: it ranks **top-5 per `paper_code`**, and paper codes are globally unique (§0), so the allowance is already per-exam. No `(exam_code, paper_code)` key needed. |
@@ -98,7 +109,7 @@ design* — filtering it to one exam would be the wrong fix, see the note there)
 | `mentor/teacher.ts:120,139,148` | `loadAdjacentNodes` | SAFE-BY-ID — parent chain is exam-closed |
 | `mocks.ts:88` | `topLevelByNode` | SAFE-BY-PAPER |
 | `notes.ts:238,295` | `listReviewNotes` | SAFE-BY-ID (join) |
-| **`on-demand.ts:154`** | `resolveNodes` | **STILL OPEN (M7)** — untrusted body ids, only same-`paper_code` asserted. Not in M1-M4's scope. |
+| **`on-demand.ts:154`** | `resolveNodes` | ✅ **FIXED (M7)** — takes a required `examCode` and 404s any node outside it. `createFreshMockSet`'s `paper_code` (untrusted body too) is checked the same way through the paper's root node. |
 | `on-demand.ts:178` | `depth1AncestorIds` | SAFE-BY-ID |
 | `on-demand.ts:196` | `depth1AncestorIds` | SAFE-BY-PAPER |
 | **`on-demand.ts:209`** | `paperRootNodeId` | SAFE-BY-PAPER — but `.maybeSingle()` **hard-errors** if §0 is ever violated |
@@ -113,7 +124,7 @@ design* — filtering it to one exam would be the wrong fix, see the note there)
 | `syllabus.ts:371` | `getNodeDetail` | SAFE-BY-ID |
 | `syllabus.ts:401` | `getNodeDetail` breadcrumb | SAFE-BY-PAPER |
 | `syllabus.ts:480` | `getPaperTrends` | SAFE-BY-PAPER |
-| **`tests.ts:259`** | `resolveOrderedNodes` | **STILL OPEN (M7)** — untrusted body ids, same-`paper_code` only. Not in M1-M4's scope. |
+| **`tests.ts:259`** | `resolveOrderedNodes` | ✅ **FIXED (M7)** — takes a required `examCode` and 404s any node outside it; the `custom` test it builds is stamped with that exam instead of the column default. |
 | `time-attack.ts:177` | `getTimeAttackTopics` | SAFE-BY-PAPER — `idByPath` map would collide without §0 |
 | `time-attack.ts:220` | `startTimeAttack` | SAFE-BY-ID |
 | `tour.ts:141` | `getSuggestedChapterNode` | SAFE-BY-ID (join) — "best chapter" should be picked within the user's exam |
@@ -224,21 +235,40 @@ Items 1-4 were the blocking set. **All four are now CLOSED** (migrations
    not served the UPPSC-framed answer sitting at ~1.0 similarity; writing the
    UPSC answer INSERTS its own row instead of overwriting the UPPSC one; and
    same-exam "newest wins" still updates in place.
-5. **`mv_mains_weekly_board` has no exam dimension** and would rank three exams'
-   answer writing against each other. Fixing it also means the rubric registry
-   gains an exam dimension — the `rubric_version <> 'essay-v1'` split is
-   hardcoded in `0069` and `services/scoreboard.ts`.
+5. ✅ **`mv_mains_weekly_board` has an exam dimension, and so does the rubric
+   registry** (`0109`). The board is keyed `(week_start, exam_code, user_id)`
+   and splits GS from Essay on a stored `evaluations.rubric_kind` — the literal
+   `rubric_version <> 'essay-v1'` comparison is gone from `0069`,
+   `services/scoreboard.ts` and `getEvaluationPercentile`, because that string
+   is *UPPSC's* essay rubric and a second exam's would have satisfied `<>` and
+   been swept into the GS board. `RubricDefinition` now carries
+   `examCode`/`kind`/`paperCodes`/`defaults`; new exams name their versions
+   `<exam>-<kind>-v<n>`. See §3d.
 6. **Decide the chapters question** (0106 §13): duplicate the 284 fact-audited
    chapters per exam (~90% identical content, 3x authoring and fact-audit cost),
    or make chapter bodies exam-agnostic with a `note_syllabus_nodes` join table
    plus a per-exam state-angle overlay replacing the hardcoded `up_angle`. This
    is a content-strategy call with a real cost, deliberately left open.
 7. **Generalise the UPPSC-shaped CA fields** — `gs_papers text[]` assumes GS1-6
-   numbering and `is_up_specific` assumes UP.
+   numbering and `is_up_specific` assumes UP. **Deliberately deferred, with the
+   piece that makes deferring safe now shipped** (M8): the CA feed finally
+   *reads* `exam_codes` (`listCurrentAffairs` / `getCurrentAffairsItemById`, via
+   `overlaps` so a national story still reaches several exams from one row), so
+   the two fields are now only ever read *within* the exam whose pipeline wrote
+   them. Measured live: **355 rows carry `is_up_specific = true` and 0 of them
+   are scoped outside `uppsc`** — there is no cross-exam mislabel to fix today.
+   They cannot be generalised alone anyway: `gs_papers`' taxonomy IS the Mains
+   magazine's section structure (`GS_PAPER_ORDER`) and `is_up_specific` IS its
+   UP lead section, so the fields and magazine exam-scoping are one unit of
+   work, tracked as **M20**.
 
-**Still open (M7), deliberately left out of the M1-M4 pass:** `community.ts:91`,
-`on-demand.ts:154` and `tests.ts:259` accept untrusted node ids and assert only a
-shared `paper_code`; they should assert a shared `exam_code` too.
+**M7 — ✅ resolved.** `community.ts:91`, `on-demand.ts:154` and `tests.ts:259`
+now assert a shared `exam_code`, not just a shared `paper_code`. The exam check
+is not implied by the paper one: another exam's ids are internally consistent
+with each other, so the paper assertion happily passes on a set drawn entirely
+from a foreign syllabus. Rejections are **404, not 403** — a foreign node is
+genuinely not part of your syllabus, and a distinct error would confirm the id
+exists to a caller probing with guessed ids.
 
 **One partial that landed with (3) as a side effect:** `ca/pipeline.ts` now
 writes `current_affairs_items.exam_codes` from the nodes triage actually chose,
@@ -294,25 +324,96 @@ recorded.
   is no exam-switching UI — M13), and dropping such attempts silently would be
   worse than labelling them plainly.
 
-### 3a. Daily quiz — three sites that ride on the §0 invariant
+### 3a. Daily quiz — ✅ resolved (M6)
 
-Found by a post-commit edge-case audit. None is a defect today; each breaks the
-moment a second exam builds daily quizzes.
+Found by a post-0106 edge-case audit; none was a defect while one exam was live,
+each broke the moment a second exam built daily quizzes. All fixed 2026-07-29,
+plus a **fourth site the fix itself surfaced**:
 
-- `services/daily.ts` `findDailyQuizRow` — selects by `(kind, is_published,
-  scheduled_date, paper_code)` and ends in `.maybeSingle()`. Two exams sharing a
-  paper code on the same date would make it **throw PGRST116 → 500**, not return
-  the wrong row. Add `.eq("exam_code", …)`.
-- `daily/quiz.ts` `upsertDailyQuizTest` — writes with `onConflict: "slug"` and
-  never sets `exam_code`, so a second exam's quiz would be silently tagged
-  `uppsc` by the column default. Set it explicitly.
-- `daily/quiz.ts` `recentlyUsedInDailyQuiz` — filters on `paper_code` alone, so
-  two exams' question-recency windows would blend.
+- `services/daily.ts` `findDailyQuizRow` — was `(kind, is_published,
+  scheduled_date, paper_code)` + `.maybeSingle()`. Two exams sharing a paper
+  code on one date would **throw PGRST116 → 500**, not return the wrong row. Now
+  exam-scoped, so the single-row expectation is true by construction rather than
+  by an invariant enforced two tables away.
+- `daily/quiz.ts` `upsertDailyQuizTest` — never set `exam_code`, so a second
+  exam's quiz was silently tagged `uppsc` by the column default. Now explicit.
+- `daily/quiz.ts` `recentlyUsedInDailyQuiz` — filtered on `paper_code` alone, so
+  two exams' recency windows blended and one exam's quiz would suppress
+  questions a different cohort had never seen. Now exam-scoped.
+- **`tests.slug`, the idempotency key (new).** It was `daily:<date>:<gs|csat>`,
+  so two exams both building a "gs" quiz on one date would upsert onto the SAME
+  row, each overwriting the other's paper, title and membership. A non-default
+  exam now gets `daily:<date>:<exam>:<gs|csat>`; UPPSC keeps its historical bare
+  slug so no existing row is orphaned.
 
-Note `tests.paper_code` is plain `text` with **no FK**, so nothing at the DB
-level enforces §0 for that table — only `syllabus_nodes` is protected by a
-unique index. Daily-quiz idempotency itself is keyed on `tests.slug` (globally
-unique, untouched), so the 0106 index widening cannot cause duplicates.
+`DailyQuizVariant` carries an explicit `examCode` rather than deriving it from
+`paperCode`: the derivation would be *correct* (paper codes are globally unique)
+but would still leave every read and write filtering on paper alone, which is
+exactly how the four defects above arose. `listDailyQuizzes`/`ensureTodayQuizzes`
+are exam-scoped too, and `variantsForExam` returns **empty** for an exam with no
+daily quiz — an honest empty state rather than another exam's quiz.
+
+Note `tests.paper_code` is still plain `text` with **no FK**, so nothing at the
+DB level enforces §0 for that table — only `syllabus_nodes` is protected by a
+unique index.
+
+### 3d. Answer-writing boards + the rubric registry (M5)
+
+`evaluations` gained two columns, both stamped at persist time by the registry:
+
+- **`exam_code`** — the exam the answer BELONGS to (which board it competes on).
+  This deliberately revises 0106 §13's "evaluations derive their exam via the
+  question FK": `answer_submissions.question_id` is **nullable** (custom
+  prompts), so it does not derive for every row, and the only remaining
+  derivation is the author's *mutable* `target_exam` — which would retroactively
+  re-bucket their entire answer history the day they switch exams. The exam an
+  answer was written for is a fact about the past.
+- **`rubric_kind`** (`gs`|`essay`) — the segmentation axis, so SQL can split
+  without knowing any version string.
+
+`RubricDefinition` gained `examCode` (the scheme's owner), `kind`, `paperCodes`
+(empty = that exam's default) and `defaults` (word limit / max marks, which are
+exam-specific — 700 words at 50 marks is UPPSC's essay, not UPSC's). A load-time
+assertion rejects two default rubrics for one exam or two rubrics claiming one
+paper, either of which would make `resolveRubric`'s answer depend on object key
+order. A live exam with content but **no authored rubric** falls back to the
+default exam's scheme rather than 500ing at the billing point — visibly, since
+the persisted `rubric_version` still reads `v1`, while the evaluation's own
+`exam_code` keeps that exam's users on their own board.
+
+Also fixed alongside: the **daily** board pooled two exams' entirely different
+quizzes into one ranking (now partitioned by the exam derived through `tests`),
+and `demo:seed` left its seeded `essay-v1` rows on the `rubric_kind` default.
+
+`scoreboard_rank_snapshots.board_key` gains the exam **only for a non-default
+exam** (`week_start|upsc`). A user can hold rows in two exam buckets in one week
+— they switched exams, and their earlier answers keep their original exam_code
+by design — which under a bare key collides on
+`unique(user_id, board_type, board_key, snapshot_date)`. Reformatting every
+historical UPPSC key instead would make one week's board count as two in
+`countDistinctBoardAppearances` and inflate the ">=3 boards" milestone.
+
+### 3e. Community is separated per exam (M9 / M17)
+
+The product decision (founder, 2026-07-29) is **exam-separated**.
+`createThread` stamps the anchor's own exam (falling back to the creator's) and
+`shareAnswerForPeerReview` — the system-created path `createThread` refuses —
+stamps it too. `0110` backfilled every pre-existing thread to `uppsc`, which is
+a fact rather than a default: `exams` was only created by 0106, `upsc`/`mppsc`
+have zero content, and all 141 backfilled profiles are `uppsc`.
+
+Reads filtered by the viewer's exam: `listThreadsForAnchor`, `getThreadDetail`,
+`getCommunityHub` (recent **and** my-threads), `listSharedAnswers`,
+`getSharedAnswer`. Participation writes gated identically, so a thread you
+cannot read is one you cannot reply to or vote on: `addPost`, `votePost`.
+`listSharedAnswers` was re-pointed to page over `discussion_threads` rather than
+`shared_answers` (the exam lives on the thread, so paging the answers and
+filtering afterwards returns short pages once two exams share the feed — this
+also removed its per-row N+1 thread lookup).
+
+A NULL `exam_code` still means "not exam-specific, visible to all" (0106 §12)
+and every read admits it, so a genuine cross-exam announcement thread remains
+possible. It simply stops being the accidental default.
 
 ### 3b. Fixed during the audit rather than deferred
 
@@ -347,7 +448,7 @@ The schema deliberately encodes **one exam per user at a time**
 `daily_quiz_board_entries unique(user_id, quiz_date)`. Changing that is a
 product decision, not a migration.
 
-Still open: whether community is cross-exam (0106 §12 allows both — a NULL
-`exam_code` means a general thread); whether pricing stays one ladder across
-exams (`plans`/`subscriptions` are exam-agnostic today, see
-`docs/OUTSTANDING.md` §7); and the chapters question in §3.6.
+**Decided 2026-07-29: community is exam-separated** (see §3e). Still open:
+whether pricing stays one ladder across exams (`plans`/`subscriptions` are
+exam-agnostic today, see `docs/OUTSTANDING.md` §7); and the chapters question in
+§3.6.

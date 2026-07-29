@@ -18,12 +18,26 @@ export const CURRENT_AFFAIRS_COLUMNS =
   "title_i18n, summary_i18n, prelims_facts, mains_brief, possible_questions, node_significance, " +
   "detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids";
 
+/**
+ * `examCode` is REQUIRED, not optional-with-a-default: 0106 §11 added
+ * `exam_codes` precisely so a reader could get "current affairs relevant to MY
+ * exam", and until this filter existed the column was written by the pipeline
+ * and read by nobody — a second exam's feed would have been the UPPSC feed,
+ * UP-specific items and all.
+ *
+ * `overlaps`, not equality: `exam_codes` is an ARRAY on purpose. A national
+ * budget / IR / environment story is genuinely relevant to several exams and is
+ * deliberately NOT duplicated per exam (0106 §11), so it must appear in each of
+ * their feeds from the one row.
+ */
 export async function listCurrentAffairs(
+  examCode: string,
   filters: CurrentAffairsQuery,
 ): Promise<{ items: CurrentAffairsItem[]; total: number }> {
   let query = supabase()
     .from("current_affairs_items")
     .select(CURRENT_AFFAIRS_COLUMNS, { count: "exact" })
+    .overlaps("exam_codes", [examCode])
     .eq("status", "published");
 
   if (filters.date) query = query.eq("date", filters.date);
@@ -57,11 +71,12 @@ export async function listCurrentAffairs(
   return { items: (data ?? []) as unknown as CurrentAffairsItem[], total: count ?? 0 };
 }
 
-export async function getCurrentAffairsItemById(id: string): Promise<CurrentAffairsItem> {
+export async function getCurrentAffairsItemById(examCode: string, id: string): Promise<CurrentAffairsItem> {
   const { data, error } = await supabase()
     .from("current_affairs_items")
     .select(CURRENT_AFFAIRS_COLUMNS)
     .eq("id", id)
+    .overlaps("exam_codes", [examCode])
     .eq("status", "published")
     .maybeSingle();
   if (error) throw new HttpError(500, `current affairs item lookup failed: ${error.message}`);
