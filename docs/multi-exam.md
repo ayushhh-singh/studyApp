@@ -27,8 +27,12 @@ Every synthetic row was deleted by an id captured at insert time and
 left in `syllabus_nodes` / `tests` / `evaluations` / `questions` /
 `current_affairs_items` / `users_profile` / `discussion_threads`.
 
-Still open: §8c's ops items (M11-M14, M21, M22) and the new **M20** (the CA magazine
-and its two UPPSC-shaped fields, deferred together — see §3 item 7).
+Still open: §8c's ops items (M12, M13, M21, M22, **M23**) and **M20** (the CA magazine
+and its two UPPSC-shaped fields, deferred together — see §3 item 7). **M11 and M14
+closed 2026-07-29** — M11 as a reasoned decision *not* to add a paper-code FK
+registry (§0a, which also records the one place the invariant genuinely leaks:
+the unguarded PYQ-ingest writer, now **M23**), M14 as a verified idempotency fix
+to `0106`.
 
 **The product decisions in §4 are now closed** (founder, 2026-07-29): community
 is exam-separated (M17, §3e), **study chapters stay exam-specific and are
@@ -67,6 +71,46 @@ The invariant turns an entire class of silent cross-exam corruption into a loud
 unique-violation at ingest time. **Do not drop that index.** The
 `(exam_code, paper_code, path)` index added in 0106 is documentation-of-intent
 and defence in depth — it is not the guarantee.
+
+### 0a. Reconsidered 2026-07-29: no FK registry, and where the invariant actually leaks
+
+M11 asked whether `tests.paper_code`, `exam_cutoffs.paper_code` and
+`mv_mock_series_board`'s key need **DB-level** enforcement before a second
+exam's tests and cut-offs exist. **Decision: no.** Full reasoning in
+`docs/OUTSTANDING.md` §8c M11; the two things a second-exam session needs from
+it are:
+
+**Why no constraint.** All three hold only *derived copies* of a paper code —
+none of them mints one. `tests.paper_code` is read off the node/question row in
+the same statement that stamps `exam_code` from that same row; `exam_cutoffs`
+has no code writer at all; the mock-series MV derives from `tests`. And the only
+shape that would make the invariant DB-true — a `papers(paper_code PK,
+exam_code FK)` registry with FKs onto all three — is **not free**: measured
+live, `tests.paper_code` carries `CURRENT_AFFAIRS` on 16 rows and
+`questions.paper_code` also carries `EDGE`, synthetic codes with no
+`syllabus_nodes` row, so a blanket FK converts a working path into a `23503`
+unless synthetic registry rows are minted and maintained forever.
+**The condition that would reverse this is not "a second exam exists" — it is
+"a paper code is minted somewhere other than an ingest pipeline".**
+
+**Where it does leak, and what to do about it.** Uniqueness makes a value
+*consistent*; it does not make a read *access-scoped*, and it says nothing about
+a writer that never had the rule applied to it. Two findings, one fixed and one
+tracked:
+
+- **Fixed:** `getMockSeriesBoard` took `paper_code` straight from an untrusted
+  query param with no exam check — a second exam's user could read another
+  exam's series board by passing its code. Now mirrors the guard `getTestBoard`
+  already had for `test_id`.
+- **⚑ TRACKED AS M23 — DO THIS BEFORE THE FIRST `ingest:pyq` RUN OF A SECOND
+  EXAM.** The prefix rule is enforced in `ingest:syllabus` only.
+  `classifyPyqId` (`ingest/_shared.ts`) maps `upsc_prelims_2024_gs1` to a
+  **bare `PRE_GS1`**, and `pyq-load.ts`'s `resolveSyllabusId` resolves a paper
+  code to a node with **no exam filter** — so a second exam's PYQs would take
+  UPPSC's paper code and attach to UPPSC's tree, silently. It is the exact
+  mirror of M21/M22 for chapters: fix it as step 1 of U5, not afterwards. Today
+  the only thing standing in the way is the convention *"never ingest
+  `upsc_*`/`upsssc_*` files"* — which U5 is by definition the act of relaxing.
 
 ---
 

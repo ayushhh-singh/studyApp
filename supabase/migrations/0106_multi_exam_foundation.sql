@@ -99,7 +99,14 @@
 -- `answer_languages` — with a per-paper override, since MPPSC's Papers V and VI
 -- are Hindi-only while its GS papers accept Hindi or English. The interview is a
 -- STAGE with marks and no papers, not a pseudo-paper full of nulls.
-create table public.exams (
+-- IF NOT EXISTS / drop-first on every statement in this file that would
+-- otherwise fail on a second run (M14). It is ledger-gated and ran in one
+-- transaction, so partial application is impossible and re-running is never
+-- required in normal operation — this is purely so a HAND-REPLAY onto a
+-- database that already has 0106 (the direct-`pg` path this migration itself
+-- had to use while the ledger was blocked, see docs/OUTSTANDING.md §0c) is a
+-- no-op rather than a hard failure partway through.
+create table if not exists public.exams (
   exam_code         text        primary key,
   display_name_i18n jsonb       not null,
   is_live           boolean     not null default false,
@@ -117,6 +124,9 @@ comment on column public.exams.paper_structure is
 comment on column public.exams.launch_scope_i18n is
   'The HONEST per-exam coverage statement shown to a user before they pick this exam: {"summary_i18n", "covered_i18n"[], "not_covered_i18n"[]}. Never overstate what is ingested.';
 
+-- Postgres has no CREATE TRIGGER IF NOT EXISTS; drop-first is this repo's
+-- convention (0052/0057/0066/0070).
+drop trigger if exists trg_exams_updated_at on public.exams;
 create trigger trg_exams_updated_at
   before update on public.exams
   for each row execute function public.set_updated_at();
@@ -305,6 +315,9 @@ comment on column public.exam_cutoffs.exam_code is
 -- Rebuild the key/index around the corrected column names.
 alter table public.exam_cutoffs
   drop constraint if exists exam_cutoffs_exam_code_stage_year_category_key;
+-- The NEW name too, or a re-run fails with "constraint already exists".
+alter table public.exam_cutoffs
+  drop constraint if exists exam_cutoffs_exam_paper_stage_year_category_key;
 alter table public.exam_cutoffs
   add constraint exam_cutoffs_exam_paper_stage_year_category_key
     unique (exam_code, paper_code, stage, year, category);
@@ -505,5 +518,7 @@ create index if not exists discussion_threads_exam_visible_idx
 -- privileges, and 0053 already revoked insert/update/delete from anon.
 alter table public.exams enable row level security;
 
+-- Postgres has no CREATE POLICY IF NOT EXISTS either; drop-first, as 0053 does.
+drop policy if exists content_read on public.exams;
 create policy content_read on public.exams
   for select to anon, authenticated using (true);

@@ -344,7 +344,34 @@ export async function getTestBoard(userId: string, testId: string): Promise<Test
   return { test_id: testId, title_i18n: test.title_i18n as BilingualText, ...buildRows(entries, userId, handles) };
 }
 
+/**
+ * The mock SERIES board, keyed on `paper_code` alone — `mv_mock_series_board`
+ * has no exam column and does not need one, because paper codes are globally
+ * unique across exams (docs/multi-exam.md §0), so every row under a given code
+ * belongs to exactly one exam.
+ *
+ * Uniqueness makes the board internally CONSISTENT; it does not make it
+ * ACCESS-scoped. `paper_code` arrives as an untrusted query param, so without
+ * the check below a second exam's user could read another exam's series board
+ * simply by passing its code — the same gap `getTestBoard` already closes for
+ * `test_id`, and the same class as the untrusted-node-id checks in
+ * `resolveOrderedNodes`. Reported as "not found" rather than "wrong exam" for
+ * the same reason as there: another exam's board is genuinely not part of this
+ * user's syllabus, and a distinct error would confirm the code exists.
+ *
+ * A code that resolves to NO syllabus node is left to fall through to its
+ * (necessarily empty) board rather than 404: every mock paper code in the bank
+ * has a node, so this only affects codes that can have no mocks anyway.
+ */
 export async function getMockSeriesBoard(userId: string, paperCode: string): Promise<MockSeriesBoard> {
+  const [examCode, { data: paperNode, error: paperError }] = await Promise.all([
+    getUserExam(userId),
+    supabase().from("syllabus_nodes").select("exam_code").eq("paper_code", paperCode).limit(1).maybeSingle(),
+  ]);
+  if (paperError) throw new HttpError(500, `paper exam lookup failed: ${paperError.message}`);
+  const paperExam = (paperNode as { exam_code: string } | null)?.exam_code;
+  if (paperExam && paperExam !== examCode) throw notFound("Board not found");
+
   const { data, error } = await supabase()
     .from("mv_mock_series_board")
     .select("user_id, avg_score_pct, avg_accuracy_pct, mocks_attempted")
