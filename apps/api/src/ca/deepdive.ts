@@ -112,7 +112,7 @@ interface DeepDiveGenerated {
   case_examples_i18n: { hi: string[]; en: string[] };
 }
 
-const DEEP_DIVE_SCHEMA = {
+export const DEEP_DIVE_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
@@ -141,7 +141,7 @@ const DEEP_DIVE_SCHEMA = {
  * this file — so the per-exam text is free and cannot cross a breakpoint.
  */
 const deepDiveSystemCache = new Map<string, string>();
-function DEEP_DIVE_SYSTEM(examCode: string): string {
+export function DEEP_DIVE_SYSTEM(examCode: string): string {
   const hit = deepDiveSystemCache.get(examCode);
   if (hit !== undefined) return hit;
   const cfg = getExamConfig(examCode).ca;
@@ -166,7 +166,7 @@ function DEEP_DIVE_SYSTEM(examCode: string): string {
   return built;
 }
 
-function buildContext(issue: RankedIssue, notesText: string, pyqText: string, examCode: string): string {
+export function buildContext(issue: RankedIssue, notesText: string, pyqText: string, examCode: string): string {
   const b = issue.item.mains_brief;
   const parts = [
     `PRIMARY ISSUE: ${issue.item.title_i18n.en}`,

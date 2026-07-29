@@ -515,8 +515,28 @@ export async function executeDoubtStream(userId: string, plan: DoubtPlan, emit: 
   const profileText = await profilePromise;
 
   const system = [
-    // Segment [0], cache:true — the cached prefix. Per-EXAM text partitions the
-    // cache (one stable entry per exam × locale); per-request text would kill it.
+    // Segment [0], cache:true — ONE OF ONLY TWO REAL CACHES IN THE CODEBASE,
+    // AND IT CLEARS THE BAR BY 22 TOKENS. Per-EXAM text partitions the cache
+    // (one stable entry per exam × locale); per-request text would kill it.
+    //
+    // ⚠️ SHORTER PER-EXAM TEXT KILLS IT TOO — the constraint runs both ways,
+    // and this is the half that a second exam will actually hit. MEASURED
+    // 2026-07-30 (countTokens) against claude-sonnet-5's 1024-token minimum
+    // cacheable prefix:
+    //
+    //     uppsc en → 1046 tokens (+22 headroom)
+    //     uppsc hi → 1055 tokens (+31 headroom)
+    //     of which 102 tokens come from lib/exam-config.ts:
+    //         mentor.testingLens      81 tokens
+    //         mentor.platformFraming  21 tokens
+    //
+    // So an exam whose mentor framing is only ~23 tokens TERSER than UPPSC's
+    // drops the assembled persona under 1024 and Anthropic silently stops
+    // caching for that exam: no error, `cache_creation_input_tokens: 0`
+    // forever, and every mentor doubt on the generic path re-bills the full
+    // persona as fresh input. The guard against this is a character floor
+    // asserted in `pnpm prompts:snapshot` (see MENTOR_PERSONA_MIN_CHARS there)
+    // plus the authoring note on those two keys in lib/exam-config.ts.
     { text: buildMentorPersona(examCode, locale), cache: true as const },
     ...(profileText ? [{ text: buildProfileSegment(profileText), cache: true as const }] : []),
   ];
@@ -640,8 +660,13 @@ async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: Mento
     if (webSources.length) emit("web_sources", { web_sources: webSources });
   }
 
-  // Segment [0], cache:true — the teacher stream's only cached segment. Same
-  // partition-by-exam reasoning as the doubt persona above.
+  // Segment [0], cache:true — NO-OP TODAY, unlike the doubt persona above.
+  // MEASURED 2026-07-30 (countTokens): 879 tokens (en) / 888 (hi) against
+  // claude-sonnet-5's 1024-token minimum cacheable prefix — ~145 short, so
+  // nothing caches and nothing is billed as a cache write. This is the closest
+  // near-miss in the codebase: ~150 more tokens of persona would flip it into a
+  // real cache. Left in place (harmless, and correct for free if it grows).
+  // See lib/anthropic.ts's PromptSegment doc.
   const system = [{ text: buildTeacherPersona(plan.examCode, locale), cache: true as const }];
   const messages = [
     ...plan.history.map((m) => ({ role: m.role, content: m.content })),

@@ -108,6 +108,23 @@ interface ConvertResult {
 }
 
 /**
+ * The domain hint handed to `translateBatch()` by `translateUserNote()`.
+ *
+ * EXPORTED so `pnpm prompts:snapshot` can diff it by string: it used to be a
+ * bare inline literal argument, and after the exam-config sweep it is a config
+ * read inside a function that also reads and writes the DB — so the only way to
+ * observe the string was to actually run a translation. A one-line builder makes
+ * it snapshot-reachable with zero side effects.
+ */
+export function buildUserNoteTranslateHint(examCode: string): string {
+  return requireAuthored(
+    getExamConfig(examCode).misc.personalNotesTranslateDomainHint,
+    examCode,
+    "misc.personalNotesTranslateDomainHint",
+  );
+}
+
+/**
  * EXPORTED (the whole prompt used to be anonymous inline properties of the
  * `structuredJson({...})` argument inside the module-private
  * `convertAnswerToBody`) so `pnpm prompts:snapshot` can diff it by string.
@@ -390,11 +407,7 @@ export async function translateUserNote(userId: string, id: string): Promise<Use
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     to,
-    requireAuthored(
-      getExamConfig(noteExam).misc.personalNotesTranslateDomainHint,
-      noteExam,
-      "misc.personalNotesTranslateDomainHint",
-    ),
+    buildUserNoteTranslateHint(noteExam),
     { purpose: "user_note_translate", userId },
   );
   const byKey = new Map(jobs.map((j, i) => [j.key, translated[i] ?? ""]));

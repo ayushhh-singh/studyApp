@@ -409,11 +409,47 @@ export interface ExamQgenConfig {
   descOutputLabel: Authored<string>;
 }
 
-/** Mentor — `services/mentor/prompts.ts` and `services/mentor/index.ts`. */
+/**
+ * Mentor — `services/mentor/prompts.ts` and `services/mentor/index.ts`.
+ *
+ * =========================================================================
+ * ⚠ LENGTH CONSTRAINT ON `platformFraming` + `testingLens` — READ BEFORE
+ *   AUTHORING A SECOND EXAM'S MENTOR FRAMING
+ * =========================================================================
+ * `buildMentorPersona` is the ONLY cached segment on the mentor's generic
+ * doubt path, and it clears claude-sonnet-5's 1024-token minimum cacheable
+ * prefix by a hair. MEASURED 2026-07-30 with `messages.countTokens`:
+ *
+ *     uppsc en → 1046 tokens (+22 over the minimum)
+ *     uppsc hi → 1055 tokens (+31)
+ *     of which 102 tokens are these two keys:
+ *         testingLens      81 tokens (233 chars)
+ *         platformFraming  21 tokens ( 35 chars)
+ *
+ * A second exam whose framing is merely ~23 tokens TERSER than UPPSC's pushes
+ * the assembled persona below 1024, and Anthropic then silently stops caching
+ * it — no error, `cache_creation_input_tokens: 0` forever, and EVERY mentor
+ * doubt for that exam re-bills the whole persona as fresh input.
+ *
+ * So: **do not write a tighter mentor framing than UPPSC's just because it
+ * reads better.** Match its length or exceed it. A terser exam-specific
+ * testing lens is the single most likely way to trip this, because it is by
+ * far the larger of the two keys.
+ *
+ * `pnpm prompts:snapshot` enforces a character floor per exam and fails loudly
+ * if a persona drops into the danger zone (see MENTOR_PERSONA_MIN_CHARS in
+ * `apps/api/scripts/prompt-snapshot.ts`) — but it is a proxy, so if a new
+ * exam lands near the floor, confirm with `countTokens` before shipping.
+ * Background on why a below-minimum `cache: true` is silent:
+ * `lib/anthropic.ts`'s PromptSegment doc.
+ */
 export interface ExamMentorConfig {
   /**
    * Call site: `buildMentorPersona` line 1 —
    * `"…the AI mentor on Neev — " + platformFraming + ". You are a"`.
+   *
+   * ⚠ Counts toward the persona's cache-minimum budget — see the length
+   * constraint on this interface. 21 tokens for uppsc.
    */
   platformFraming: Authored<string>;
   /**
@@ -432,6 +468,12 @@ export interface ExamMentorConfig {
    * ⚠ CONTAINS THE SOURCE'S HARD LINE WRAPPING. The persona is an array of
    * string literals joined by "\n", and this bullet spans three of them; the
    * embedded "\n  " sequences are part of the assembled prompt. Keep them.
+   *
+   * ⚠ THE LARGEST EXAM-CONFIG CONTRIBUTOR to the persona's cache-minimum
+   * budget — 81 of the 102 config-supplied tokens for uppsc. Writing a terser
+   * testing lens for a new exam is the most likely way to silently disable
+   * mentor prompt caching for that exam; see the length constraint documented
+   * on this interface before shortening it.
    */
   testingLens: Authored<string>;
   /**
@@ -1384,7 +1426,11 @@ const KNOWN_CODES = new Set<string>(TARGET_EXAM_CODES);
  * user's answer evaluation because a row carries an unexpected exam code would
  * be a worse failure than serving the default exam's framing. A genuinely
  * missing exam surfaces through the warning and through
- * `assertExamConfigMatchesRegistry()`, not through a 500.
+ * `assertExamConfigMatchesRegistry()`, not through a 500 — and that second
+ * signal is real: it runs at every boot via `checkExamConfigRegistryAtBoot()`
+ * from `index.ts`'s `app.listen`. (Until 2026-07-30 it had no callers at all,
+ * so this sentence promised a backstop that never ran; the only live signal was
+ * the `logger.warn` below.)
  *
  * (Contrast `requireAuthored`, which DOES throw: an unknown exam code is an
  * operational anomaly, whereas reaching an unauthored judgment slot means we
@@ -1433,9 +1479,12 @@ interface ExamRegistryRow {
  * (not warn) so an operator sees it, and returns a structured report a health
  * endpoint can surface.
  *
- * NOT WIRED INTO BOOT IN THIS SLICE — exported only. Wire it into `index.ts`'s
- * `app.listen` (and, if useful, `GET /health`) when the sweep lands, alongside
- * `checkMentorCacheHealthAtBoot`.
+ * WIRED INTO BOOT (2026-07-30) via `checkExamConfigRegistryAtBoot()` below,
+ * called from `index.ts`'s `app.listen` alongside `checkMentorCacheHealthAtBoot`.
+ * It previously had ZERO callers repo-wide, which made `getExamConfig`'s
+ * docstring promise of a backstop untrue — the only live signal was a
+ * `logger.warn`. Call this function directly (not the wrapper) from a CI/ops
+ * script that wants the report or `{ throwOnDrift: true }`.
  *
  * Checks, per configured exam:
  *   1. the exam exists in `exams`
@@ -1549,4 +1598,37 @@ export async function assertExamConfigMatchesRegistry(
   }
 
   return report;
+}
+
+/**
+ * Boot probe — the wiring that makes `assertExamConfigMatchesRegistry()` an
+ * actual backstop rather than dead code. Mirrors
+ * `services/mentor/cache-health.ts`'s `checkMentorCacheHealthAtBoot`: log at
+ * ERROR so an operator sees drift, and NEVER throw.
+ *
+ * CANNOT CRASH BOOT, by three separate guards:
+ *   1. `throwOnDrift` is left at its default `false`, so real drift logs and
+ *      returns rather than throwing.
+ *   2. the try/catch below swallows the paths `assertExamConfigMatchesRegistry`
+ *      cannot report as drift — `supabase()` throwing on missing env, and the
+ *      network call rejecting rather than returning `{ error }`.
+ *   3. it returns `Promise<void>` and is `void`-called, so nothing awaits it and
+ *      a slow/unreachable DB delays no request.
+ *
+ * A transient DB blip must never crash-loop the API over a config check.
+ */
+export async function checkExamConfigRegistryAtBoot(): Promise<void> {
+  try {
+    const report = await assertExamConfigMatchesRegistry();
+    if (report.ok) {
+      logger.info("exam-config: matches the exams registry");
+    }
+    // The drift case already logged at ERROR inside the assert; don't double-log.
+  } catch (err) {
+    logger.error(
+      { err },
+      "exam-config: registry check could not run (DB unreachable or unconfigured) — " +
+        "config/registry drift is UNVERIFIED this boot. Not fatal; the API continues.",
+    );
+  }
 }

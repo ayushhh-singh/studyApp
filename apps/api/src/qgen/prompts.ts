@@ -414,8 +414,14 @@ export function buildCriticParams(opts: { node: NodeContext; rendered: string; g
     model: MODELS.sonnet,
     effort: "medium",
     maxTokens: 1600,
-    // ONE cache:true segment — was a module const with a single global entry,
-    // now one entry PER EXAM. A partition, not a per-request prefix.
+    // NO-OP TODAY — the flag caches nothing, and the exam-config sweep did not
+    // change that. MEASURED 2026-07-30 (countTokens): 611 tokens vs
+    // claude-sonnet-5's 1024-token minimum cacheable prefix — 413 short. This
+    // was equally a no-op BEFORE the sweep (it was a single module const then,
+    // ~the same length), so per-exam partitioning costs nothing here; there is
+    // simply no cache to partition. Left in place: harmless, and correct for
+    // free if this prompt ever grows past 1024. See lib/anthropic.ts's
+    // PromptSegment doc for why a below-minimum `cache: true` is silent.
     system: [{ text: criticSystem(opts.node.examCode), cache: true }],
     content:
       `SYLLABUS TOPIC:\n${nodeLine(opts.node)}\n\n${groundingBlock(opts.grounding, opts.node.examCode)}\n\n` +
@@ -484,7 +490,13 @@ export function buildVerifyParams(opts: {
   return {
     model: MODELS.haiku,
     maxTokens: 400,
-    // ONE cache:true segment — one entry per exam (see the critic note above).
+    // NO-OP TODAY, AND BY THE WIDEST MARGIN IN THE CODEBASE — MEASURED
+    // 2026-07-30 (countTokens): 107 tokens against claude-haiku-4-5's
+    // 4096-token minimum. That is ~38x short, and the reason is the model, not
+    // the prompt: haiku-4-5's minimum is FOUR TIMES sonnet-5's 1024, so a
+    // prompt that would cache fine on sonnet caches nothing here. No realistic
+    // growth of this prompt reaches 4096. Left in place as harmless. See
+    // lib/anthropic.ts's PromptSegment doc.
     system: [{ text: verifySystem(examCode), cache: true }],
     content:
       `Question:\n${opts.stemEn}\n\nOptions:\n${opts_}\n\n` +

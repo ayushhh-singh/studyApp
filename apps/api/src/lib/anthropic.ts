@@ -65,6 +65,37 @@ export interface LlmUsage {
  * question+answer context reused by sibling calls) to mark an ephemeral
  * (5-minute) prompt-cache breakpoint after it. Cache hits require the exact
  * same segment text AND every segment before it — order matters.
+ *
+ * ===========================================================================
+ * MINIMUM CACHEABLE PREFIX — THE TRAP THAT MAKES `cache: true` A SILENT NO-OP
+ * ===========================================================================
+ * A `cache: true` segment whose prefix is BELOW the model's minimum simply
+ * does not cache. There is no error, no warning, and no field that says so —
+ * `cache_creation_input_tokens` is just 0 forever. So a compiling, shipping,
+ * apparently-cached prompt can be paying full input price on every call.
+ *
+ *   claude-haiku-4-5  →  4096 tokens   ← FOUR TIMES sonnet's, and the single
+ *   claude-sonnet-5   →  1024 tokens      sharpest trap in this file
+ *
+ * The haiku figure is the one to remember: a ~1500-token prompt caches fine on
+ * sonnet and caches NOTHING on haiku. The minimum is also NOT monotonic across
+ * generations (newer Opus models are 512, Opus 4.6/4.5 and Haiku 4.5 are 4096),
+ * so it cannot be reasoned about from model recency — look it up.
+ *
+ * MEASURE, DO NOT ESTIMATE. `chars / 4` is not accurate enough near the line —
+ * the real ratio for this codebase's English prompt text is ~2.85 chars/token,
+ * so chars/4 UNDER-counts by ~30% and will tell you a failing prompt passes.
+ * Use the real tokenizer: `client.messages.countTokens({model, system, messages})`
+ * (free, no token billing).
+ *
+ * As of 2026-07-30, measured with countTokens, only TWO `cache: true` sites in
+ * this codebase actually cache — `evaluation/prompts.ts buildAnalysisSystem`
+ * (2118 tok) and `mentor/prompts.ts buildMentorPersona` (1046 tok, just +22
+ * over the line). Every other `cache: true` flag is a measured no-op; each is
+ * annotated in place with its own token count. The flags are left in
+ * deliberately: they are harmless (a below-minimum prefix is not billed the
+ * 1.25x cache-write premium either — nothing is written) and they become
+ * correct for free if the prompt ever grows past the minimum.
  */
 export interface PromptSegment {
   text: string;

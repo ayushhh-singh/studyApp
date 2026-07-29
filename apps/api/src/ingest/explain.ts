@@ -22,7 +22,7 @@ import { estimateCostUsd } from "../lib/models.js";
 import { supabase } from "../lib/supabase.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
 import { examCodeForNode } from "../lib/exams.js";
-import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { explainSystem, supportSystem } from "./prompts.js";
 import { pMap } from "../audit/shared.js";
 
 /** Format retrieved passages for the prompt (same shape as the on-demand path). */
@@ -44,33 +44,11 @@ interface ExQ {
   correct_option_key: string | null;
 }
 
-/**
- * NOT exported and NOT snapshot-covered: this module exports nothing and ends in
- * a bare top-level `main().catch(...)` with no argv guard, so
- * `pnpm prompts:snapshot` must never import it (a dynamic import would run the
- * real ingest — DB writes + an Anthropic batch). Byte-identity for uppsc was
- * verified by direct string assertion instead; see the slice-2d report.
- *
- * Memoised per exam: one string instance per exam across a whole batch.
- */
-function memoisePerExam(build: (examCode: string) => string): (examCode: string) => string {
-  const cache = new Map<string, string>();
-  return (examCode: string) => {
-    const hit = cache.get(examCode);
-    if (hit !== undefined) return hit;
-    const built = build(examCode);
-    cache.set(examCode, built);
-    return built;
-  };
-}
-
-const supportSystem = memoisePerExam(
-  (examCode) =>
-    `You are auditing ${requireAuthored(getExamConfig(examCode).misc.ingestKeySupportFraming, examCode, "misc.ingestKeySupportFraming")} before an explanation is written for it. You are given the question, its options, ` +
-    "reference passages, and the STORED answer key. Using the passages and well-established knowledge, decide whether the " +
-    "evidence genuinely supports the stored key being the single correct option. Do NOT assume the stored key is right — " +
-    "check it. If it is clearly wrong, say which option the evidence actually supports. Name the decisive fact. Return strict JSON only.",
-);
+// supportSystem / explainSystem live in ./prompts.ts (imported above), NOT here:
+// this module exports nothing and ends in a bare top-level `main().catch(...)`
+// with no argv guard, so `pnpm prompts:snapshot` can never import it. Keeping the
+// two exam-parameterised system prompts in a side-effect-free sibling module is
+// what makes them byte-identity-checkable by the harness instead of by eyeball.
 const SUPPORT_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,
@@ -82,14 +60,6 @@ const SUPPORT_SCHEMA: Record<string, unknown> = {
   },
   required: ["supports_key", "believed_key", "decisive_fact", "reason"],
 };
-const explainSystem = memoisePerExam(
-  (examCode) =>
-    `You write ${requireAuthored(getExamConfig(examCode).misc.explanationFraming, examCode, "misc.explanationFraming")} for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the ` +
-    "verified correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using " +
-    "the reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
-    "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
-    "no bold/italic asterisks, no bullet lists. Return strict JSON only.",
-);
 const EXPLAIN_SCHEMA: Record<string, unknown> = {
   type: "object",
   additionalProperties: false,

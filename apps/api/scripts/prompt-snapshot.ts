@@ -255,6 +255,29 @@ const CHAPTER_NODE_BARE = { ...CHAPTER_NODE, stage: "mains" as const, descriptio
 const WEIGHTAGE = { totalPyqs: 12, byYear: { "2021": 3, "2022": 4, "2023": 5 }, lastAskedYear: 2023 };
 const WEIGHTAGE_EMPTY = { totalPyqs: 0, byYear: {}, lastAskedYear: null };
 
+/** A CurrentAffairsMainsBrief — feeds ca/mainsQuestionParams and ca/deepdive's buildContext. */
+const CA_MAINS_BRIEF = {
+  why_in_news_i18n: { en: "Fixture why in news.", hi: "क्यों समाचार में।" },
+  background_i18n: { en: "Fixture background.", hi: "पृष्ठभूमि।" },
+  significance_i18n: { en: ["Sig one", "Sig two"], hi: ["महत्व एक", "महत्व दो"] },
+  challenges_i18n: { en: ["Chal one"], hi: ["चुनौती एक"] },
+  way_forward_i18n: { en: ["Way one", "Way two"], hi: ["मार्ग एक", "मार्ग दो"] },
+  keywords_i18n: { en: ["kw one", "kw two"], hi: ["कुं एक"] },
+  case_examples_i18n: { en: [], hi: [] },
+};
+
+/** A ca/deepdive RankedIssue — relatedItems non-empty so that branch renders too. */
+const DEEP_DIVE_ISSUE = {
+  item: {
+    title_i18n: { en: "Fixture deep-dive issue", hi: "फिक्स्चर गहन विश्लेषण" },
+    mains_brief: CA_MAINS_BRIEF,
+    syllabus_node_ids: [],
+  },
+  relatedItems: [
+    { title_i18n: { en: "Related one" }, mains_brief: { why_in_news_i18n: { en: "Because reasons." } } },
+  ],
+};
+
 const WEB_SOURCES = [
   { id: "S1", title: "Fixture Source One", url: "https://example.invalid/one" },
   { id: "S2", title: "Fixture Source Two", url: "https://example.invalid/two" },
@@ -870,9 +893,93 @@ async function collectSlice2dPrompts(): Promise<void> {
   if (moderation) put("community-moderation/buildScreenSystem", moderation.buildScreenSystem("uppsc"));
 
   // ingest/series.ts is import-safe (no top-level main()); its sibling ingest
-  // CLIs (explain/syllabus/pyq) are NOT and stay out of this harness.
+  // CLIs (explain/syllabus/pyq) are NOT — their exam-bearing system prompts now
+  // live in the side-effect-free ingest/prompts.ts and are covered below.
   const series = await load<typeof import("../src/ingest/series.js")>("../src/ingest/series.js");
   if (series) put("ingest/seriesSystem", series.seriesSystem("uppsc"));
+}
+
+// ===========================================================================
+// Newly reachable in the post-refactor audit pass.
+//
+// Each of these was CONVERTED to a config read by the exam-config sweep but was
+// covered by NO machine check — it sat in the baseline's
+// __not_reachable_without_editing__ block, verified only by eyeball. Extracting
+// a pure builder (the same move slice 2d made for the others) is what makes a
+// byte diff possible at all.
+//
+// Every value below was ALSO proved byte-identical to the PRE-REFACTOR text —
+// reconstructed mechanically from `git show 14a1493:<path>` rather than from
+// today's output, so this baseline records the original strings, not merely
+// whatever the refactor happened to produce. 15/15 exact, 0 differences.
+// ===========================================================================
+async function collectPostRefactorAuditPrompts(): Promise<void> {
+  // --- ca/prompts.ts: the two prompts that were inline object-literal
+  //     properties of the very structuredJson({...}) call that issued them.
+  const ca = await load<typeof import("../src/ca/prompts.js")>("../src/ca/prompts.js");
+  if (ca) {
+    put(
+      "ca/mcqsParams:with-examples",
+      paramsSnapshot(
+        ca.mcqsParams({
+          title: "Fixture current-affairs headline",
+          facts: ["Fixture fact one.", "Fixture fact two."],
+          examples: FEW_SHOT as never,
+          examCode: "uppsc",
+        }),
+      ),
+    );
+    // No examples => fewShotBlock([]) degrades to the generic style instruction;
+    // that is the mentor teach-mode quick-check's live path.
+    put(
+      "ca/mcqsParams:no-examples",
+      paramsSnapshot(
+        ca.mcqsParams({ title: "Fixture headline", facts: ["Only fact."], examCode: "uppsc" }),
+      ),
+    );
+    put(
+      "ca/mainsQuestionParams",
+      paramsSnapshot(
+        ca.mainsQuestionParams({ title: "Fixture mains issue title", brief: CA_MAINS_BRIEF as never, examCode: "uppsc" }),
+      ),
+    );
+  }
+
+  // --- ca/deepdive.ts: all three were module-private, with no pure params
+  //     builder, behind a runDeepDives() that deletes rows and runs a batch.
+  const deep = await load<typeof import("../src/ca/deepdive.js")>("../src/ca/deepdive.js");
+  if (deep) {
+    put("ca/DEEP_DIVE_SYSTEM", deep.DEEP_DIVE_SYSTEM("uppsc"));
+    put("ca/DEEP_DIVE_SCHEMA", deep.DEEP_DIVE_SCHEMA);
+    // BOTH branches: the pyqText one is the only place the converted
+    // ca.deepDivePyqHeader renders, and that config value now carries the
+    // header's LEADING "\n" inside itself (it used to be a bare array element
+    // joined with "\n"), so a lost newline would show up only here.
+    put(
+      "ca/deepdive:buildContext:with-notes-and-pyqs",
+      deep.buildContext(DEEP_DIVE_ISSUE as never, "Fixture notes text.", "- Fixture past question?", "uppsc"),
+    );
+    put("ca/deepdive:buildContext:bare", deep.buildContext(DEEP_DIVE_ISSUE as never, "", "", "uppsc"));
+  }
+
+  // --- services/user-notes.ts: the translate domain hint, previously observable
+  //     only by actually running a translation (the function reads+writes the DB).
+  const userNotes = await load<typeof import("../src/services/user-notes.js")>("../src/services/user-notes.js");
+  if (userNotes) put("user-notes/buildUserNoteTranslateHint", userNotes.buildUserNoteTranslateHint("uppsc"));
+
+  // --- ingest/prompts.ts: the exam-bearing system prompts of the three ingest
+  //     CLIs. They live in this side-effect-free module precisely so this
+  //     harness never has to import explain.ts / syllabus.ts / pyq.ts, each of
+  //     which ends in a bare unguarded top-level main().catch(...). NOTE: adding
+  //     an argv guard to those files is NOT an acceptable alternative — see the
+  //     module header, and CLAUDE.md's `_tmp_reembed.ts` self-trigger incident.
+  const ingestPrompts = await load<typeof import("../src/ingest/prompts.js")>("../src/ingest/prompts.js");
+  if (ingestPrompts) {
+    put("ingest/supportSystem", ingestPrompts.supportSystem("uppsc"));
+    put("ingest/explainSystem", ingestPrompts.explainSystem("uppsc"));
+    put("ingest/buildStructurePaperSystem", ingestPrompts.buildStructurePaperSystem("uppsc"));
+    put("ingest/buildNodeClassifySystem", ingestPrompts.buildNodeClassifySystem("uppsc"));
+  }
 }
 
 async function collectAuditPrompts(): Promise<void> {
@@ -882,8 +989,11 @@ async function collectAuditPrompts(): Promise<void> {
   // dynamic import would immediately run the real CLI: Supabase writes,
   // Anthropic batch jobs, and process.exit(1) on failure. Importing them would
   // violate this harness's "never call a model, never touch the DB" contract.
-  // ingest/series.ts and ca/deepdive.ts ARE import-safe but export no prompt
-  // text at all. All four are catalogued in __not_reachable_without_editing__.
+  // Their exam-bearing SYSTEM prompts now live in ingest/prompts.ts — a
+  // side-effect-free sibling module this harness DOES import (see
+  // collectPostRefactorAuditPrompts) — so they are covered without any argv
+  // guard being added to a CLI entrypoint. What is left in those three files is
+  // catalogued in __not_reachable_without_editing__ and carries no exam framing.
   const q = {
     id: "99999999-9999-4999-8999-999999999999",
     paper_code: "FIXTURE_PAPER",
@@ -941,10 +1051,6 @@ async function collectAuditPrompts(): Promise<void> {
 // exports each builder.
 // ===========================================================================
 const NOT_REACHABLE_WITHOUT_EDITING: Record<string, string> = {
-  "ca/prompts.ts::generateMcqs system+content+schema":
-    "inline object-literal properties of the structuredJson({...}) call inside the exported async generateMcqs() — no identifier binds the text, so reading it requires issuing the model call",
-  "ca/prompts.ts::generateMainsQuestion system+content+schema":
-    "same — inline inside the exported async generateMainsQuestion(); the briefText builder is also a local const in that function body",
   "ca/mcq-node-classify.ts::classifyPrelimsMcqNode content":
     "user content is a local const inside the exported async classifyPrelimsMcqNode(), built immediately before structuredJson(); only MCQ_NODE_CLASSIFY_SYSTEM and buildMcqNodeClassifySchema are exported",
   "services/question-explanation.ts::EXPLAIN_SCHEMA":
@@ -959,8 +1065,6 @@ const NOT_REACHABLE_WITHOUT_EDITING: Record<string, string> = {
     "module-private function (no export keyword)",
   "services/user-notes.ts::convertAnswerToBody content+schema":
     "content and schema are still inline properties of the structuredJson({...}) argument inside the module-private convertAnswerToBody(); its SYSTEM prompt was extracted and IS now covered (user-notes/buildUserNoteConvertSystem)",
-  "services/user-notes.ts::translateUserNote translate hint":
-    "argument to translateBatch() inside the exported translateUserNote(), which also reads and writes the DB — no longer a bare literal (it reads misc.personalNotesTranslateDomainHint), but still not reachable without running the function",
   "services/ocr/claude-vision-provider.ts::buildConfidenceSystem":
     "module-private function (no export keyword)",
   "services/ocr/claude-vision-provider.ts::transcribe user text + confidence schema":
@@ -971,15 +1075,84 @@ const NOT_REACHABLE_WITHOUT_EDITING: Record<string, string> = {
     "inline template literal argument to screenText() inside the exported screenThread()",
   "routes/stream.ts::/stream/explain content":
     "the user content is still an inline literal inside an anonymous asyncHandler closure registered on streamRouter at module load; the SYSTEM prompt moved to services/question-explanation.ts and IS now covered (question-explanation/streamExplainSystem)",
-  "ca/deepdive.ts::DEEP_DIVE_SYSTEM / DEEP_DIVE_SCHEMA / buildContext":
-    "all module-private, and unlike audit/* there is no pure params builder — structuredParams() is called inside runDeepDives(), which first deletes draft rows from Supabase and then runs a sonnet batch",
-  "ingest/explain.ts::supportSystem / SUPPORT_SCHEMA / explainSystem / EXPLAIN_SCHEMA / supportContent / explainContent":
-    "module exports NOTHING (pure CLI entry) AND ends in a bare top-level main().catch(...) with no argv guard — dynamically importing it would run the real ingest (DB writes + Anthropic batch), so this harness must not import it at all. Its two exam-parameterised systems were verified byte-identical by direct string assertion in the slice-2d verification script instead",
-  "ingest/syllabus.ts::NODE_SCHEMA + buildStructurePaperSystem + the structurePaper instructions + the vision OCR prompt":
-    "module exports NOTHING and ends in a bare top-level main().catch(...) — not importable. buildStructurePaperSystem is now a named module-private function taking an exam code; its uppsc output was verified byte-identical by direct string assertion in the slice-2d verification script",
-  "ingest/pyq.ts::buildExtractSystem / buildNodeClassifySystem / EXTRACT_SCHEMA / ANSWER_KEY_SCHEMA / CLASSIFY_SCHEMA + the answer-key inline prompt":
-    "module exports NOTHING; buildExtractSystem is module-private and its ctx type (ExtractCtx) is unexported; the answer-key prompt is an anonymous inline property; and the file ends in a bare top-level main().catch(...) — not importable. buildNodeClassifySystem (the one exam-bearing prompt here) was verified byte-identical by direct string assertion in the slice-2d verification script",
+  "ingest/explain.ts::SUPPORT_SCHEMA / EXPLAIN_SCHEMA / supportContent / explainContent":
+    "module exports NOTHING (pure CLI entry) AND ends in a bare top-level main().catch(...) with no argv guard — dynamically importing it would run the real ingest (DB writes + Anthropic batch), so this harness must not import it at all. NOT exam-bearing: its two exam-parameterised SYSTEM prompts moved to the side-effect-free ingest/prompts.ts and ARE now covered (ingest/supportSystem, ingest/explainSystem); what remains here are fixed schemas and per-question user content with no exam framing",
+  "ingest/syllabus.ts::NODE_SCHEMA + the structurePaper instructions + the vision OCR prompt":
+    "module exports NOTHING and ends in a bare top-level main().catch(...) — not importable. NOT exam-bearing: its one exam-parameterised system prompt moved to ingest/prompts.ts and IS now covered (ingest/buildStructurePaperSystem)",
+  "ingest/pyq.ts::buildExtractSystem / EXTRACT_SCHEMA / ANSWER_KEY_SCHEMA / CLASSIFY_SCHEMA + the answer-key inline prompt":
+    "module exports NOTHING; buildExtractSystem is module-private and its ctx type (ExtractCtx) is unexported; the answer-key prompt is an anonymous inline property; and the file ends in a bare top-level main().catch(...) — not importable. Its one exam-parameterised system prompt (node classification) moved to ingest/prompts.ts and IS now covered (ingest/buildNodeClassifySystem)",
 };
+
+// ===========================================================================
+// MENTOR PERSONA CACHE FLOOR
+//
+// `buildMentorPersona` is the ONLY cached segment on the mentor's generic doubt
+// path, and it clears claude-sonnet-5's 1024-token minimum cacheable prefix by
+// 22 tokens. MEASURED 2026-07-30 with messages.countTokens:
+//
+//     uppsc en → 2995 chars = 1046 tokens (+22 over the 1024 minimum)
+//     uppsc hi → 3006 chars = 1055 tokens (+31)
+//
+// A second exam with TERSER mentor framing pushes the persona under 1024 and
+// Anthropic silently stops caching it — no error, no failing field, just
+// `cache_creation_input_tokens: 0` forever and the full persona re-billed on
+// every doubt. This check is the cheap guard against that.
+//
+// WHY A CHARACTER FLOOR: this harness's determinism contract forbids network
+// calls, so the real tokenizer is unavailable here. Characters are a proxy,
+// calibrated from the measurements above (~2.86 chars/token for this text), so
+// the 1024-token cliff sits near ~2932 chars. The floor is set just ABOVE that
+// cliff so the check errs toward a false alarm rather than a silent miss, and
+// the WARN band above it flags "thin margin, go measure" without failing.
+//
+// Devanagari tokenizes to FEWER chars per token, so a Hindi-heavy persona has
+// more tokens than this proxy assumes — the error is in the safe direction.
+// ===========================================================================
+const MENTOR_PERSONA_MIN_CHARS = 2950;
+/** Above the floor but thin enough that a real countTokens check is warranted. */
+const MENTOR_PERSONA_WARN_CHARS = 3300;
+
+/** Returns error strings (empty = pass); warnings are printed, not returned. */
+async function checkMentorPersonaCacheFloor(): Promise<string[]> {
+  const errors: string[] = [];
+  const prompts = await load<typeof import("../src/services/mentor/prompts.js")>(
+    "../src/services/mentor/prompts.js",
+  );
+  const cfg = await load<typeof import("../src/lib/exam-config.js")>("../src/lib/exam-config.js");
+  if (!prompts || !cfg) return errors;
+
+  for (const examCode of Object.keys(cfg.EXAM_CONFIGS)) {
+    for (const locale of ["en", "hi"] as const) {
+      let persona: string;
+      try {
+        persona = prompts.buildMentorPersona(examCode, locale);
+      } catch {
+        // requireAuthored throws for an exam whose mentor framing is still
+        // UNAUTHORED (a seeded reference exam with no content). Nothing to
+        // check — it cannot be served to a user either.
+        continue;
+      }
+      const n = persona.length;
+      if (n < MENTOR_PERSONA_MIN_CHARS) {
+        errors.push(
+          `mentor persona ${examCode}/${locale} is ${n} chars — below the ${MENTOR_PERSONA_MIN_CHARS}-char floor.\n` +
+            `    This almost certainly falls under claude-sonnet-5's 1024-token minimum cacheable prefix,\n` +
+            `    which makes services/mentor/index.ts's cache:true segment a SILENT no-op for this exam:\n` +
+            `    every mentor doubt re-bills the full persona with no error anywhere.\n` +
+            `    FIX: lengthen mentor.testingLens / mentor.platformFraming in lib/exam-config.ts\n` +
+            `    (uppsc reference: 2995 chars = 1046 tokens), then confirm with messages.countTokens.`,
+        );
+      } else if (n < MENTOR_PERSONA_WARN_CHARS) {
+        console.warn(
+          `WARN  mentor persona ${examCode}/${locale} is ${n} chars — thin margin over the ` +
+            `1024-token cache minimum (uppsc reference: 2995 chars = 1046 tokens, +22). ` +
+            `Verify with messages.countTokens before shortening anything.`,
+        );
+      }
+    }
+  }
+  return errors;
+}
 
 // ===========================================================================
 // DIFF / WRITE
@@ -1020,12 +1193,19 @@ async function main(): Promise<void> {
   await collectQuestionExplanationPrompts();
   await collectAuditPrompts();
   await collectSlice2dPrompts();
+  await collectPostRefactorAuditPrompts();
 
   snapshot.__unreachable__ = unreachable;
   snapshot.__not_reachable_without_editing__ = NOT_REACHABLE_WITHOUT_EDITING;
 
   const promptKeys = Object.keys(snapshot).filter((k) => !k.startsWith("__"));
   const write = process.argv.includes("--write");
+
+  // Runs in BOTH modes on purpose: --write must not be a way to bless a persona
+  // that has silently dropped below the prompt-cache minimum.
+  const personaErrors = await checkMentorPersonaCacheFloor();
+  for (const e of personaErrors) console.error(`CACHE-FLOOR  ${e}`);
+  if (personaErrors.length > 0) process.exit(1);
 
   if (write) {
     mkdirSync(SNAPSHOT_DIR, { recursive: true });

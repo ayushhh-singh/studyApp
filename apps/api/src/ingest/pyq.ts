@@ -24,6 +24,7 @@ import { join } from "node:path";
 import { structuredJson, translateBatch, MODELS } from "../lib/anthropic.js";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { buildNodeClassifySystem } from "./prompts.js";
 
 /**
  * The PRODUCT exam this CLI ingests INTO — deliberately NOT `cls.examCode`,
@@ -466,24 +467,12 @@ const CLASSIFY_SCHEMA = {
   required: ["mappings"],
 } as const;
 
-/**
- * NOT exported and NOT snapshot-covered: this module ends in a bare top-level
- * `main().catch(...)` with no argv guard, so `pnpm prompts:snapshot` must never
- * import it (a dynamic import would run the real ingest — DB writes, Anthropic
- * batches). Its byte-identity for uppsc was verified by direct string assertion
- * instead; see the multi-exam slice-2d report.
- */
-function buildNodeClassifySystem(examCode: string): string {
-  const questions = requireAuthored(
-    getExamConfig(examCode).misc.pyqNodeClassifyFraming,
-    examCode,
-    "misc.pyqNodeClassifyFraming",
-  );
-  return (
-    `You map ${questions} to the single best-matching syllabus node. ` +
-    "Choose ONLY from the provided paths. If none fit, return an empty path."
-  );
-}
+// buildNodeClassifySystem lives in ./prompts.ts (imported above), NOT here: this
+// module ends in a bare top-level `main().catch(...)` with no argv guard, so
+// `pnpm prompts:snapshot` can never import it (a dynamic import would run the
+// real ingest — DB writes, Anthropic batches). Keeping the one
+// exam-parameterised system prompt in a side-effect-free sibling module is what
+// makes it byte-identity-checkable by the harness instead of by eyeball.
 
 async function classify(
   questions: RawQuestion[],

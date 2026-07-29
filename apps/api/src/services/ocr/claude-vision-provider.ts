@@ -19,11 +19,24 @@ function langName(locale: Locale): string {
  * EXPORTED (was module-private) so `pnpm prompts:snapshot` can diff it — reading
  * it previously required `.transcribe()`, which makes two live model calls.
  *
- * CACHE BOUNDARY: this string is sent as a `cache: true` system segment (see
- * `transcribe` below). Per-exam text here PARTITIONS the cache — one stable
- * entry per (exam, language) instead of one per language — which is fine.
- * Nothing PER-REQUEST may ever enter it, or the prefix varies per call and the
- * entry is destroyed outright.
+ * CACHE BOUNDARY — CORRECTED 2026-07-30: this string IS sent as a `cache: true`
+ * system segment (see `transcribe` below), but that flag is a MEASURED NO-OP.
+ * countTokens puts it at 270 tokens (en) / 280 (hi) against claude-sonnet-5's
+ * 1024-token minimum cacheable prefix — roughly 750 short — so nothing is
+ * cached and nothing is billed as a cache write. It does NOT "partition the
+ * cache": there is no cache here to partition, and there was none before the
+ * exam-config sweep either (the prompt was ~the same length).
+ *
+ * NOTE, so it isn't taken as evidence to the contrary: CLAUDE.md's Session-13
+ * log states this OCR transcribe prompt was "LIVE-VERIFIED" to hit the cache.
+ * At 270 tokens it cannot have been — that claim is not reproducible and the
+ * measurement above supersedes it. The historical log is left unedited as a
+ * factual record of what was believed then.
+ *
+ * The flag is left in place deliberately (harmless; correct for free if the
+ * prompt ever exceeds 1024). The per-request rule below still stands and is
+ * what to protect: nothing PER-REQUEST may enter this segment, or the prefix
+ * varies per call and no future cache could ever form.
  */
 export function buildTranscribeSystem(examCode: string, language: Locale): string {
   const answer = requireAuthored(getExamConfig(examCode).misc.ocrFraming, examCode, "misc.ocrFraming");
@@ -85,8 +98,10 @@ export const claudeVisionProvider: OcrProvider = {
     let text = "";
     await streamText({
       model: MODELS.sonnet,
-      // Fixed per language — cached so it's a cache read, not a fresh input
-      // token cost, for every other student's transcription in that language.
+      // Fixed per (exam, language) — but the `cache: true` is a MEASURED NO-OP
+      // at 270/280 tokens vs sonnet-5's 1024 minimum, so this is a fresh input
+      // token cost on every transcription, not a cache read. See the correction
+      // on buildTranscribeSystem above.
       system: [{ text: buildTranscribeSystem(examCode, language), cache: true }],
       content,
       maxTokens: 4000,

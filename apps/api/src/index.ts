@@ -7,6 +7,7 @@ import { errorHandler, notFoundHandler } from "./middleware/error-handler.js";
 import { requireAuth } from "./middleware/require-auth.js";
 import { healthRouter } from "./routes/health.js";
 import { checkMentorCacheHealthAtBoot } from "./services/mentor/cache-health.js";
+import { checkExamConfigRegistryAtBoot } from "./lib/exam-config.js";
 import { streamRouter } from "./routes/stream.js";
 import { syllabusRouter } from "./routes/syllabus.js";
 import { questionsRouter } from "./routes/questions.js";
@@ -169,6 +170,10 @@ app.listen(port, () => {
   // Surface a missing manual migration (0049/0070) loudly at boot — an ERROR
   // log, not a swallowed warn — so the mentor FAQ cache never silently no-ops.
   void checkMentorCacheHealthAtBoot();
+  // Same shape, same reason: lib/exam-config.ts duplicates display names and
+  // paper codes that the `exams` table owns, and nothing stops the two drifting.
+  // Logs at ERROR on drift; never throws (see checkExamConfigRegistryAtBoot).
+  void checkExamConfigRegistryAtBoot();
   // Make the active Razorpay TEST/LIVE mode visible at boot — never silent. A
   // present-but-inconsistent config (mode mismatch / bad key prefix) is an
   // ERROR so a bad test/live mix can't slip through unnoticed on deploy.

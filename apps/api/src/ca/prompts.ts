@@ -479,7 +479,7 @@ export interface GeneratedMcq {
  * UPPSC-style" instruction. Returns 0-2 questions: only facts that clear the
  * exam-relevance filter get a question, so a colour-only item yields none.
  */
-export async function generateMcqs(opts: {
+export interface McqsParamsOpts {
   title: string;
   facts: string[];
   /**
@@ -491,14 +491,21 @@ export async function generateMcqs(opts: {
   examples?: FewShotQuestion[];
   /** Whose prelims style + exam-relevance filter to write against. */
   examCode: string;
-  onUsage?: (u: LlmUsage) => void;
-}): Promise<GeneratedMcq[]> {
+}
+
+/**
+ * The StructuredParams for an MCQ-generation call — extracted from
+ * generateMcqs() so `pnpm prompts:snapshot` can read the assembled system,
+ * content and schema WITHOUT issuing the model call (same pattern as
+ * triageParams/enrichParams above). generateMcqs() is now a thin wrapper: the
+ * only thing it adds is the purpose/onUsage billing metadata, which is not
+ * prompt text.
+ */
+export function mcqsParams(opts: McqsParamsOpts): StructuredParams {
   const { examCode } = opts;
   const cfg = caConfig(examCode);
-  const out = await structuredJson<{ questions: GeneratedMcq[] }>({
+  return {
     model: MODELS.haiku,
-    purpose: "ca_mcq_gen",
-    onUsage: opts.onUsage,
     system:
       `You write ${requireAuthored(cfg.mcqStyleFraming, examCode, "ca.mcqStyleFraming")} (bilingual, Hindi Devanagari + English) to test a current-affairs ` +
       `item, in the style of ${requireAuthored(cfg.mcqExamplesFraming, examCode, "ca.mcqExamplesFraming")}. Rules:\n` +
@@ -548,6 +555,16 @@ export async function generateMcqs(opts: {
       required: ["questions"],
     },
     maxTokens: 4000,
+  };
+}
+
+export async function generateMcqs(
+  opts: McqsParamsOpts & { onUsage?: (u: LlmUsage) => void },
+): Promise<GeneratedMcq[]> {
+  const out = await structuredJson<{ questions: GeneratedMcq[] }>({
+    ...mcqsParams(opts),
+    purpose: "ca_mcq_gen",
+    onUsage: opts.onUsage,
   });
   return out.questions;
 }
@@ -569,13 +586,20 @@ export interface GeneratedMainsQuestion {
   difficulty: "easy" | "medium" | "hard";
 }
 
-export async function generateMainsQuestion(opts: {
+export interface MainsQuestionParamsOpts {
   title: string;
   brief: CurrentAffairsMainsBrief;
   /** Whose Mains paper-setting norms to write against. */
   examCode: string;
-  onUsage?: Parameters<typeof structuredJson>[0]["onUsage"];
-}): Promise<GeneratedMainsQuestion> {
+}
+
+/**
+ * The StructuredParams for the CA Mains-question call — extracted from
+ * generateMainsQuestion() for the same reason as mcqsParams above: the briefText
+ * assembly and the system prompt were local to a function that could only be
+ * read by issuing a real sonnet call, so nothing could snapshot-verify them.
+ */
+export function mainsQuestionParams(opts: MainsQuestionParamsOpts): StructuredParams {
   const { examCode } = opts;
   const cfg = caConfig(examCode);
   const briefText = [
@@ -586,11 +610,9 @@ export async function generateMainsQuestion(opts: {
     `Way forward: ${opts.brief.way_forward_i18n.en.join("; ")}`,
   ].join("\n");
 
-  const out = await structuredJson<GeneratedMainsQuestion>({
+  return {
     model: MODELS.sonnet,
     effort: "medium",
-    purpose: "ca_mains_gen",
-    onUsage: opts.onUsage,
     system:
       `You are ${requireAuthored(cfg.mainsSetterFraming, examCode, "ca.mainsSetterFraming")}. Write ONE original, exam-standard DESCRIPTIVE (long-answer) ` +
       "question, in BOTH Hindi (Devanagari) and English, on the current-affairs issue described below. Rules:\n" +
@@ -613,6 +635,15 @@ export async function generateMainsQuestion(opts: {
       required: ["stem_i18n", "marks", "word_limit", "marking_points_i18n", "difficulty"],
     },
     maxTokens: 3000,
+  };
+}
+
+export async function generateMainsQuestion(
+  opts: MainsQuestionParamsOpts & { onUsage?: Parameters<typeof structuredJson>[0]["onUsage"] },
+): Promise<GeneratedMainsQuestion> {
+  return structuredJson<GeneratedMainsQuestion>({
+    ...mainsQuestionParams(opts),
+    purpose: "ca_mains_gen",
+    onUsage: opts.onUsage,
   });
-  return out;
 }

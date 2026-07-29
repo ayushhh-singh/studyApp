@@ -396,8 +396,13 @@ export function buildNoteCriticParams(opts: {
     model: MODELS.sonnet,
     effort: "medium",
     maxTokens: 1500,
-    // ONE cache:true segment — was a module const with a single global entry,
-    // now one entry PER EXAM. A partition, not a per-request prefix.
+    // NO-OP TODAY — the flag caches nothing. MEASURED 2026-07-30
+    // (countTokens): 206 tokens vs claude-sonnet-5's 1024-token minimum
+    // cacheable prefix — 818 short. It was already a no-op before the
+    // exam-config sweep (a single module const of ~the same length), so
+    // "one entry per exam" describes a cache that does not exist. Left in
+    // place: harmless, and correct for free if the prompt grows past 1024.
+    // See lib/anthropic.ts's PromptSegment doc.
     system: [{ text: CRITIC_SYSTEM(opts.examCode), cache: true }],
     content: `${renderNoteForCritic(opts.node, opts.content, opts.examCode)}\n\nReturn your JSON verdict.`,
     schema: NOTE_CRITIC_SCHEMA,

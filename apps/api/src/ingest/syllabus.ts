@@ -21,6 +21,7 @@ import { join } from "node:path";
 import { streamText, structuredJson, translate, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { buildStructurePaperSystem } from "./prompts.js";
 import {
   ROOT,
   readManifest,
@@ -159,22 +160,11 @@ function clip(text: string, max = 45000): string {
   return text.length > max ? text.slice(0, max) : text;
 }
 
-/**
- * NOT exported and NOT snapshot-covered: this module ends in a bare top-level
- * `main().catch(...)` with no argv guard, so `pnpm prompts:snapshot` must never
- * import it. Byte-identity for uppsc was verified by direct string assertion
- * instead; see the multi-exam slice-2d report.
- */
-function buildStructurePaperSystem(examCode: string): string {
-  const cfg = getExamConfig(examCode).misc;
-  return (
-    `You are an expert on ${requireAuthored(cfg.syllabusExpertFraming, examCode, "misc.syllabusExpertFraming")}. ` +
-    "You build a clean, hierarchical syllabus tree for ONE paper. " +
-    `Ground every node in the provided official syllabus text; use ${requireAuthored(cfg.syllabusStructureNote, examCode, "misc.syllabusStructureNote")} ` +
-    "to organise topics into sections and sub-topics. " +
-    "Do NOT invent topics that contradict the source."
-  );
-}
+// buildStructurePaperSystem lives in ./prompts.ts (imported above), NOT here:
+// this module ends in a bare top-level `main().catch(...)` with no argv guard,
+// so `pnpm prompts:snapshot` can never import it. Keeping the one
+// exam-parameterised system prompt in a side-effect-free sibling module is what
+// makes it byte-identity-checkable by the harness instead of by eyeball.
 
 async function structurePaper(
   paper: PaperDef,
