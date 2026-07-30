@@ -37,9 +37,23 @@ const STAGE_RANK: Record<ExamStructureStage, number> = { prelims: 0, mains: 1, i
  * exam can add its own without collision — and needs none, since `name_i18n`
  * already carries a real bilingual name.
  *
- * An exam whose registry papers carry `paper_code: null` (every non-UPPSC exam
- * today — no syllabus ingested) yields an EMPTY catalog. Callers must render an
- * honest empty state; there is no borrowed UPPSC paper list to fall back to.
+ * An exam whose registry papers carry `paper_code: null` yields an EMPTY catalog.
+ * Callers must render an honest empty state; there is no borrowed UPPSC paper
+ * list to fall back to. **This is no longer "every non-UPPSC exam": migration
+ * `0112` filled the 7 General Studies codes for `upsc`, so that exam now yields a
+ * real 7-paper catalog** (Prelims GS + CSAT, Mains Essay + GS-I..GS-IV) off the
+ * back of its ingested syllabus tree. `mppsc` still yields empty. UPSC's
+ * qualifying language papers (Paper-A/B) and its candidate-chosen optional papers
+ * (Paper-VI/VII) stay deliberately code-less and so stay filtered out.
+ *
+ * Two consequences worth knowing before rendering UPSC (both dormant while
+ * `upsc.is_live` is false, and neither is arithmetic — labels/copy only):
+ *   - the `Paper.*` i18n overrides exist for UPPSC codes ONLY, so `latinLabel`'s
+ *     compact selectors fall through to the registry's full `name_i18n` and
+ *     render e.g. "General Studies-I" in a pill sized for "GS-I".
+ *   - UPSC has a syllabus tree but zero questions, so surfaces gated on
+ *     `papers.length > 0` (the mastery matrix) light up while their own
+ *     `pyq_count > 0` filter leaves them permanently empty.
  *
  * ── CALLERS MUST GATE ON `isLoading`. THIS IS NOT OPTIONAL. ──────────────────
  * The catalog is EMPTY while `GET /exams` is in flight, and an empty catalog is

@@ -30,6 +30,7 @@
 import { writeFile, mkdir } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative } from "node:path";
 import { supabase } from "../../lib/supabase.js";
+import { selectAll } from "../../lib/paginate.js";
 import {
   ROOT,
   PAPERS,
@@ -381,7 +382,7 @@ async function upsertNode(
 async function writePaper(
   paper: PaperDef,
   tree: readonly SeedNode[],
-): Promise<{ rows: number }> {
+): Promise<{ rows: number; stale: number }> {
   // Fail BEFORE any write: a mis-scoped paper code would upsert straight onto
   // another exam's tree through (paper_code, path).
   assertPaperCodeScoped(paper.exam, paper.paperCode);
@@ -429,7 +430,41 @@ async function writePaper(
     idByPath.set(n.path, id);
   }
   report.ok(`${paper.paperCode}: upserted ${built.length + 1} nodes (root + ${built.length})`);
-  return { rows: built.length + 1 };
+
+  // STALE-ROW RECONCILIATION — report, never auto-delete.
+  // This loader only ever UPSERTs, so a path REMOVED or RENAMED in the data file
+  // leaves its old row alive in the DB forever: it keeps its parent_id, still
+  // satisfies every `exam_code='upsc'` read, and — worse — keeps its children
+  // attached, so a renamed depth-1 section leaves a whole orphaned subtree live in
+  // the tree. `verifyCoverage` structurally CANNOT catch this: it only ever sees
+  // the data file, never the database. So the check has to happen here, after the
+  // write, where both sides are known.
+  //
+  // Deliberately a REPORT, not a delete: this repo's cleanup rule is that a
+  // destructive filter may only ever target ids the run itself created, and rows
+  // predating this run are exactly what would be matched here. A node may also
+  // legitimately be retired by a human. Surfacing it turns a silent orphan into a
+  // visible decision.
+  const authored = new Set<string>(["", ...built.map((n) => n.path)]);
+  // `selectAll` applies `.range()` per page itself, so `build` takes no args and
+  // must return a FRESH query each call. `order("path")` is a stable total order
+  // (path is unique within a paper), so paging can't skip or repeat a row.
+  const live = await selectAll<{ path: string }>(() =>
+    supabase()
+      .from("syllabus_nodes")
+      .select("path")
+      .eq("exam_code", paper.exam)
+      .eq("paper_code", paper.paperCode)
+      .order("path", { ascending: true }),
+  );
+  const stale = live.map((r) => r.path).filter((p) => !authored.has(p));
+  if (stale.length > 0) {
+    report.warn(
+      `${paper.paperCode}: ${stale.length} row(s) exist in the DB but are NOT in the authored data — ` +
+        `renamed or retired paths leave orphans (children stay attached). Review and remove deliberately: ${stale.join(", ")}`,
+    );
+  }
+  return { rows: built.length + 1, stale: stale.length };
 }
 
 // ---------------------------------------------------------------------------
@@ -437,6 +472,26 @@ async function writePaper(
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // A VALUE-TAKING FLAG WITH NO VALUE MUST BE A HARD ERROR, NOT A SILENT DEGRADE.
+  // `parseArgs` sets a key to boolean `true` when its value is absent or the next
+  // token is another flag. The reads below require a string, so a valueless
+  // `--write-artifact` would collapse to `artifact = null`, skip the terminal
+  // artifact guard, and fall through to the UPSERT — silently re-creating the
+  // production-write incident that guard exists to prevent, from nothing worse
+  // than a typo or a swapped flag order (`--write-artifact --paper X`). Likewise a
+  // valueless `--paper` would widen the run from one paper to all seven. Both are
+  // one keystroke away, so they are rejected here, before mode resolution and
+  // before any DB access.
+  for (const k of ["write-artifact", "paper"] as const) {
+    if (args[k] === true) {
+      throw new Error(
+        `--${k} requires a value (e.g. --${k} ${k === "paper" ? "UPSC_MAINS_GS4" : "docs/upsc-syllabus-coverage.md"}). ` +
+          "Refusing to run: a valueless value-flag would otherwise fall through to a database write.",
+      );
+    }
+  }
+
   const verifyOnly = !!args["verify-only"];
   const dryRun = !!args["dry-run"];
   const onlyPaper = typeof args.paper === "string" ? args.paper : null;
@@ -570,14 +625,22 @@ async function main(): Promise<void> {
 
   report.section("Upserting");
   let rows = 0;
+  let stale = 0;
   for (const paper of papers) {
     report.step(`→ [${paper.exam}] ${paper.paperCode} (${paper.title.en})`);
-    const { rows: n } = await writePaper(paper, UPSC_SYLLABUS_TREE);
+    const { rows: n, stale: s } = await writePaper(paper, UPSC_SYLLABUS_TREE);
     rows += n;
+    stale += s;
   }
   report.section("Summary");
   report.ok(`papers: ${papers.length}`);
   report.ok(`rows upserted: ${rows}`);
+  if (stale > 0) {
+    report.warn(
+      `${stale} DB row(s) are not in the authored data (see the per-paper warnings above) — ` +
+        "this loader never deletes, so a renamed path leaves a live orphan. Remove them deliberately.",
+    );
+  }
 }
 
 main().catch((err) => {

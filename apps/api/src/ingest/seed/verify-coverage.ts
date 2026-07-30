@@ -45,6 +45,15 @@ export type IssueKind =
   | "bilingual_incomplete"
   /** The same line id appears twice in UPSC_OFFICIAL_LINES. */
   | "duplicate_official_line_id"
+  /**
+   * An official line with blank `text` or blank `source`. THE WHOLE POINT of this
+   * gate is that every node traces to *verbatim official text* with a citable
+   * locator — an empty `text` would satisfy every other check (it still counts as
+   * "covered", it still renders a row in the artifact) while proving nothing at
+   * all, and an empty `source` destroys the provenance audit trail. Found by an
+   * adversarial pass: both previously passed with ZERO defects.
+   */
+  | "blank_official_line"
   /** derivation === "editorial_subdivision" with no `subdivisionRationale`. */
   | "missing_subdivision_rationale"
   /** derivation === "official_line" but the node names no official line of its own. */
@@ -173,8 +182,17 @@ function blank(s: string | null | undefined): boolean {
 export function verifyCoverage(
   lines: readonly OfficialSyllabusLine[],
   tree: readonly SeedNode[],
-  /** The legal paper codes. Defaults to the 7 UPSC papers via the caller. */
-  knownPaperCodes: readonly string[] = [],
+  /**
+   * The legal paper codes. **REQUIRED — deliberately not defaulted.** An empty
+   * set silently DISABLES the `unknown_paper_code` check entirely (the `known`
+   * lookup below matches nothing, so nothing can be unknown), which an
+   * adversarial pass confirmed empirically. A default of `[]` would let a future
+   * second caller drop one of the checks by simply forgetting an argument — the
+   * exact "a defaulted parameter lets the caller silently keep the old
+   * behaviour" trap this repo has been bitten by twice (see M24). Making it
+   * required turns that into a compile error.
+   */
+  knownPaperCodes: readonly string[],
 ): CoverageResult {
   const defects: CoverageIssue[] = [];
   const infos: CoverageIssue[] = [];
@@ -198,6 +216,62 @@ export function verifyCoverage(
       continue; // first occurrence wins for every downstream check
     }
     lineById.set(l.id, l);
+  }
+
+  // --- 7b. Blank verbatim text / blank provenance --------------------------
+  // Without this, `text: ""` passes every other check: it is still "covered", it
+  // still renders an artifact row, and the gate would certify a tree as traceable
+  // to official text that traces to nothing. Same for `source`, which is the
+  // citable locator the whole audit trail rests on.
+  for (const l of lines) {
+    if (!l.text.trim()) {
+      defect(
+        "blank_official_line",
+        l.paperCode,
+        l.id,
+        `official line "${l.id}" has blank \`text\` — the verbatim official wording is the entire audit trail; a blank line would be counted as covered while proving nothing`,
+      );
+    }
+    if (!l.source.trim()) {
+      defect(
+        "blank_official_line",
+        l.paperCode,
+        l.id,
+        `official line "${l.id}" has blank \`source\` — every line must name the document + locator it was read from`,
+      );
+    }
+  }
+
+  // Two lines carrying byte-identical text: within one paper that is a
+  // transcription duplication (it inflates the line/covered totals while adding
+  // no coverage), so it is a DEFECT. Across papers it can be legitimate — two
+  // commissions' papers really can print the same phrase — so that is INFO only.
+  const byText = new Map<string, OfficialSyllabusLine[]>();
+  for (const l of lines) {
+    const key = l.text.trim();
+    if (!key) continue; // already reported blank above
+    byText.set(key, [...(byText.get(key) ?? []), l]);
+  }
+  for (const [text, group] of byText) {
+    if (group.length < 2) continue;
+    const excerpt = text.length > 60 ? `${text.slice(0, 60)}…` : text;
+    const samePaper = new Set(group.map((l) => l.paperCode)).size === 1;
+    const ids = group.map((l) => l.id).join(", ");
+    if (samePaper) {
+      defect(
+        "duplicate_official_line_id",
+        group[0].paperCode,
+        ids,
+        `${group.length} official lines in the same paper share byte-identical text ("${excerpt}") — a duplicated transcription inflates the line count without adding coverage`,
+      );
+    } else {
+      info(
+        "line_mapped_to_multiple_nodes",
+        null,
+        ids,
+        `these official lines in DIFFERENT papers share byte-identical text ("${excerpt}") — legitimate if both commissions print the same phrase, but worth an eyeball`,
+      );
+    }
   }
 
   // --- 5a. Duplicate (paperCode, path) + unknown paper code + malformed path

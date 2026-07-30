@@ -1,9 +1,19 @@
 /**
  * prove-chapter-retrieval — the credit-free half of the "mentor cites a chapter"
- * proof (Session 28). Given a doubt-style question, it runs the EXACT retrieval
- * the mentor runs (OpenAI-embed the question → match_embeddings global pass, no
+ * proof (Session 28). Given a doubt-style question, it runs the mentor's
+ * retrieval pass (OpenAI-embed the question → match_embeddings global pass, no
  * Anthropic call) and shows that a published chapter's per-SECTION note chunk is
  * retrieved and would resolve to a `[n]` citation with the note's deep link.
+ *
+ * EXAM SCOPING (added after 0107): the RPC's `filter_exam_code` is derived from
+ * the target node's own exam. It is NOT optional theatre — `filter_exam_code`
+ * defaults to NULL in SQL for API-deploy compatibility, so OMITTING it here made
+ * this script query across ALL exams. That was harmless while uppsc was the only
+ * exam with content, but the moment a second exam's tree landed (UPSC, 2026-07-30)
+ * this tool could report a chunk as "retrieved" that the real, exam-scoped mentor
+ * would never return — a verification tool quietly disagreeing with production.
+ * Measured at the time: for UPSC-flavoured wording an unfiltered top-5 was 40%
+ * owned by the other exam, and its #1 hit belonged to the other exam.
  *
  * The mentor's final streamed ANSWER is a Sonnet call (needs Anthropic credit);
  * this proves everything up to that: the section chunk exists, embeds, and is the
@@ -13,6 +23,7 @@
  */
 import { supabase } from "../src/lib/supabase.js";
 import { embeddings } from "../src/lib/embeddings.js";
+import { examCodeForNode } from "../src/lib/exams.js";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -40,12 +51,16 @@ async function main(): Promise<void> {
   console.log(`Target chapter note: ${noteId} (node ${nodeId}, chapter_version ${(note as { chapter_version: number }).chapter_version})\n`);
 
   const [vec] = await embeddings().embed([question.replace(/\s+/g, " ").trim()]);
+  // Scope to the TARGET NODE's own exam — see the exam-scoping note in the header.
+  const examCode = await examCodeForNode(nodeId);
+  console.log(`Exam scope: ${examCode} (derived from the node, matching the mentor)\n`);
   const { data: rows, error } = await supabase().rpc("match_embeddings", {
     query_embedding: `[${vec.join(",")}]`,
     match_count: 8,
     filter_locale: locale,
     filter_source_type: null, // the mentor's global pass — notes are eligible
     filter_source_id: null,
+    filter_exam_code: examCode,
   });
   if (error) throw new Error(`match_embeddings failed: ${error.message}`);
 

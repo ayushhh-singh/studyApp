@@ -37,10 +37,23 @@ const SRS_CARD_COLUMNS = "id, user_id, front_i18n, back_i18n, source_type, sourc
  * just by application logic.
  */
 export async function addNodeToRevision(userId: string, nodeId: string): Promise<SrsCard> {
+  // `node_id` is untrusted request body, so scope it to the caller's own exam —
+  // the M7 class of check (`resolveOrderedNodes`, `assertAnchorExists`). Without
+  // it a user could source a revision card from ANOTHER exam's syllabus topic,
+  // which became genuinely reachable the moment a second exam's tree landed
+  // (UPSC, 2026-07-30). Note the asymmetry this fixes: the sibling
+  // `addCurrentAffairsFactToRevision` below has always scoped its source.
+  //
+  // As there: the CARD stays exam-agnostic on purpose (0106 §13 — a user who
+  // switches exams keeps their deck); it is the SOURCE that is scoped.
+  // 404 rather than 403, per the convention: a foreign node genuinely is not
+  // part of your syllabus, and a distinct error would confirm the id exists to
+  // a caller probing with guessed ids.
   const { data: node, error: nodeError } = await supabase()
     .from("syllabus_nodes")
     .select("title_i18n, description_i18n")
     .eq("id", nodeId)
+    .eq("exam_code", await getUserExam(userId))
     .maybeSingle();
   if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
   if (!node) throw notFound("Syllabus node not found");
