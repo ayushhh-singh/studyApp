@@ -55,6 +55,11 @@ U3's shipped switcher below in favour of "one, switchable" — flagged in
 explicitly, not one to treat as closed just because it was inherited from an
 implementation.
 
+**U5 (UPSC PYQ ingest) shipped 2026-07-31 — see §3h.** It closed **M23** first, as §0a
+required, and uncovered a live production bug: the mentor had been answering
+UNGROUNDED because `match_embeddings` timed out through PostgREST (migration
+`0113`).
+
 **U3 (exam selection UX) shipped and was verified live 2026-07-30 — see §3g.**
 Onboarding gained an exam-picker step and Profile gained a switcher, both
 built on the same `ExamPickerList` component and both rendering
@@ -527,6 +532,80 @@ content" (a total, loud refusal beats a soft degraded answer that might still
 carry UPPSC-flavoured framing) and is explicitly out of U3's scope; U6 (74
 config slots to research and author per non-UPPSC exam) is tracked separately
 in `docs/OUTSTANDING.md` §8f.
+
+### 3h. U5 — UPSC PYQ ingest (2026-07-31) — ✅ shipped, and the live bug it uncovered
+
+**2,791 questions across 72 papers (2016-2026), 2,760 visible**, all from the official
+`www.upsc.gov.in` host; 22/22 official answer keys with Set A confirmed; 5,670
+embeddings; 927 `mv_node_weightage` rows. `upsc` is still `is_live: false`.
+Full actionable index: `docs/OUTSTANDING.md` **§8i**.
+
+**M23 was fixed FIRST, before the first `ingest:pyq` run**, exactly as §0a
+prescribed. The decision that had been missing is now `productExamForProvenance`
+in `ingest/_shared.ts`:
+
+- a provenance exam that IS a product exam (uppsc/upsc/mppsc) ingests into
+  **itself**, with exam-prefixed paper codes;
+- a provenance-ONLY exam (`up_ro_aro`, `upsssc_pet`, `other`) keeps mapping onto
+  the DEFAULT exam's shared prelims tree — the pre-existing deliberate overlap
+  documented on `classifyPyqId`, not a fallback invented here.
+
+Because every pre-existing id resolves to the default exam, whose prefix is `""`,
+**all 70 existing manifest ids classify byte-identically to before** — verified,
+not assumed. `resolveSyllabusId` additionally gained an explicit exam filter so
+neither guard is load-bearing alone, and `pyq.ts` stopped hardcoding the product
+exam (it threads `cls.productExam` as a REQUIRED parameter into every prompt
+path — the M24 lesson). Live after loading: **0 UPSC questions on a UPPSC node,
+0 UPPSC questions on a UPSC node, 0 questions on a `UPSC_*` code with a
+non-`upsc` exam.**
+
+**⚑ The find that matters most for the platform, not just for UPSC: the mentor
+had been answering UNGROUNDED on the LIVE exam.** Every `match_embeddings` call
+through PostgREST failed with `57014 statement timeout` at ~8s — every filter,
+even `match_count=1` — while the same SQL on a direct connection ran in ~100ms.
+`retrieveGrounding` degrades gracefully on an RPC error, so it returned **0
+chunks silently** rather than erroring, which is why nothing surfaced it.
+
+Root cause: **a `language sql` function is INLINED into the caller's statement.**
+PostgREST executes RPCs as prepared statements, so Postgres switched them to a
+GENERIC plan where `query_embedding` is an unknown parameter — and a generic plan
+cannot use the HNSW index for the ORDER BY, so it fell back to a seq scan plus a
+sort over 28k × 1536-dim vectors (measured: 20.6s with a 60s function timeout).
+Migration **`0113`** converts both vector RPCs to **plpgsql + dynamic EXECUTE**,
+which makes the body opaque to inlining. The negative results are worth keeping:
+`pg_stat_activity` showed ZERO active backends during an 8s failure; RLS was
+excluded (`service_role` has `bypassrls`); and `plan_cache_mode=force_custom_plan`
+did NOT help — itself the proof, since a SET clause attaches to function
+*execution* and an inlined SQL function never executes as one.
+
+`0113` also fixes a **second, quieter** bug: with a post-filter, plain HNSW
+returns only those of its `ef_search` (40) candidates that survive, so a
+selective filter **silently under-returns** — `filter_exam_code='upsc'` asked for
+8 and got 5. That bites the **smallest partition hardest, i.e. always the newest
+exam**. Fixed with pgvector 0.8 `iterative_scan`: `relaxed_order` for
+`match_embeddings` (callers consume the whole top-k) and `strict_order` for
+`match_doubt_faq` (its top-1 similarity drives hard 0.95/0.86 cache thresholds).
+
+**Also closed here: a cross-exam embedding leak this ingest itself introduced.**
+`collectQuestionChunks` fell back to the DEFAULT exam for a question with no
+syllabus node, under a comment reading *"every such row is UPPSC"* — true when
+written, false the moment UPSC PYQs landed (~57 of them). Now falls back to
+`paper_code`, which is globally unique across exams (§0) and exam-prefixed by
+M23 — never to `questions.exam_code`, which is provenance.
+
+**Three extractor bugs, all found by ONE invariant: summing `marks` per paper**
+(a UPSC Mains GS paper is always 250). Every structural check passed on all
+three. Sub-parts (`1.(a)`/`1.(b)`) collided on the integer `q_no` and one part of
+every Q1-6 was discarded; Essay sections that both number 1-4 collided and lost 4
+of 8 topics; and `marks: integer` could not represent 2016's 12.5. **Keep the
+marks-total check** — it is the only thing that has ever seen this bug class.
+
+**Still open after U5:** **M21** (chapter `pyq_ids` validated for existence, not
+exam) gates a UPSC chapter rollout, and **U6** gates every model-facing path —
+U5 needed only **6** of U6's 74 slots, authored per-slot from directly observed
+evidence (e.g. UPSC prints a large standalone series letter AND a separate T.B.C.
+code whose own letters mislead — a booklet coded `HGY-D-LKUV` is Series **A**),
+so the other 68 are untouched and still throw.
 
 ### 3a. Daily quiz — ✅ resolved (M6)
 
