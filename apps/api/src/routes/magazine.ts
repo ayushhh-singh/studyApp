@@ -11,6 +11,7 @@ import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { touchFeatureOnRequest } from "../lib/feature-touch.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import { assertMagazinePdf } from "../services/entitlements.js";
 import { compileMainsEdition, compilePrelimsEdition, listMagazineMonths } from "../services/magazine.js";
 
@@ -21,8 +22,9 @@ magazineRouter.use("/magazine", touchFeatureOnRequest("magazine"));
 /** Months that have a compilable magazine edition (for the index/picker). */
 magazineRouter.get(
   "/magazine",
-  asyncHandler(async (_req, res) => {
-    res.json(magazineMonthsResponseSchema.parse({ data: await listMagazineMonths(), error: null }));
+  asyncHandler(async (req, res) => {
+    const examCode = await getUserExam(currentUserId());
+    res.json(magazineMonthsResponseSchema.parse({ data: await listMagazineMonths(examCode), error: null }));
   }),
 );
 
@@ -33,7 +35,8 @@ magazineRouter.get(
   "/magazine/:month/prelims",
   asyncHandler(async (req, res) => {
     const { month } = parse(monthParams, req.params);
-    res.json(magazinePrelimsResponseSchema.parse({ data: await compilePrelimsEdition(month), error: null }));
+    const examCode = await getUserExam(currentUserId());
+    res.json(magazinePrelimsResponseSchema.parse({ data: await compilePrelimsEdition(month, examCode), error: null }));
   }),
 );
 
@@ -42,7 +45,8 @@ magazineRouter.get(
   "/magazine/:month/mains",
   asyncHandler(async (req, res) => {
     const { month } = parse(monthParams, req.params);
-    res.json(magazineMainsResponseSchema.parse({ data: await compileMainsEdition(month), error: null }));
+    const examCode = await getUserExam(currentUserId());
+    res.json(magazineMainsResponseSchema.parse({ data: await compileMainsEdition(month, examCode), error: null }));
   }),
 );
 
@@ -59,8 +63,10 @@ magazineRouter.get(
   "/magazine/:month/prelims/export",
   asyncHandler(async (req, res) => {
     const { month } = parse(monthParams, req.params);
-    await assertMagazinePdf(currentUserId());
-    res.json(magazinePrelimsResponseSchema.parse({ data: await compilePrelimsEdition(month), error: null }));
+    const userId = currentUserId();
+    await assertMagazinePdf(userId);
+    const examCode = await getUserExam(userId);
+    res.json(magazinePrelimsResponseSchema.parse({ data: await compilePrelimsEdition(month, examCode), error: null }));
   }),
 );
 
@@ -68,7 +74,9 @@ magazineRouter.get(
   "/magazine/:month/mains/export",
   asyncHandler(async (req, res) => {
     const { month } = parse(monthParams, req.params);
-    await assertMagazinePdf(currentUserId());
-    res.json(magazineMainsResponseSchema.parse({ data: await compileMainsEdition(month), error: null }));
+    const userId = currentUserId();
+    await assertMagazinePdf(userId);
+    const examCode = await getUserExam(userId);
+    res.json(magazineMainsResponseSchema.parse({ data: await compileMainsEdition(month, examCode), error: null }));
   }),
 );

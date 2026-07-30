@@ -38,10 +38,20 @@ interface AttemptTrajectoryRow {
 
 async function getScoreTrajectory(userId: string, examCode: string): Promise<PaperScoreTrajectory[]> {
   const [attemptsRes, rootsRes] = await Promise.all([
+    // `tests.exam_code` scope — found live 2026-07-30 (U3 exam-selection-UX
+    // verification): this select had NO exam filter at all, so once a real
+    // exam switcher existed (this same session), a user's "Last 5 scores" /
+    // "Accuracy by paper" trend would mix attempts across every exam they've
+    // EVER attempted a test in — exactly the class of bleed already found and
+    // fixed in services/tests.ts's listTests. The title map below is already
+    // exam-scoped, so an unfixed foreign-exam attempt would render with a raw
+    // paper code instead of silently vanishing (see §3f's prior note, now
+    // stale — this closes it).
     supabase()
       .from("attempts")
-      .select("id, submitted_at, score, total, tests!inner(paper_code)")
+      .select("id, submitted_at, score, total, tests!inner(paper_code, exam_code)")
       .eq("user_id", userId)
+      .eq("tests.exam_code", examCode)
       .not("submitted_at", "is", null)
       .order("submitted_at", { ascending: false })
       .limit(200),

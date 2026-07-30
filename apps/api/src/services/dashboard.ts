@@ -20,6 +20,7 @@ import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { getBestScoresByTest } from "./tests.js";
 import { buildChecklist, getDailyProgress, type DailyProgress } from "./daily-progress.js";
@@ -281,10 +282,20 @@ async function getPerformanceAndWeakness(
   userId: string,
   examCode: string,
 ): Promise<{ performance: DashboardPerformance; weakness_radar: DashboardWeaknessNode[] }> {
+  // FOUND LIVE 2026-07-30 (U3 exam-selection-UX verification, real browser
+  // check against a throwaway account switched to a second exam — not a
+  // code-read): this select carried NO exam scoping at all, so the "Last 5
+  // scores" sparkline mixed attempts across every exam a user has EVER
+  // attempted a test in, exactly the bleed class already found and fixed in
+  // services/tests.ts (listTests), attempts.ts (startAttempt), and
+  // profile-analytics.ts (getScoreTrajectory) — this is the one instance of
+  // it dashboard.ts's own "Performance snapshot" card had. `tests!inner`
+  // scopes it the same way those three do.
   const { data: submitted, error: submittedError } = await supabase()
     .from("attempts")
-    .select("id, submitted_at, score, total")
+    .select("id, submitted_at, score, total, tests!inner(exam_code)")
     .eq("user_id", userId)
+    .eq("tests.exam_code", examCode)
     .not("submitted_at", "is", null)
     .not("total", "is", null)
     .order("submitted_at", { ascending: false })
@@ -302,11 +313,51 @@ async function getPerformanceAndWeakness(
 
   const graded = await getGradedAnswers(userId);
 
+  // Exam-scoped AND paged. This read was previously the whole table with no
+  // range: at 294 UPPSC nodes it fits, but every added exam pushes it toward
+  // PostgREST's 1000-row cap, and a truncated node registry silently drops
+  // ancestors — whole topics vanish from the radar with no error. Scoping to
+  // the user's own exam is both the correctness fix (they never see another
+  // exam's sections) and what keeps the set bounded; `selectAll` is the
+  // belt-and-braces this repo has needed three times before.
+  //
+  // Moved OUTSIDE the (now-removed) `nodeIdsWithAnswers.size > 0` guard and
+  // hoisted ABOVE the accuracy-by-paper loop below (found in the SAME live
+  // check as `submitted` above): `getGradedAnswers` is a shared, exam-AGNOSTIC
+  // helper (its own doc comment says so — it also backs the papers grid and
+  // the mentor's learner profile, each of which does its own exam filtering)
+  // and `paperCode` alone is not proof a graded row belongs to THIS exam —
+  // paper codes are globally unique (§0), so `validPaperCodes` (this exam's
+  // own paper roots) is what actually decides membership. Without it, a
+  // UPPSC-paper accuracy row rendered on a UPSC dashboard's "Accuracy by
+  // paper" list even though the (correctly exam-scoped) weakness radar right
+  // next to it stayed empty — the two cards silently disagreed.
+  const nodeRows = await selectAll<{
+    id: string;
+    paper_code: string;
+    path: string;
+    depth: number;
+    title_i18n: BilingualText;
+  }>(() =>
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, paper_code, path, depth, title_i18n")
+      .eq("exam_code", examCode)
+      .order("id", { ascending: true }),
+  );
+  // CURRENT_AFFAIRS is a SYNTHETIC paper_code (lib/question-visibility.ts) with
+  // no syllabus_nodes root at all — it would never appear in `nodeRows` above
+  // for ANY exam, so a strict "must have a real node root" check would zero
+  // out every current-affairs MCQ's accuracy contribution for everyone, a
+  // regression from the pre-fix (unscoped) behaviour. Always counted, matching
+  // question-visibility.ts's own "test" scope exception for the same code.
+  const validPaperCodes = new Set([...nodeRows.map((n) => n.paper_code), CURRENT_AFFAIRS_PAPER_CODE]);
+
   const byPaper = new Map<string, { correct: number; total: number }>();
   const nodeIdsWithAnswers = new Set<string>();
   for (const row of graded) {
     const paperCode = row.questions?.paper_code;
-    if (paperCode) {
+    if (paperCode && validPaperCodes.has(paperCode)) {
       const bucket = byPaper.get(paperCode) ?? { correct: 0, total: 0 };
       bucket.total += 1;
       if (row.is_correct) bucket.correct += 1;
@@ -324,27 +375,6 @@ async function getPerformanceAndWeakness(
 
   let weaknessRadar: DashboardWeaknessNode[] = [];
   if (nodeIdsWithAnswers.size > 0) {
-    // Exam-scoped AND paged. This read was previously the whole table with no
-    // range: at 294 UPPSC nodes it fits, but every added exam pushes it toward
-    // PostgREST's 1000-row cap, and a truncated node registry silently drops
-    // ancestors — whole topics vanish from the radar with no error. Scoping to
-    // the user's own exam is both the correctness fix (they never see another
-    // exam's sections) and what keeps the set bounded; `selectAll` is the
-    // belt-and-braces this repo has needed three times before.
-    const nodeRows = await selectAll<{
-      id: string;
-      paper_code: string;
-      path: string;
-      depth: number;
-      title_i18n: BilingualText;
-    }>(() =>
-      supabase()
-        .from("syllabus_nodes")
-        .select("id, paper_code, path, depth, title_i18n")
-        .eq("exam_code", examCode)
-        .order("id", { ascending: true }),
-    );
-
     const nodeById = new Map(nodeRows.map((n) => [n.id, n]));
     const topNodeByKey = new Map(
       nodeRows.filter((n) => n.depth === 1).map((n) => [`${n.paper_code}::${n.path}`, n]),

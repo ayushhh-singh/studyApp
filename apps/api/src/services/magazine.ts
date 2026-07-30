@@ -25,6 +25,7 @@ import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { monthBounds, monthLabel } from "../lib/month.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
+import { examCodeForNode } from "../lib/exams.js";
 import { loadNodeWeightage, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import {
   UP_SPECIAL_LIMIT,
@@ -157,15 +158,22 @@ function selectCuratedMainsPerPaper<T extends MainsScoreRow>(scored: Scored<T>[]
 // Month index
 // ---------------------------------------------------------------------------
 
-export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
+export async function listMagazineMonths(examCode: string): Promise<MagazineMonthSummary[]> {
   // Discover which months have ANY gate-clearing published CA (dates only). MUST page: a single
   // busy month already returns ~967 rows (~97% of PostgREST's 1000-row cap), and this spans EVERY
   // month — unpaged it would silently truncate and drop whole months from the index once >1000.
+  //
+  // `examCode` is REQUIRED — current_affairs_items.exam_codes exists precisely so a reader gets
+  // "current affairs relevant to MY exam" (see current-affairs.ts's listCurrentAffairs, the
+  // established `.overlaps` idiom reused here). Without it, a non-UPPSC exam's magazine index would
+  // list every UPPSC-only month, leading into editions that then (correctly) render empty — a
+  // confusing "0 items" card is worse than the month never being listed at all.
   const dateRows = await selectAll<{ date: string }>(() =>
     supabase()
       .from("current_affairs_items")
       .select("date, id")
       .eq("status", "published")
+      .overlaps("exam_codes", [examCode])
       .or(`prelims_relevance.gte.${RELEVANCE_GATE},mains_relevance.gte.${RELEVANCE_GATE}`)
       .order("date", { ascending: false })
       .order("id", { ascending: true }),
@@ -191,9 +199,9 @@ export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
   const summaries = await Promise.all(
     sorted.map(async (month) => {
       const [prelims_item_count, mains_item_count, deep_dive_count] = await Promise.all([
-        countCuratedPrelims(month, weightage, year),
-        countCuratedMainsIssues(month, weightage, year),
-        countPublishedDeepDives(month),
+        countCuratedPrelims(month, examCode, weightage, year),
+        countCuratedMainsIssues(month, examCode, weightage, year),
+        countPublishedDeepDives(month, examCode),
       ]);
       return { month, title_i18n: monthLabel(month), prelims_item_count, mains_item_count, deep_dive_count };
     }),
@@ -204,7 +212,12 @@ export async function listMagazineMonths(): Promise<MagazineMonthSummary[]> {
 }
 
 /** Curated Prelims write-up count (UP lead + topic sections) — the same selection the edition renders. */
-async function countCuratedPrelims(month: string, weightage: Map<string, OwnWeightage>, year: number): Promise<number> {
+async function countCuratedPrelims(
+  month: string,
+  examCode: string,
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+): Promise<number> {
   const { start, end } = monthBounds(month);
   // Paged + date,id order — identical to the edition's item query, so the count can't drift from it
   // (and a >1000-item month doesn't silently truncate the pool the caps rank over).
@@ -213,6 +226,7 @@ async function countCuratedPrelims(month: string, weightage: Map<string, OwnWeig
       .from("current_affairs_items")
       .select(PRELIMS_SCORE_COLUMNS)
       .eq("status", "published")
+      .overlaps("exam_codes", [examCode])
       .gte("prelims_relevance", RELEVANCE_GATE)
       .not("prelims_facts", "is", null)
       .gte("date", start)
@@ -228,13 +242,19 @@ async function countCuratedPrelims(month: string, weightage: Map<string, OwnWeig
 }
 
 /** Curated Mains issue count (distinct union of per-paper top-N) — the same selection the edition renders. */
-async function countCuratedMainsIssues(month: string, weightage: Map<string, OwnWeightage>, year: number): Promise<number> {
+async function countCuratedMainsIssues(
+  month: string,
+  examCode: string,
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+): Promise<number> {
   const { start, end } = monthBounds(month);
   const items = await selectAll<MainsScoreRow>(() =>
     supabase()
       .from("current_affairs_items")
       .select(MAINS_SCORE_COLUMNS)
       .eq("status", "published")
+      .overlaps("exam_codes", [examCode])
       .gte("mains_relevance", RELEVANCE_GATE)
       .not("mains_brief", "is", null)
       .gte("date", start)
@@ -247,14 +267,33 @@ async function countCuratedMainsIssues(month: string, weightage: Map<string, Own
   return new Set(perPaper.flatMap((p) => p.top.map((s) => s.row.id))).size;
 }
 
-async function countPublishedDeepDives(month: string): Promise<number> {
-  const { count, error } = await supabase()
+/**
+ * `magazine_deep_dives` carries no `exam_code` column of its own (adding one is
+ * a schema change, out of scope for this fix) — its exam is derived the SAME
+ * way ca/deepdive.ts derives it at generation time (buildRequests): from the
+ * ranked issue's PRIMARY syllabus node, `syllabus_node_ids[0]`. Reusing
+ * `examCodeForNode` (rather than re-deriving the rule) keeps this read-time
+ * filter byte-identical in behaviour to the write-time decision, so a deep
+ * dive can never be shown to an exam other than the one it was written for.
+ */
+async function filterDeepDivesByExam<T extends { syllabus_node_ids: string[] | null }>(
+  rows: T[],
+  examCode: string,
+): Promise<T[]> {
+  if (rows.length === 0) return rows;
+  const codes = await Promise.all(rows.map((r) => examCodeForNode(r.syllabus_node_ids?.[0] ?? null)));
+  return rows.filter((_, i) => codes[i] === examCode);
+}
+
+async function countPublishedDeepDives(month: string, examCode: string): Promise<number> {
+  const { data, error } = await supabase()
     .from("magazine_deep_dives")
-    .select("id", { count: "exact", head: true })
+    .select("syllabus_node_ids")
     .eq("month", month)
     .eq("status", "published");
   if (error) throw new HttpError(500, `magazine deep-dive count failed: ${error.message}`);
-  return count ?? 0;
+  const rows = (data ?? []) as { syllabus_node_ids: string[] | null }[];
+  return (await filterDeepDivesByExam(rows, examCode)).length;
 }
 
 // ---------------------------------------------------------------------------
@@ -299,14 +338,23 @@ function toItemBlock(s: Scored<PrelimsItemRow>): MagazineItemBlock {
   };
 }
 
-async function loadWorkbook(month: string): Promise<MagazineMcq[]> {
+async function loadWorkbook(month: string, examCode: string): Promise<MagazineMcq[]> {
   const { start, end } = monthBounds(month);
+  // `questions.exam_code` is PROVENANCE, not the node-derived product exam (see
+  // lib/exams.ts) — but every CA-generated MCQ insert (ca/pipeline.ts
+  // insertMcqsForItem) leaves it at the column default ('uppsc'), so filtering
+  // on it here is still correct today: it can only ever match uppsc rows. This
+  // is an honest empty state for a second exam, not a wrong one — ca/pipeline.ts
+  // stamping exam_code on generated CA questions is a separate, pre-existing gap
+  // (outside this fix's scope) that the moment it lands, this filter starts
+  // working for a second exam with no change needed here.
   const { data, error } = await supabase()
     .from("questions")
     .select("id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
     .eq("type", "mcq")
     .eq("review_state", "approved")
+    .eq("exam_code", examCode)
     .gte("created_at", start)
     .lt("created_at", end)
     .order("created_at", { ascending: true })
@@ -321,10 +369,13 @@ async function loadWorkbook(month: string): Promise<MagazineMcq[]> {
   }));
 }
 
-export async function compilePrelimsEdition(month: string): Promise<MagazinePrelims | null> {
+export async function compilePrelimsEdition(month: string, examCode: string): Promise<MagazinePrelims | null> {
   const { start, end } = monthBounds(month);
   // Paged (date,id) — a busy month's prelims-life pool can approach/exceed PostgREST's 1000-row cap;
   // unpaged it would silently truncate and rank the caps over a partial month.
+  //
+  // `.overlaps("exam_codes", [examCode])` — see listMagazineMonths' comment. Without it this edition
+  // would compile from EVERY exam's current affairs regardless of who is reading it.
   const [items, weightage] = await Promise.all([
     selectAll<PrelimsItemRow>(() =>
       supabase()
@@ -333,6 +384,7 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
           "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids, title_i18n, summary_i18n, possible_questions, prelims_facts",
         )
         .eq("status", "published")
+        .overlaps("exam_codes", [examCode])
         .gte("prelims_relevance", RELEVANCE_GATE)
         .not("prelims_facts", "is", null)
         .gte("date", start)
@@ -371,7 +423,7 @@ export async function compilePrelimsEdition(month: string): Promise<MagazinePrel
     facts: (byKind.get(kind) ?? []).slice(0, BOXED_PER_KIND_LIMIT),
   }));
 
-  const workbook = await loadWorkbook(month);
+  const workbook = await loadWorkbook(month, examCode);
   const totalFacts = curated.reduce((n, s) => n + (s.row.prelims_facts?.length ?? 0), 0);
 
   return {
@@ -403,14 +455,19 @@ interface MainsItemRow {
   syllabus_node_ids: string[];
 }
 
-async function loadModelQuestions(month: string): Promise<MagazineModelQuestion[]> {
+async function loadModelQuestions(month: string, examCode: string): Promise<MagazineModelQuestion[]> {
   const { start, end } = monthBounds(month);
+  // See loadWorkbook's comment: `questions.exam_code` is provenance, but every
+  // CA-linked descriptive question (ca/pipeline.ts insertMainsQuestionForItem)
+  // leaves it at the 'uppsc' column default, so this filter is correct today
+  // and will start working for a second exam once that pipeline stamps it.
   const { data, error } = await supabase()
     .from("questions")
     .select("id, stem_i18n, marks, word_limit, generation_meta")
     .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
     .eq("type", "descriptive")
     .eq("review_state", "approved")
+    .eq("exam_code", examCode)
     .gte("created_at", start)
     .lt("created_at", end)
     .order("created_at", { ascending: true })
@@ -434,15 +491,18 @@ async function loadModelQuestions(month: string): Promise<MagazineModelQuestion[
     }));
 }
 
-export async function compileMainsEdition(month: string): Promise<MagazineMains | null> {
+export async function compileMainsEdition(month: string, examCode: string): Promise<MagazineMains | null> {
   const { start, end } = monthBounds(month);
   // Paged (date,id) — mains-life already runs ~836 rows (~84% of PostgREST's 1000-row cap) and grows;
   // unpaged it would silently truncate and rank the per-paper caps over a partial month.
+  //
+  // `.overlaps("exam_codes", [examCode])` — see listMagazineMonths' comment.
   const items = await selectAll<MainsItemRow>(() =>
     supabase()
       .from("current_affairs_items")
       .select("id, date, category, is_up_specific, gs_papers, mains_relevance, title_i18n, mains_brief, possible_questions, syllabus_node_ids")
       .eq("status", "published")
+      .overlaps("exam_codes", [examCode])
       .gte("mains_relevance", RELEVANCE_GATE)
       .not("mains_brief", "is", null)
       .gte("date", start)
@@ -460,11 +520,17 @@ export async function compileMainsEdition(month: string): Promise<MagazineMains 
       .eq("month", month)
       .eq("status", "published")
       .order("rank", { ascending: true }),
-    loadModelQuestions(month),
+    loadModelQuestions(month, examCode),
     loadNodeWeightage(),
   ]);
   if (ddError) throw new HttpError(500, `mains edition deep-dive query failed: ${ddError.message}`);
-  const deepDives = ((ddData ?? []) as unknown as MagazineDeepDive[]).map((d) => ({ ...d, cost_usd: Number(d.cost_usd) }));
+  // magazine_deep_dives has no exam_code column — filtered at read time via
+  // filterDeepDivesByExam (derives it from each row's primary syllabus node,
+  // mirroring how ca/deepdive.ts derived it at generation time).
+  const deepDives = await filterDeepDivesByExam(
+    ((ddData ?? []) as unknown as MagazineDeepDive[]).map((d) => ({ ...d, cost_usd: Number(d.cost_usd) })),
+    examCode,
+  );
 
   if (items.length === 0 && deepDives.length === 0 && modelQuestions.length === 0) return null;
 

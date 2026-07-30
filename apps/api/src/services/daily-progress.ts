@@ -9,7 +9,8 @@
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDayRangeUtc, istToday } from "../lib/ist.js";
-import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
+import { getExamConfig } from "../lib/exam-config.js";
+import { getUserExam } from "../lib/exams.js";
 import { getDailyAnswerSet } from "./answer-set.js";
 
 /** Reviews-in-a-day threshold that counts as a study day on its own. */
@@ -56,20 +57,33 @@ export async function getDailyProgress(userId: string, date: string = istToday()
   const { startUtc, endUtc } = istDayRangeUtc(date);
   const nowIso = new Date().toISOString();
 
-  // Today's two daily quizzes (GS + CSAT), paper-scoped. A legacy pre-split
-  // blended quiz (paper_code NULL) is ignored here — only the GS/CSAT rows drive
-  // today's progress.
-  const { data: quizRows, error: quizErr } = await supabase()
-    .from("tests")
-    .select("id, paper_code")
-    .eq("kind", "daily_quiz")
-    .eq("is_published", true)
-    .eq("scheduled_date", date)
-    .in("paper_code", [PRELIMS_GS1_PAPER_CODE, PRELIMS_CSAT_PAPER_CODE]);
-  if (quizErr) throw new HttpError(500, `daily quiz lookup failed: ${quizErr.message}`);
-  const rows = (quizRows ?? []) as { id: string; paper_code: string | null }[];
-  const gsQuizId = rows.find((r) => r.paper_code === PRELIMS_GS1_PAPER_CODE)?.id ?? null;
-  const csatQuizId = rows.find((r) => r.paper_code === PRELIMS_CSAT_PAPER_CODE)?.id ?? null;
+  // Which Prelims papers THIS user's exam carries a daily quiz for — resolved
+  // via getExamConfig, never the UPPSC-only PRELIMS_GS1_PAPER_CODE/
+  // PRELIMS_CSAT_PAPER_CODE constants directly (docs/multi-exam.md). An exam
+  // with no ingested Prelims papers yet reports both as null, so
+  // prelimsPaperCodes is empty and the lookup below is skipped entirely —
+  // an honest "no quiz today" rather than matching every paper_code.
+  const examCode = await getUserExam(userId);
+  const { prelimsGs, prelimsCsat } = getExamConfig(examCode).papers;
+  const prelimsPaperCodes = [prelimsGs, prelimsCsat].filter((c): c is string => !!c);
+
+  // Today's daily quizzes (GS + CSAT, when this exam has them), paper-scoped. A
+  // legacy pre-split blended quiz (paper_code NULL) is ignored here — only the
+  // GS/CSAT rows drive today's progress.
+  let rows: { id: string; paper_code: string | null }[] = [];
+  if (prelimsPaperCodes.length > 0) {
+    const { data: quizRows, error: quizErr } = await supabase()
+      .from("tests")
+      .select("id, paper_code")
+      .eq("kind", "daily_quiz")
+      .eq("is_published", true)
+      .eq("scheduled_date", date)
+      .in("paper_code", prelimsPaperCodes);
+    if (quizErr) throw new HttpError(500, `daily quiz lookup failed: ${quizErr.message}`);
+    rows = (quizRows ?? []) as { id: string; paper_code: string | null }[];
+  }
+  const gsQuizId = prelimsGs ? (rows.find((r) => r.paper_code === prelimsGs)?.id ?? null) : null;
+  const csatQuizId = prelimsCsat ? (rows.find((r) => r.paper_code === prelimsCsat)?.id ?? null) : null;
 
   const quizDone = async (testId: string | null): Promise<boolean> => {
     if (!testId) return false;
@@ -122,7 +136,7 @@ export async function getDailyProgress(userId: string, date: string = istToday()
         .gte("created_at", startUtc)
         .lt("created_at", endUtc),
     ),
-    getDailyAnswerSet(userId, date),
+    getDailyAnswerSet(userId, date, examCode),
     headCount(() =>
       supabase()
         .from("srs_cards")

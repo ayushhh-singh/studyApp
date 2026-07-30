@@ -18,6 +18,7 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { getUserExam } from "../lib/exams.js";
 import { DEFAULT_MCQ_MARKS } from "../lib/marks.js";
 import { assertMockTests } from "./entitlements.js";
 import { recordDailyQuizResult } from "./scoreboard.js";
@@ -86,16 +87,32 @@ interface AttemptListRow {
 }
 
 /** GET /attempts — mirrors listSubmissions (evaluate.ts) for the MCQ side: newest-first, paginated, submitted attempts only. */
+/**
+ * FOUND LIVE 2026-07-30 (U3 exam-selection-UX verification, real browser
+ * check against a throwaway account switched to a second exam — not a
+ * code-read): this select carried NO exam scoping at all, so Practice's
+ * History tab kept listing every OTHER exam's submitted attempts after a
+ * switch — the exact bleed class already found and fixed in
+ * services/tests.ts (listTests), this same file's startAttempt, and
+ * services/dashboard.ts's getPerformanceAndWeakness's "Last 5 scores".
+ * `tests!inner(exam_code)` scopes it the same way those do; the embed also
+ * already carries `title_i18n, kind, paper_code` for the list, so no second
+ * round trip is needed for the check.
+ */
 export async function listAttempts(
   userId: string,
   page: number,
 ): Promise<{ items: AttemptListItem[]; total: number }> {
+  const examCode = await getUserExam(userId);
   const from = (page - 1) * ATTEMPTS_PAGE_SIZE;
   const to = from + ATTEMPTS_PAGE_SIZE - 1;
   const { data, error, count } = await supabase()
     .from("attempts")
-    .select("id, submitted_at, score, total, test_id, tests(title_i18n, kind, paper_code)", { count: "exact" })
+    .select("id, submitted_at, score, total, test_id, tests!inner(title_i18n, kind, paper_code, exam_code)", {
+      count: "exact",
+    })
     .eq("user_id", userId)
+    .eq("tests.exam_code", examCode)
     .not("submitted_at", "is", null)
     .order("submitted_at", { ascending: false })
     .range(from, to);
@@ -139,7 +156,27 @@ export async function startAttempt(
   body: AttemptStartBody,
   opts?: { source?: "ghost" },
 ): Promise<Attempt> {
+  // `test_id` is an UNTRUSTED body param — the same "listing was scoped but
+  // detail/start weren't" gap found live in services/tests.ts's
+  // listTests/getTestDetail (2026-07-30, U3 verification) applies one step
+  // further downstream: without this, a test id that leaked via a stale URL,
+  // a bookmark, or simply the moment before a target_exam switch could still
+  // be STARTED on a now-foreign exam. This lookup+check MUST run BEFORE
+  // findActiveAttempt's resume short-circuit — findActiveAttempt only matches
+  // on (user_id, test_id) and knows nothing about exam, so an already-started
+  // attempt from a previously-active exam would otherwise silently resume
+  // after switching away from it. 404, not a distinct error, matching
+  // resolveOrderedNodes' "not found, not wrong-exam" rationale elsewhere.
   if (body.test_id) {
+    const examCode = await getUserExam(userId);
+    const { data: examCheck, error: examCheckError } = await supabase()
+      .from("tests")
+      .select("exam_code")
+      .eq("id", body.test_id)
+      .maybeSingle();
+    if (examCheckError) throw new HttpError(500, `test lookup failed: ${examCheckError.message}`);
+    if (!examCheck || examCheck.exam_code !== examCode) throw notFound("Test not found");
+
     const active = await findActiveAttempt(userId, body.test_id);
     if (active) return toAttempt(active);
   }

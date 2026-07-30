@@ -63,6 +63,15 @@ export const onboardingBodySchema = z.object({
   preferred_locale: localeSchema,
   target_exam_year: z.number().int().min(2000).max(2100),
   study_hours_per_day: z.number().int().min(1).max(18),
+  /**
+   * WHICH EXAM the user is preparing for. Optional — an onboarding wizard that
+   * doesn't yet ask this (or a caller upgrading from an older client) leaves
+   * the column at its DB default ('uppsc', see migration 0106) rather than
+   * writing anything. Same enum as ProfileUpdateBody.target_exam; the API
+   * layer runs it through the identical assertSelectableExam guard before
+   * persisting.
+   */
+  target_exam: targetExamCodeSchema.optional(),
 });
 export type OnboardingBody = z.infer<typeof onboardingBodySchema>;
 

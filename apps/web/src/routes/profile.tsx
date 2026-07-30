@@ -9,6 +9,7 @@ import { WritingProgressCard } from "@/components/profile/writing-progress-card"
 import { ImprovementProofCard } from "@/components/profile/improvement-proof-card";
 import { MicroDrillsCard } from "@/components/profile/micro-drills-card";
 import { MyRanksCard } from "@/components/profile/my-ranks-card";
+import { ExamSwitcherCard } from "@/components/profile/exam-switcher-card";
 import { SettingsCard } from "@/components/profile/settings-card";
 import { ChangePasswordCard } from "@/components/profile/change-password-card";
 import { PushNotificationsCard } from "@/components/profile/push-notifications-card";
@@ -81,6 +82,8 @@ export function Component() {
       <MicroDrillsCard />
 
       <h2 className="text-lg font-bold tracking-tight">{t("Profile.settingsSectionTitle")}</h2>
+
+      <ExamSwitcherCard />
 
       <SettingsCard />
 

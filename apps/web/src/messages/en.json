@@ -121,8 +121,8 @@
     "title": "Learn",
     "description": "Browse the {{exam}} syllabus, mapped paper by paper.",
     "matrixLinkCta": "See your full topic mastery matrix across every paper",
-    "emptyTitle": "Syllabus not loaded",
-    "emptyDescription": "We couldn't find any syllabus topics right now.",
+    "emptyTitle": "No syllabus yet",
+    "emptyDescription": "This exam's syllabus hasn't been added yet — check back soon.",
     "prelims": "Prelims",
     "mains": "Mains",
     "topicsCount_one": "{{count}} topic",
@@ -804,6 +804,24 @@
     "allExams": "All exams",
     "examOnly": "{{exam}} only"
   },
+  "ExamPicker": {
+    "groupLabel": "Choose your exam",
+    "comingSoon": "Coming soon",
+    "covered": "What's ready today",
+    "notCovered": "Not yet available"
+  },
+  "ExamSwitcher": {
+    "title": "Exam",
+    "currentExam": "Preparing for {{exam}}",
+    "confirmTitle": "Switch to {{exam}}?",
+    "confirmSafe": "Switching is safe — nothing you've done is deleted.",
+    "confirmHistory": "Your quiz history, attempts, and analytics stay with the exam that earned them — each exam keeps its own.",
+    "confirmStreak": "Your streak and freezes are saved for your current exam and picked back up if you switch back to it.",
+    "confirmSrsShared": "Your revision (spaced-repetition) deck is shared across exams on purpose, so cards you've added stay with you.",
+    "confirmError": "Couldn't switch exams. Please try again.",
+    "confirmCancel": "Cancel",
+    "confirmSwitch": "Switch exam"
+  },
   "OnDemand": {
     "newSet": "Show me a new set",
     "newMock": "Fresh mock",
@@ -1210,6 +1228,8 @@
     "handleLabel": "Handle",
     "optional": "(optional)",
     "handleHint": "For the community later. 3–20 lowercase letters, numbers or _.",
+    "examStepTitle": "Which exam are you preparing for?",
+    "examStepSub": "This decides your syllabus, papers, and cut-offs. You can switch anytime from your profile — nothing you do is lost.",
     "step2Title": "Language & target",
     "step2Sub": "Pick your medium and the year you're aiming for.",
     "mediumLabel": "Preferred medium",

@@ -2,13 +2,20 @@ import { useMemo, useState } from "react";
 import { Navigate, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, ArrowRight, Check, Loader2, Sparkles } from "lucide-react";
-import { handleSchema, type Locale, type OnboardingBody } from "@neev/shared";
+import {
+  DEFAULT_EXAM_CODE,
+  handleSchema,
+  type Locale,
+  type OnboardingBody,
+  type TargetExamCode,
+} from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useProfile, useCompleteOnboarding } from "@/hooks/use-profile";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { ExamPickerList } from "@/components/ui-x/exam-picker-list";
 import { FullScreenLoader, ProfileLoadError } from "@/routes/require-auth";
 import { billingCopy, pick } from "@/lib/billing-copy";
 import { cn } from "@/lib/utils";
@@ -16,7 +23,14 @@ import { cn } from "@/lib/utils";
 const CURRENT_YEAR = 2026;
 const YEAR_OPTIONS = [CURRENT_YEAR, CURRENT_YEAR + 1, CURRENT_YEAR + 2];
 const HOURS_OPTIONS = [1, 2, 3, 4, 6, 8];
-const TOTAL_STEPS = 3;
+// 1: name+handle · 2: which exam · 3: medium+target year · 4: study hours/day.
+// Exam selection sits right after identity and BEFORE medium/year on purpose —
+// "which year are you aiming for" only makes sense once "which exam" is
+// answered (a different exam can have a different cycle), and every later
+// step (mastery, papers, cut-offs) is scoped to this choice, so asking it
+// early avoids the wizard implying a UPPSC-specific choice (target Prelims
+// year) before the user has even confirmed they're doing UPPSC.
+const TOTAL_STEPS = 4;
 
 export function Component() {
   const { t } = useTranslation();
@@ -34,6 +48,10 @@ export function Component() {
   const [step, setStep] = useState(1);
   const [displayName, setDisplayName] = useState("");
   const [handle, setHandle] = useState("");
+  // Pre-selected to the one currently-live exam so this step is never a dead
+  // end for today's only real audience — it still requires an explicit "Next"
+  // click to move on, it just isn't a blank/unusable choice by default.
+  const [targetExam, setTargetExam] = useState<TargetExamCode>(DEFAULT_EXAM_CODE);
   const [medium, setMedium] = useState<Locale>(locale);
   const [targetYear, setTargetYear] = useState(CURRENT_YEAR);
   const [hours, setHours] = useState(3);
@@ -65,6 +83,7 @@ export function Component() {
       preferred_locale: medium,
       target_exam_year: targetYear,
       study_hours_per_day: hours,
+      target_exam: targetExam,
     };
     try {
       await onboard.mutateAsync(body);
@@ -142,6 +161,16 @@ export function Component() {
           {step === 2 ? (
             <div className="space-y-5">
               <div className="space-y-1.5">
+                <h1 className="text-xl font-bold tracking-tight">{t("Onboarding.examStepTitle")}</h1>
+                <p className="text-sm leading-relaxed text-muted-foreground">{t("Onboarding.examStepSub")}</p>
+              </div>
+              <ExamPickerList value={targetExam} onSelect={setTargetExam} />
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="space-y-5">
+              <div className="space-y-1.5">
                 <h1 className="text-xl font-bold tracking-tight">{t("Onboarding.step2Title")}</h1>
                 <p className="text-sm leading-relaxed text-muted-foreground">{t("Onboarding.step2Sub")}</p>
               </div>
@@ -193,7 +222,7 @@ export function Component() {
             </div>
           ) : null}
 
-          {step === 3 ? (
+          {step === 4 ? (
             <div className="space-y-5">
               <div className="space-y-1.5">
                 <h1 className="text-xl font-bold tracking-tight">{t("Onboarding.step3Title")}</h1>

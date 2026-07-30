@@ -1,14 +1,19 @@
 /**
- * `pnpm ca:compile --month YYYY-MM` — assemble a month's PUBLISHED current
- * affairs into both magazine editions (Prelims Compendium + Mains Analysis)
- * and print a summary.
+ * `pnpm ca:compile --month YYYY-MM [--exam uppsc]` — assemble a month's
+ * PUBLISHED current affairs into both magazine editions (Prelims Compendium +
+ * Mains Analysis) and print a summary.
  *
  * Both editions are computed on demand (no table, except the reviewed Deep
  * Dives) by services/magazine.ts and served at GET /magazine/:month/{prelims,
  * mains} → rendered at the print-styled routes /:locale/magazine/:month/
  * {prelims,mains}. This CLI is a smoke-test / ops entry point; with no
  * --month it lists every compilable month.
+ *
+ * `--exam` defaults to the default exam — there is no signed-in user in a CLI
+ * context to resolve one from (see lib/exams.ts's getUserExam, which every
+ * request-handler caller of these same functions uses instead).
  */
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { compileMainsEdition, compilePrelimsEdition, listMagazineMonths } from "../services/magazine.js";
 
 function arg(name: string): string | null {
@@ -18,9 +23,10 @@ function arg(name: string): string | null {
 
 async function main(): Promise<void> {
   const month = arg("month");
+  const examCode = arg("exam") ?? DEFAULT_EXAM_CODE;
 
   if (!month) {
-    const months = await listMagazineMonths();
+    const months = await listMagazineMonths(examCode);
     console.log("ca:compile — compilable months:\n");
     if (months.length === 0) {
       console.log("  (no published current affairs yet — run pnpm ca:run first)");
@@ -37,7 +43,10 @@ async function main(): Promise<void> {
 
   if (!/^\d{4}-\d{2}$/.test(month)) throw new Error("--month must be YYYY-MM");
 
-  const [prelims, mains] = await Promise.all([compilePrelimsEdition(month), compileMainsEdition(month)]);
+  const [prelims, mains] = await Promise.all([
+    compilePrelimsEdition(month, examCode),
+    compileMainsEdition(month, examCode),
+  ]);
 
   if (!prelims) {
     console.log(`No prelims-life published current affairs for ${month}.`);

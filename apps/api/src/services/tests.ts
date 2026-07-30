@@ -35,11 +35,27 @@ interface TestListRow {
   test_questions: { count: number }[];
 }
 
+/**
+ * FOUND LIVE 2026-07-30 (U3 exam-selection-UX verification, real browser
+ * check, not a code-read): this was the ONE unscoped read in the whole
+ * "which tests can this user see" chain — `tests.exam_code` (0106 §5,
+ * NEEDS-COLUMN, not derivable) was never filtered here, so switching
+ * `target_exam` left the Practice page's PYQ Papers/Sectional/Mock/Custom
+ * tabs (and the Answers "Practice Tests" tab, which shares this same
+ * function) still listing every OTHER exam's tests. Confirmed by an actual
+ * screenshot: after switching a throwaway account to a second (test-only
+ * live-flagged) exam, Practice still rendered the full 12-paper UPPSC PYQ
+ * history. `getTestDetail`/`startAttempt` had the identical gap one level
+ * deeper (a listed-then-hidden test's id would still open/start) — both
+ * fixed alongside this one; see their own comments.
+ */
 export async function listTests(filters: TestListFilters): Promise<TestSummary[]> {
+  const examCode = await getUserExam(currentUserId());
   let query = supabase()
     .from("tests")
     .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, meta, test_questions(count)")
     .eq("is_published", true)
+    .eq("exam_code", examCode)
     .order("created_at", { ascending: false });
 
   if (filters.kind) query = query.eq("kind", filters.kind);
@@ -143,15 +159,25 @@ interface TestQuestionJoinRow {
   };
 }
 
+/**
+ * `testId` is an UNTRUSTED path param (the same class M7 already closed for
+ * community anchors / on-demand node ids / resolveOrderedNodes below) — a
+ * test id that was reachable a moment ago via a now-fixed listTests() call,
+ * or a stale/bookmarked/shared URL, must not open once it belongs to another
+ * exam. 404, not 403, matching resolveOrderedNodes' rationale: a foreign
+ * test genuinely isn't part of this user's catalog, and a distinct error
+ * would confirm the id exists to a caller probing with guessed ids.
+ */
 export async function getTestDetail(testId: string): Promise<TestDetail> {
+  const examCode = await getUserExam(currentUserId());
   const { data: test, error } = await supabase()
     .from("tests")
-    .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, meta")
+    .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, meta, exam_code")
     .eq("id", testId)
     .eq("is_published", true)
     .maybeSingle();
   if (error) throw new HttpError(500, `test lookup failed: ${error.message}`);
-  if (!test) throw notFound("Test not found");
+  if (!test || test.exam_code !== examCode) throw notFound("Test not found");
 
   // !inner + the question-visibility filter excludes questions retracted
   // after the test was assembled — must match the same filter in

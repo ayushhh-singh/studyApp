@@ -60,6 +60,60 @@ function examCodeOf(row: unknown): string {
   return ((row as Record<string, unknown>)?.target_exam as string) || DEFAULT_EXAM_CODE;
 }
 
+/**
+ * The streak family that lives on users_profile for the CURRENTLY ACTIVE exam
+ * and gets parked in / restored from user_exam_streaks (0111) on a
+ * target_exam switch. Kept as one named group everywhere it's threaded so the
+ * four fields can never drift apart (e.g. a freeze restored without its date).
+ */
+interface StreakSnapshot {
+  streak_count: number;
+  last_active_date: string | null;
+  streak_freezes: number;
+  streak_freeze_used_on: string | null;
+}
+
+const DEFAULT_STREAK_SNAPSHOT: StreakSnapshot = {
+  streak_count: 0,
+  last_active_date: null,
+  streak_freezes: 0,
+  streak_freeze_used_on: null,
+};
+
+/**
+ * Swaps a user's per-exam streak state on a target_exam change: the OUTGOING
+ * exam's live values (still sitting on users_profile at call time — the
+ * caller reads them before this runs) are parked in user_exam_streaks, and the
+ * INCOMING exam's parked values are returned — or fresh defaults, if that exam
+ * has never been active for this user before. The caller writes the returned
+ * snapshot back onto users_profile in the SAME update that changes
+ * target_exam, so a client never observes a half-applied state (old exam, but
+ * still the old exam's streak numbers, or vice versa).
+ */
+async function swapExamStreak(
+  userId: string,
+  fromExam: string,
+  toExam: string,
+  outgoing: StreakSnapshot,
+): Promise<StreakSnapshot> {
+  const { error: upsertError } = await supabase()
+    .from("user_exam_streaks")
+    .upsert(
+      { user_id: userId, exam_code: fromExam, ...outgoing },
+      { onConflict: "user_id,exam_code" },
+    );
+  if (upsertError) throw new HttpError(500, `streak snapshot save failed: ${upsertError.message}`);
+
+  const { data, error } = await supabase()
+    .from("user_exam_streaks")
+    .select("streak_count, last_active_date, streak_freezes, streak_freeze_used_on")
+    .eq("user_id", userId)
+    .eq("exam_code", toExam)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `streak snapshot lookup failed: ${error.message}`);
+  return (data as StreakSnapshot | null) ?? DEFAULT_STREAK_SNAPSHOT;
+}
+
 export async function getProfile(userId: string): Promise<Profile> {
   const today = istToday();
   const [{ data, error }, examRows] = await Promise.all([
@@ -82,8 +136,33 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
   // syllabus, questions or chapters, so switching to one would strand the user
   // in an empty app — reject it as a 400 rather than persist it.
   if (patch.target_exam) await assertSelectableExam(patch.target_exam);
+
+  // A target_exam change needs the CURRENT row's exam + streak values before
+  // it can decide whether a swap is even needed — that read can't be folded
+  // into the parallel fetchUpcomingExams below, since the outcome changes what
+  // gets written.
+  let writePatch: ProfileUpdateBody | (ProfileUpdateBody & StreakSnapshot) = patch;
+  if (patch.target_exam) {
+    const { data: currentRow, error: currentError } = await supabase()
+      .from("users_profile")
+      .select("target_exam, streak_count, last_active_date, streak_freezes, streak_freeze_used_on")
+      .eq("id", userId)
+      .maybeSingle();
+    if (currentError) throw new HttpError(500, `profile lookup failed: ${currentError.message}`);
+    const current = currentRow as (StreakSnapshot & { target_exam: string }) | null;
+    if (current && current.target_exam !== patch.target_exam) {
+      const incoming = await swapExamStreak(userId, current.target_exam, patch.target_exam, {
+        streak_count: current.streak_count,
+        last_active_date: current.last_active_date,
+        streak_freezes: current.streak_freezes,
+        streak_freeze_used_on: current.streak_freeze_used_on,
+      });
+      writePatch = { ...patch, ...incoming };
+    }
+  }
+
   const [{ data, error }, examRows] = await Promise.all([
-    supabase().from("users_profile").update(patch).eq("id", userId).select(PROFILE_COLUMNS).single(),
+    supabase().from("users_profile").update(writePatch).eq("id", userId).select(PROFILE_COLUMNS).single(),
     fetchUpcomingExams(today),
   ]);
   if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
@@ -98,6 +177,12 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
  */
 export async function completeOnboarding(userId: string, body: OnboardingBody): Promise<Profile> {
   const today = istToday();
+  // target_exam is optional here (unlike updateProfile's PATCH path) — the
+  // wizard usually doesn't ask, and a fresh profile row is always still on the
+  // DB default (uppsc, see 0106), so there is no prior exam's streak to park
+  // and no swap to perform. If a caller ever DOES send one, guard it the same
+  // way updateProfile does before persisting.
+  if (body.target_exam) await assertSelectableExam(body.target_exam);
   const [{ data, error }, examRows] = await Promise.all([
     supabase()
       .from("users_profile")
@@ -109,6 +194,7 @@ export async function completeOnboarding(userId: string, body: OnboardingBody): 
         target_exam_year: body.target_exam_year,
         study_hours_per_day: body.study_hours_per_day,
         onboarding_completed: true,
+        ...(body.target_exam ? { target_exam: body.target_exam } : {}),
       })
       .eq("id", userId)
       .select(PROFILE_COLUMNS)

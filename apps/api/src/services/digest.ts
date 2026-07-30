@@ -1,7 +1,29 @@
 /**
  * Weekly digest: this week's (last 7 IST days) questions, accuracy, answers,
- * SRS reviews, and current streak. Backs the dashboard digest card and the
- * server-rendered share image.
+ * SRS reviews, and current streak. Backs the dashboard digest card AND the
+ * server-rendered share image (services/share-image.ts's renderWeeklyDigestPng)
+ * — both consume the exact same object, so scoping it here scopes both call
+ * sites at once.
+ *
+ * EXAM SCOPING (2026-07-30, found auditing the share-image endpoints for
+ * cross-exam bleed per docs/multi-exam.md): `examCode` is REQUIRED, not
+ * defaulted — a defaulted trailing param lets a caller silently keep the old,
+ * unscoped behaviour (the exact mistake CLAUDE.md's M11/M14 edge-case audit
+ * caught twice already: getMasteryMap's targetExam, then getCutoffs' own).
+ * `questions_attempted`/`accuracy_pct` (from `attempts`) and
+ * `answers_evaluated` (from `answer_submissions`) are real per-exam concepts —
+ * an attempt belongs to a test, which carries `tests.exam_code` (0106 §5,
+ * NEEDS-COLUMN, not derivable); an evaluation belongs to an exam via
+ * `evaluations.exam_code` (0109 §5). Without scoping, a user who has EVER
+ * attempted a test or submitted an answer under a different exam this week —
+ * exactly what switching `target_exam` mid-week produces — would see that
+ * exam's numbers silently folded into THIS exam's digest and share image.
+ * `srs_reviews` is DELIBERATELY left unscoped: revision is a shared,
+ * exam-agnostic deck by design (0106 §13) and this count should reflect that.
+ * `streak_count` needs no join: it already reads the CURRENTLY ACTIVE exam's
+ * live value straight off `users_profile` (the park/restore swap in
+ * services/profile.ts's updateProfile keeps that column meaning "this exam's
+ * streak" at all times — see migration 0111).
  */
 import type { LeaderboardEntry, WeeklyDigest } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
@@ -12,16 +34,24 @@ function round2(n: number): number {
   return Math.round(n * 100) / 100;
 }
 
-export async function getWeeklyDigest(userId: string, today: string = istToday()): Promise<WeeklyDigest> {
+export async function getWeeklyDigest(
+  userId: string,
+  examCode: string,
+  today: string = istToday(),
+): Promise<WeeklyDigest> {
   const weekStart = shiftDate(today, -6);
   const startUtc = istDayRangeUtc(weekStart).startUtc;
   const endUtc = istDayRangeUtc(today).endUtc;
 
   // Attempts submitted this week → their graded answers drive questions + accuracy.
+  // `tests!inner(exam_code)` scopes to THIS exam's attempts only — an attempt
+  // whose test was since deleted (test_id null) has no exam to attribute to and
+  // is correctly excluded from every exam's count, not just this one.
   const { data: attempts, error: aErr } = await supabase()
     .from("attempts")
-    .select("id")
+    .select("id, tests!inner(exam_code)")
     .eq("user_id", userId)
+    .eq("tests.exam_code", examCode)
     .not("submitted_at", "is", null)
     .gte("submitted_at", startUtc)
     .lt("submitted_at", endUtc);
@@ -44,7 +74,15 @@ export async function getWeeklyDigest(userId: string, today: string = istToday()
   }
 
   const [{ count: answersEvaluated, error: eErr }, { count: srsReviews, error: sErr }, profileRes] = await Promise.all([
-    supabase().from("answer_submissions").select("id", { count: "exact", head: true }).eq("user_id", userId).eq("status", "complete").gte("created_at", startUtc).lt("created_at", endUtc),
+    supabase()
+      .from("answer_submissions")
+      .select("id, evaluations!inner(exam_code)", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("status", "complete")
+      .eq("evaluations.exam_code", examCode)
+      .gte("created_at", startUtc)
+      .lt("created_at", endUtc),
+    // Deliberately NOT exam-scoped — see the function doc comment.
     supabase().from("srs_reviews").select("id", { count: "exact", head: true }).eq("user_id", userId).gte("reviewed_at", startUtc).lt("reviewed_at", endUtc),
     supabase().from("users_profile").select("streak_count").eq("id", userId).maybeSingle(),
   ]);

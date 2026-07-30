@@ -52,7 +52,8 @@ engagementRouter.get(
 engagementRouter.get(
   "/digest/weekly",
   asyncHandler(async (_req, res) => {
-    const digest = await getWeeklyDigest(currentUserId());
+    const userId = currentUserId();
+    const digest = await getWeeklyDigest(userId, await getUserExam(userId));
     res.json(weeklyDigestResponseSchema.parse({ data: digest, error: null }));
   }),
 );
@@ -63,8 +64,9 @@ engagementRouter.get(
   asyncHandler(async (req, res) => {
     const { locale } = parse(z.object({ locale: localeSchema.default("en") }), req.query);
     const userId = currentUserId();
-    const digest = await getWeeklyDigest(userId);
-    const png = await renderWeeklyDigestPng(digest, locale, await getUserExam(userId));
+    const examCode = await getUserExam(userId);
+    const digest = await getWeeklyDigest(userId, examCode);
+    const png = await renderWeeklyDigestPng(digest, locale, examCode);
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Cache-Control", "public, max-age=300");
     res.send(png);

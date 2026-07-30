@@ -49,8 +49,23 @@ is exam-separated (M17, §3e), **study chapters stay exam-specific and are
 drafted from the corresponding UPPSC chapter — see §5, which every future
 chapter-generation session must read first** (M15), pricing stays one
 exam-agnostic ladder (M18), and questions are not shared across exams (M19).
-Only **M16** (one exam per user, or several concurrently?) remains open, and the
-schema already answers it "one".
+**M16** (one exam per user, or several concurrently?) is implicitly settled by
+U3's shipped switcher below in favour of "one, switchable" — flagged in
+`docs/OUTSTANDING.md` §8d as a decision that should still go to the founder
+explicitly, not one to treat as closed just because it was inherited from an
+implementation.
+
+**U3 (exam selection UX) shipped and was verified live 2026-07-30 — see §3g.**
+Onboarding gained an exam-picker step and Profile gained a switcher, both
+built on the same `ExamPickerList` component and both rendering
+`launch_scope_i18n` honestly (no fabricated dates — the field carries none).
+Switching parks/restores the outgoing exam's streak (migration
+`0111_user_exam_streaks.sql`) in the same statement that changes
+`target_exam`, so a client never sees a half-applied state; the SRS deck stays
+deliberately shared across exams (0106 §13). §3g's live verification found and
+fixed two more bleed bugs beyond M1-M9 — `dashboard.ts`'s "Last 5 scores" /
+"Accuracy by paper" and `attempts.ts`'s `listAttempts` (Practice History) —
+both had zero exam scoping and both are now fixed the same way as `listTests`.
 
 ---
 
@@ -413,10 +428,105 @@ recorded.
   and their embeddings fall back to the default. Already an open question
   (`docs/OUTSTANDING.md` §8d M19); `ingest:embed` now warns with the count
   instead of being silent about it.
-- **`getScoreTrajectory` renders a raw paper code** for an attempt on another
+- ~~**`getScoreTrajectory` renders a raw paper code** for an attempt on another
   exam's paper, since the title map is now exam-scoped. Unreachable today (there
   is no exam-switching UI — M13), and dropping such attempts silently would be
-  worse than labelling them plainly.
+  worse than labelling them plainly.~~ **RESOLVED 2026-07-30 by U3** (see §3g):
+  the `attempts` select itself now filters `.eq("tests.exam_code", examCode)`,
+  so a cross-exam attempt can no longer reach this function at all — the
+  fallback (`titleByPaper.get(paper_code) ?? {hi: paper_code, en: paper_code}`)
+  now only fires for a same-exam paper with no `syllabus_nodes` depth-0 root
+  (e.g. `CURRENT_AFFAIRS`), an unrelated, harmless edge case. And U3 shipped
+  the exam-switching UI this note said made the concern unreachable, closing
+  the "unreachable today" caveat from the other direction too.
+
+### 3g. U3 — exam selection UX (2026-07-30) — ✅ shipped and verified live
+
+The picker/switcher session `docs/OUTSTANDING.md` §8c's "M13 → U3 handoff"
+checklist was written for. Onboarding gained a new step 2 of 4 (exam picker,
+`components/ui-x/exam-picker-list.tsx`, `ExamPickerList`); Profile gained a
+switcher card (`components/profile/exam-switcher-card.tsx`) with a
+confirmation dialog; `services/profile.ts`'s `updateProfile()` gained a
+**park/restore streak swap** on a `target_exam` change, backed by a new table
+(migration `0111_user_exam_streaks.sql`, `(user_id, exam_code)` primary key,
+owner-only RLS matching every other user-scoped table).
+
+**Design: the active exam's streak columns on `users_profile` are UNCHANGED in
+shape and meaning** — every existing reader (dashboard greeting, TopBar flame,
+`GuidedTodayCard`, milestone `streak_7`/`streak_30` triggers) needed zero
+changes, because those columns still mean "the currently active exam's live
+streak state" at all times. `user_exam_streaks` is a parking spot for exams
+that are NOT currently active: switching upserts the outgoing exam's current
+scalar values into it, then reads (or defaults) the incoming exam's row and
+writes those values back onto `users_profile` **in the same statement** that
+changes `target_exam` — a swap, not a copy, so no history is lost in either
+direction and a client never observes a half-applied state.
+
+**Verified against a real throwaway account with real seeded UPPSC history**
+(a genuine submitted MCQ attempt driven through the actual test-player UI, a
+seeded streak, one manually-created SRS card) — not a fresh, contentless
+account, which would have made the "does real content actually disappear and
+come back" check trivial. `exams.upsc.is_live` flipped `true` temporarily
+(the same sanctioned pattern M1-M9's own verification runs used), switched via
+the real switcher UI: **zero** UPPSC content on dashboard, practice (incl.
+History), learn, current-affairs, magazine (index/prelims/mains), scoreboard,
+or revision; streak reset to a fresh state; switching back restored
+`streak_count`/`last_active_date`/`streak_freezes`/`streak_freeze_used_on`/
+`days_to_exam`/`next_exam_label_i18n` **byte-identically**, and the SRS card
+added *while on the second exam* was still present afterward — the concrete
+proof the deck really is shared across exams (0106 §13), not per-exam.
+Confirmation dialog checked at 390px in Hindi: no horizontal overflow, all 3
+bullets render legibly. `exams.upsc.is_live` restored to `false` at the end;
+the throwaway account and every row it touched (`users_profile`,
+`user_exam_streaks`, `attempts`, `srs_cards`, the auth user itself) deleted by
+the explicit id captured at creation, verified 0 leftovers afterward.
+
+**Two more live bleed bugs found by this pass, beyond what M1-M9 had already
+closed** — both caught by *looking at rendered content* after switching, not
+by re-reading the earlier fix's diff:
+
+- **`services/dashboard.ts`'s `getPerformanceAndWeakness`.** The "Last 5
+  scores" sparkline (`submitted` attempts query) had no exam filter at all,
+  and "Accuracy by paper" was built straight from the exam-agnostic
+  `getGradedAnswers(userId)` (shared with the papers grid and the mentor's
+  learner profile, each of which does its own filtering) with no cross-check
+  against the current exam. Live-visible result: a UPPSC CSAT attempt's
+  `PRE_CSAT 50%` rendered on a UPSC dashboard's Performance Snapshot card,
+  right next to a Weakness Radar that WAS correctly empty (its node lookup was
+  already exam-scoped by M2) — the two cards silently disagreed with each
+  other. Fixed: `submitted` now joins `tests!inner(exam_code)` and filters on
+  it; `accuracyByPaper` is filtered against a `validPaperCodes` set built from
+  the exam's own `syllabus_nodes` roots. **One trap caught before shipping,
+  not after:** `CURRENT_AFFAIRS` is a synthetic `paper_code`
+  (`lib/question-visibility.ts`) with no `syllabus_nodes` row for ANY exam —
+  a naive "must have a real root" filter would have zeroed out every exam's
+  current-affairs accuracy, a regression from the pre-fix (merely unscoped,
+  not broken-for-everyone) behaviour. `validPaperCodes` always includes
+  `CURRENT_AFFAIRS_PAPER_CODE` explicitly, matching
+  `lib/question-visibility.ts`'s own precedent for the same code.
+- **`services/attempts.ts`'s `listAttempts`** (backs Practice's History tab) —
+  zero exam scoping, so a switched-away user's entire MCQ attempt history kept
+  listing. Fixed with the identical `tests!inner(exam_code)` pattern already
+  used by `listTests`/`startAttempt` (the earlier pass in this same session).
+
+Both live-verified: the Dashboard's Performance Snapshot now reads "Complete a
+test to see your score trend." / "No paper-wise accuracy yet." and Practice
+History reads "No attempts yet" on the second exam, with the real UPPSC
+content back on both after switching to UPPSC. `pnpm --filter api typecheck`
+clean before and after each fix.
+
+**Confirmed pre-existing, not a U3 regression:** asking the mentor
+(`/doubts`, "New doubt") a real question while on the second exam does not
+answer at all — it renders `exam-config: "mentor.teacherPlatformFraming" is
+UNAUTHORED for exam "upsc". This slot carries examiner judgment and must be
+researched and authored for upsc — never derived from another exam's text by
+substitution (U6).` as the reply. Traced to `lib/exam-config.ts`'s `UNAUTHORED`
+gate, committed (`27fd7d9`, `ac83785`) before this session started — see §6.
+This is a **stronger** safety guarantee than "answers without citing UPPSC
+content" (a total, loud refusal beats a soft degraded answer that might still
+carry UPPSC-flavoured framing) and is explicitly out of U3's scope; U6 (74
+config slots to research and author per non-UPPSC exam) is tracked separately
+in `docs/OUTSTANDING.md` §8f.
 
 ### 3a. Daily quiz — ✅ resolved (M6)
 

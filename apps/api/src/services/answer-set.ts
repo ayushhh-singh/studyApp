@@ -1,6 +1,7 @@
 /**
- * The daily answer set: 4 GS descriptive questions per IST day rotating across
- * the six GS papers (incl. GS-V/VI UP), plus one weekly ESSAY slot on Sundays.
+ * The daily answer set: a few GS descriptive questions per IST day rotating
+ * across the exam's own GS papers (UPPSC: six, incl. GS-V/VI UP), plus one
+ * weekly ESSAY slot on Sundays for exams with an authored essay paper.
  *
  * WHICH papers feature each day is a fixed calendar rotation (answerSetPapers);
  * WHICH question within each paper is a combined weak-AND-heavily-tested pick
@@ -11,6 +12,12 @@
  * visibility helper. Per-question status is "evaluated" once the user has a
  * completed evaluation for that question — one such completion maintains the
  * streak.
+ *
+ * PAPER FAMILY is resolved per user via `getExamConfig(examCode).papers`
+ * (`lib/exam-config.ts`) rather than the hardcoded UPPSC paper-code constants —
+ * an exam with no ingested Mains GS papers yet (`papers.mainsGs = []`)
+ * correctly gets an EMPTY daily set instead of silently being served UPPSC's
+ * rotation (docs/multi-exam.md).
  */
 import type { BilingualText, DailyAnswerItem, DailyAnswerKind, DailyAnswerSet } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
@@ -19,7 +26,9 @@ import { daysBetween, istDayRangeUtc, istToday } from "../lib/ist.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { ANSWER_SET_CONFIG } from "../daily/config.js";
-import { ESSAY_MAX_MARKS, ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, MAINS_GS_PAPER_CODES } from "../lib/exam-papers.js";
+import { ESSAY_MAX_MARKS, ESSAY_WORD_LIMIT } from "../lib/exam-papers.js";
+import { getExamConfig, type ExamPapers } from "../lib/exam-config.js";
+import { getUserExam } from "../lib/exams.js";
 
 interface DescQRow {
   id: string;
@@ -63,21 +72,29 @@ function weekdayOf(date: string): number {
   return new Date(`${date}T00:00:00Z`).getUTCDay();
 }
 
-/** The papers featured on a given day (rotating GS window + optional essay). */
-export function answerSetPapers(date: string): { paperCode: string; kind: DailyAnswerKind }[] {
+/**
+ * The papers featured on a given day (rotating GS window + optional essay),
+ * scoped to ONE exam's own Mains paper family — never the UPPSC constants
+ * directly. `papers.mainsGs` is empty for an exam with no ingested Mains GS
+ * papers (getExamConfig), which correctly yields an empty rotation rather than
+ * falling through to another exam's paper codes.
+ */
+export function answerSetPapers(date: string, papers: ExamPapers): { paperCode: string; kind: DailyAnswerKind }[] {
+  if (papers.mainsGs.length === 0) return [];
   const dayNum = daysBetween("1970-01-01", date);
-  const start = ((dayNum % MAINS_GS_PAPER_CODES.length) + MAINS_GS_PAPER_CODES.length) % MAINS_GS_PAPER_CODES.length;
+  const start = ((dayNum % papers.mainsGs.length) + papers.mainsGs.length) % papers.mainsGs.length;
   const gs = Array.from({ length: ANSWER_SET_CONFIG.gsPerDay }, (_, i) => ({
-    paperCode: MAINS_GS_PAPER_CODES[(start + i) % MAINS_GS_PAPER_CODES.length],
+    paperCode: papers.mainsGs[(start + i) % papers.mainsGs.length],
     kind: "gs" as const,
   }));
-  if (weekdayOf(date) === ANSWER_SET_CONFIG.essayWeekday) {
-    return [...gs, { paperCode: ESSAY_PAPER_CODE, kind: "essay" }];
+  if (papers.essay && weekdayOf(date) === ANSWER_SET_CONFIG.essayWeekday) {
+    return [...gs, { paperCode: papers.essay, kind: "essay" }];
   }
   return gs;
 }
 
 async function fetchDescriptiveByPaper(paperCodes: string[]): Promise<Map<string, DescQRow[]>> {
+  if (paperCodes.length === 0) return new Map();
   const { data, error } = await supabase()
     .from("questions")
     .select("id, paper_code, stem_i18n, word_limit, marks, syllabus_node_id")
@@ -161,10 +178,21 @@ async function completedByQuestion(userId: string, questionIds: string[]): Promi
   return out;
 }
 
-export async function getDailyAnswerSet(userId: string, date: string = istToday()): Promise<DailyAnswerSet> {
+export async function getDailyAnswerSet(
+  userId: string,
+  date: string = istToday(),
+  /**
+   * Pre-resolved exam code, for a caller (e.g. daily-progress.ts) that already
+   * read `getUserExam(userId)` for its own use — avoids a second identical
+   * `users_profile` read on a hot path. Falls back to resolving it itself so
+   * every existing caller (routes/answers.ts, daily/run.ts) is unaffected.
+   */
+  examCode?: string,
+): Promise<DailyAnswerSet> {
   const dayNum = daysBetween("1970-01-01", date);
   const weekNum = Math.floor(dayNum / 7);
-  const papers = answerSetPapers(date);
+  const resolvedExamCode = examCode ?? (await getUserExam(userId));
+  const papers = answerSetPapers(date, getExamConfig(resolvedExamCode).papers);
   const [byPaper, weightage, weakness] = await Promise.all([
     fetchDescriptiveByPaper(papers.map((p) => p.paperCode)),
     loadNodeWeightage(),
