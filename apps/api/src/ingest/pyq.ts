@@ -182,7 +182,16 @@ function buildExtractSystem(isMcq: boolean, ctx: ExtractCtx): { system: string; 
       "key is applied separately)."
     : "This is a Mains descriptive paper. Questions have NO options. Set " +
       "type='descriptive', options=[], correct_option_key='', and set " +
-      "word_limit from the paper's instructions when stated (else 0).";
+      "word_limit from the paper's instructions when stated (else 0).\n\n" +
+      "SUB-PARTS — this matters, and getting it wrong silently loses half a " +
+      "paper. Some papers print a numbered question as separately-scored parts, " +
+      "e.g. `1.(a)` and `1.(b)`, each with its own marks and word limit. `q_no` " +
+      "is a single integer, so both parts share ONE q_no and cannot be returned " +
+      "as two entries. Return such a question as ONE entry whose stem contains " +
+      "EVERY sub-part, each kept on its own line and prefixed with its printed " +
+      "label — `(a) …` then `(b) …` — and whose `marks` is the SUM of the " +
+      "sub-parts' marks (two 10-mark parts => marks=20). Never return only one " +
+      "sub-part, and never silently drop one.";
   // Tier-B (third-party compilation) rules — enforced in the prompt, then again
   // in code: (1) attribution — only extract genuine questions from the stated
   // exam+year paper; mark any compiler-added "practice"/"model"/"similar"
@@ -293,7 +302,17 @@ async function extractWhole(entry: ManifestEntry, isMcq: boolean, ctx: ExtractCt
     const [from, to] = windows.shift()!;
     try {
       const qs = await extractRange(entry, isMcq, from, to, ctx);
-      for (const q of qs) byNo.set(q.q_no, q);
+      for (const q of qs) {
+        // Keep the MORE COMPLETE copy on a q_no collision, matching
+        // `extractByPages`. This was a blind `set()` (last write wins), which
+        // silently discarded a richer earlier copy — the failure mode that lost
+        // one sub-part of every Q1-6 in UPSC Mains 2020 GS-IV, where the paper
+        // prints separately-scored `1.(a)` / `1.(b)` items that share one q_no.
+        // The prompt now asks for sub-parts merged into a single entry; this is
+        // the backstop for when a model returns them separately anyway.
+        const existing = byNo.get(q.q_no);
+        if (!existing || completeness(q) > completeness(existing)) byNo.set(q.q_no, q);
+      }
       report.step(`extracted q${from}-${to}: +${qs.length}`);
     } catch (err) {
       if (to - from >= 10) {
