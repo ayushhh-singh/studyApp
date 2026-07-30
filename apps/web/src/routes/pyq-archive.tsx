@@ -8,10 +8,12 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { useCurrentExam } from "@/hooks/use-current-exam";
+import { useExams } from "@/hooks/use-exams";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { usePaperTrends } from "@/hooks/use-paper-tree";
 import { useQuestions } from "@/hooks/use-questions";
@@ -177,7 +179,10 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { examCode, name: examName } = useCurrentExam();
-  const { papers, byCode, latinLabel, isLoading: catalogLoading } = usePaperCatalog();
+  const { papers, byCode, latinLabel, isLoading: catalogLoading, isError: catalogError } = usePaperCatalog();
+  // Same cache entry usePaperCatalog()/useCurrentExam() already read (queryKeys.exams()),
+  // so this costs no extra request — it's here only for `refetch` on a genuine failure.
+  const { refetch: refetchExams } = useExams();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const paperParam = searchParams.get("paper");
@@ -258,6 +263,20 @@ export function Component() {
     );
   }
 
+  // A genuinely failed registry fetch must render as a failure, not as "this
+  // exam has no papers" — the two read identically (papers.length === 0)
+  // unless isError is checked separately (usePaperCatalog's own doc comment;
+  // see QueryErrorState's docstring for the exact prior incidents this caused
+  // elsewhere in the app).
+  if (catalogError) {
+    return (
+      <div className="flex flex-col gap-6">
+        <PageHeader title={t("PyqArchive.title")} description={t("PyqArchive.description", { exam: examName })} />
+        <QueryErrorState onRetry={() => refetchExams()} />
+      </div>
+    );
+  }
+
   if (papers.length === 0 || !selectedPaperCode) {
     return (
       <div className="flex flex-col gap-6">
@@ -319,6 +338,8 @@ export function Component() {
             <ListRowSkeleton />
             <ListRowSkeleton />
           </div>
+        ) : questionsQuery.isError ? (
+          <QueryErrorState onRetry={() => questionsQuery.refetch()} />
         ) : !questionsQuery.data || questionsQuery.data.items.length === 0 ? (
           <EmptyState
             icon={FileQuestion}
@@ -371,6 +392,8 @@ export function Component() {
       <SectionCard title={t("PyqArchive.weightageTitle")}>
         {awaitingBody ? (
           <ListRowSkeleton />
+        ) : trendsQuery.isError ? (
+          <QueryErrorState onRetry={() => trendsQuery.refetch()} />
         ) : !trendsQuery.data || trendsQuery.data.top_nodes.length === 0 ? (
           <EmptyState icon={BarChart3} title={t("Trends.emptyTitle")} description={t("Trends.emptyDescription")} />
         ) : (

@@ -85,7 +85,36 @@ export async function listQuestions(
   query = query.order("year", { ascending: false }).order("id", { ascending: true }).range(from, to);
 
   const { data, error, count } = await query;
-  if (error) throw new HttpError(500, `questions query failed: ${error.message}`);
+  if (error) {
+    // PGRST103 = the requested page starts past the end of the data — a
+    // reachable state (a paper/year filter narrows the result set after the
+    // client already had a higher ?page= in its URL, e.g. switching year on
+    // this archive page, or a stale bookmark), not a server fault. Same fix
+    // as listReviewQueue: re-count with the identical filters and return an
+    // empty page rather than 500ing the whole browse. Confirmed live: an
+    // out-of-range page on a real filtered query throws exactly this code.
+    if (error.code === "PGRST103") {
+      let countQuery = supabase()
+        .from("questions")
+        .select("id", { count: "exact", head: true })
+        .or(examScope)
+        .or(questionVisibilityOrFilter("catalog"));
+      if (filters.paper) countQuery = countQuery.eq("paper_code", filters.paper);
+      if (filters.node) {
+        const nodeIds = await resolveSubtreeNodeIds(filters.node);
+        countQuery = countQuery.in("syllabus_node_id", nodeIds);
+      }
+      if (filters.year !== undefined) countQuery = countQuery.eq("year", filters.year);
+      if (filters.type) countQuery = countQuery.eq("type", filters.type);
+      if (filters.exam) countQuery = countQuery.eq("exam_code", filters.exam);
+      const { count: total, error: countError } = await countQuery;
+      // If even the re-count fails, that's a genuine DB fault, not a benign
+      // over-range — surface it rather than masking it as total:0.
+      if (countError) throw new HttpError(500, `questions query failed: ${countError.message}`);
+      return { items: [], total: total ?? 0 };
+    }
+    throw new HttpError(500, `questions query failed: ${error.message}`);
+  }
   return { items: (data ?? []) as unknown as Question[], total: count ?? 0 };
 }
 
