@@ -116,7 +116,15 @@ const EXTRACT_SCHEMA = {
           correct_option_key: { type: "string" },
           explanation_en: { type: "string" },
           explanation_hi: { type: "string" },
-          marks: { type: "integer" },
+          /**
+           * NUMBER, not integer: real papers carry fractional per-question marks
+           * (UPSC Mains 2016 is 20 questions x 12.5 = 250). As an `integer` the
+           * model had to round, which silently broke the paper total — 2016 GS-I
+           * and GS-II came out at 20x13 = 260 and GS-III at 20x12 = 240.
+           * `questions.marks` is `numeric(6,2)` (migration 0062), and the bank
+           * already stores 1.33 for UPPSC PRE_GS1, so fractions round-trip fine.
+           */
+          marks: { type: "number" },
           word_limit: { type: "integer" },
           attributed: { type: "boolean" },
         },
@@ -192,6 +200,16 @@ function buildExtractSystem(isMcq: boolean, ctx: ExtractCtx): { system: string; 
       "label — `(a) …` then `(b) …` — and whose `marks` is the SUM of the " +
       "sub-parts' marks (two 10-mark parts => marks=20). Never return only one " +
       "sub-part, and never silently drop one.";
+  // Applies to BOTH paper kinds: `q_no` is the merge key, so any two questions
+  // sharing one silently overwrite each other.
+  const numbering =
+    "\n\nQUESTION NUMBERING — `q_no` MUST BE UNIQUE ACROSS THE WHOLE PAPER. " +
+    "Some papers restart numbering inside each section (an Essay paper commonly " +
+    "prints Section A items 1-4 and then Section B items 1-4). `q_no` is the key " +
+    "questions are merged on, so reusing a number DISCARDS one of the two. When " +
+    "numbering restarts, keep counting continuously instead (Section B's first " +
+    "item is q_no 5, not 1) and preserve the printed section label at the start " +
+    "of the stem, e.g. `[SECTION B] …`, so nothing about the original is lost.";
   // Tier-B (third-party compilation) rules — enforced in the prompt, then again
   // in code: (1) attribution — only extract genuine questions from the stated
   // exam+year paper; mark any compiler-added "practice"/"model"/"similar"
@@ -214,7 +232,8 @@ function buildExtractSystem(isMcq: boolean, ctx: ExtractCtx): { system: string; 
     "structured JSON. The paper is bilingual (Hindi + English). Capture BOTH " +
     "languages faithfully in Devanagari and English. Preserve question numbers. " +
     "Do not translate, invent, or answer — transcribe. Use marks from the paper " +
-    `when printed, else 0. ${provenance}`;
+    `when printed, else 0 (marks may be fractional — 12.5 is 12.5, never round it). ` +
+    `${numbering} ${provenance}`;
   return { system, kind };
 }
 
