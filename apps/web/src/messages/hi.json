@@ -346,7 +346,24 @@
     "cutoffMinimumUnknown": "{{paper}} में न्यूनतम अर्हक अंक है, पर आयोग उसका मान प्रकाशित नहीं करता।",
     "cutoffByCategoryTitle": "वर्ग अनुसार न्यूनतम",
     "cutoffByCategoryRow": "{{pct}}% ({{mark}}/{{outOf}})",
-    "cutoffYourScore": "आपका स्कोर ≈ {{your}}/{{outOf}}।"
+    "cutoffYourScore": "आपका स्कोर ≈ {{your}}/{{outOf}}।",
+    "browsePyqArchive": "पीवाईक्यू अभिलेख देखें"
+  },
+  "PyqArchive": {
+    "title": "पीवाईक्यू अभिलेख",
+    "description": "हर पिछले वर्ष का {{exam}} प्रश्न, पेपर और वर्ष के अनुसार व्यवस्थित — प्रत्येक MCQ की उत्तर-कुंजी स्थिति के साथ।",
+    "questionsTitle": "प्रश्न",
+    "yearFilterLabel": "वर्ष",
+    "allYears": "सभी वर्ष",
+    "weightageTitle": "विषयवार भारांक",
+    "provenanceOfficial": "आधिकारिक उत्तर कुंजी",
+    "provenanceCoaching": "अनाधिकारिक कुंजी — आयोग द्वारा सत्यापित नहीं",
+    "provenanceNone": "कोई सत्यापित कुंजी नहीं",
+    "provenanceDescriptive": "कोई आधिकारिक उत्तर कुंजी नहीं — यह आयोग मुख्य परीक्षा की उत्तर कुंजी प्रकाशित नहीं करता",
+    "emptyTitle": "इस पेपर के लिए अभी कोई PYQ नहीं",
+    "emptyDescription": "प्रकाशित होते ही इस पेपर के पिछले वर्षों के प्रश्न यहाँ दिखेंगे।",
+    "noPapersTitle": "अभी कोई पेपर नहीं",
+    "noPapersDescription": "इस परीक्षा की पेपर सूची अभी नहीं जोड़ी गई है — जल्द ही देखें।"
   },
   "Answers": {
     "title": "उत्तर लेखन",

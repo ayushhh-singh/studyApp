@@ -156,6 +156,7 @@ interface TestQuestionJoinRow {
     difficulty: TestQuestionPublic["difficulty"];
     word_limit: number | null;
     marks: number | null;
+    key_provenance: TestQuestionPublic["key_provenance"];
   };
 }
 
@@ -189,7 +190,7 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
   const { data: tq, error: tqError } = await supabase()
     .from("test_questions")
     .select(
-      "order_index, marks, questions!inner(id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, is_published)",
+      "order_index, marks, questions!inner(id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, difficulty, word_limit, marks, key_provenance, is_published)",
     )
     .eq("test_id", testId)
     .or(questionVisibilityOrFilter("test"), { referencedTable: "questions" })
@@ -213,6 +214,7 @@ export async function getTestDetail(testId: string): Promise<TestDetail> {
     options_i18n: row.questions.options_i18n,
     difficulty: row.questions.difficulty,
     word_limit: row.questions.word_limit,
+    key_provenance: row.questions.key_provenance,
     order_index: row.order_index,
     marks: row.marks ?? row.questions.marks,
   }));

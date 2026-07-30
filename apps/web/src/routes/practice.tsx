@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
+import { Archive, PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
 import type { ExamCode } from "@neev/shared";
 import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -209,6 +209,7 @@ function TimeAttackPanel() {
 
 export function Component() {
   const { t } = useTranslation();
+  const locale = useLocale();
   const { name: examName } = useCurrentExam();
   const [searchParams, setSearchParams] = useSearchParams();
   const nodeFilter = searchParams.get("node");
@@ -254,7 +255,17 @@ export function Component() {
           </SectionCard>
         </TabsContent>
         <TabsContent value="pyq">
-          <SectionCard title={t("Practice.available")}>
+          <SectionCard
+            title={t("Practice.available")}
+            action={
+              <Button asChild variant="outline" size="sm">
+                <Link to={`/${locale}/pyq-archive`}>
+                  <Archive aria-hidden />
+                  {t("Practice.browsePyqArchive")}
+                </Link>
+              </Button>
+            }
+          >
             <TestListPanel kind="pyq_full" />
           </SectionCard>
         </TabsContent>

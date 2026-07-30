@@ -346,7 +346,24 @@
     "cutoffMinimumUnknown": "{{paper}} has a minimum qualifying mark, but the Commission does not publish its value.",
     "cutoffByCategoryTitle": "Minimum by category",
     "cutoffByCategoryRow": "{{pct}}% ({{mark}}/{{outOf}})",
-    "cutoffYourScore": "Your score ≈ {{your}}/{{outOf}}."
+    "cutoffYourScore": "Your score ≈ {{your}}/{{outOf}}.",
+    "browsePyqArchive": "Browse PYQ Archive"
+  },
+  "PyqArchive": {
+    "title": "PYQ Archive",
+    "description": "Every previously asked {{exam}} question, organised by paper and year — each MCQ's answer-key status is shown.",
+    "questionsTitle": "Questions",
+    "yearFilterLabel": "Year",
+    "allYears": "All years",
+    "weightageTitle": "Topic-wise weightage",
+    "provenanceOfficial": "Official answer key",
+    "provenanceCoaching": "Unofficial key — not commission-verified",
+    "provenanceNone": "No verified key",
+    "provenanceDescriptive": "No official answer key — this commission does not publish Mains answer keys",
+    "emptyTitle": "No PYQs yet for this paper",
+    "emptyDescription": "Previous-year questions for this paper will appear here once they're published.",
+    "noPapersTitle": "No papers yet",
+    "noPapersDescription": "This exam's paper list hasn't been added yet — check back soon."
   },
   "Answers": {
     "title": "Answer Writing",

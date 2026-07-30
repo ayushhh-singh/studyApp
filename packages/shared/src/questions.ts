@@ -21,6 +21,21 @@ export const questionOptionSchema = z.object({
 });
 export type QuestionOption = z.infer<typeof questionOptionSchema>;
 
+/**
+ * Where the answer key APPLIED to an MCQ question came from — mirrors
+ * `apps/api/src/ingest/key-provenance.ts`'s `KeyProvenance` type (a real
+ * `not null default 'none'` DB enum column, migration 0074). Deliberately NOT
+ * imported from that module — it's an ingest-internal publish-gate concern,
+ * this is just the 3 literal values it's persisted as.
+ *
+ *  official_commission — an official commission answer-key PDF was the source.
+ *  coaching_reproduced — the key came from a single coaching-reconstructed source.
+ *  none                — no key sourced (always true for descriptive/Mains
+ *                        questions — UPSC/UPPSC do not publish Mains answer keys).
+ */
+export const keyProvenanceSchema = z.enum(["official_commission", "coaching_reproduced", "none"]);
+export type KeyProvenance = z.infer<typeof keyProvenanceSchema>;
+
 export const questionSchema = z.object({
   id: z.string().uuid(),
   type: questionTypeSchema,
@@ -42,6 +57,8 @@ export const questionSchema = z.object({
   difficulty: difficultySchema,
   word_limit: z.number().int().nullable(),
   marks: z.number().nullable(),
+  /** Nullable for backward compatibility with any legacy row selected before this column existed. */
+  key_provenance: keyProvenanceSchema.nullable(),
 });
 export type Question = z.infer<typeof questionSchema>;
 
