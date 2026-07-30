@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
+import { questionExamScopeFilter } from "../lib/exams.js";
 
 export const QUESTIONS_PAGE_SIZE = 20;
 
@@ -14,13 +15,26 @@ function istDayNumber(): number {
 }
 
 const QUESTION_COLUMNS =
-  "id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, correct_option_key, explanation_i18n, difficulty, word_limit, marks";
+  "id, type, stage, exam_code, exam_label_i18n, source_kind, out_of_syllabus, paper_code, syllabus_node_id, year, source, stem_i18n, options_i18n, correct_option_key, explanation_i18n, difficulty, word_limit, marks, key_provenance";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function listQuestions(
   filters: QuestionsQuery,
+  /**
+   * The viewer's PRODUCT exam. REQUIRED, not defaulted: an omitted-and-defaulted
+   * exam is exactly how this leaked in the first place. Before it existed, a
+   * `?year=2024` browse returned a page of 11 UPSC + 9 UPPSC questions to a
+   * UPPSC user the moment a second exam's PYQs were published.
+   *
+   * Scoped by PAPER CODE (plus current affairs generated for this exam), not by
+   * `questions.exam_code` — see `questionExamScopeFilter`; provenance-only
+   * papers (RO/ARO, PET) are deliberately part of the default exam's bank and
+   * must stay visible.
+   */
+  examCode: string,
 ): Promise<{ items: Question[]; total: number }> {
+  const examScope = await questionExamScopeFilter(examCode);
   // `ids` is a standalone scoped fetch (a chapter section's own cited PYQs) —
   // it overrides every other filter/pagination rather than composing with
   // them, since the caller already knows exactly which rows it wants.
@@ -36,6 +50,7 @@ export async function listQuestions(
       .from("questions")
       .select(QUESTION_COLUMNS)
       .in("id", idList)
+      .or(examScope)
       .or(questionVisibilityOrFilter("catalog"))
       .order("year", { ascending: false })
       .order("id", { ascending: true });
@@ -47,8 +62,12 @@ export async function listQuestions(
   let query = supabase()
     .from("questions")
     .select(QUESTION_COLUMNS, { count: "exact" })
+    .or(examScope)
     .or(questionVisibilityOrFilter("catalog"));
 
+  // An explicit `paper` filter still composes with the exam scope above, so a
+  // hand-crafted `?paper=UPSC_PRE_GS1` from a UPPSC user yields an empty page
+  // rather than another exam's bank.
   if (filters.paper) query = query.eq("paper_code", filters.paper);
   if (filters.node) {
     // Subtree-aware: a chapter (non-leaf) node has no questions of its own —
@@ -76,10 +95,16 @@ export async function listQuestions(
  * count) so every user sees the same question on a given day and it changes
  * once every 24h, without needing a dedicated schedule/table.
  */
-export async function getTodaysQuestion(): Promise<Question | null> {
+export async function getTodaysQuestion(examCode: string): Promise<Question | null> {
+  // Scoped per exam, and the COUNT must use the same scope as the pick or the
+  // modulo indexes into a different population than it selects from. Measured
+  // before this: 811 of 2,052 published descriptive questions were UPSC, so a
+  // UPPSC user's "today's practice question" was a UPSC question ~40% of days.
+  const examScope = await questionExamScopeFilter(examCode);
   const { count, error: countError } = await supabase()
     .from("questions")
     .select("id", { count: "exact", head: true })
+    .or(examScope)
     .or(questionVisibilityOrFilter("catalog"))
     .eq("type", "descriptive");
   if (countError) throw new HttpError(500, `descriptive question count failed: ${countError.message}`);
@@ -89,6 +114,7 @@ export async function getTodaysQuestion(): Promise<Question | null> {
   const { data, error } = await supabase()
     .from("questions")
     .select(QUESTION_COLUMNS)
+    .or(examScope)
     .or(questionVisibilityOrFilter("catalog"))
     .eq("type", "descriptive")
     .order("id", { ascending: true })
@@ -98,11 +124,19 @@ export async function getTodaysQuestion(): Promise<Question | null> {
   return (data as unknown as Question) ?? null;
 }
 
-export async function getQuestionById(id: string): Promise<Question> {
+export async function getQuestionById(id: string, examCode: string): Promise<Question> {
+  // `id` is an untrusted path param (M7 class). 404 rather than 403: a foreign
+  // exam's question genuinely is not part of this user's bank, and a distinct
+  // error would confirm the id exists to a caller probing with guessed ids.
+  // This matters beyond browsing — it is the hydration path for the Writing
+  // Room's `?question=`, so without it a user could write and have evaluated an
+  // answer to another exam's question under their own exam's rubric.
+  const examScope = await questionExamScopeFilter(examCode);
   const { data, error } = await supabase()
     .from("questions")
     .select(QUESTION_COLUMNS)
     .eq("id", id)
+    .or(examScope)
     .or(questionVisibilityOrFilter("catalog"))
     .maybeSingle();
   if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);

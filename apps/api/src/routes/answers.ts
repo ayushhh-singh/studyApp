@@ -22,6 +22,7 @@ import {
 } from "../services/evaluation/evaluate.js";
 import { getTodaysQuestion } from "../services/questions.js";
 import { getDailyAnswerSet } from "../services/answer-set.js";
+import { getUserExam } from "../lib/exams.js";
 
 /**
  * Answer-writing evaluation (flagship). Submissions are created here; the
@@ -37,7 +38,7 @@ const listQuerySchema = z.object({ page: z.coerce.number().int().min(1).default(
 answersRouter.get(
   "/answers/today",
   asyncHandler(async (_req, res) => {
-    const question = await getTodaysQuestion();
+    const question = await getTodaysQuestion(await getUserExam(currentUserId()));
     res.json(todaysQuestionResponseSchema.parse({ data: question, error: null }));
   }),
 );

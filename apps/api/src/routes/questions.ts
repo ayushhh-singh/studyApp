@@ -5,6 +5,8 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { getQuestionById, listQuestions, QUESTIONS_PAGE_SIZE } from "../services/questions.js";
+import { getUserExam } from "../lib/exams.js";
+import { currentUserId } from "../lib/user-context.js";
 
 export const questionsRouter = Router();
 questionsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -13,7 +15,7 @@ questionsRouter.get(
   "/questions",
   asyncHandler(async (req, res) => {
     const query = parse(questionsQuerySchema, req.query);
-    const { items, total } = await listQuestions(query);
+    const { items, total } = await listQuestions(query, await getUserExam(currentUserId()));
     // The `ids` mode returns everything in one unpaginated response, so its
     // pagination metadata always describes "one page holding it all" rather
     // than dividing by the normal fixed page size.
@@ -35,7 +37,7 @@ questionsRouter.get(
   "/questions/:id",
   asyncHandler(async (req, res) => {
     const { id } = parse(questionIdParams, req.params);
-    const question = await getQuestionById(id);
+    const question = await getQuestionById(id, await getUserExam(currentUserId()));
     res.json(questionResponseSchema.parse({ data: question, error: null }));
   }),
 );

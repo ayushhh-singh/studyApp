@@ -15,6 +15,7 @@ import { DEFAULT_EXAM_CODE, examSchema, type Exam } from "@neev/shared";
 import { z } from "zod";
 import { supabase } from "./supabase.js";
 import { HttpError, badRequest } from "./http-error.js";
+import { CURRENT_AFFAIRS_PAPER_CODE } from "./question-visibility.js";
 
 export interface ExamRow {
   exam_code: string;
@@ -97,6 +98,47 @@ export async function liveExamCodes(): Promise<string[]> {
 }
 
 /**
+ * Every `paper_code` belonging to one exam, for scoping a read of a table that
+ * carries `paper_code` but no `exam_code` of its own — principally `questions`.
+ *
+ * WHY NOT `questions.exam_code`: that column is PROVENANCE ("which exam asked
+ * this"), and its domain deliberately includes exams we ingest PYQs from but
+ * never sell (`up_ro_aro`, `upsssc_pet`), whose papers are mapped onto the
+ * DEFAULT exam's tree on purpose and ARE legitimately part of that exam's bank.
+ * Filtering on it would wrongly exclude them. The paper code is the right key:
+ * it is globally unique across exams (docs/multi-exam.md §0) and M23 made a
+ * non-default exam's codes exam-prefixed, so it identifies the owning exam
+ * unambiguously while keeping provenance-only papers where they belong.
+ *
+ * Returns ONLY real syllabus paper codes. `CURRENT_AFFAIRS` is deliberately NOT
+ * included: it is a synthetic code with no `syllabus_nodes` row for ANY exam, so
+ * adding it to every exam's set makes it match for every exam — and since every
+ * CA question in the bank is generated for, and stamped with, ONE exam, that
+ * leaks one exam's current affairs into another's. (Measured: it did. A UPSC
+ * user still saw 20 UPPSC rows on the first page until this was corrected.)
+ * Use `questionExamScopeFilter` below, which admits CA only for its own exam.
+ *
+ * Cached for 60s: the paper set changes only on a syllabus ingest, and this is
+ * called on browse/search paths.
+ */
+const paperCodeCache = new Map<string, { at: number; codes: Set<string> }>();
+const PAPER_CODE_TTL_MS = 60_000;
+
+export async function paperCodesForExam(examCode: string): Promise<Set<string>> {
+  const hit = paperCodeCache.get(examCode);
+  if (hit && Date.now() - hit.at < PAPER_CODE_TTL_MS) return hit.codes;
+  const { data, error } = await supabase()
+    .from("syllabus_nodes")
+    .select("paper_code")
+    .eq("exam_code", examCode)
+    .eq("depth", 0);
+  if (error) throw new HttpError(500, `paper codes for ${examCode} failed: ${error.message}`);
+  const codes = new Set<string>((data ?? []).map((r) => r.paper_code as string));
+  paperCodeCache.set(examCode, { at: Date.now(), codes });
+  return codes;
+}
+
+/**
  * The exam a user's content should be scoped to — `users_profile.target_exam`,
  * defaulting for a row written before 0106 (or a profile that vanished).
  *
@@ -137,4 +179,26 @@ export async function assertSelectableExam(examCode: string): Promise<void> {
       `${examCode} is not available yet — its syllabus and question bank have not been published.`,
     );
   }
+}
+
+/**
+ * A PostgREST `.or()` filter selecting exactly the `questions` rows that belong
+ * to one exam. Compose it with the visibility filter — two `.or()` calls on one
+ * query AND together (verified), they do not replace each other.
+ *
+ * Two disjuncts, because a question belongs to an exam in one of two ways:
+ *   1. its `paper_code` is one of that exam's syllabus papers (globally unique
+ *      across exams per docs/multi-exam.md §0, exam-prefixed by M23); or
+ *   2. it is a CURRENT_AFFAIRS question GENERATED FOR that exam. CA questions
+ *      have no syllabus paper of their own, so they need the second clause —
+ *      and it is keyed on `exam_code` because for a CA question the generating
+ *      exam IS its owner, unlike a PYQ where `exam_code` is mere provenance.
+ *
+ * Both interpolated values are safe: paper codes are `[A-Z0-9_]` identifiers
+ * minted by ingest, and `examCode` is FK-constrained to the `exams` table.
+ */
+export async function questionExamScopeFilter(examCode: string): Promise<string> {
+  const codes = [...(await paperCodesForExam(examCode))];
+  const inList = codes.length ? `paper_code.in.(${codes.join(",")})` : "paper_code.is.null";
+  return `${inList},and(paper_code.eq.${CURRENT_AFFAIRS_PAPER_CODE},exam_code.eq.${examCode})`;
 }
