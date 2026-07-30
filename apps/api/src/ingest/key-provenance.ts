@@ -56,8 +56,23 @@ const OFFICIAL_COMMISSION: Record<string, number[]> = {
   // 2024 GS-I and 2020 CSAT covers), so key and paper agree by construction —
   // and `loadAnswerKey` now makes the extractor NAME the series it read from and
   // discards the key on a mismatch, so this is enforced per paper, not assumed.
-  UPSC_PRE_GS1: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
-  UPSC_PRE_CSAT: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+  //
+  // 2016 and 2017 added in the same session (a second sourcing pass): both are
+  // settled official keys in the same 4-page one-page-per-series shape, Set A on
+  // page 1, found under a THIRD naming family (`CSP_16_GS_Paper_I.pdf`) that
+  // contains no "anskey"/"answer"/"key" token at all.
+  //
+  // ⚠ 2026 IS DELIBERATELY ABSENT. UPSC published a key for it on 27-05-2026,
+  // two days after the exam — but it self-identifies as `[Prov. Ans. Key]` and
+  // is subject to revision after the objection window. Listing it here would
+  // give it gate (A), i.e. publish on the key ALONE without independent
+  // corroboration, which is the wrong bar for a document that can still change
+  // (it already records 1 dropped question on GS-I). Omitting it routes 2026
+  // through gate (B) instead: the key must be applied AND an independent blind
+  // re-solve must agree before a question publishes. Move 2026 up here only
+  // once UPSC publishes a FINAL key.
+  UPSC_PRE_GS1: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+  UPSC_PRE_CSAT: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
 };
 const COACHING_REPRODUCED: Record<string, number[]> = {
   PRE_GS1: [2018, 2025],

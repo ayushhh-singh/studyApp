@@ -1392,6 +1392,85 @@ verified:
     paper: gs1
     notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
 
+  # -------------------------------------------------------------------------
+  # UPSC Prelims keys for 2016, 2017 and 2026 - added 2026-07-30.
+  #
+  # TWO MORE NAMING FAMILIES beyond the 2018-2025 ones above. There is no single
+  # pattern; these cannot be constructed blind, and UPSC's answer-key pages list
+  # nothing, so each was found via the Wayback CDX index then downloaded from the
+  # live official host:
+  #   * 2016 and earlier - `CSP_16_GS_Paper_I.pdf`, which contains NO
+  #     `anskey`/`answer`/`key` token at all. That is why a CDX filter on
+  #     `anskey` misses it entirely and the filename is indistinguishable from a
+  #     question paper. (Same family covers 2015 `CSP_15_GS_I_AKy.pdf`, 2014.)
+  #   * 2026 - `ProvAnsKey-GS-I-CSP-Exam-2026-270526.pdf`, whose real filename
+  #     contains a literal EN DASH (U+2013), percent-encoded here as %E2%80%93.
+  #
+  # 2026 IS A PROVISIONAL KEY, which overturns the assumption that no 2026 key
+  # could exist yet. UPSC published it on 27-05-2026, TWO DAYS after the
+  # 25-05-2026 exam - a change in practice from 2017-2025, where keys appeared
+  # about a year later once the cycle concluded. It self-identifies as
+  # `[Prov. Ans. Key]` and is subject to revision after the objection window, so
+  # it is deliberately NOT listed as official_commission in key-provenance.ts;
+  # 2026 questions must be corroborated by an independent blind re-solve before
+  # they may publish. It already records 1 dropped question on GS-I, where every
+  # other year here is NIL. RE-CHECK for a final/revised 2026 key later.
+  # -------------------------------------------------------------------------
+  - id: upsc_answerkey_2016_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/CSP_16_GS_Paper_II.pdf
+    lang: en
+    year: 2016
+    paper: csat
+    notes: "Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D)."
+  - id: upsc_answerkey_2016_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/CSP_16_GS_Paper_I.pdf
+    lang: en
+    year: 2016
+    paper: gs1
+    notes: "Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D)."
+  - id: upsc_answerkey_2017_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ANskey-CSP-17-GS-II.pdf
+    lang: en
+    year: 2017
+    paper: csat
+    notes: "Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D)."
+  - id: upsc_answerkey_2017_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Anskey-CSP-17-GS-I.pdf
+    lang: en
+    year: 2017
+    paper: gs1
+    notes: "Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D)."
+  - id: upsc_answerkey_2026_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ProvAnsKey%E2%80%93GS-II-CSP-Exam-2026-270526.pdf
+    lang: en
+    year: 2026
+    paper: csat
+    notes: "PROVISIONAL key published 27-05-2026, two days after the exam, subject to revision after the objection window. Not treated as settled - see key-provenance.ts."
+  - id: upsc_answerkey_2026_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ProvAnsKey%E2%80%93GS-I-CSP-Exam-2026-270526.pdf
+    lang: en
+    year: 2026
+    paper: gs1
+    notes: "PROVISIONAL key published 27-05-2026, two days after the exam, subject to revision after the objection window. Not treated as settled - see key-provenance.ts."
+
 # TIER-B compilation sources awaiting the human's `approved: true`. The fetcher
 # IGNORES this whole section. To enable one: move it into `verified:` and add
 # `approved: true` (or set approved on it after moving). Each entry states which
