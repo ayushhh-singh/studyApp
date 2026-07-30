@@ -22,23 +22,23 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { structuredJson, translateBatch, MODELS } from "../lib/anthropic.js";
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
+import type { TargetExamCode } from "@neev/shared";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { buildNodeClassifySystem } from "./prompts.js";
 
-/**
- * The PRODUCT exam this CLI ingests INTO — deliberately NOT `cls.examCode`,
- * which is PROVENANCE ("which exam asked this", domain includes up_ro_aro /
+/*
+ * The PRODUCT exam this CLI ingests INTO is `cls.productExam`, derived by
+ * `classifyPyqId` from the manifest id — deliberately NOT `cls.examCode`, which
+ * is PROVENANCE ("which exam asked this"; its domain includes up_ro_aro /
  * upsssc_pet / other, none of which is a selectable product exam).
  *
- * `classifyPyqId` maps EVERY provenance exam onto bare UPPSC paper codes and
- * this pipeline classifies against the UPPSC syllabus tree, so the exam whose
- * framing these prompts must use is the default one. Named here, once and
- * greppably, rather than defaulted into each prompt builder (this repo's M24
- * lesson). Changing that is docs/OUTSTANDING.md M23 — do it as the FIRST step
- * of a second exam's PYQ ingest, before the first `ingest:pyq` run.
+ * This used to be a module-level `INGEST_PRODUCT_EXAM = DEFAULT_EXAM_CODE`,
+ * correct only while `classifyPyqId` mapped every exam onto bare UPPSC paper
+ * codes and this pipeline classified against the UPPSC tree. That is
+ * docs/OUTSTANDING.md **M23**, now fixed: the exam is threaded as an explicit
+ * REQUIRED parameter into every prompt path below rather than defaulted, so no
+ * call site can silently keep the old behaviour (this repo's M24 lesson).
  */
-const INGEST_PRODUCT_EXAM: string = DEFAULT_EXAM_CODE;
 import { supabase } from "../lib/supabase.js";
 import { detectBookletSeries, seriesAlignment, type BookletSeries, type SeriesAlignment } from "./series.js";
 import {
@@ -220,6 +220,11 @@ async function extractRange(
   const { system, kind } = buildExtractSystem(isMcq, ctx);
   const out = await structuredJson<{ questions: RawQuestion[] }>({
     model: MODELS.sonnet,
+    // COST VISIBILITY: `structuredJson` writes an `llm_calls` row only when a
+    // `purpose` is set, and this call had none — so every PYQ extraction ever
+    // run (the entire UPPSC bank) is absent from `cost:report`, which is why no
+    // per-paper extraction baseline existed to compare a new exam against.
+    purpose: "ingest_pyq_extract",
     system,
     content: [
       doc,
@@ -254,6 +259,10 @@ async function extractPageChunk(
   const { system, kind } = buildExtractSystem(isMcq, ctx);
   const out = await structuredJson<{ questions: RawQuestion[] }>({
     model: MODELS.sonnet,
+    // Deliberately a DIFFERENT purpose from `ingest_pyq_extract`: this is the
+    // page-chunked path taken by a scan too large to attach whole, and its
+    // per-paper economics differ structurally (N chunk calls, not 1).
+    purpose: "ingest_pyq_extract_pages",
     system,
     content: [
       doc,
@@ -366,6 +375,15 @@ const ANSWER_KEY_SCHEMA = {
   type: "object",
   additionalProperties: false,
   properties: {
+    /**
+     * The booklet series the returned mapping was actually read FROM. Required,
+     * and the whole point of it: an official key document routinely carries all
+     * four series (UPSC's are 4-page scans, one page per series A/B/C/D), so
+     * "extract the answer map" alone is ambiguous and can silently return the
+     * wrong series' answers. Making the model NAME its source lets the caller
+     * reject a mismatch instead of trusting it. "" = it could not tell.
+     */
+    series: { type: "string" },
     answers: {
       type: "array",
       items: {
@@ -379,7 +397,7 @@ const ANSWER_KEY_SCHEMA = {
       },
     },
   },
-  required: ["answers"],
+  required: ["series", "answers"],
 } as const;
 
 async function loadAnswerKey(
@@ -387,11 +405,21 @@ async function loadAnswerKey(
   examCode: ExamCode,
   year: number,
   paperCode: string,
+  productExam: TargetExamCode,
+  /**
+   * The series printed on the PAPER we are keying, when known. A key document
+   * that carries several series is read for THIS series only, and the model must
+   * confirm which one it used — see ANSWER_KEY_SCHEMA.series.
+   */
+  targetSeries: BookletSeries | null,
 ): Promise<{ map: Map<number, string>; series: BookletSeries | null } | null> {
   // Answer-key ids look like <exam>_answerkey_<year>_prelims_gs1 / _csat. The
   // candidates are SCOPED TO THIS EXAM ONLY — never fall back to another exam's
   // key (a same-year UPPSC key must not be applied to UPSC questions).
-  const suffix = paperCode === "PRE_CSAT" ? "csat" : "gs1";
+  // Match on the paper-code SUFFIX, not equality: M23 made a non-default exam's
+  // codes exam-prefixed (`UPSC_PRE_CSAT`), and an `=== "PRE_CSAT"` test would
+  // silently look up a CSAT paper's key under the gs1 id.
+  const suffix = paperCode.endsWith("PRE_CSAT") ? "csat" : "gs1";
   const candidates = [
     `${examCode}_answerkey_${year}_prelims_${suffix}`,
     // Tier-B mirror key (used when the official key is unreachable and a mirror
@@ -406,23 +434,76 @@ async function loadAnswerKey(
     if (entry) break;
   }
   if (!entry) return null;
-  const out = await structuredJson<{ answers: { q_no: number; correct_option_key: string }[] }>({
+  const out = await structuredJson<{
+    series: string;
+    answers: { q_no: number; correct_option_key: string }[];
+  }>({
     model: MODELS.sonnet,
+    purpose: "ingest_pyq_answer_key",
     system:
       "You read an official exam answer-key PDF and return the correct option " +
-      "(A/B/C/D) for each question number. Return uppercase single letters.",
+      "(A/B/C/D) for each question number. Return uppercase single letters.\n\n" +
+      "A key document OFTEN covers SEVERAL booklet series at once — as separate " +
+      "pages, or as parallel columns headed A/B/C/D, or with the series folded " +
+      "into the title. The same question number has DIFFERENT answers in " +
+      "different series, so reading the wrong one silently produces a completely " +
+      "wrong key. The series marker's layout is not consistent between years: it " +
+      "may be a bordered table cell, plain right-aligned text, a boxed label, or " +
+      "part of the heading (e.g. 'PAPER-I(ONE) -SET-A'). Find it wherever it is.\n\n" +
+      "Report in `series` the single letter you actually read the answers from, " +
+      "or \"\" if the document names no series at all.\n\n" +
+      "OMIT any row whose answer is not one of A/B/C/D — a dropped/cancelled " +
+      "question is often marked 'X' or '-', and tables are sometimes padded past " +
+      "the real question count with '0'. Never invent a letter for those; leaving " +
+      "them out is correct, because they then get independently re-solved.",
     content: [
       await pdfDocumentBlock(absPath(entry)),
-      { type: "text", text: "Extract the question-number → correct-option map." },
+      {
+        type: "text",
+        text: targetSeries
+          ? `Extract the question-number → correct-option map for BOOKLET SERIES ` +
+            `${targetSeries} ONLY, and set \`series\` to "${targetSeries}". If this ` +
+            `document does not contain series ${targetSeries}, return an EMPTY ` +
+            `answers array and set \`series\` to whatever it does contain — do NOT ` +
+            `substitute a different series.`
+          : `Extract the question-number → correct-option map. If the document ` +
+            `covers several series, use the FIRST one and name it in \`series\`.`,
+      },
     ],
     schema: ANSWER_KEY_SCHEMA as unknown as Record<string, unknown>,
     maxTokens: 32000,
   });
   const map = new Map<number, string>();
-  for (const a of out.answers) map.set(a.q_no, a.correct_option_key.trim().toUpperCase());
-  // Detect which booklet series this key is for (so it's only trusted against a
-  // paper of the same series — see series.ts).
-  const series = await detectBookletSeries(absPath(entry), entry.pages ?? 1, INGEST_PRODUCT_EXAM, "ingest_series_detect_key");
+  for (const a of out.answers) {
+    const k = a.correct_option_key.trim().toUpperCase();
+    // Second line of defence behind the prompt: never let a non-option token
+    // ('X' dropped, '0' padding) become a "verified" answer.
+    if (!["A", "B", "C", "D"].includes(k)) continue;
+    map.set(a.q_no, k);
+  }
+  const reported = out.series.trim().toUpperCase();
+  const reportedSeries = (["A", "B", "C", "D"].includes(reported) ? reported : null) as BookletSeries | null;
+  // If we asked for a specific series and the model read a DIFFERENT one, the
+  // mapping is untrustworthy by construction — drop it rather than hand back
+  // answers from the wrong booklet. Returning the reported series (not the
+  // requested one) makes `seriesAlignment` downstream report a real mismatch.
+  if (targetSeries && reportedSeries && reportedSeries !== targetSeries) {
+    report.warn(
+      `answer key reports series ${reportedSeries} but the paper is series ${targetSeries} — ` +
+        `discarding the key (these MCQs route to blind re-solve instead)`,
+    );
+    return { map: new Map(), series: reportedSeries };
+  }
+  // Which booklet series this key is for, so it is only trusted against a paper
+  // of the same series (see series.ts). PREFER the series the extractor itself
+  // reported, because it names the series the returned answers were actually
+  // read from; `detectBookletSeries` only looks at the cover/first page, which
+  // on a multi-series document names just one of the four and would therefore
+  // "confirm" alignment it never checked. Fall back to the cover detector only
+  // when the extractor could not name a series at all.
+  const series =
+    reportedSeries ??
+    (await detectBookletSeries(absPath(entry), entry.pages ?? 1, productExam, "ingest_series_detect_key"));
   return { map, series };
 }
 
@@ -477,6 +558,7 @@ const CLASSIFY_SCHEMA = {
 async function classify(
   questions: RawQuestion[],
   tree: SyllabusNode[],
+  productExam: TargetExamCode,
 ): Promise<Map<number, string>> {
   const result = new Map<number, string>();
   if (tree.length === 0) return result;
@@ -489,7 +571,8 @@ async function classify(
       .join("\n");
     const out = await structuredJson<{ mappings: { q_no: number; path: string }[] }>({
       model: MODELS.haiku,
-      system: buildNodeClassifySystem(INGEST_PRODUCT_EXAM),
+      purpose: "ingest_pyq_classify",
+      system: buildNodeClassifySystem(productExam),
       content:
         `SYLLABUS NODES (path :: title):\n${treeText}\n\n` +
         `QUESTIONS:\n${qText}\n\n` +
@@ -719,9 +802,9 @@ async function main(): Promise<void> {
   let alignment: SeriesAlignment = "assumed";
   if (isMcq) {
     report.section("Booklet series + answer-key cross-check");
-    paperSeries = await detectBookletSeries(absPath(entry), info.pageCount, INGEST_PRODUCT_EXAM);
+    paperSeries = await detectBookletSeries(absPath(entry), info.pageCount, cls.productExam);
     report.step(`paper booklet series: ${paperSeries ?? "unknown"}`);
-    const keyResult = await loadAnswerKey(manifest, cls.examCode, cls.year, cls.paperCode);
+    const keyResult = await loadAnswerKey(manifest, cls.examCode, cls.year, cls.paperCode, cls.productExam, paperSeries);
     if (keyResult) {
       answerKey = keyResult.map;
       keySeries = keyResult.series;
@@ -744,7 +827,7 @@ async function main(): Promise<void> {
   report.section("Syllabus classification (claude-haiku-4-5)");
   const tree = await loadSyllabusTree(cls.paperCode);
   report.step(`syllabus nodes for ${cls.paperCode}: ${tree.length}`);
-  const pathByQ = await classify(raw, tree);
+  const pathByQ = await classify(raw, tree, cls.productExam);
   report.ok(`classified ${pathByQ.size}/${raw.length} questions to a syllabus node`);
 
   // 4. Assemble (+ bilingual fill). UPPSC PDFs often encode Hindi in a legacy
@@ -757,10 +840,11 @@ async function main(): Promise<void> {
         jobs,
         "hi",
         requireAuthored(
-          getExamConfig(INGEST_PRODUCT_EXAM).misc.translateQuestionsDomainHint,
-          INGEST_PRODUCT_EXAM,
+          getExamConfig(cls.productExam).misc.translateQuestionsDomainHint,
+          cls.productExam,
           "misc.translateQuestionsDomainHint",
         ),
+        { purpose: "ingest_pyq_translate" },
       )
     : [];
   const hiMap = new Map<string, string>();

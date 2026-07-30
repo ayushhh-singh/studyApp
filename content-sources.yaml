@@ -467,54 +467,38 @@ verified:
     section: pyq_prelims
     tier: A
     exam: upsc
-    url: https://upsc.gov.in/sites/default/files/QP_CS_Pre_Exam_2023_280523.pdf
+    url: https://www.upsc.gov.in/sites/default/files/QP_CS_Pre_Exam_2023_280523.pdf
     lang: both
     year: 2023
     paper: gs1
-    notes: Official upsc.gov.in. Bilingual. (Host unreachable from ingest machine.)
+    notes: Official UPSC scan (image-only, no text layer).
   - id: upsc_answerkey_2023_prelims_gs1
     section: answer_key
     tier: A
     exam: upsc
-    url: https://upsc.gov.in/sites/default/files/AnsKey-CSP-2023-Paper-I-090524.pdf
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-2023-Paper-I-090524.pdf
     lang: en
     year: 2023
-    paper: prelims_gs1
-    notes: Official upsc.gov.in answer key (GS Paper I). Released after 2023 final result.
-  # UPSC Prelims 2024 GS-I — Tier-B mirrors, human-approved 2026-07-06 for the
-  # end-to-end run because the official upsc.gov.in 2024 paper/key are
-  # unreachable from this ingestion host. Drishti republishes the real Set-B
-  # paper + a GS-I answer key; the parser's Tier-B rules apply (attribution
-  # only, no compiler solutions copied, answers cross-checked vs the key).
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
   - id: upsc_prelims_2024_gs1
     section: pyq_prelims
-    tier: B
-    approved: true
+    tier: A
     exam: upsc
-    url: https://www.drishtiias.com/images/pdf/1718537625_upsc-pre-2024-GS-(B).pdf
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-24-GENERAL-STUDIES-PAPER-I-180624.pdf
     lang: both
     year: 2024
     paper: gs1
-    substitutes_official: https://upsc.gov.in Civil Services Prelims 2024 GS Paper I
-    notes: Non-gov (Drishti IAS) mirror of the real 2024 Set-B paper. Bilingual scan.
+    notes: Official UPSC scan (image-only, no text layer).
   - id: upsc_answerkey_2024_prelims_gs1
     section: answer_key
-    tier: B
-    approved: true
+    tier: A
     exam: upsc
-    url: https://www.drishtiias.com/images/pdf/UPCS_CSE_Prelims_2024_Answer_Key_GS1%20(1).pdf
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CivilServicesPExam-2024-GeneralStudies-I-210525.pdf
     lang: en
     year: 2024
-    paper: prelims_gs1
-    substitutes_official: https://upsc.gov.in 2024 GS Paper I official key
-    notes: Non-gov (Drishti IAS) answer key for GS Paper I, to cross-check extracted answers.
-  # UPSC Prelims 2022 + 2023 GS-I — Tier-B Drishti mirrors, human-approved
-  # 2026-07-06 ("use coaching mirrors for other exams"). Small English text PDFs
-  # (Hindi is machine-filled + flagged to the Review Queue); each has a separate
-  # answer key so answers are cross-checked. These extend weightage/Trends to a
-  # real multi-year series (2022–2024).
-  # 2023 keeps the official Tier-A entries above as the authoritative primary;
-  # these _mirror ids are the reachable Tier-B fallback (same pattern as 2024).
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
   - id: upsc_prelims_2023_gs1_mirror
     section: pyq_prelims
     tier: B
@@ -539,33 +523,22 @@ verified:
     notes: Non-gov (Drishti IAS) GS-I answer key.
   - id: upsc_prelims_2022_gs1
     section: pyq_prelims
-    tier: B
-    approved: true
+    tier: A
     exam: upsc
-    url: https://www.drishtiias.com/images/pdf/GS%20Paper%202022%20(English)%20with%20logo.pdf
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL%20STUDIES%20PAPER%20I.pdf
+    lang: both
+    year: 2022
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_answerkey_2022_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-2022-Paper-I-040723.pdf
     lang: en
     year: 2022
     paper: gs1
-    substitutes_official: https://upsc.gov.in official 2022 CS Prelims GS-I (unreachable from host)
-    notes: Non-gov (Drishti IAS). English set; Hindi machine-filled + flagged.
-  - id: upsc_answerkey_2022_prelims_gs1
-    section: answer_key
-    tier: B
-    approved: true
-    exam: upsc
-    url: https://www.drishtiias.com/images/pdf/UPSC%202022%20English%20Answer%20Key.pdf
-    lang: en
-    year: 2022
-    paper: prelims_gs1
-    substitutes_official: https://upsc.gov.in official 2022 GS-I key (unreachable from host)
-    notes: Non-gov (Drishti IAS) GS-I answer key.
-
-  # ============ UPSSSC PET (exam: upsssc_pet) — UP Preliminary Eligibility Test ============
-  # A different UP objective exam: its GS questions map onto the shared PRE_GS1
-  # syllabus; its aptitude/reasoning/Hindi/English sections have no UPPSC node
-  # and load as out_of_syllabus (node null). Tier-B mirror (Adda247 republishing
-  # the real 28-Oct-2023 2nd-shift paper). The answer_key entry points at the
-  # SAME file — the compilation PDF carries the key, so extraction reads it there.
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
   - id: upsssc_pet_prelims_2023_gs1
     section: pyq_prelims
     tier: B
@@ -619,6 +592,805 @@ verified:
     notes: >-
       Wikimedia Commons, CC BY-SA 4.0. 1860s manuscript copy, Devanagari,
       Cambridge University collection.
+
+  # -------------------------------------------------------------------------
+  # UPSC Civil Services PYQ papers — added 2026-07-30 (U5 PYQ ingest).
+  # 72 papers: Prelims GS-I + CSAT 2016-2026, Mains GS1-GS4 + Essay 2016-2025.
+  #
+  # tier: A — every URL here is on the official www.upsc.gov.in domain and was
+  # verified this session to return application/pdf (72/72). They were
+  # recovered from each hand-placed file's own embedded PDF Title metadata, which
+  # had preserved the exact upsc.gov.in URL it was saved from — so the set is
+  # reproducible by `pnpm content:fetch` from a fresh clone instead of depending
+  # on a manual re-download.
+  #
+  # ⚠ THE MANDATORY `www.` PREFIX. Bare `upsc.gov.in/sites/default/files/...`
+  # answers HTTP 200 with text/html soft-404 content, so the failure MASQUERADES
+  # AS SUCCESS. Three entries below previously carried the bare host and were
+  # recorded as "unreachable from ingest machine"; the host was never the
+  # problem, the missing `www.` was.
+  #
+  # EXTRACTION REALITY (measured, not assumed): these are IMAGE-ONLY scans. The
+  # official PDFs carry no text layer at all — ~18 chars/page, and that is
+  # entirely pdf-parse's own "-- N of 48 --" page markers. Re-fetching the
+  # pristine originals was TESTED and does not recover text: UPSC simply
+  # publishes scanned booklets. The one exception is upsc_prelims_2023_gs1
+  # (63k chars, a real text layer). So UPSC PYQ extraction is ~100% VISION,
+  # unlike UPPSC where English extracted cleanly and only Hindi was mojibake.
+  #
+  # The booklets ARE genuinely bilingual (each question printed in Hindi AND
+  # English on the same page, stated on the cover), so vision reads real Hindi
+  # rather than machine-translating it.
+  # -------------------------------------------------------------------------
+  - id: upsc_prelims_2016_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL_STUDIES_PAPER-II.pdf
+    lang: both
+    year: 2016
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2016_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL_STUDIES_PAPER-I.pdf
+    lang: both
+    year: 2016
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2017_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/CSP-17-GS_PAPER-II-C.pdf
+    lang: both
+    year: 2017
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2017_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/CSP-17-GS_PAPER-1-C.pdf
+    lang: both
+    year: 2017
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2018_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-18-GS-II-C.pdf
+    lang: both
+    year: 2018
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2018_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-18-GS-I-C.pdf
+    lang: both
+    year: 2018
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2019_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/csp-p2.pdf
+    lang: both
+    year: 2019
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2019_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/csp-p1.pdf
+    lang: both
+    year: 2019
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2020_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/CSP_2020_GS_Paper-2.pdf
+    lang: both
+    year: 2020
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2020_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/CSP_2020_GS_Paper-1.pdf
+    lang: both
+    year: 2020
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2021_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-21-GeneralStudiesPaper-II-121021.pdf
+    lang: both
+    year: 2021
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2021_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-21-GeneralStudiesPaper-I-121021.pdf
+    lang: both
+    year: 2021
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2022_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL%20STUDIES%20PAPER%20II.pdf
+    lang: both
+    year: 2022
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2023_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CS_Pre_Exam_2023_GENERAL_STUDIES_PAPER_II_280523.pdf
+    lang: both
+    year: 2023
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2024_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-24-GENERAL-STUDIES-PAPER-II-180624.pdf
+    lang: both
+    year: 2024
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2025_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-25-GENERAL-STUDIES-PAPER-II-26052025.pdf
+    lang: both
+    year: 2025
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2025_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSP-25-GENERAL-STUDIES-PAPER-I-26052025.pdf
+    lang: both
+    year: 2025
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2026_csat
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSP_2026_GENERAL_STUDIES_PAPER-II_25052026.pdf
+    lang: both
+    year: 2026
+    paper: csat
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_prelims_2026_gs1
+    section: pyq_prelims
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSP_2026_GENERAL_STUDIES_PAPER-I_25052026.pdf
+    lang: both
+    year: 2026
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2016_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/EASSY_0.pdf
+    lang: both
+    year: 2016
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2016_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS1_0.pdf
+    lang: both
+    year: 2016
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2016_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS2.pdf
+    lang: both
+    year: 2016
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2016_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS3.pdf
+    lang: both
+    year: 2016
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2016_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS4.pdf
+    lang: both
+    year: 2016
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2017_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ESSAY.pdf
+    lang: both
+    year: 2017
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2017_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS1_1.pdf
+    lang: both
+    year: 2017
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2017_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS2_0.pdf
+    lang: both
+    year: 2017
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2017_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS3_0.pdf
+    lang: both
+    year: 2017
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2017_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GS4_0.pdf
+    lang: both
+    year: 2017
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2018_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ESSAY_0.pdf
+    lang: both
+    year: 2018
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2018_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-I.pdf
+    lang: both
+    year: 2018
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2018_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-II.pdf
+    lang: both
+    year: 2018
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2018_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-III.pdf
+    lang: both
+    year: 2018
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2018_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-IV.pdf
+    lang: both
+    year: 2018
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2019_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM19-Essay.pdf
+    lang: both
+    year: 2019
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2019_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM19-GeneralStudies-I.pdf
+    lang: both
+    year: 2019
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2019_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM19-GeneralStudies-II.pdf
+    lang: both
+    year: 2019
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2019_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM19-GeneralStudies-III.pdf
+    lang: both
+    year: 2019
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2019_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM19-GeneralStudies-IV.pdf
+    lang: both
+    year: 2019
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2020_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ESSAY_1.pdf
+    lang: both
+    year: 2020
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2020_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Gen_St_P1.pdf
+    lang: both
+    year: 2020
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2020_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Gen_St_P2.pdf
+    lang: both
+    year: 2020
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2020_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Gen_St_P3.pdf
+    lang: both
+    year: 2020
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2020_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Gen_St_P4.pdf
+    lang: both
+    year: 2020
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2021_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-21-ESSAY-110122.pdf
+    lang: both
+    year: 2021
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2021_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-21-GENSTUDIESPAPER-I-110122.pdf
+    lang: both
+    year: 2021
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2021_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-21-GENSTUDIESPAPER-II-110122.pdf
+    lang: both
+    year: 2021
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2021_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-21-GENSTUDIESPAPER-III-110122.pdf
+    lang: both
+    year: 2021
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2021_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-21-GENSTUDIESPAPER-IV-110122.pdf
+    lang: both
+    year: 2021
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2022_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-22-ESSAY-190922.pdf
+    lang: both
+    year: 2022
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2022_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-22-GENERAL-STUDIES-PAPER%20I-190922.pdf
+    lang: both
+    year: 2022
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2022_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-22-GENERAL-STUDIES-PAPER-II-190922.pdf
+    lang: both
+    year: 2022
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2022_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-22-GENERAL-STUDIES-PAPER-III-190922.pdf
+    lang: both
+    year: 2022
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2022_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-22-GENERAL-STUDIES-PAPER%20IV-190922.pdf
+    lang: both
+    year: 2022
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2023_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-23-ESSAY-180923.pdf
+    lang: both
+    year: 2023
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2023_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-23-GENERAL-STUDIES-PAPER-I-180923.pdf
+    lang: both
+    year: 2023
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2023_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-23-GENERAL-STUDIES-PAPER-II-180923.pdf
+    lang: both
+    year: 2023
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2023_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-23-GENERAL-STUDIES-PAPER-III-180923.pdf
+    lang: both
+    year: 2023
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2023_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP-CSM-23-GENERAL-STUDIES-PAPER-IV-180923.pdf
+    lang: both
+    year: 2023
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2024_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSM_2024_ESSAY_03102024.pdf
+    lang: both
+    year: 2024
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2024_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSM_2024_GenStud_I_03102024.pdf
+    lang: both
+    year: 2024
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2024_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSM_2024_GenStud_II_03102024.pdf
+    lang: both
+    year: 2024
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2024_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSM_2024_GenStud_III_03102024.pdf
+    lang: both
+    year: 2024
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2024_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/QP_CSM_2024_GenStud_IV_03102024.pdf
+    lang: both
+    year: 2024
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2025_essay
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/ESSAY-QP-CSM-25-010925.pdf
+    lang: both
+    year: 2025
+    paper: essay
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2025_gs1
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER%20I-QP-CSM-25-010925.pdf
+    lang: both
+    year: 2025
+    paper: gs1
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2025_gs2
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-II-QP-CSM-25-010925.pdf
+    lang: both
+    year: 2025
+    paper: gs2
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2025_gs3
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-III-QP-CSM-25-010925.pdf
+    lang: both
+    year: 2025
+    paper: gs3
+    notes: Official UPSC scan (image-only, no text layer).
+  - id: upsc_mains_2025_gs4
+    section: pyq_mains
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/GENERAL-STUDIES-PAPER-IV-QP-CSM-25-010925.pdf
+    lang: both
+    year: 2025
+    paper: gs4
+    notes: Official UPSC scan (image-only, no text layer).
+
+  # -------------------------------------------------------------------------
+  # UPSC Prelims OFFICIAL answer keys 2018-2025 (16/16) — added 2026-07-30.
+  #
+  # Sourced from the official www.upsc.gov.in host and validated (%PDF + real
+  # page count) before use. All 16 are the SAME shape: a 4-page pure SCAN with
+  # ONE PAGE PER BOOKLET SERIES — p1=A, p2=B, p3=C, p4=D. Set A is always p1.
+  # Zero fonts, so pdf-parse yields only page separators; the key is read by
+  # vision, and `loadAnswerKey` now asks the model to name the series it read
+  # from and refuses a mismatch against the paper's own detected series.
+  #
+  # ⚠ TWO NAMING FAMILIES — do not assume one pattern. 2018-2023 use
+  # `AnsKey-CSP-<yy|yyyy>-…`; 2024 switches to
+  # `AnsKey-CivilServicesPExam-2024-…` and 2025 to
+  # `AnsKeyCivilServicesP-Exam-2025-…` (note the extra hyphen after `P`). A
+  # search for `AnsKey-CSP` alone silently misses 2024 AND 2025.
+  #
+  # ⚠ THESE URLS ARE LINKED FROM NOWHERE. UPSC's own answer-key pages
+  # (/examinations/answer-key and its /archives) render the Drupal view with
+  # ZERO rows, so the files exist on the server but cannot be rediscovered by
+  # crawling the live site — which is exactly why they are pinned here.
+  #
+  # Per-year quirks the extractor must survive (observed): the series marker's
+  # layout changes three times (2018-19 a bordered table cell; 2020 no series
+  # box at all, folded into the title as "PAPER- I(ONE) -SET-A"; 2021 plain
+  # right-aligned text; 2022-25 a boxed label), exam labels drift
+  # (`CS(P)- 2018` … `CS(P)--2022` with a double hyphen … `CS-P- 2023`), some
+  # questions are DROPPED and marked `X`, and tables are padded past the real
+  # question count with `0`. Both `X` and `0` rows are discarded rather than
+  # trusted, so those questions route to blind re-solve.
+  # -------------------------------------------------------------------------
+  - id: upsc_answerkey_2018_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-18-Paper-II.pdf
+    lang: en
+    year: 2018
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2018_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-18-Paper-I.pdf
+    lang: en
+    year: 2018
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2019_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKeyCSP-19-GS_II.pdf
+    lang: en
+    year: 2019
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2019_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKeyCSP-19-GS_I.pdf
+    lang: en
+    year: 2019
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2020_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-20-Paper-II-091121.pdf
+    lang: en
+    year: 2020
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2020_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-20-Paper-I-091121.pdf
+    lang: en
+    year: 2020
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2021_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Anskey-CSP-21-GS-II-300522.pdf
+    lang: en
+    year: 2021
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2021_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Anskey-CSP-21-GS-I-300522.pdf
+    lang: en
+    year: 2021
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2022_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-2022-Paper-II-040723.pdf
+    lang: en
+    year: 2022
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2023_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CSP-2023-Paper-II-090524.pdf
+    lang: en
+    year: 2023
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2024_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKey-CivilServicesPExam-2024-GeneralStudies-II-210525.pdf
+    lang: en
+    year: 2024
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2025_prelims_csat
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKeyCivilServicesP-Exam-2025-GeneralStudies-II-130526.pdf
+    lang: en
+    year: 2025
+    paper: csat
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
+  - id: upsc_answerkey_2025_prelims_gs1
+    section: answer_key
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/AnsKeyCivilServicesP-Exam-2025-GeneralStudies-I-130526.pdf
+    lang: en
+    year: 2025
+    paper: gs1
+    notes: Official UPSC key. 4-page scan, ONE PAGE PER SERIES (p1=A, p2=B, p3=C, p4=D).
 
 # TIER-B compilation sources awaiting the human's `approved: true`. The fetcher
 # IGNORES this whole section. To enable one: move it into `verified:` and add

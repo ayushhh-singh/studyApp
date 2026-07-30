@@ -44,6 +44,31 @@ export const PRELIMS_CSAT_PAPER_CODE = "PRE_CSAT";
 export const PRELIMS_MARKING: Record<string, { marksPerQuestion: number; negativeMarking: number }> = {
   [PRELIMS_GS1_PAPER_CODE]: { marksPerQuestion: 1.33, negativeMarking: -0.33 },
   [PRELIMS_CSAT_PAPER_CODE]: { marksPerQuestion: 2, negativeMarking: -0.66 },
+
+  // ---------------------------------------------------------------------------
+  // UPSC Civil Services Prelims (added 2026-07-30 for the U5 PYQ ingest).
+  //
+  // READ OFF THE REAL BOOKLET COVERS now in content-raw/pyq_prelims, not from an
+  // aggregator table and not from `exams.paper_structure` — which deliberately
+  // carries `question_count: null` and `marks_per_question: null` for UPSC,
+  // because UPSC notifies the paper's MARKS and DURATION but has never notified
+  // its question count (that is practice, not notification; see 0106).
+  //   * GS-I  (2024 cover): "इस परीक्षण पुस्तिका में 100 प्रश्नांश … दिए गए हैं",
+  //     पूर्णांक : 200  →  100 Q / 200 marks  →  2.0 per question.
+  //   * CSAT   (2020 cover): "…80 प्रश्नांश …", पूर्णांक : 200
+  //     →  80 Q / 200 marks  →  2.5 per question.
+  //   * Both covers state the one-third penalty ("एक-तिहाई दंड"), matching
+  //     `exams.paper_structure`'s verified `negative_marking.fraction = 0.3333`.
+  //
+  // KNOWN LIMITATION, stated rather than hidden: UPSC does not apply negative
+  // marking to CSAT's *Decision Making* questions. This table is a per-PAPER
+  // scalar (as it already is for UPPSC), so it cannot express a per-question
+  // carve-out; a CSAT decision-making item is therefore penalised here where the
+  // real exam would not penalise it. Fixing that needs per-question marking, not
+  // a different number in this table.
+  // ---------------------------------------------------------------------------
+  UPSC_PRE_GS1: { marksPerQuestion: 2, negativeMarking: -0.6667 },
+  UPSC_PRE_CSAT: { marksPerQuestion: 2.5, negativeMarking: -0.8333 },
 };
 
 /**

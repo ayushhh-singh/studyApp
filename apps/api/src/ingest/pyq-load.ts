@@ -16,7 +16,16 @@ import { readFile } from "node:fs/promises";
 import { basename } from "node:path";
 import { supabase } from "../lib/supabase.js";
 import { refreshNodeWeightage } from "../lib/weightage.js";
-import { listParsed, parseArgs, questionPublishable, report, type ExamCode, type SourceKind } from "./_shared.js";
+import {
+  listParsed,
+  parseArgs,
+  productExamForProvenance,
+  questionPublishable,
+  report,
+  type ExamCode,
+  type SourceKind,
+} from "./_shared.js";
+import type { TargetExamCode } from "@neev/shared";
 import { gateMcq, keyProvenanceFor, type BlindStatus, type KeyProvenance } from "./key-provenance.js";
 import { raiseKeyDisputeFlag } from "./key-dispute-flag.js";
 import { prelimsMcqMarks } from "../lib/exam-papers.js";
@@ -104,22 +113,39 @@ interface ParsedFile {
   questions: ParsedQuestion[];
 }
 
-/** path -> syllabus_node_id, cached per paper_code. */
+/** path -> syllabus_node_id, cached per (exam_code, paper_code). */
 const syllabusCache = new Map<string, Map<string, string>>();
 
-async function resolveSyllabusId(paperCode: string, path: string | null): Promise<string | null> {
+/**
+ * Resolve a parsed question's `syllabus_path` to a real node id.
+ *
+ * !! M23 (docs/multi-exam.md §0a): this WRITES `questions.syllabus_node_id`, so a
+ * !! cross-exam resolution here is permanent bad data with no constraint
+ * !! violation to notice it. It used to filter on `paper_code` ALONE, which was
+ * !! correct only because `classifyPyqId` handed it UPPSC's bare codes for every
+ * !! exam — i.e. the bug and its own concealment were the same line. The exam
+ * !! filter is now explicit belt-and-braces alongside the exam-prefixed paper
+ * !! code, so neither one alone is load-bearing.
+ */
+async function resolveSyllabusId(
+  paperCode: string,
+  path: string | null,
+  examCode: TargetExamCode,
+): Promise<string | null> {
   if (!path) return null;
-  if (!syllabusCache.has(paperCode)) {
+  const cacheKey = `${examCode}::${paperCode}`;
+  if (!syllabusCache.has(cacheKey)) {
     const { data, error } = await supabase()
       .from("syllabus_nodes")
       .select("id, path")
+      .eq("exam_code", examCode)
       .eq("paper_code", paperCode);
-    if (error) throw new Error(`syllabus lookup ${paperCode}: ${error.message}`);
+    if (error) throw new Error(`syllabus lookup ${examCode}/${paperCode}: ${error.message}`);
     const m = new Map<string, string>();
     for (const n of data ?? []) m.set(n.path as string, n.id as string);
-    syllabusCache.set(paperCode, m);
+    syllabusCache.set(cacheKey, m);
   }
-  return syllabusCache.get(paperCode)!.get(path) ?? null;
+  return syllabusCache.get(cacheKey)!.get(path) ?? null;
 }
 
 async function loadFile(
@@ -149,7 +175,13 @@ async function loadFile(
   }
 
   for (const q of data.questions) {
-    const syllabusNodeId = await resolveSyllabusId(q.syllabus_paper_code, q.syllabus_path);
+    // M23: derive the PRODUCT exam (whose tree this paper's nodes live in) from the
+    // question's PROVENANCE exam, using the one shared mapping — never assume the
+    // default exam, which is what let a second exam's PYQs resolve against UPPSC's
+    // tree. A provenance-only exam (RO/ARO, PET) still maps onto the default exam's
+    // shared prelims tree, exactly as before.
+    const productExam = productExamForProvenance(q.exam_code ?? "uppsc");
+    const syllabusNodeId = await resolveSyllabusId(q.syllabus_paper_code, q.syllabus_path, productExam);
     // Recompute publishability from the row itself (mirrors the DB gate) rather
     // than trusting the parse-time flag — so a stale/over-optimistic flag can
     // never trip the trigger and abort the whole load.

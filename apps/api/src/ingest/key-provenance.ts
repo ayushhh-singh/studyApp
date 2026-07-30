@@ -42,6 +42,22 @@ export type KeyProvenance = "official_commission" | "coaching_reproduced" | "non
 const OFFICIAL_COMMISSION: Record<string, number[]> = {
   PRE_GS1: [2019, 2020, 2021, 2023, 2024],
   PRE_CSAT: [2019, 2020, 2021, 2023, 2024],
+
+  // UPSC Civil Services Prelims — added 2026-07-30 (U5 PYQ ingest). Note the
+  // keys are EXAM-PREFIXED paper codes (M23); `keyProvenanceFor` is called with
+  // the question's own `paper_code`, so a bare `PRE_GS1` entry would never match
+  // a UPSC question and every UPSC key would silently be treated as 'none'.
+  //
+  // All 16 (2018-2025 x GS-I/CSAT) were downloaded this session from the
+  // official www.upsc.gov.in host, validated (%PDF + real 4-page count), and
+  // confirmed to be SET A — every one is a 4-page scan with one page per booklet
+  // series (p1=A) and every page-1 header was read as Series A. The papers in
+  // content-raw are themselves Set A (booklet-series box read directly off the
+  // 2024 GS-I and 2020 CSAT covers), so key and paper agree by construction —
+  // and `loadAnswerKey` now makes the extractor NAME the series it read from and
+  // discards the key on a mismatch, so this is enforced per paper, not assumed.
+  UPSC_PRE_GS1: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
+  UPSC_PRE_CSAT: [2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
 };
 const COACHING_REPRODUCED: Record<string, number[]> = {
   PRE_GS1: [2018, 2025],

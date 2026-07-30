@@ -469,16 +469,59 @@ export function isCompilationEntry(entry: ManifestEntry): boolean {
 }
 
 /**
- * Map a PYQ manifest id to {examCode, paperCode, year, stage}. Handles all
- * exams (uppsc/upsc/up_ro_aro/upsssc_pet) — e.g. uppsc_mains_2025_gs5,
- * upsc_prelims_2024_gs1. Non-UPPSC objective exams (RO/ARO, PET) map their GS
- * papers onto the shared UPPSC prelims syllabus (PRE_GS1) for weightage overlap;
- * questions beyond that scope are kept out_of_syllabus at load. Returns null for
- * anything we can't confidently place.
+ * PROVENANCE exam → the PRODUCT exam whose syllabus tree, paper codes and prompt
+ * framing a paper is ingested INTO. Closes docs/OUTSTANDING.md **M23**.
+ *
+ * The two enums are deliberately different (packages/shared/src/exams.ts):
+ * `ExamCode` answers "which exam ASKED this question" and includes exams we
+ * ingest PYQs from but never sell; `TargetExamCode` answers "which exam can a
+ * user pick". M23 existed precisely because no mapping between them was defined,
+ * so `classifyPyqId` could not know whether to prefix a paper code.
+ *
+ * The mapping, and why each half is what it is:
+ *
+ *  - A provenance exam that IS ALSO a product exam (uppsc, upsc, mppsc) ingests
+ *    into ITSELF — its own tree, its own exam-prefixed paper codes.
+ *  - A provenance-only exam (up_ro_aro, upsssc_pet, other) has no tree and no
+ *    product of its own, so it keeps mapping onto the DEFAULT exam's shared
+ *    prelims syllabus for weightage overlap. That is the pre-existing, deliberate
+ *    behaviour documented on `classifyPyqId` — not a fallback bolted on here.
+ *
+ * Consequence worth stating explicitly: for every id that existed before M23 was
+ * fixed this returns the default exam, whose prefix is `""`, so **every existing
+ * manifest id classifies byte-identically to before.** Only a genuinely new
+ * product exam's papers change shape.
+ */
+export function productExamForProvenance(examCode: ExamCode): TargetExamCode {
+  const asProduct = TARGET_EXAM_CODES.find((t) => t === (examCode as string));
+  return asProduct ?? DEFAULT_EXAM_CODE;
+}
+
+/**
+ * Map a PYQ manifest id to {examCode, productExam, paperCode, year, stage}.
+ * Handles all exams (uppsc/upsc/mppsc/up_ro_aro/upsssc_pet) — e.g.
+ * uppsc_mains_2025_gs5, upsc_prelims_2024_gs1. Non-product objective exams
+ * (RO/ARO, PET) map their GS papers onto the shared DEFAULT-exam prelims syllabus
+ * (PRE_GS1) for weightage overlap; questions beyond that scope are kept
+ * out_of_syllabus at load. Returns null for anything we can't confidently place.
+ *
+ * !! M23: the returned `paperCode` is EXAM-PREFIXED for a non-default product
+ * !! exam (`UPSC_PRE_GS1`), because `syllabus_nodes.paper_code` is globally
+ * !! unique across exams (docs/multi-exam.md §0) and ~30 call sites — including
+ * !! `pyq-load.ts`'s `resolveSyllabusId`, which WRITES `questions.
+ * !! syllabus_node_id` — filter on paper_code alone. Returning a bare `PRE_GS1`
+ * !! here is what would have silently attached a second exam's PYQs to UPPSC's
+ * !! tree, with no constraint violation to notice.
  */
 export function classifyPyqId(
   id: string,
-): { examCode: ExamCode; paperCode: string; year: number; stage: ExamStage } | null {
+): {
+  examCode: ExamCode;
+  productExam: TargetExamCode;
+  paperCode: string;
+  year: number;
+  stage: ExamStage;
+} | null {
   // Built from EXAM_PREFIXES rather than hardcoded, so adding an exam to the
   // shared enum cannot leave this pattern silently behind.
   const m = id.match(
@@ -502,14 +545,27 @@ export function classifyPyqId(
     essay: "MAINS_ESSAY",
     general_hindi: "MAINS_GH",
   };
-  const paperCode = map[paperRaw];
-  if (!paperCode) return null;
+  const baseCode = map[paperRaw];
+  if (!baseCode) return null;
+  const productExam = productExamForProvenance(examCode);
+  const paperCode = `${paperCodePrefixFor(productExam)}${baseCode}`;
+  // A non-default product exam only has the papers ITS OWN tree defines. UPSC has
+  // no GS5/GS6/General-Hindi paper, so `upsc_mains_2020_gs5` must fail loudly at
+  // classification rather than mint a paper code with no syllabus behind it (which
+  // would load questions that map to nothing and are invisible to every read).
+  if (productExam !== DEFAULT_EXAM_CODE && !PAPERS.some((p) => p.exam === productExam && p.paperCode === paperCode)) {
+    return null;
+  }
+  // Belt-and-braces: the prefix is constructed from `paperCodePrefixFor` just
+  // above, so this cannot fire today — it is here so a future change to that
+  // function fails loudly instead of silently un-scoping a paper code again.
+  assertPaperCodeScoped(productExam, paperCode);
   // Pre-reform UPPSC Mains (2018-2022) used a 4-GS-paper structure. This is a
   // parse-time placeholder (MAINS_GS1-4); those questions are then CONTENT-mapped
   // to the reformed GS1-6 nodes and their paper_code re-assigned to the mapped
   // node's paper (with the original preserved in meta.historical_paper). We do
   // NOT use separate MAINS_*_PRE paper codes — they'd duplicate the paper list.
-  return { examCode, paperCode, year, stage };
+  return { examCode, productExam, paperCode, year, stage };
 }
 
 // ---------------------------------------------------------------------------

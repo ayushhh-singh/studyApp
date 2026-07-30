@@ -1209,16 +1209,47 @@ const UPSC: ExamConfig = {
     chapterTranslateDomainHint: UNAUTHORED,
     translateDomainHint: UNAUTHORED,
     translatePlatformFraming: UNAUTHORED,
-    translateQuestionsDomainHint: UNAUTHORED,
+    // AUTHORED 2026-07-30 for the U5 PYQ ingest (rationale in the block below).
+    // Structural naming of WHAT is being translated, in the same grammatical
+    // slot as uppsc's — not a judgment slot.
+    translateQuestionsDomainHint: "UPSC Civil Services exam questions",
     ingestKeySupportFraming: UNAUTHORED,
 
-    seriesPaperFraming: UNAUTHORED,
-    seriesBookletCodeNote: UNAUTHORED,
+    // -----------------------------------------------------------------------
+    // AUTHORED 2026-07-30 — the slots the U5 PYQ-ingest path actually needs
+    // (`ingest:pyq`'s booklet-series detection + syllabus classification +
+    // bilingual fill, and `ingest:resolve`'s blind solve/escalate). Every other
+    // slot in this group stays deliberately UNAUTHORED (U6): authoring is
+    // per-slot as a pipeline genuinely needs it, NEVER a bulk find-and-replace
+    // of "UPPSC" (§6a).
+    //
+    // OBSERVED, not adapted — from direct inspection of the real booklet covers
+    // now in content-raw/pyq_prelims (2024 GS-I and 2020 CSAT rendered to PNG
+    // and read):
+    //   * UPSC prints the booklet series as a LARGE STANDALONE LETTER (A/B/C/D)
+    //     in a ruled box on the cover, beside "परीक्षण पुस्तिका अनुक्रम" /
+    //     "Test Booklet Series". That is genuinely easier to read than UPPSC's,
+    //     which frequently prints no plain letter at all.
+    //   * It ALSO prints a separate T.B.C. paper code (2024 GS-I `KSPC-P-GSPO`;
+    //     2020 CSAT `HGY-D-LKUV`). **That code is NOT the series, and its own
+    //     letters actively mislead**: `HGY-D-LKUV` contains a lone "D" on a
+    //     booklet whose series box reads "A". A detector that simply greps for
+    //     a stray capital would get that paper exactly wrong, so the note names
+    //     the trap rather than leaving the model to fall into it.
+    // -----------------------------------------------------------------------
+    seriesPaperFraming: "a UPSC Civil Services examination question paper or its official answer key",
+    seriesBookletCodeNote:
+      "a UPSC test booklet normally prints its series as a single large letter (A, B, C or D) in a ruled box on the " +
+      "cover next to the words 'Test Booklet Series', and SEPARATELY prints a T.B.C. paper code such as " +
+      "'KSPC-P-GSPO' or 'HGY-D-LKUV' which is NOT the series and whose own letters must be ignored (a booklet " +
+      "coded 'HGY-D-LKUV' can still be Series A)",
+    // Still UNAUTHORED on purpose: `ingest:syllabus` must never run for upsc —
+    // its tree is hand-authored and coverage-gated by `ingest:upsc-syllabus`.
     syllabusExpertFraming: UNAUTHORED,
     syllabusStructureNote: UNAUTHORED,
-    pyqNodeClassifyFraming: UNAUTHORED,
-    auditSolverFraming: UNAUTHORED,
-    auditEscalateFraming: UNAUTHORED,
+    pyqNodeClassifyFraming: "each UPSC Civil Services question",
+    auditSolverFraming: "a top UPSC Civil Services aspirant taking the exam",
+    auditEscalateFraming: "a meticulous fact-checker auditing a UPSC Civil Services exam question",
 
     pyqTestTitlePrefix: UNAUTHORED,
     prelimsMockTitlePrefix: UNAUTHORED,
