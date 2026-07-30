@@ -78,6 +78,31 @@ verified:
     paper: all
     notes: Fallback (non-gov, Drishti). Bilingual combined-services, classic pattern.
 
+  # UPSC CSE: there is NO standalone syllabus PDF. /examinations/revised-syllabus-scheme
+  # carries only Geo-Scientist 2020 + CMS 2018, so the ANNUAL EXAMINATION NOTICE is
+  # the syllabus of record (Prelims: Section III Part A; Mains: pp. 33-35). The `www.`
+  # prefix is MANDATORY for sites/default/files — the bare upsc.gov.in host returns
+  # HTTP 200 with text/html soft-404 content, so the failure masquerades as success.
+  # Also: sites/default/files/GENERAL STUDIES-III.pdf is NOT the syllabus, it is the
+  # Mains 2014 question paper. These two notices are the provenance for the 75
+  # verbatim lines in apps/api/src/ingest/seed/upsc-official-lines.ts.
+  - id: upsc_syllabus_2026_en
+    section: syllabus
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Notif-CSP-2026-Engl-060226Rev.pdf
+    lang: en
+    paper: all
+    notes: Official EXAMINATION NOTICE NO 05/2026-CSE (04.02.2026). Syllabus of record for CSE Prelims GS+CSAT and Mains Essay/GS-I..GS-IV.
+  - id: upsc_syllabus_2025_en
+    section: syllabus
+    tier: A
+    exam: upsc
+    url: https://www.upsc.gov.in/sites/default/files/Notif-CSP-2025-Engl-220125.pdf
+    lang: en
+    paper: all
+    notes: Cross-verification copy; byte-identical to 2026 on all 75 syllabus lines (also matched against the official 2024 and 2022 notices).
+
   # ===================== MAINS previous-year papers =======================
   # Official uppsc.up.nic.in — only 2024 & 2025 are currently live (older files
   # age out). All 8 papers/year. Open_PDF.aspx 302s to homepage without a

@@ -18,6 +18,7 @@
  */
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { streamText, structuredJson, translate, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
@@ -407,16 +408,28 @@ async function main(): Promise<void> {
   const viaVision = sources.filter((s) => s.viaVision).map((s) => s.lang);
   if (viaVision.length) report.warn(`Vision-extracted languages (flag for review): ${viaVision.join(", ")}`);
 
-  let papers = PAPERS;
-  if (onlyExam) {
-    papers = papers.filter((p) => p.exam === onlyExam);
-    if (papers.length === 0) {
-      throw new Error(`No papers defined for --exam ${onlyExam}. Known exams: ${[...new Set(PAPERS.map((p) => p.exam))].join(", ")}`);
-    }
+  // REGRESSION GUARD: this used to default to ALL of PAPERS. Now that PAPERS
+  // also holds UPSC papers, a bare `pnpm ingest:syllabus` would try to
+  // LLM-structure them and die on `requireAuthored(...)` UNAUTHORED partway
+  // through an otherwise-good UPPSC run (and it could never work anyway — this
+  // script's sources are the UPPSC manifest ids). So an omitted --exam now means
+  // the DEFAULT exam only; a second exam must be asked for explicitly, and its
+  // real path is `pnpm ingest:upsc-syllabus` (hand-authored, zero-LLM).
+  const examScope = onlyExam ?? DEFAULT_EXAM_CODE;
+  if (!onlyExam) {
+    report.step(`--exam not given → defaulting to '${DEFAULT_EXAM_CODE}' papers only (never all exams)`);
+  }
+  let papers = PAPERS.filter((p) => p.exam === examScope);
+  if (papers.length === 0) {
+    throw new Error(`No papers defined for --exam ${examScope}. Known exams: ${[...new Set(PAPERS.map((p) => p.exam))].join(", ")}`);
   }
   if (onlyPaper) {
     papers = papers.filter((p) => p.paperCode === onlyPaper);
-    if (papers.length === 0) throw new Error(`Unknown --paper ${onlyPaper}. Known: ${PAPERS.map((p) => p.paperCode).join(", ")}`);
+    if (papers.length === 0) {
+      throw new Error(
+        `Unknown --paper ${onlyPaper} for exam '${examScope}'. Known: ${PAPERS.filter((p) => p.exam === examScope).map((p) => p.paperCode).join(", ")}`,
+      );
+    }
   }
 
   report.section("Structuring papers");

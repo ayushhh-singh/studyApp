@@ -313,6 +313,73 @@ export const PAPERS: PaperDef[] = [
     stage: "mains",
     title: { hi: "मुख्य — सामान्य अध्ययन षष्ठम प्रश्नपत्र (उत्तर प्रदेश विशेष)", en: "Mains — General Studies Paper VI (UP-specific)" },
   },
+
+  // -------------------------------------------------------------------------
+  // UPSC Civil Services — the 7 GENERAL-STUDIES papers in product scope.
+  // Codes are `UPSC_`-prefixed, which is MANDATORY, not stylistic: see the
+  // load-bearing-invariant block above and docs/multi-exam.md §0 —
+  // `assertPaperCodeScoped` throws on a bare code so the rule cannot be broken
+  // by convention alone. Official labels below are from migration 0106's
+  // verified `exams.upsc.paper_structure` (sourced from the UPSC CSE official
+  // notification), NOT from memory.
+  //
+  // Its tree is HAND-AUTHORED and loaded by `pnpm ingest:upsc-syllabus`
+  // (apps/api/src/ingest/seed/), never by `ingest:syllabus` — that script
+  // hardcodes the UPPSC manifest ids, LLM-invents the tree (which cannot pass a
+  // verbatim coverage gate), and its prompts call `requireAuthored(...)`, which
+  // THROWS for `upsc` by design (docs/OUTSTANDING.md §8f "U6").
+  //
+  // DELIBERATELY EXCLUDED — no paper code, no tree, by design:
+  //   - Mains Paper-A (Indian Language, Eighth Schedule) and Paper-B (English)
+  //     are QUALIFYING LANGUAGE papers (25% evaluation_gate, marks never count
+  //     for merit). Not General Studies.
+  //   - Mains Paper-VI and Paper-VII are the candidate-CHOSEN optional subject
+  //     (~25 subjects plus 23 language literatures, × 2 papers, and both papers
+  //     must be the SAME subject). Not General Studies, and not one syllabus.
+  //   Neither is in product scope, so neither gets a paper code. Adding one
+  //   later means adding a PaperDef here plus its own authored tree.
+  {
+    exam: "upsc",
+    paperCode: "UPSC_PRE_GS1", // official label: Prelims Paper I
+    stage: "prelims",
+    title: { hi: "प्रारंभिक — सामान्य अध्ययन प्रथम प्रश्नपत्र", en: "Prelims — General Studies Paper I" },
+  },
+  {
+    exam: "upsc",
+    paperCode: "UPSC_PRE_CSAT", // official label: Prelims Paper II
+    stage: "prelims",
+    title: { hi: "प्रारंभिक — सी-सैट (सामान्य अध्ययन द्वितीय प्रश्नपत्र)", en: "Prelims — CSAT (General Studies Paper II)" },
+  },
+  {
+    exam: "upsc",
+    paperCode: "UPSC_MAINS_ESSAY", // official label: Paper-I
+    stage: "mains",
+    title: { hi: "मुख्य — निबंध", en: "Mains — Essay" },
+  },
+  {
+    exam: "upsc",
+    paperCode: "UPSC_MAINS_GS1", // official label: Paper-II
+    stage: "mains",
+    title: { hi: "मुख्य — सामान्य अध्ययन प्रथम प्रश्नपत्र", en: "Mains — General Studies I" },
+  },
+  {
+    exam: "upsc",
+    paperCode: "UPSC_MAINS_GS2", // official label: Paper-III
+    stage: "mains",
+    title: { hi: "मुख्य — सामान्य अध्ययन द्वितीय प्रश्नपत्र", en: "Mains — General Studies II" },
+  },
+  {
+    exam: "upsc",
+    paperCode: "UPSC_MAINS_GS3", // official label: Paper-IV
+    stage: "mains",
+    title: { hi: "मुख्य — सामान्य अध्ययन तृतीय प्रश्नपत्र", en: "Mains — General Studies III" },
+  },
+  {
+    exam: "upsc",
+    paperCode: "UPSC_MAINS_GS4", // official label: Paper-V (Ethics)
+    stage: "mains",
+    title: { hi: "मुख्य — सामान्य अध्ययन चतुर्थ प्रश्नपत्र", en: "Mains — General Studies IV" },
+  },
 ];
 
 export function paperByCode(code: string): PaperDef | undefined {
