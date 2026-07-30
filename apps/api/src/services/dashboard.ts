@@ -92,19 +92,49 @@ async function getGreeting(
   };
 }
 
-async function getContinue(userId: string): Promise<DashboardContinue> {
+/**
+ * FOUND LIVE 2026-07-30 (U3 sibling audit — dashboard.ts's own
+ * getPerformanceAndWeakness was fixed for exam bleed in this session, but
+ * this sibling "Continue where you left off" function was not touched by
+ * that live check and had the SAME class of gap in two places): (1) the
+ * unfinished-attempt lookup had no exam filter, so a test the user started
+ * before switching `target_exam` — perfectly reachable, since nothing stops
+ * a user from switching exams mid-attempt — would keep surfacing as
+ * "Continue" on the NEW exam's dashboard, deep-linking into a test that
+ * services/tests.ts's (already-fixed) getTestDetail/startAttempt would then
+ * 404 the moment the user clicked it. (2) the `syllabus_node_view` event
+ * lookup resolved a node with no exam check at all, so "Continue reading"
+ * could link straight into another exam's syllabus tree — the one case
+ * CLAUDE.md's M11/M14 audit explicitly said the app relies on NOT
+ * happening ("the UI never links across exams because getPaperSummaries is
+ * exam-scoped"); this was a real counterexample to that assumption.
+ *
+ * `tests(exam_code)` below is a LEFT join (no `!inner`), not the `!inner`
+ * pattern used elsewhere in this file — an ad-hoc attempt (`test_id` null)
+ * has no `tests` row to embed at all, and per 0106 §13 those rows always
+ * follow whatever the user's CURRENTLY ACTIVE exam is (there's no frozen
+ * exam to check them against), so they must not be dropped by an inner join.
+ * A `!inner` here would silently exclude every ad-hoc "Continue" candidate
+ * exactly the way `getTestDetail`'s "not found" 404 excludes a foreign test.
+ */
+async function getContinue(userId: string, examCode: string): Promise<DashboardContinue> {
   const { data: attempt, error: attemptError } = await supabase()
     .from("attempts")
-    .select("id, test_id, started_at, meta")
+    .select("id, test_id, started_at, meta, tests(exam_code)")
     .eq("user_id", userId)
     .is("submitted_at", null)
     .order("started_at", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (attemptError) throw new HttpError(500, `unfinished attempt lookup failed: ${attemptError.message}`);
+  // test_id null (ad-hoc) → tests is null → always belongs to the active exam.
+  // test_id set → tests must actually match; a foreign-exam attempt is
+  // dropped here rather than surfaced as a broken "Continue" deep link.
+  const attemptExamOk =
+    !attempt || !attempt.test_id || (attempt.tests as { exam_code?: string } | null)?.exam_code === examCode;
 
   let attemptCandidate: (Extract<DashboardContinue, { type: "attempt" }>) | null = null;
-  if (attempt) {
+  if (attempt && attemptExamOk) {
     const meta = attempt.meta as { question_ids?: string[] } | null;
     const totalCount = meta?.question_ids?.length ?? 0;
 
@@ -158,10 +188,14 @@ async function getContinue(userId: string): Promise<DashboardContinue> {
   if (viewEvent) {
     const nodeId = (viewEvent.props as { node_id?: string } | null)?.node_id;
     if (nodeId) {
+      // Exam-scoped: a syllabus_node_view logged before a target_exam switch
+      // must not resurrect a "Continue reading" link into another exam's
+      // tree — see this function's own doc comment above.
       const { data: node, error: nodeError } = await supabase()
         .from("syllabus_nodes")
         .select("title_i18n, paper_code")
         .eq("id", nodeId)
+        .eq("exam_code", examCode)
         .maybeSingle();
       if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
       if (node) {
@@ -417,13 +451,22 @@ async function getPerformanceAndWeakness(
   };
 }
 
-async function getAnswerSpotlight(userId: string): Promise<DashboardAnswerSpotlight> {
+/**
+ * FOUND LIVE 2026-07-30 (U3 sibling audit): the exact same bleed class as
+ * getContinue above — the latest-evaluation lookup had no exam filter, so the
+ * dashboard's "Answer spotlight" card could surface (and deep-link to) an
+ * evaluation from an exam the user has since switched away from.
+ * `evaluations.exam_code` (0109 §5, stamped at persist time by the rubric
+ * registry — see rubric.ts's resolveRubric) is what this filters on.
+ */
+async function getAnswerSpotlight(userId: string, examCode: string): Promise<DashboardAnswerSpotlight> {
   const { data, error } = await supabase()
     .from("evaluations")
     .select(
       "id, submission_id, overall_score, max_score, created_at, answer_submissions!inner(user_id, custom_question_text_i18n, questions(stem_i18n))",
     )
     .eq("answer_submissions.user_id", userId)
+    .eq("exam_code", examCode)
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -473,10 +516,10 @@ export async function getDashboardSummary(userId: string): Promise<DashboardSumm
   recordPerfectDay(userId, today, progress).catch((err) => logger.error({ err }, "perfect-day record failed"));
   const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
     getGreeting(userId, today, streak, examCode),
-    getContinue(userId),
+    getContinue(userId, examCode),
     getToday(userId, today, progress),
     getPerformanceAndWeakness(userId, examCode),
-    getAnswerSpotlight(userId),
+    getAnswerSpotlight(userId, examCode),
   ]);
 
   return {

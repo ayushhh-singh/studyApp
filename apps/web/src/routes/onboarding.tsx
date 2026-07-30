@@ -269,7 +269,7 @@ export function Component() {
         {/* Nav */}
         <div className="mt-6 flex items-center justify-between gap-3">
           {step > 1 ? (
-            <Button type="button" variant="ghost" onClick={() => setStep((s) => s - 1)}>
+            <Button type="button" variant="ghost" onClick={() => { setError(null); setStep((s) => s - 1); }}>
               <ArrowLeft className="size-4" /> {t("Onboarding.back")}
             </Button>
           ) : (
@@ -278,7 +278,7 @@ export function Component() {
           {step < TOTAL_STEPS ? (
             <Button
               type="button"
-              onClick={() => setStep((s) => s + 1)}
+              onClick={() => { setError(null); setStep((s) => s + 1); }}
               disabled={step === 1 && !canSubmit}
             >
               {t("Onboarding.next")} <ArrowRight className="size-4" />

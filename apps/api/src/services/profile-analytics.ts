@@ -98,6 +98,23 @@ async function getScoreTrajectory(userId: string, examCode: string): Promise<Pap
 // ---------------------------------------------------------------------------
 const BUCKET_ORDER = ["<30s", "30-60s", "60-120s", ">120s"] as const;
 
+/**
+ * FOUND, NOT FIXED (2026-07-30, U3 sibling audit — flagged for a follow-up
+ * migration, out of this session's scope): `profile_accuracy_time_buckets`
+ * (0050) joins `attempt_answers -> attempts` filtered only by `user_id` — no
+ * exam scoping anywhere, and it can't be added at this call site alone since
+ * the filter has to live INSIDE the SQL function (the same reason
+ * match_embeddings/match_doubt_faq's exam filters had to be added to the RPC
+ * itself, not the caller — see M3/M4, docs/multi-exam.md). So this "am I
+ * rushing or overthinking" chart mixes time-spent buckets across every exam
+ * the user has ever attempted a test in, or (for `attempts.test_id is null`
+ * ad-hoc sets) implicitly follows the CURRENT exam per 0106 §13 — genuinely
+ * ambiguous without a `tests` join. A real fix needs a new migration adding
+ * an optional `p_exam_code` param, LEFT JOINing `tests` and falling back to
+ * the caller-supplied exam for the null-test_id rows, mirroring `attempts`'
+ * own DERIVES-EXAM rule. Left as a documented gap rather than an
+ * out-of-scope migration.
+ */
 async function getAccuracyTimeBuckets(userId: string): Promise<AccuracyTimeBucket[]> {
   const { data, error } = await supabase().rpc("profile_accuracy_time_buckets", { p_user_id: userId });
   if (error) throw new HttpError(500, `accuracy time-bucket query failed: ${error.message}`);
@@ -125,16 +142,40 @@ interface EvaluationTrendRow {
   created_at: string;
 }
 
-/** Shared by evaluation_trend and dimension_insights (which reuses this same window). */
-async function fetchRecentEvaluations(userId: string, limit: number): Promise<EvaluationTrendPoint[]> {
-  const { data, error } = await supabase()
+/**
+ * FOUND LIVE 2026-07-30 (U3 sibling audit): this select carried no exam
+ * filter at all, so `evaluation_trend`/`dimension_insights` (computed from
+ * it below) would mix evaluations across every exam the user has ever
+ * submitted an answer under — exactly the "mixing distorts a trend" reason
+ * this same file's getScoreTrajectory was already fixed for. Scoped via
+ * `evaluations.exam_code` (0109 §5), the same column getAnswerSpotlight
+ * (dashboard.ts) and getWeeklyDigest (digest.ts) now filter on too.
+ *
+ * `examCode` is OPTIONAL, trailing — the one deliberate exception to this
+ * session's own "never a defaulted param, it lets a caller silently keep the
+ * old unscoped behaviour" rule (see digest.ts/getWeeklyDigest's doc comment).
+ * This function is also called by micro-drills.ts's recommendation logic
+ * (`fetchRecentEvaluations(userId, 30)`, no exam), which is OUT OF SCOPE for
+ * this audit (owned by a different session) — an omitted examCode there
+ * preserves its exact current (already cross-exam-mixing) behaviour rather
+ * than either breaking that file's build or reaching into a file this
+ * session isn't auditing. That mixing IS the same real gap class found here;
+ * it's flagged, not silently left unscoped-by-design — see the U3 audit
+ * report for the follow-up.
+ */
+async function fetchRecentEvaluations(
+  userId: string,
+  limit: number,
+  examCode?: string,
+): Promise<EvaluationTrendPoint[]> {
+  let query = supabase()
     .from("evaluations")
     .select(
       "submission_id, overall_score, max_score, dimension_scores, created_at, answer_submissions!inner(user_id)",
     )
-    .eq("answer_submissions.user_id", userId)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .eq("answer_submissions.user_id", userId);
+  if (examCode) query = query.eq("exam_code", examCode);
+  const { data, error } = await query.order("created_at", { ascending: false }).limit(limit);
   if (error) throw new HttpError(500, `evaluation trend query failed: ${error.message}`);
 
   const rows = ((data ?? []) as unknown as EvaluationTrendRow[]).filter(
@@ -209,8 +250,18 @@ interface ImprovementPairRow {
   after_date: string;
 }
 
+/**
+ * `examCode` is OPTIONAL, trailing — same deliberate exception as
+ * fetchRecentEvaluations above, and for the same reason: this function is
+ * also exported for mentor-insights.ts's rewrite_improvement candidate
+ * (`getImprovementProof(userId)`, no exam), which is out of this session's
+ * scope to edit. Passing it (as getProfileAnalytics does below) scopes the
+ * result to one exam; omitting it preserves the exact pre-existing
+ * (cross-exam-mixing) behaviour for that other caller.
+ */
 export async function getImprovementProof(
   userId: string,
+  examCode?: string,
 ): Promise<{ items: ImprovementProofItem[]; avg_delta_pct: number | null }> {
   const { data, error } = await supabase().rpc("profile_improvement_pairs", { p_user_id: userId });
   if (error) throw new HttpError(500, `improvement-proof query failed: ${error.message}`);
@@ -220,16 +271,57 @@ export async function getImprovementProof(
   // turn a genuine rewrite improvement into a false decline (and corrupt the
   // "your rewrites gain +X%" headline / paywall pitch). Only compare within one
   // calibration era. (RUBRIC_RECALIBRATED_AT, @neev/shared)
-  const rows = allRows.filter((r) => isPreRecalibration(r.before_date) === isPreRecalibration(r.after_date));
-  if (rows.length === 0) return { items: [], avg_delta_pct: null };
+  const eraRows = allRows.filter((r) => isPreRecalibration(r.before_date) === isPreRecalibration(r.after_date));
+  if (eraRows.length === 0) return { items: [], avg_delta_pct: null };
 
-  const questionIds = [...new Set(rows.map((r) => r.question_id))];
+  const questionIds = [...new Set(eraRows.map((r) => r.question_id))];
   const { data: questions, error: qError } = await supabase()
     .from("questions")
-    .select("id, stem_i18n")
+    .select("id, stem_i18n, syllabus_node_id")
     .in("id", questionIds);
   if (qError) throw new HttpError(500, `improvement-proof question lookup failed: ${qError.message}`);
   const stemById = new Map((questions ?? []).map((q) => [q.id as string, q.stem_i18n as BilingualText]));
+
+  // FOUND LIVE 2026-07-30 (U3 sibling audit): profile_improvement_pairs (the
+  // RPC above) pools re-attempted-question pairs across every exam the user
+  // has ever submitted an evaluation under — the same "mixing distorts the
+  // headline number" class this file's other analytics were already fixed
+  // for. A pair can never be MISattributed to the wrong exam (it's matched by
+  // one question_id, and a question belongs to exactly one product exam via
+  // its syllabus node — M19, never shared across exams); the bug is only that
+  // unscoped, pairs from different exams get mixed into one list/average.
+  // Resolved via the question's syllabus_node_id, never `questions.exam_code`
+  // (provenance — see lib/exams.ts's examCodeForNode doc comment), matching
+  // the distinction M7 already established for every other untrusted-node-id
+  // site in this app. No migration needed: `profile_improvement_pairs` itself
+  // is untouched, this only filters its already-fetched rows.
+  let rows = eraRows;
+  if (examCode) {
+    const nodeIds = [
+      ...new Set(
+        (questions ?? [])
+          .map((q) => q.syllabus_node_id as string | null)
+          .filter((id): id is string => !!id),
+      ),
+    ];
+    const nodeExamById = new Map<string, string>();
+    if (nodeIds.length > 0) {
+      const { data: nodes, error: nodeError } = await supabase()
+        .from("syllabus_nodes")
+        .select("id, exam_code")
+        .in("id", nodeIds);
+      if (nodeError) throw new HttpError(500, `improvement-proof node lookup failed: ${nodeError.message}`);
+      for (const n of nodes ?? []) nodeExamById.set(n.id as string, n.exam_code as string);
+    }
+    const questionExamById = new Map(
+      (questions ?? []).map((q) => {
+        const nodeId = q.syllabus_node_id as string | null;
+        return [q.id as string, nodeId ? (nodeExamById.get(nodeId) ?? null) : null] as const;
+      }),
+    );
+    rows = eraRows.filter((r) => questionExamById.get(r.question_id) === examCode);
+  }
+  if (rows.length === 0) return { items: [], avg_delta_pct: null };
 
   const items: ImprovementProofItem[] = rows.map((r) => {
     const before_pct = round1((100 * Number(r.before_score)) / Number(r.before_max_score));
@@ -257,8 +349,8 @@ export async function getProfileAnalytics(userId: string): Promise<ProfileAnalyt
   const [score_trajectory, accuracy_time_buckets, evaluationTrend, improvement_proof] = await Promise.all([
     getScoreTrajectory(userId, examCode),
     getAccuracyTimeBuckets(userId),
-    fetchRecentEvaluations(userId, 30),
-    getImprovementProof(userId),
+    fetchRecentEvaluations(userId, 30, examCode),
+    getImprovementProof(userId, examCode),
   ]);
 
   return {

@@ -24,13 +24,14 @@ import type {
   TimeAttackStart,
   TimeAttackTopic,
 } from "@neev/shared";
-import { TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE, timeAttackPaperCodeSchema } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, TIME_ATTACK_MINUTES, TIME_ATTACK_SIZE, timeAttackPaperCodeSchema } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { getTestDetail } from "./tests.js";
 import { startAttempt } from "./attempts.js";
 import { touchFeature } from "../lib/feature-touch.js";
+import { getUserExam } from "../lib/exams.js";
 
 const NO_NEGATIVE = { type: "time_attack", negative_marking: 0, note: "no negative marking" };
 
@@ -171,8 +172,26 @@ function mapPersonalBest(row: Record<string, unknown> | null | undefined): Perso
   };
 }
 
-/** The topics offerable for Time Attack on one paper: the paper root ("All GS-I"/"All CSAT") + any node with >= 10 published MCQs. */
+/**
+ * The topics offerable for Time Attack on one paper: the paper root ("All GS-I"/"All CSAT") + any node with >= 10 published MCQs.
+ *
+ * `timeAttackPaperCodeSchema` only ever accepts the two bare UPPSC codes
+ * (`PRE_GS1`/`PRE_CSAT` — see the shared schema comment), so this feature's
+ * content is unconditionally UPPSC's, regardless of what `paperCode` the
+ * caller passes. The web client already narrows to nothing for a non-UPPSC
+ * user (see `useTimeAttackPapers`'s comment in practice-time-attack.tsx), but
+ * that's a client-side courtesy, not enforcement — this endpoint used to have
+ * no server-side check at all, so a signed-in user of a DIFFERENT exam could
+ * call it directly and read real UPPSC topic titles/counts they have no
+ * access to anywhere else in the app (confirmed live during a U3 audit).
+ * Honest empty result for a mismatched exam, matching `variantsForExam`'s
+ * pattern elsewhere — this is a discovery/listing surface, not an untrusted-id
+ * lookup, so a 404 would be the wrong shape here.
+ */
 export async function getTimeAttackTopics(userId: string, paperCode: TimeAttackPaperCode): Promise<TimeAttackTopic[]> {
+  const examCode = await getUserExam(userId);
+  if (examCode !== DEFAULT_EXAM_CODE) return [];
+
   const [nodesRes, questionsRes, bestsRes] = await Promise.all([
     supabase().from("syllabus_nodes").select("id, depth, path, title_i18n").eq("paper_code", paperCode),
     supabase().from("questions").select("syllabus_node_id").eq("paper_code", paperCode).eq("type", "mcq").eq("is_published", true).not("syllabus_node_id", "is", null),
@@ -216,16 +235,26 @@ export async function getTimeAttackTopics(userId: string, paperCode: TimeAttackP
 }
 
 export async function startTimeAttack(userId: string, nodeId: string): Promise<TimeAttackStart> {
-  const { data: node, error: nodeErr } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, paper_code")
-    .eq("id", nodeId)
-    .maybeSingle();
+  // `nodeId` is an untrusted id (same class as `resolveOrderedNodes`/
+  // `assertAnchorExists`), so the exam check has to happen HERE, before any
+  // row is written — `startAttempt` (called later in this function) already
+  // does its own exam check on the test this creates, but relying on that as
+  // the only guard let a mismatched-exam call still insert a real `tests` +
+  // `test_questions` row before being rejected downstream (confirmed live
+  // during a U3 audit: a target_exam='upsc' caller's request 404'd, but left
+  // an orphaned UPPSC time_attack test behind). 404, not a more specific
+  // error, matching the established "don't confirm a foreign id exists" M7
+  // convention used elsewhere.
+  const [{ data: node, error: nodeErr }, examCode] = await Promise.all([
+    supabase().from("syllabus_nodes").select("id, paper_code, exam_code").eq("id", nodeId).maybeSingle(),
+    getUserExam(userId),
+  ]);
   if (nodeErr) throw new HttpError(500, `node lookup failed: ${nodeErr.message}`);
   const paperCheck = node ? timeAttackPaperCodeSchema.safeParse(node.paper_code) : null;
   if (!node || !paperCheck?.success) {
     throw badRequest("Time Attack is only available for GS-I or CSAT topics");
   }
+  if ((node as { exam_code: string }).exam_code !== examCode) throw notFound("Topic not found");
   const paperCode = paperCheck.data;
 
   const subtree = await resolveSubtreeNodeIds(nodeId);

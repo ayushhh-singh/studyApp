@@ -29,6 +29,7 @@ import type { LeaderboardEntry, WeeklyDigest } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError } from "../lib/http-error.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
+import { getUserExam } from "../lib/exams.js";
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100;
@@ -105,11 +106,28 @@ export async function getWeeklyDigest(
  * Leaderboard — BUILT BUT HIDDEN (no nav entry) until opt-in social features
  * land. Ranks users by streak, then questions attempted. With one dev user
  * today it's a single row, but the query doesn't assume that.
+ *
+ * EXAM SCOPING (2026-07-30, U3 sibling audit): "hidden from nav" does not
+ * mean unreachable — `GET /leaderboard` (routes/engagement.ts) is a real,
+ * live route, and this had NO exam scoping at all, which is the exact thing
+ * M9 already decided the app's real (visible) scoreboards must never do
+ * ("boards/community are exam-separated"). Two fixes: (1) only pool users
+ * whose CURRENTLY ACTIVE exam is this one — `streak_count` always means
+ * "this user's live streak for their currently active exam" (the
+ * park/restore swap in updateProfile, migration 0111), so ranking it against
+ * a user on a DIFFERENT active exam compares two incommensurable numbers;
+ * (2) each user's graded-answer count/accuracy is scoped to attempts on
+ * tests belonging to that same exam, via a two-step attempt-ids-then-answers
+ * lookup mirroring getWeeklyDigest's own established pattern above — this
+ * avoids an unproven two-level-deep nested embed filter
+ * (`attempts.tests.exam_code`) for a low-traffic, unlinked surface.
  */
 export async function getLeaderboard(userId: string): Promise<LeaderboardEntry[]> {
+  const examCode = await getUserExam(userId);
   const { data: profiles, error } = await supabase()
     .from("users_profile")
     .select("id, display_name, streak_count")
+    .eq("target_exam", examCode)
     .order("streak_count", { ascending: false })
     .limit(100);
   if (error) throw new HttpError(500, `leaderboard lookup failed: ${error.message}`);
@@ -117,12 +135,24 @@ export async function getLeaderboard(userId: string): Promise<LeaderboardEntry[]
   const rows = (profiles ?? []) as { id: string; display_name: string | null; streak_count: number }[];
   const entries: LeaderboardEntry[] = [];
   for (const p of rows) {
-    const { data: answers } = await supabase()
-      .from("attempt_answers")
-      .select("is_correct, attempts!inner(user_id)")
-      .eq("attempts.user_id", p.id)
-      .not("is_correct", "is", null);
-    const graded = (answers ?? []) as { is_correct: boolean }[];
+    const { data: examAttempts, error: attemptsError } = await supabase()
+      .from("attempts")
+      .select("id, tests!inner(exam_code)")
+      .eq("user_id", p.id)
+      .eq("tests.exam_code", examCode);
+    if (attemptsError) throw new HttpError(500, `leaderboard attempts lookup failed: ${attemptsError.message}`);
+    const attemptIds = (examAttempts ?? []).map((a) => a.id as string);
+
+    let graded: { is_correct: boolean }[] = [];
+    if (attemptIds.length > 0) {
+      const { data: answers, error: answersError } = await supabase()
+        .from("attempt_answers")
+        .select("is_correct")
+        .in("attempt_id", attemptIds)
+        .not("is_correct", "is", null);
+      if (answersError) throw new HttpError(500, `leaderboard answers lookup failed: ${answersError.message}`);
+      graded = (answers ?? []) as { is_correct: boolean }[];
+    }
     const correct = graded.filter((a) => a.is_correct).length;
     entries.push({
       rank: 0,

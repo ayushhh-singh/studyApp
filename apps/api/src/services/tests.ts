@@ -482,12 +482,18 @@ function currentAffairsQuizTitle(days: number): BilingualText {
 const CURRENT_AFFAIRS_QUIZ_SIZE = 25;
 const CURRENT_AFFAIRS_REINFORCEMENT_RATIO = 0.2;
 
-/** Question ids this user has already been given in a past "Quiz me on this week" attempt. */
-async function seenCurrentAffairsQuestionIds(userId: string): Promise<Set<string>> {
+/**
+ * Question ids this user has already been given in a past "Quiz me on this
+ * week" attempt. Exam-scoped (2026-07-30, U3 sibling audit — see
+ * createCustomTestFromCurrentAffairs' own comment): without it, a user's
+ * reinforcement pool would mix in CA quizzes taken under a different exam.
+ */
+async function seenCurrentAffairsQuestionIds(userId: string, examCode: string): Promise<Set<string>> {
   const { data: caTests, error: caTestsError } = await supabase()
     .from("tests")
     .select("id")
-    .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+    .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+    .eq("exam_code", examCode);
   if (caTestsError) throw new HttpError(500, `past CA quiz lookup failed: ${caTestsError.message}`);
   const caTestIds = (caTests ?? []).map((t) => t.id as string);
   if (caTestIds.length === 0) return new Set();
@@ -526,13 +532,29 @@ async function seenCurrentAffairsQuestionIds(userId: string): Promise<Set<string
  * filter is a defense-in-depth no-op here (every id already comes from a
  * current-affairs item's own mcq_question_ids) rather than a behaviour
  * change.
+ *
+ * EXAM SCOPING (2026-07-30, U3 sibling audit): this function had TWO bugs of
+ * the exact class magazine.ts's compilePrelimsEdition/compileMainsEdition
+ * were already fixed for in this same session. (1) The `current_affairs_items`
+ * read carried no `.overlaps("exam_codes", ...)` filter — the same
+ * `.overlaps` idiom current-affairs.ts's listCurrentAffairs and magazine.ts
+ * already use — so a UPSC/MPPSC user's "Quiz me on this week" would pool
+ * every exam's current-affairs MCQs, not just their own. (2) The created test
+ * was inserted with NO `exam_code`, silently taking the column default
+ * ('uppsc', see 0106 §5). Once a second exam is live, tests.ts's own
+ * (already-fixed) getTestDetail — called at the very end of this function —
+ * would then 404 the very test this function just created for any non-uppsc
+ * user, since `test.exam_code !== examCode`. Both closed the same way every
+ * other test-assembly path in this file now stamps `exam_code`.
  */
 export async function createCustomTestFromCurrentAffairs(days: number): Promise<TestDetail> {
+  const examCode = await getUserExam(currentUserId());
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data: items, error: itemsError } = await supabase()
     .from("current_affairs_items")
     .select("mcq_question_ids")
     .eq("is_published", true)
+    .overlaps("exam_codes", [examCode])
     .gte("date", cutoff);
   if (itemsError) throw new HttpError(500, `current affairs lookup failed: ${itemsError.message}`);
 
@@ -552,7 +574,7 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
     throw badRequest(`No current-affairs practice MCQs are available for the last ${days} days yet`);
   }
 
-  const seenIds = await seenCurrentAffairsQuestionIds(currentUserId());
+  const seenIds = await seenCurrentAffairsQuestionIds(currentUserId(), examCode);
   const freshPool = available.filter((q) => !seenIds.has(q.id));
   const seenPool = available.filter((q) => seenIds.has(q.id));
 
@@ -578,6 +600,9 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
     .insert({
       title_i18n: currentAffairsQuizTitle(days),
       kind: "custom",
+      // Left on the column default this would always read 'uppsc' — see this
+      // function's own doc comment above.
+      exam_code: examCode,
       paper_code: CURRENT_AFFAIRS_PAPER_CODE,
       total_marks: totalMarks || null,
       is_published: true,
