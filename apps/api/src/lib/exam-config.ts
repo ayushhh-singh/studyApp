@@ -67,6 +67,12 @@ import {
   PRELIMS_CSAT_PAPER_CODE,
   PRELIMS_GS1_PAPER_CODE,
 } from "./exam-papers.js";
+import {
+  UPSC_ESSAY_PAPER_CODE,
+  UPSC_MAINS_GS_PAPER_CODES,
+  UPSC_PRELIMS_CSAT_PAPER_CODE,
+  UPSC_PRELIMS_GS1_PAPER_CODE,
+} from "./upsc-papers.js";
 import { logger } from "./logger.js";
 import { supabase } from "./supabase.js";
 
@@ -815,6 +821,26 @@ const UPPSC_DIRECTIVE_VERBS =
 const UPPSC_MAINS_SETTER = "an experienced UPPSC Mains paper setter";
 
 /**
+ * UPSC's counterparts to the two consts above (M34, hoisted 2026-07-31). They
+ * were authored as duplicated literals inside the `UPSC` block because that pass
+ * was scoped to edit only inside it.
+ *
+ * ⚑ De-duplicating the LITERAL does NOT merge the FIELDS. `qgen.*` and `ca.*`
+ * stay separate fields precisely so the two generators (question bank vs current
+ * affairs) can diverge per exam later — and their host templates already differ
+ * ("…and demand analysis, not mere recall." vs "…not recall."), so the sentences
+ * they build are not identical even today. Point a new exam's two fields at one
+ * const only while the two values genuinely are one value.
+ */
+const UPSC_DIRECTIVE_VERBS =
+  "a real UPSC directive verb — Discuss most often, then Explain / Examine / Comment / Analyse / Elucidate " +
+  "('Critically examine' is only about 2% of real stems, so never make it the default) — or, in roughly a third " +
+  "of questions as real UPSC papers do, with no directive verb at all (a bare What / How / Why interrogative, " +
+  "or a bare topic statement)";
+
+const UPSC_MAINS_SETTER = "an experienced UPSC Civil Services Mains paper setter";
+
+/**
  * The retrieval-store label, WITHOUT a leading article, so all four grounding
  * blocks (evaluation / qgen / notes / chapter) can reuse it despite phrasing the
  * surrounding sentence differently.
@@ -1202,9 +1228,25 @@ const UPSC: ExamConfig = {
     displayNameI18n: { en: "UPSC Civil Services", hi: "यूपीएससी सिविल सेवा" },
   },
 
-  // null = no syllabus ingested yet. When one is, these MUST be exam-prefixed
-  // ("UPSC_PRE_GS1") — paper codes are globally unique across exams.
-  papers: { essay: null, generalHindi: null, prelimsGs: null, prelimsCsat: null, mainsGs: [] },
+  // POPULATED 2026-07-31 (M32). The 202-node UPSC tree and its 7 bound paper
+  // codes have existed since migration 0112; leaving these null was stale rather
+  // than harmful, but it read as "UPSC has no papers". Codes come from
+  // `lib/upsc-papers.ts` (M31), never re-typed here — see that module for the
+  // order of authority and for the §0 global-uniqueness invariant that makes the
+  // `UPSC_` prefix mandatory.
+  //
+  // ⚑ `generalHindi: null` IS THE CORRECT VALUE, not an oversight: UPSC has no
+  // General Hindi paper at all. UPPSC's `MAINS_GH` has no UPSC counterpart, so
+  // this null means "does not exist", not "not ingested yet". (UPSC's Paper-A /
+  // Paper-B qualifying language papers are a different thing, are out of launch
+  // scope, and are deliberately code-less in 0112.)
+  papers: {
+    essay: UPSC_ESSAY_PAPER_CODE,
+    generalHindi: null,
+    prelimsGs: UPSC_PRELIMS_GS1_PAPER_CODE,
+    prelimsCsat: UPSC_PRELIMS_CSAT_PAPER_CODE,
+    mainsGs: UPSC_MAINS_GS_PAPER_CODES,
+  },
 
   calendar: { lookupExamCode: "upsc", countdownStage: "prelims" },
 
@@ -1369,7 +1411,7 @@ const UPSC: ExamConfig = {
   qgen: {
     prelimsSetterFraming:
       "an experienced UPSC (Union Public Service Commission) Civil Services Prelims question setter",
-    mainsSetterFraming: "an experienced UPSC Civil Services Mains paper setter",
+    mainsSetterFraming: UPSC_MAINS_SETTER,
     criticFraming: "a strict UPSC Civil Services question-quality reviewer",
     verifierFraming: "a top UPSC Civil Services aspirant sitting the exam",
     fewShotHeader:
@@ -1394,15 +1436,10 @@ const UPSC: ExamConfig = {
       "ordering and negative 'which is NOT' framings rare — each is under 4% of real papers. For a CSAT topic drop " +
       "the statement-set norm entirely: CSAT is passage comprehension, logical inference and quantitative aptitude, " +
       "and is overwhelmingly direct single-item.",
-    // Shares its wording with `ca.mainsDirectiveVerbGuidance` below (as uppsc's
-    // does via one const), but is DUPLICATED rather than hoisted: this authoring
-    // pass edits only inside the UPSC block, and the two fields exist precisely
-    // so the two generators can diverge per exam later.
-    directiveVerbGuidance:
-      "a real UPSC directive verb — Discuss most often, then Explain / Examine / Comment / Analyse / Elucidate " +
-      "('Critically examine' is only about 2% of real stems, so never make it the default) — or, in roughly a third " +
-      "of questions as real UPSC papers do, with no directive verb at all (a bare What / How / Why interrogative, " +
-      "or a bare topic statement)",
+    // Shares ONE const with `ca.mainsDirectiveVerbGuidance` below, exactly as
+    // uppsc does (M34, 2026-07-31). Still two separate FIELDS on purpose — see
+    // the const's own note for why the fields are not merged.
+    directiveVerbGuidance: UPSC_DIRECTIVE_VERBS,
     marksNormGuidance:
       "real UPSC Mains norms (a GS-I to GS-III question is either 10 marks / 150 words or 15 marks / 250 words, in " +
       "roughly equal measure; a GS-IV Ethics question is usually 20 marks and is often a case study; an Essay is " +
@@ -1501,14 +1538,11 @@ const UPSC: ExamConfig = {
     mcqRelevanceFilter:
       "write a question for a fact ONLY if it carries national or international significance AND a real UPSC " +
       "Civil Services prelims paper would plausibly test it",
-    mainsSetterFraming: "an experienced UPSC Civil Services Mains paper setter",
-    // Byte-identical to `qgen.directiveVerbGuidance` above; duplicated for the
-    // same reason recorded there.
-    mainsDirectiveVerbGuidance:
-      "a real UPSC directive verb — Discuss most often, then Explain / Examine / Comment / Analyse / Elucidate " +
-      "('Critically examine' is only about 2% of real stems, so never make it the default) — or, in roughly a third " +
-      "of questions as real UPSC papers do, with no directive verb at all (a bare What / How / Why interrogative, " +
-      "or a bare topic statement)",
+    mainsSetterFraming: UPSC_MAINS_SETTER,
+    // Same const as `qgen.directiveVerbGuidance` above; the host templates still
+    // differ ("…not mere recall." vs "…not recall."), which is why these remain
+    // two fields rather than one.
+    mainsDirectiveVerbGuidance: UPSC_DIRECTIVE_VERBS,
     mainsMarksNorm:
       "Realistic UPSC Mains marks + word limit (a GS-I to GS-III question is either 10 marks / 150 words or 15 " +
       "marks / 250 words; a GS-IV Ethics question is usually 20 marks).",

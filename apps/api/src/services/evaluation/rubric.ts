@@ -74,6 +74,11 @@ import {
 } from "@neev/shared";
 import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
 import { ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, ESSAY_MAX_MARKS } from "../../lib/exam-papers.js";
+import {
+  UPSC_EXAM_CODE,
+  UPSC_ESSAY_PAPER_CODE,
+  UPSC_ETHICS_PAPER_CODE,
+} from "../../lib/upsc-papers.js";
 
 export { RUBRIC_VERSION, ESSAY_RUBRIC_VERSION };
 
@@ -125,12 +130,40 @@ export interface RubricDimension {
   description: string;
 }
 
+/**
+ * Which MODEL-ANSWER prompt an answer graded under this rubric should be shown
+ * (`buildModelAnswerSystem`). Server-only prompt routing — deliberately NOT the
+ * same axis as `kind`:
+ *
+ *   `kind` is PERSISTED (`evaluations.rubric_kind`, a DB CHECK admitting only
+ *   'gs' | 'essay') and is the BOARD segmentation axis. It cannot express
+ *   "ethics" without a migration, and widening it would change
+ *   `mv_mains_weekly_board`'s segmentation — GS-IV must keep competing on the GS
+ *   board.
+ *
+ *   `modelAnswerShape` is in-memory only and answers a different question:
+ *   "which model answer would score near-full marks under THIS rubric?"
+ *
+ * ADDED 2026-07-31 (docs/OUTSTANDING.md §8f M35). Before it, pass 2 branched on
+ * `kind`, so `upsc-ethics-v1` — deliberately `kind: "gs"` — took the GS branch
+ * and told the candidate to substantiate with "constitutional articles,
+ * committees, schemes, and national and international evidence (Economic Survey
+ * and NITI Aayog data, global indices…)" while the rubric it had JUST been
+ * scored against says that dimension "is NOT about statistics, citations or
+ * data… do not penalise an answer merely for citing few facts". Pass 1 scored
+ * realism and practicability; pass 2 handed the candidate a data-heavy model to
+ * imitate. A third shape fixes that without touching the persisted axis.
+ */
+export type ModelAnswerShape = "gs" | "essay" | "ethics";
+
 export interface RubricDefinition {
   version: string;
   /** Whose mark scheme this encodes. One exam per version — see the header. */
   examCode: string;
   /** GS vs Essay — the board/percentile segmentation axis. */
   kind: RubricKind;
+  /** Which model-answer prompt pass 2 writes. See `ModelAnswerShape`. */
+  modelAnswerShape: ModelAnswerShape;
   /** Paper codes selecting this rubric; empty = the exam's default rubric. */
   paperCodes: readonly string[];
   /** Assumed when the question / custom prompt carries no word limit or marks. */
@@ -275,16 +308,15 @@ function essayDimensions(examCode: string, wordLimit: number): readonly RubricDi
   ];
 }
 
-/**
- * UPSC's paper codes are declared here as literals rather than imported: the
- * canonical list lives in the hand-authored syllabus seed
- * (`ingest/seed/upsc-syllabus-tree.ts`, bound to `exams.paper_structure` by
- * migration 0112), and `lib/exam-papers.ts` is UPPSC's own constants module. If
- * a shared UPSC paper-code module is ever added, re-point these at it.
+/*
+ * UPSC's paper codes used to be local literals here (M31), because the canonical
+ * list lives in the hand-authored syllabus seed and `lib/exam-papers.ts` is
+ * UPPSC's own constants module. RESOLVED 2026-07-31: they now come from
+ * `lib/upsc-papers.ts`, UPSC's sibling constants module — see its header for the
+ * order of authority (seed + migration 0112 win) and for why it carries paper
+ * CODES only. The word limits and max marks below stay here on purpose: they are
+ * this rubric's `defaults`, not paper structure (see the header's `defaults` note).
  */
-const UPSC_EXAM_CODE = "upsc";
-const UPSC_ESSAY_PAPER_CODE = "UPSC_MAINS_ESSAY";
-const UPSC_GS4_PAPER_CODE = "UPSC_MAINS_GS4";
 
 /** One UPSC essay: ~1200 words for 125 marks (the paper sets two, for 250). */
 const UPSC_ESSAY_WORD_LIMIT = 1200;
@@ -348,9 +380,18 @@ const UPSC_ESSAY_DIMENSIONS = essayDimensions(UPSC_EXAM_CODE, UPSC_ESSAY_WORD_LI
  *     definitional or quotation item… if it is a narrative case study…"). The
  *     model discriminates from the real text, which beats a regex.
  *
- * FOLLOW-UP if the split is ever wanted: our corpus already carries ground-truth
- * case-study tagging, so validate a discriminator against the ~50-100 already
- * tagged 20-markers BEFORE shipping it — do not ship the estimate.
+ * FOLLOW-UP if the split is ever wanted: there is NO ground-truth case-study
+ * tagging to validate a discriminator against — it would have to be created
+ * first. CORRECTED 2026-07-31: an earlier draft of this note claimed the corpus
+ * "already carries ground-truth case-study tagging" with "~50-100 already tagged
+ * 20-markers". Measured, that is false. All 131 `UPSC_MAINS_GS4` rows carry
+ * `meta` with exactly one key (`source_ref`, e.g. "upsc_mains_2025_gs4#q4") and
+ * `generation_meta` NULL on 131/131; a needle scan for every plausible tag name
+ * (case_study / question_shape / variant / sub_type / section / …) finds none.
+ * The "51% case-study-shaped" figure below came from a REGEX OVER STEM TEXT, not
+ * a stored tag — which is exactly the unvalidated heuristic point 2 above refuses
+ * to ship on. So: hand-label a sample first, then validate, then ship — do not
+ * ship the estimate, and do not go looking for a tag that has never existed.
  *
  * MEASURED from our own 2,791-row UPSC PYQ corpus: 10-mark GS-IV questions
  * (n=20) are median 25 words and 0% case-study-shaped; 20-markers (n=102) are
@@ -479,6 +520,7 @@ export const RUBRICS: Record<string, RubricDefinition> = {
     version: RUBRIC_VERSION,
     examCode: DEFAULT_EXAM_CODE,
     kind: "gs",
+    modelAnswerShape: "gs",
     paperCodes: [], // UPPSC's default: every Mains paper except the Essay paper.
     defaults: { wordLimit: DEFAULT_WORD_LIMIT, maxScore: DEFAULT_MAX_SCORE },
     dimensions: V1_DIMENSIONS,
@@ -487,6 +529,7 @@ export const RUBRICS: Record<string, RubricDefinition> = {
     version: ESSAY_RUBRIC_VERSION,
     examCode: DEFAULT_EXAM_CODE,
     kind: "essay",
+    modelAnswerShape: "essay",
     paperCodes: [ESSAY_PAPER_CODE],
     defaults: { wordLimit: ESSAY_WORD_LIMIT, maxScore: ESSAY_MAX_MARKS },
     dimensions: ESSAY_V1_DIMENSIONS,
@@ -495,6 +538,7 @@ export const RUBRICS: Record<string, RubricDefinition> = {
     version: "upsc-gs-v1",
     examCode: UPSC_EXAM_CODE,
     kind: "gs",
+    modelAnswerShape: "gs",
     paperCodes: [], // UPSC's default: every Mains paper except Essay and GS-IV.
     defaults: { wordLimit: UPSC_GS_WORD_LIMIT, maxScore: UPSC_GS_MAX_SCORE },
     dimensions: UPSC_GS_DIMENSIONS,
@@ -503,6 +547,7 @@ export const RUBRICS: Record<string, RubricDefinition> = {
     version: "upsc-essay-v1",
     examCode: UPSC_EXAM_CODE,
     kind: "essay",
+    modelAnswerShape: "essay",
     paperCodes: [UPSC_ESSAY_PAPER_CODE],
     defaults: { wordLimit: UPSC_ESSAY_WORD_LIMIT, maxScore: UPSC_ESSAY_MAX_MARKS },
     dimensions: UPSC_ESSAY_DIMENSIONS,
@@ -511,11 +556,16 @@ export const RUBRICS: Record<string, RubricDefinition> = {
   // compete on the GS board. `evaluations.rubric_kind` is a DB CHECK-constrained
   // column admitting only 'gs' | 'essay', so a third kind would need a migration
   // AND would change mv_mains_weekly_board's segmentation.
+  //
+  // `modelAnswerShape` is where the difference belongs instead — it is in-memory
+  // prompt routing, so pass 2 can write an ethics model answer without the
+  // persisted board axis learning a third value (M35).
   "upsc-ethics-v1": {
     version: "upsc-ethics-v1",
     examCode: UPSC_EXAM_CODE,
     kind: "gs",
-    paperCodes: [UPSC_GS4_PAPER_CODE],
+    modelAnswerShape: "ethics",
+    paperCodes: [UPSC_ETHICS_PAPER_CODE],
     defaults: { wordLimit: UPSC_ETHICS_WORD_LIMIT, maxScore: UPSC_ETHICS_MAX_MARKS },
     dimensions: ETHICS_DIMENSIONS,
   },
@@ -525,8 +575,9 @@ export const RUBRICS: Record<string, RubricDefinition> = {
 // ends up with two default GS rubrics / two rubrics claiming one paper — both
 // would make resolveRubric's answer depend on object key order.
 {
-  const defaultByExam = new Map<string, string>();
+  const defaultByExam = new Map<string, RubricDefinition>();
   const ownerByPaper = new Map<string, string>();
+  const byExam = new Map<string, RubricDefinition[]>();
   for (const def of Object.values(RUBRICS)) {
     const sum = def.dimensions.reduce((s, d) => s + d.weight, 0);
     if (Math.abs(sum - 1) > 1e-9) {
@@ -534,13 +585,42 @@ export const RUBRICS: Record<string, RubricDefinition> = {
     }
     if (def.paperCodes.length === 0) {
       const prior = defaultByExam.get(def.examCode);
-      if (prior) throw new Error(`Exams may have one default rubric: ${def.examCode} has ${prior} and ${def.version}`);
-      defaultByExam.set(def.examCode, def.version);
+      if (prior) throw new Error(`Exams may have one default rubric: ${def.examCode} has ${prior.version} and ${def.version}`);
+      defaultByExam.set(def.examCode, def);
     }
     for (const paper of def.paperCodes) {
       const prior = ownerByPaper.get(paper);
       if (prior) throw new Error(`Paper ${paper} is claimed by two rubrics: ${prior} and ${def.version}`);
       ownerByPaper.set(paper, def.version);
+    }
+    byExam.set(def.examCode, [...(byExam.get(def.examCode) ?? []), def]);
+  }
+
+  // ADDED 2026-07-31 (docs/OUTSTANDING.md §8f M36). `resolveRubricByKind` used to
+  // return the FIRST match in declaration order, and for ("upsc", "gs") BOTH
+  // `upsc-gs-v1` and `upsc-ethics-v1` match — so reordering the RUBRICS literal
+  // would silently have routed a custom-prompt UPSC GS answer to the ethics
+  // scheme. The resolver now prefers the exam's DEFAULT rubric (at most one per
+  // exam, asserted above), which makes the ambiguous case deterministic AND
+  // correct: a custom prompt names no paper, and a paper-selected rubric should
+  // only ever be reached BY its paper.
+  //
+  // That leaves exactly one residual ambiguity to close here: when an exam's
+  // default is of a DIFFERENT kind than the one asked for, the answer is whatever
+  // paper-selected rubric of that kind exists — so assert there is only one. (A
+  // second exam with two essay papers and two essay rubrics is the shape that
+  // would trip this; it would then need an explicit rule, not a key order.)
+  for (const [examCode, defs] of byExam) {
+    const dflt = defaultByExam.get(examCode);
+    for (const kind of new Set(defs.map((d) => d.kind))) {
+      if (dflt && dflt.kind === kind) continue; // the default wins — deterministic.
+      const candidates = defs.filter((d) => d.kind === kind);
+      if (candidates.length > 1) {
+        throw new Error(
+          `resolveRubricByKind(${examCode}, ${kind}) is ambiguous: ` +
+            `${candidates.map((c) => c.version).join(", ")} all match and none is the exam's default rubric`,
+        );
+      }
     }
   }
 }
@@ -575,15 +655,34 @@ export function resolveRubric(examCode: string, paperCode?: string | null): Rubr
 }
 
 /**
+ * The one rubric of a given kind that an exam is represented by when NO paper is
+ * named. Prefers the exam's DEFAULT rubric (empty `paperCodes`) — see the
+ * load-time assertion block for why that preference is both deterministic and
+ * correct, and for the residual case it asserts away.
+ */
+function pickByKind(pool: readonly RubricDefinition[], kind: RubricKind): RubricDefinition | null {
+  const ofKind = pool.filter((r) => r.kind === kind);
+  if (ofKind.length === 0) return null;
+  // At most one default per exam, and at most one candidate when the default is
+  // of another kind — both asserted at load, so this is order-independent.
+  return ofKind.find((r) => r.paperCodes.length === 0) ?? ofKind[0];
+}
+
+/**
  * The rubric a user explicitly opted into via `answer_submissions.meta.rubric`
  * (the writing room's essay mode on a non-catalogued topic), scoped to their
  * exam — so a UPSC user asking for "essay" gets UPSC's essay rubric, never
  * UPPSC's. Returns null when the value names no rubric of that kind.
+ *
+ * FIXED 2026-07-31 (M36): this used to return `forExam[0]`, i.e. whichever
+ * matching rubric happened to be declared first in the `RUBRICS` literal.
  */
 export function resolveRubricByKind(examCode: string, kind: RubricKind): RubricDefinition | null {
-  const forExam = Object.values(RUBRICS).filter((r) => r.examCode === examCode && r.kind === kind);
-  if (forExam.length > 0) return forExam[0];
-  return Object.values(RUBRICS).find((r) => r.examCode === DEFAULT_EXAM_CODE && r.kind === kind) ?? null;
+  const all = Object.values(RUBRICS);
+  return (
+    pickByKind(all.filter((r) => r.examCode === examCode), kind) ??
+    pickByKind(all.filter((r) => r.examCode === DEFAULT_EXAM_CODE), kind)
+  );
 }
 
 /**
@@ -595,6 +694,15 @@ export function rubricKindOf(version: string): RubricKind {
   return RUBRICS[version]?.kind ?? "gs";
 }
 
+/**
+ * Which model-answer prompt pass 2 should write for a version. Unknown/legacy
+ * versions read as "gs" — the same fallback `rubricKindOf` makes, and the same
+ * one `buildModelAnswerSystem` had before the shape existed.
+ */
+export function modelAnswerShapeOf(version: string): ModelAnswerShape {
+  return RUBRICS[version]?.modelAnswerShape ?? "gs";
+}
+
 /** The ordered dimensions for a rubric version. */
 export function rubricDimensions(version: string): readonly RubricDimension[] {
   return getRubric(version).dimensions;
@@ -604,6 +712,48 @@ export function rubricDimension(version: string, key: RubricDimensionKey): Rubri
   const d = getRubric(version).dimensions.find((x) => x.key === key);
   if (!d) throw new Error(`Unknown rubric dimension: ${key}`);
   return d;
+}
+
+/**
+ * The most heavily weighted dimensions of a rubric — the "biggest score levers"
+ * the improvements prompt tells the model to prioritise.
+ *
+ * ADDED 2026-07-31 (docs/OUTSTANDING.md §8f M30). `buildImprovementsSystem` used
+ * to ASSERT a fixed pair ("content coverage and examples/data carry the most
+ * weight"). Measured against the registry, that sentence was wrong for THREE of
+ * the five rubrics, including the live UPPSC default — it is not a new-exam
+ * mismatch but a pre-existing correctness bug:
+ *
+ *   v1 / upsc-gs-v1   coverage .30, structure .20, keywords .15, EXAMPLES .15  → joint-3rd
+ *   essay-v1 / upsc-essay-v1  coverage .30, structure .20, EXAMPLES .20        → joint-2nd
+ *   upsc-ethics-v1    coverage .25, structure .20, keywords .20, EXAMPLES .10  → LOWEST
+ *
+ * THE RULE, stated so it is not "improved" into something non-deterministic:
+ * sort by weight descending — `Array.prototype.sort` is stable, so declaration
+ * order breaks ties — then take everything at or above the SECOND-highest
+ * weight. Ties at the cutoff are INCLUDED rather than truncated to two, because
+ * dropping one of two equally weighted dimensions would be an arbitrary choice
+ * presented to the model as a ranking (`essay-v1` is exactly that case: structure
+ * and examples are both .20).
+ *
+ * DEGENERATE CUTS RETURN EMPTY (added 2026-07-31, §8f M37). The rule above can
+ * select EVERY dimension when the second-highest weight is also the lowest —
+ * `[.50,.10,.10,.10,.10,.10]` names 6 of 6, and an all-equal rubric names 6 of 6
+ * at 17% each, summing to 102%. The caller's sentence is "…weights X, Y above
+ * the rest", so naming everything claims a ranking over an empty remainder.
+ * Rather than TRUNCATE — which would make exactly the arbitrary choice the
+ * paragraph above refuses to make — the selection must be a PROPER SUBSET or the
+ * function returns `[]`, and `buildImprovementsSystem` falls back to a phrasing
+ * that names no dimensions. Not reachable by any registered rubric (the widest
+ * real cut is 3 of 6); this is a guard against a future re-weighting, and it
+ * leaves all five rubrics' output byte-identical.
+ */
+export function topWeightedDimensions(version: string): readonly RubricDimension[] {
+  const sorted = [...getRubric(version).dimensions].sort((a, b) => b.weight - a.weight);
+  if (sorted.length < 2) return [];
+  const cutoff = sorted[1].weight;
+  const top = sorted.filter((d) => d.weight >= cutoff);
+  return top.length < sorted.length ? top : [];
 }
 
 /**

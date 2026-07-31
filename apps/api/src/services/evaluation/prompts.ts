@@ -12,7 +12,13 @@
  */
 import type { Locale, RubricDimensionKey, SubmissionMode } from "@neev/shared";
 import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
-import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt, rubricKindOf } from "./rubric.js";
+import {
+  RUBRIC_DIMENSION_KEYS,
+  modelAnswerShapeOf,
+  renderRubricForPrompt,
+  rubricKindOf,
+  topWeightedDimensions,
+} from "./rubric.js";
 import type { GroundingResult } from "./grounding.js";
 
 /**
@@ -349,18 +355,56 @@ export function buildStrengthsSystem(examCode: string, language: Locale): string
   );
 }
 
-export function buildImprovementsSystem(examCode: string, language: Locale): string {
+/**
+ * FIXED 2026-07-31 (docs/OUTSTANDING.md §8f M30). This used to assert a fixed
+ * pair — "content coverage and examples/data carry the most weight" — with no
+ * rubric argument, so the claim was the same whichever rubric was in play.
+ * Measured against the registry, it was FALSE for three of the five rubrics,
+ * INCLUDING the live UPPSC default `v1` (coverage .30, structure .20, keywords
+ * .15, examples .15 → examples is only joint-THIRD) and flatly inverted for
+ * `upsc-ethics-v1`, which weights examples .10, its LOWEST. So this was a
+ * pre-existing correctness bug that the UPSC rubrics merely made obvious, not a
+ * new-exam mismatch — which is why the fix deliberately moves the uppsc snapshot
+ * keys rather than pinning the legacy string for the incumbent rubrics.
+ *
+ * The levers are now derived from the resolved rubric's own weights
+ * (`topWeightedDimensions`), so a re-weighting can never desynchronise the two
+ * again, and the percentages are stated rather than implied — the model sees the
+ * per-dimension SCORES in the shared context but never the WEIGHTS, so naming
+ * them is what makes "biggest score lever" computable rather than guessed.
+ *
+ * CACHE: this is evaluate.ts's SECOND, UNCACHED system segment (the breakpoint
+ * sits on the shared context at `[0]`), so lengthening it costs no cache entry —
+ * see the module header's cache-boundary note.
+ */
+export function buildImprovementsSystem(
+  examCode: string,
+  language: Locale,
+  rubricVersion: string,
+): string {
   const framing = requireAuthored(
     evalConfig(examCode).improvementsMentorFraming,
     examCode,
     "evaluation.improvementsMentorFraming",
   );
+  const levers = topWeightedDimensions(rubricVersion)
+    .map((d) => `${d.label} (${Math.round(d.weight * 100)}%)`)
+    .join(", ");
+  // `topWeightedDimensions` returns [] when no dimension genuinely outranks the
+  // rest (see its own note) — "weights X above the rest" would then be a claim
+  // over an empty remainder, so drop the clause rather than state it. Unreachable
+  // for all five registered rubrics; this keeps their text byte-identical.
+  const priority = levers
+    ? `Prioritise the biggest score levers — this paper's rubric weights ${levers} above the rest — and `
+    : `Prioritise the biggest score levers — this paper's rubric weighs every dimension alike, so lead with ` +
+      `whatever the analysis shows is weakest — and `;
   return (
     `You are ${framing}. Write ONLY the improvements — specific, actionable steps the ` +
     `candidate should take to score higher, in ${langName(language)}. You may use short numbered ` +
     `points (1., 2., 3.) or flowing prose. When you refer to the candidate's own writing, quote ` +
-    `their exact words in quotation marks. Prioritise the biggest score levers — content coverage ` +
-    `and examples/data carry the most weight — and ground suggestions in the missed key points. ` +
+    `their exact words in quotation marks. ` +
+    priority +
+    `ground suggestions in the missed key points. ` +
     NO_MARKDOWN +
     " " +
     UNTRUSTED_ANSWER_CLAUSE
@@ -382,13 +426,28 @@ export const FEEDBACK_WRITE_NOW = "Write your response now, following the instru
 // ---------------------------------------------------------------------------
 // Pass 2 — model answer (streamed)
 // ---------------------------------------------------------------------------
+/**
+ * FIXED 2026-07-31 (docs/OUTSTANDING.md §8f M35). This branched on `kind`, the
+ * PERSISTED board axis, which admits only 'gs' | 'essay' — so `upsc-ethics-v1`
+ * (deliberately `kind: "gs"`, because GS-IV must compete on the GS board) took
+ * the GS branch and handed the candidate a model answer that CONTRADICTED the
+ * rubric it had just been scored under: "substantiate with … national and
+ * international evidence (Economic Survey and NITI Aayog data, global indices…)"
+ * against a rubric that says that dimension "is NOT about statistics, citations
+ * or data" and "do not penalise an answer merely for citing few facts".
+ *
+ * It now branches on `modelAnswerShape`, an in-memory-only property of
+ * `RubricDefinition` — so pass 2 can differ per rubric without widening a
+ * DB CHECK-constrained column or changing `mv_mains_weekly_board`. `gs` and
+ * `essay` map 1:1 to the old `kind` branches, so `v1` / `essay-v1` /
+ * `upsc-gs-v1` / `upsc-essay-v1` output is byte-identical (the snapshot proves
+ * it), and an unknown version still falls back to `gs`.
+ */
 export function buildModelAnswerSystem(ctx: EvalContext): string {
   const { examCode } = ctx;
   const cfg = evalConfig(examCode);
-  // Kind, not the literal version string — same fix and same reason as
-  // buildAnalysisSystem above: `upsc-essay-v1` would otherwise have been given
-  // the GS model-answer prompt.
-  if (rubricKindOf(ctx.rubricVersion) === "essay") {
+  const shape = modelAnswerShapeOf(ctx.rubricVersion);
+  if (shape === "essay") {
     const framing = requireAuthored(
       cfg.modelAnswerFramingEssay,
       examCode,
@@ -415,6 +474,41 @@ export function buildModelAnswerSystem(ctx: EvalContext): string {
     examCode,
     "evaluation.modelAnswerFramingGs",
   );
+  if (shape === "ethics") {
+    // Deliberately reuses `modelAnswerFramingGs` and adds NO new config slot: an
+    // ethics paper IS a GS paper, so the framing is already right, and the rest
+    // of this prompt is rubric semantics rather than exam identity — the same
+    // reason `ETHICS_DIMENSIONS`' descriptions are prose in rubric.ts and not in
+    // exam-config. It also names no commission's paper number, so it reads
+    // correctly for any exam that later registers an ethics-shaped rubric.
+    //
+    // ⚑ It must NOT interpolate `substantiationExamples`. That list (committees,
+    // schemes, Economic Survey / NITI Aayog data, global indices) is exactly what
+    // the ethics rubric's `examples_data` dimension tells the examiner NOT to
+    // reward — this whole branch exists to stop pass 2 undercutting pass 1. Every
+    // instruction below is deliberately traceable to a dimension description in
+    // `ETHICS_DIMENSIONS`; edit the two together.
+    return (
+      `You are ${gsFraming}. Write a MODEL ANSWER to the ethics question in ` +
+      `${langName(ctx.language)} that would score near-full marks, within a word limit of ` +
+      `${ctx.wordLimit} words (stay within about 10% of it — do not overshoot). Answer in the ` +
+      `shape the question actually asks. If it is a narrative case study, establish the facts and ` +
+      `the ethical issues at stake, name the stakeholders and the values genuinely in tension, ` +
+      `then respond as the question demands — weighing options against their merits and demerits ` +
+      `before recommending one, or evaluating another party's conduct, or diagnosing the situation ` +
+      `and proposing measures, or answering in the first person as the officer — and close with a ` +
+      `defensible, actionable position. If it is a short definitional or quotation item, give a ` +
+      `crisp definition, unpack it, and illustrate it. Answer any (a)/(b) sub-parts separately and ` +
+      `in full. Ground the answer in REALISM AND ADMINISTRATIVE PLAUSIBILITY — what an officer in ` +
+      `that post could actually do, within the powers and constraints available, with the ` +
+      `consequences honestly faced — rather than in statistics, citations or accumulated data. Use ` +
+      `ethical and administrative vocabulary (integrity, probity, objectivity, conflict of ` +
+      `interest, accountability) precisely, and only where it does real work. Keep the tone ` +
+      `balanced and professionally detached: reason, do not sermonise. Cover the key points the ` +
+      `candidate omitted. ${NO_MARKDOWN} A short heading on its own line and numbered points are ` +
+      `fine; markdown symbols are not.`
+    );
+  }
   const gsEvidence = requireAuthored(
     cfg.substantiationExamples,
     examCode,

@@ -7,7 +7,15 @@
  * Mains (descriptive, 8 papers): General Hindi + Essay (150 each) and GS-I…VI
  * (200 each), GS-V/VI UP-specific. Essay: 3 sections × one ~700-word essay ×
  * 50 marks each = 150.
+ *
+ * UPSC's own paper CODES live in the sibling module `lib/upsc-papers.ts`; only
+ * the UPSC Prelims per-question MARKING below lives here, because it belongs to
+ * the same single-source-of-truth table `ingest:pyq:load` / `ingest:tests` read.
  */
+import {
+  UPSC_PRELIMS_CSAT_PAPER_CODE,
+  UPSC_PRELIMS_GS1_PAPER_CODE,
+} from "./upsc-papers.js";
 
 /** The Essay (निबंध) Mains paper. Its submissions score under the essay-v1 rubric. */
 export const ESSAY_PAPER_CODE = "MAINS_ESSAY";
@@ -67,8 +75,10 @@ export const PRELIMS_MARKING: Record<string, { marksPerQuestion: number; negativ
   // real exam would not penalise it. Fixing that needs per-question marking, not
   // a different number in this table.
   // ---------------------------------------------------------------------------
-  UPSC_PRE_GS1: { marksPerQuestion: 2, negativeMarking: -0.6667 },
-  UPSC_PRE_CSAT: { marksPerQuestion: 2.5, negativeMarking: -0.8333 },
+  // Codes (not the numbers) come from lib/upsc-papers.ts, so this is not a
+  // fourth place a UPSC paper code is written down — M31.
+  [UPSC_PRELIMS_GS1_PAPER_CODE]: { marksPerQuestion: 2, negativeMarking: -0.6667 },
+  [UPSC_PRELIMS_CSAT_PAPER_CODE]: { marksPerQuestion: 2.5, negativeMarking: -0.8333 },
 };
 
 /**

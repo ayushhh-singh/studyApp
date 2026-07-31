@@ -651,7 +651,7 @@ export async function executeEvaluation(
       model: MODELS.sonnet,
       system: [
         { text: sharedFeedbackContext, cache: true },
-        { text: buildImprovementsSystem(plan.examCode, language) },
+        { text: buildImprovementsSystem(plan.examCode, language, plan.rubricVersion) },
       ],
       content: FEEDBACK_WRITE_NOW,
       maxTokens: 2000,

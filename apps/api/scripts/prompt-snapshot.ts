@@ -306,6 +306,11 @@ async function collectEvaluationPrompts(): Promise<void> {
           {
             examCode: def.examCode,
             kind: def.kind,
+            // Snapshotted alongside `kind` so the two axes stay visibly
+            // distinct: `kind` is the persisted board axis, `modelAnswerShape`
+            // routes pass 2 (M35). A mis-assignment here is a wrong model
+            // answer, so it is worth pinning.
+            modelAnswerShape: def.modelAnswerShape,
             paperCodes: [...def.paperCodes],
             defaults: def.defaults,
             dimensions: def.dimensions.map((d) => ({ key: d.key, label: d.label, weight: d.weight, description: d.description })),
@@ -371,8 +376,38 @@ async function collectEvaluationPrompts(): Promise<void> {
   // --- pass 2: feedback
   put("evaluation/buildStrengthsSystem:en", mod.buildStrengthsSystem("uppsc", "en"));
   put("evaluation/buildStrengthsSystem:hi", mod.buildStrengthsSystem("uppsc", "hi"));
-  put("evaluation/buildImprovementsSystem:en", mod.buildImprovementsSystem("uppsc", "en"));
-  put("evaluation/buildImprovementsSystem:hi", mod.buildImprovementsSystem("uppsc", "hi"));
+  // The improvements prompt names the rubric's own top-weighted dimensions
+  // (M30), so it varies per rubric VERSION as well as per exam. "v1"/"essay-v1"
+  // are fixed fixtures on purpose: they are persisted identifiers that must never
+  // be renamed (see rubric.ts's header).
+  //
+  // ⚑ THE `upsc` KEYS BELOW ARE THE HARNESS'S FIRST NON-`uppsc` FIXTURES, and are
+  // deliberate. Every other key in this file is built with the "uppsc" exam
+  // fixture, so "N prompts byte-identical" is predominantly a UPPSC regression
+  // check — it says very little about UPSC's prompts. The improvements prompt is
+  // the one place that changes with the RUBRIC rather than only with the exam, and
+  // `upsc-ethics-v1` is where the five rubrics' lever sets diverge most (it is the
+  // only one whose `examples_data` is its LOWEST weight), so leaving it unguarded
+  // would mean the M30 derivation was only ever pinned in its two UPPSC shapes.
+  // Adding more `upsc` coverage elsewhere is welcome; it just has not been done.
+  put("evaluation/buildImprovementsSystem:en", mod.buildImprovementsSystem("uppsc", "en", "v1"));
+  put("evaluation/buildImprovementsSystem:hi", mod.buildImprovementsSystem("uppsc", "hi", "v1"));
+  put(
+    "evaluation/buildImprovementsSystem:essay-v1:en",
+    mod.buildImprovementsSystem("uppsc", "en", "essay-v1"),
+  );
+  put(
+    "evaluation/buildImprovementsSystem:essay-v1:hi",
+    mod.buildImprovementsSystem("uppsc", "hi", "essay-v1"),
+  );
+  put(
+    "evaluation/buildImprovementsSystem:upsc-gs-v1:en",
+    mod.buildImprovementsSystem("upsc", "en", "upsc-gs-v1"),
+  );
+  put(
+    "evaluation/buildImprovementsSystem:upsc-ethics-v1:en",
+    mod.buildImprovementsSystem("upsc", "en", "upsc-ethics-v1"),
+  );
   put("evaluation/FEEDBACK_WRITE_NOW", mod.FEEDBACK_WRITE_NOW);
 
   const keys = rubricMod ? rubricMod.RUBRIC_DIMENSION_KEYS : [];
@@ -410,6 +445,16 @@ async function collectEvaluationPrompts(): Promise<void> {
   put(
     "evaluation/buildModelAnswerSystem:essay-hi",
     mod.buildModelAnswerSystem(ctx({ rubricVersion: "essay-v1", wordLimit: 700, maxScore: 50, language: "hi" })),
+  );
+  // The third `modelAnswerShape` (M35). Guarded because it is the branch whose
+  // whole purpose is NOT to say what the two above say — a regression here would
+  // silently re-introduce the pass-1/pass-2 contradiction it was added to fix.
+  // 250 words / 20 marks are `upsc-ethics-v1`'s own defaults.
+  put(
+    "evaluation/buildModelAnswerSystem:upsc-ethics-en",
+    mod.buildModelAnswerSystem(
+      ctx({ examCode: "upsc", rubricVersion: "upsc-ethics-v1", wordLimit: 250, maxScore: 20 }),
+    ),
   );
   put("evaluation/buildModelAnswerUserContent:with-points", mod.buildModelAnswerUserContent(ctx(), pass1()));
   put(
