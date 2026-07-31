@@ -1229,6 +1229,252 @@ function firstDiffLine(a: string, b: string): string {
   return "    (values differ only in trailing whitespace or length)";
 }
 
+// ===========================================================================
+// `upsc` FIXTURES for the notes + misc config groups (authored 2026-07-31).
+//
+// WHY THIS BLOCK EXISTS. Every fixture elsewhere in this file pins the exam
+// argument to "uppsc", so "N prompts byte-identical" is overwhelmingly a UPPSC
+// regression check. When `EXAM_CONFIGS.upsc.notes` and most of `.misc` were
+// authored, that made those 37 values the ONLY exam-config strings in the repo
+// with ZERO machine coverage: authoring them is a pure no-op on the snapshot,
+// so a later edit could reword any of them silently. These keys close that gap
+// by assembling the SAME builders with `"upsc"`.
+//
+// They join the three pre-existing non-uppsc keys (the two
+// `evaluation/buildImprovementsSystem:upsc-*` rubric shapes and
+// `evaluation/buildModelAnswerSystem:upsc-ethics-en`) — see the note above them
+// for why that pass added exactly those and invited more.
+//
+// FIXTURE REUSE IS DELIBERATE: every key below reuses the identical NOTES_NODE /
+// CHAPTER_NODE / WEIGHTAGE / GROUNDING / RESEARCH_TEXT / WEB_SOURCES fixtures
+// its uppsc twin uses, so a diff between the two snapshot values isolates the
+// CONFIG difference and nothing else. The determinism contract is unchanged —
+// these are the same fixed inline literals, and `getExamConfig` is a pure
+// per-exam object lookup with no clock, random, network or DB.
+//
+// COVERAGE LIMITS, stated rather than implied. Six authored slots have no
+// reachable pure builder and are NOT covered here — the same six are uncovered
+// for uppsc too, so this is a pre-existing harness limit, not a gap introduced
+// by the upsc authoring:
+//   * notes.factEscalateUserFraming and misc.chapterTranslateDomainHint are
+//     inline arguments inside `notes/chapter-generate.ts`'s model calls
+//     (`translateBatch` builds its own system inline rather than through
+//     `buildTranslateSystem`), and that module runs the real generation.
+//   * misc.pyqTestTitlePrefix / prelimsMockTitlePrefix / mainsMockTitlePrefix /
+//     shareCardBrand are USER-FACING bilingual labels, not prompts, so they are
+//     out of this harness's scope by design (its subject is "every LLM prompt
+//     string the API builds").
+// All six were verified instead by building/printing them directly — see the
+// authoring session's throwaway assembly script.
+// ===========================================================================
+async function collectUpscNotesAndMiscPrompts(): Promise<void> {
+  // --- notes/prompts.ts
+  const notes = await load<typeof import("../src/notes/prompts.js")>("../src/notes/prompts.js");
+  if (notes) {
+    put("notes/RESEARCH_SYSTEM_PROMPT:upsc", notes.RESEARCH_SYSTEM_PROMPT("upsc"));
+    put("notes/buildResearchContent:upsc", notes.buildResearchContent(NOTES_NODE as never, "upsc"));
+    // buildNoteGenParams' cached segment [0] carries FOUR authored slots
+    // (facultyFraming, authorRelevanceFraming, stateAngleDirective,
+    // pyqAnalysisFraming) and [1] carries groundingStoreLabel — so this single
+    // key guards five values AND their placement either side of the cache
+    // breakpoint (paramsSnapshot records segment boundaries + cache flags).
+    put(
+      "notes/buildNoteGenParams:upsc",
+      paramsSnapshot(
+        notes.buildNoteGenParams({
+          node: NOTES_NODE,
+          pyqs: [
+            { year: 2022, stem_en: "Fixture past question one.", explanation_en: "Fixture explanation one." },
+            { year: null, stem_en: "Fixture past question two.", explanation_en: null },
+          ],
+          weightage: WEIGHTAGE,
+          ca: [{ title_en: "Fixture CA item", summary_en: "Fixture CA summary.", url: "https://example.invalid/ca" }],
+          grounding: GROUNDING,
+          research: RESEARCH_TEXT,
+          sources: WEB_SOURCES,
+          examCode: "upsc",
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any),
+      ),
+    );
+    // The only reachable render of `stateAngleLabel` — the label the persisted
+    // (and deliberately NOT renamed) `up_angle` block is shown under.
+    const noteBody = {
+      overview: "Fixture overview paragraph.",
+      key_facts: [
+        { fact: "Fixture fact one.", source_ref: "S1" },
+        { fact: "Fixture fact two.", source_ref: null },
+      ],
+      up_angle: "Fixture state angle.",
+      pyq_analysis: "Fixture past-question analysis.",
+      mnemonics: ["Fixture mnemonic."],
+      quick_revision: ["Fixture revision bullet."],
+      further_reading: [{ title: "Fixture link", url: "https://example.invalid/read" }],
+    };
+    put(
+      "notes/buildNoteCriticParams:upsc",
+      paramsSnapshot(
+        notes.buildNoteCriticParams({
+          node: NOTES_NODE as never,
+          content: { en: noteBody, hi: noteBody } as never,
+          examCode: "upsc",
+        }),
+      ),
+    );
+  }
+
+  // --- notes/chapter-prompts.ts
+  const chapter = await load<typeof import("../src/notes/chapter-prompts.js")>("../src/notes/chapter-prompts.js");
+  if (chapter) {
+    put("notes/CHAPTER_RESEARCH_SYSTEM:upsc", chapter.CHAPTER_RESEARCH_SYSTEM("upsc"));
+    put("notes/FACT_ESCALATE_SYSTEM:upsc", chapter.FACT_ESCALATE_SYSTEM("upsc"));
+    put(
+      "notes/buildChapterResearchContent:upsc",
+      chapter.buildChapterResearchContent(CHAPTER_NODE as never, "upsc"),
+    );
+    put(
+      "notes/buildOutlineParams:upsc",
+      paramsSnapshot(
+        chapter.buildOutlineParams({ node: CHAPTER_NODE as never, weightage: WEIGHTAGE, pyqs: [], examCode: "upsc" }),
+      ),
+    );
+    // The chapter host of groundingStoreLabel phrases its sentence differently
+    // from the notes host ("(X — ground your facts here)" vs "(from the X)"),
+    // which is precisely why the value carries no leading article. Both hosts
+    // are now pinned.
+    const ctxBlock = chapter.chapterContextBlock({
+      node: CHAPTER_NODE as never,
+      weightage: WEIGHTAGE,
+      grounding: GROUNDING as never,
+      research: RESEARCH_TEXT,
+      sources: WEB_SOURCES,
+      pyqs: [],
+      examCode: "upsc",
+    });
+    put("notes/chapterContextBlock:upsc", ctxBlock);
+    // facultyFraming's SECOND host — one config value, two grammatical hosts
+    // ("… writing STUDY NOTES for a topic" vs "… WRITING one section of a study
+    // chapter"), so both are pinned.
+    put(
+      "notes/buildSectionParams:upsc",
+      paramsSnapshot(
+        chapter.buildSectionParams({
+          context: ctxBlock,
+          section: {
+            id: "fixture-section",
+            heading_en: "Fixture Section Heading",
+            focus: "Fixture focus line.",
+            planned_boxes: ["prelims_facts", "mains_angle"] as never,
+            needs_diagram: true,
+            diagram_hint: "a process flow",
+          },
+          allHeadings: ["Fixture Section Heading", "Other Section A", "Other Section B"],
+          examCode: "upsc",
+        }),
+      ),
+    );
+    put(
+      "notes/buildAuditParams:upsc",
+      paramsSnapshot(
+        chapter.buildAuditParams({
+          facts: [
+            { index: 0, claim: "Fixture decisive claim one." },
+            { index: 1, claim: "Fixture decisive claim two." },
+          ],
+          context: ctxBlock,
+          examCode: "upsc",
+        }),
+      ),
+    );
+  }
+
+  // --- misc: one key per authored slot that has a reachable builder.
+  const moderation = await load<typeof import("../src/lib/community-moderation.js")>(
+    "../src/lib/community-moderation.js",
+  );
+  if (moderation) put("community-moderation/buildScreenSystem:upsc", moderation.buildScreenSystem("upsc"));
+
+  const ocr = await load<typeof import("../src/services/ocr/claude-vision-provider.js")>(
+    "../src/services/ocr/claude-vision-provider.js",
+  );
+  if (ocr) put("ocr/buildTranscribeSystem:upsc:en", ocr.buildTranscribeSystem("upsc", "en"));
+
+  const drills = await load<typeof import("../src/services/micro-drills.js")>("../src/services/micro-drills.js");
+  if (drills) {
+    // Both branches: the intro/conclusion split is structural, but each renders
+    // the same configured examiner persona, so one key per branch pins the
+    // persona in both sentences it has to read correctly in.
+    put("micro-drills/buildDrillEvaluationSystem:upsc:intro", drills.buildDrillEvaluationSystem("upsc", "intro"));
+    put(
+      "micro-drills/buildDrillEvaluationSystem:upsc:conclusion",
+      drills.buildDrillEvaluationSystem("upsc", "conclusion"),
+    );
+  }
+
+  const qexp = await load<typeof import("../src/services/question-explanation.js")>(
+    "../src/services/question-explanation.js",
+  );
+  if (qexp) {
+    put("question-explanation/explainSystem:upsc", qexp.explainSystem("upsc"));
+    put("question-explanation/streamExplainSystem:upsc", qexp.streamExplainSystem("upsc"));
+  }
+
+  const plan = await load<typeof import("../src/services/study-plan.js")>("../src/services/study-plan.js");
+  if (plan) {
+    put("study-plan/buildPlanSystem:upsc", plan.buildPlanSystem("upsc"));
+    // The no-display-name branch is the ONLY place `studyPlanAspirantFallback`
+    // renders, so this fixture must keep displayName null.
+    put(
+      "study-plan/buildPlanContent:upsc:no-name",
+      plan.buildPlanContent({
+        userId: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        examCode: "upsc",
+        hoursPerDay: 4,
+        today: "2026-01-02",
+        targetDate: "2026-12-06",
+        displayName: null,
+        targetExamYear: null,
+        medium: "en",
+        nextExam: null,
+        weakSections: [],
+        srsDueCount: 17,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any),
+    );
+  }
+
+  const userNotes = await load<typeof import("../src/services/user-notes.js")>("../src/services/user-notes.js");
+  if (userNotes) {
+    put("user-notes/buildUserNoteConvertSystem:upsc:en", userNotes.buildUserNoteConvertSystem("upsc", "en"));
+    put("user-notes/buildUserNoteTranslateHint:upsc", userNotes.buildUserNoteTranslateHint("upsc"));
+  }
+
+  const ingestPrompts = await load<typeof import("../src/ingest/prompts.js")>("../src/ingest/prompts.js");
+  if (ingestPrompts) {
+    put("ingest/supportSystem:upsc", ingestPrompts.supportSystem("upsc"));
+    // explanationFraming's SECOND host — the batch ingest CLI's copy of the same
+    // policy, whose surrounding sentence differs ("the VERIFIED correct option").
+    put("ingest/explainSystem:upsc", ingestPrompts.explainSystem("upsc"));
+  }
+
+  const anthropic = await load<typeof import("../src/lib/anthropic.js")>("../src/lib/anthropic.js");
+  const cfgMod = await load<typeof import("../src/lib/exam-config.js")>("../src/lib/exam-config.js");
+  if (anthropic && cfgMod) {
+    // DELIBERATELY DIFFERENT from the two uppsc `buildTranslateSystem` fixtures,
+    // which pass a hardcoded literal hint. Reading the hint from the config is
+    // what makes this key actually GUARD `misc.explanationTranslateDomainHint`
+    // rather than merely document it — and it reproduces exactly what
+    // `routes/stream.ts` assembles at its `translate()` call. Still fully
+    // deterministic: a pure per-exam object lookup, no clock/random/network/DB.
+    const hint = cfgMod.requireAuthored(
+      cfgMod.getExamConfig("upsc").misc.explanationTranslateDomainHint,
+      "upsc",
+      "misc.explanationTranslateDomainHint",
+    );
+    put("anthropic/buildTranslateSystem:upsc:explanation-hint", anthropic.buildTranslateSystem("upsc", hint));
+  }
+}
+
 async function main(): Promise<void> {
   await collectEvaluationPrompts();
   await collectMentorPrompts();
@@ -1239,6 +1485,7 @@ async function main(): Promise<void> {
   await collectAuditPrompts();
   await collectSlice2dPrompts();
   await collectPostRefactorAuditPrompts();
+  await collectUpscNotesAndMiscPrompts();
 
   snapshot.__unreachable__ = unreachable;
   snapshot.__not_reachable_without_editing__ = NOT_REACHABLE_WITHOUT_EDITING;

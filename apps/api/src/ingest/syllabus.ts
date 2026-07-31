@@ -5,6 +5,12 @@
  *
  *   pnpm ingest:syllabus [--exam uppsc] [--paper PRE_GS1] [--dry-run] [--limit-nodes N]
  *
+ * ⚑ SINGLE-EXAM BY DESIGN. Only the exams in `LLM_STRUCTURABLE_SYLLABUS_EXAMS`
+ * (below) may be run through here — a second exam with a hand-authored tree
+ * (UPSC) has its own zero-LLM loader, `pnpm ingest:upsc-syllabus`. Running this
+ * for such an exam would overwrite that tree in place. See the constant's
+ * comment for the two verified failure modes.
+ *
  * Flow:
  *   1. Extract text from the official 2026 syllabus PDFs (Hindi + English).
  *      If a PDF is scanned/image-only, route it through Claude vision
@@ -18,7 +24,12 @@
  */
 import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
+import {
+  DEFAULT_EXAM_CODE,
+  TARGET_EXAM_CODES,
+  targetExamCodeSchema,
+  type TargetExamCode,
+} from "@neev/shared";
 import { streamText, structuredJson, translate, MODELS } from "../lib/anthropic.js";
 import { supabase } from "../lib/supabase.js";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
@@ -39,6 +50,70 @@ import {
   type PaperDef,
   type ManifestEntry,
 } from "./_shared.js";
+
+// ---------------------------------------------------------------------------
+// 0. Which exams may be structured by THIS pipeline at all
+// ---------------------------------------------------------------------------
+/**
+ * ⚑ The exams whose syllabus tree this LLM-structuring pipeline is allowed to
+ * build. Adding an exam here is a deliberate, greppable, one-line decision — a
+ * future state PCS whose commission publishes a machine-structurable syllabus
+ * PDF could legitimately want this path.
+ *
+ * It is an ALLOW-LIST rather than `=== DEFAULT_EXAM_CODE` precisely so that
+ * "which exams may be LLM-structured" and "which exam is the product default"
+ * stay separate questions.
+ *
+ * WHY UPSC IS NOT ON IT — two independently fatal reasons, both verified:
+ *
+ *  1. `upsertNode` below conflicts on (paper_code, path) — the IDENTICAL key
+ *     the hand-authored seed (`ingest/seed/upsc-syllabus-seed.ts`) writes
+ *     under. An LLM-invented tree would therefore OVERWRITE the hand-authored,
+ *     coverage-gated UPSC tree IN PLACE: `title_i18n`/`description_i18n`/`meta`
+ *     replaced wholesale, `meta.source` flipped from
+ *     `official_syllabus_hand_authored` to `official_syllabus`, and paths
+ *     inserted that the 13-defect coverage gate never approved.
+ *  2. `loadLangSource` hardcodes UPPSC's manifest ids
+ *     (`uppsc_syllabus_2026_${lang}`, `uppsc_syllabus_drishti_${lang}`). There
+ *     is no code path by which it can select `upsc_syllabus_2026_en`, so a
+ *     successfully-authored run would structure the UPSC tree FROM UPPSC's
+ *     syllabus text.
+ *
+ * UPSC's real path is `pnpm ingest:upsc-syllabus` — hand-authored, zero-LLM,
+ * gated by `verify-coverage.ts`'s 13 defect kinds.
+ *
+ * This refusal is DELIBERATELY REDUNDANT with the `UNAUTHORED` guard in
+ * `lib/exam-config.ts` (`misc.syllabusExpertFraming` etc.), which today makes
+ * a `--exam upsc` run die inside `buildStructurePaperSystem`. That guard lives
+ * in a different file from the thing it protects, so a future bulk-authoring
+ * pass could fill those slots — legitimately, for the mentor/qgen paths — and
+ * silently unblock this pipeline without anyone realising. The gate below is
+ * local to the danger and cannot be removed by accident.
+ */
+const LLM_STRUCTURABLE_SYLLABUS_EXAMS: readonly TargetExamCode[] = ["uppsc"];
+
+/** Resolve + validate the run's exam scope. Throws rather than degrading. */
+function resolveExamScope(onlyExam: string | null): TargetExamCode {
+  const raw = onlyExam ?? DEFAULT_EXAM_CODE;
+  const parsed = targetExamCodeSchema.safeParse(raw);
+  if (!parsed.success) {
+    throw new Error(`Unknown --exam "${raw}". Expected one of: ${TARGET_EXAM_CODES.join(", ")}.`);
+  }
+  const exam = parsed.data;
+  if (!LLM_STRUCTURABLE_SYLLABUS_EXAMS.includes(exam)) {
+    throw new Error(
+      `ingest:syllabus refuses to run for exam '${exam}'.\n` +
+        `  This pipeline LLM-structures a tree from the UPPSC syllabus PDFs and upserts it on\n` +
+        `  (paper_code, path) — the same key the hand-authored seed uses — so running it for\n` +
+        `  '${exam}' would overwrite that exam's coverage-gated tree with an invented one built\n` +
+        `  from the WRONG exam's source text (loadLangSource only knows UPPSC's manifest ids).\n` +
+        `  Load '${exam}' with its own hand-authored, coverage-gated seed instead` +
+        (exam === "upsc" ? `:\n      pnpm ingest:upsc-syllabus\n` : ` (upsc's is \`pnpm ingest:upsc-syllabus\`).\n`) +
+        `  Exams this pipeline may structure: ${LLM_STRUCTURABLE_SYLLABUS_EXAMS.join(", ")}.`,
+    );
+  }
+  return exam;
+}
 
 // ---------------------------------------------------------------------------
 // 1. Source text per language (with vision fallback for scanned PDFs)
@@ -385,12 +460,122 @@ async function ingestPaper(
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
+
+  // AN ARGV THIS SCRIPT DOES NOT FULLY UNDERSTAND MUST BE A HARD ERROR, NOT A
+  // SILENT DEGRADE. Every unrecognised or malformed flag below ends the same
+  // way: `onlyExam`/`onlyPaper`/`limitNodes` fall back to their *unscoped*
+  // branch, so the run silently WIDENS or REDIRECTS — and then spends real
+  // sonnet calls and (outside --dry-run) writes to the production DB, which is
+  // the SAME Supabase project for dev and prod.
+  //
+  // ⚑ THE UNKNOWN-KEY CHECK IS THE ONE THAT MATTERS, AND IT IS NOT THEORETICAL —
+  // it is the 2026-07-31 incident, reproduced and verified. An agent batching
+  // invocations in a shell loop hit zsh's refusal to word-split an unquoted
+  // `$a`, so `--exam upsc --dry-run` arrived as ONE argv token. `parseArgs`
+  // reads that as the nonsense KEY `"exam upsc --dry-run"`, which leaves
+  // `args.exam` *undefined* — NOT `true` — so the valueless check below cannot
+  // see it, `--dry-run` is swallowed into the same nonsense key (dryRun ends up
+  // FALSE), and the run proceeds against DEFAULT_EXAM_CODE writing for real.
+  // That is exactly what happened, twice: +85 orphan rows and 35 rows
+  // overwritten in place, recovered from the weekly encrypted pg_dump.
+  // A valueless-flag check alone does NOT close this; only rejecting keys the
+  // script does not know does.
+  //
+  // Fixed HERE rather than in the shared `parseArgs` because ~22 other CLIs call
+  // it and several legitimately use bare boolean flags, so changing its shared
+  // semantics would reach far past this script — but note the same defect class
+  // has now been fixed per-call-site twice (the `--write-artifact` write-through
+  // in ingest/seed/upsc-syllabus-seed.ts, and here), which is an argument for
+  // moving validation into `parseArgs` itself. Tracked in docs/OUTSTANDING.md.
+  // ⚑ AND A BARE POSITIONAL IS INVISIBLE TO `parseArgs` ENTIRELY — it does
+  // `if (!a.startsWith("--")) continue`, so `ingest:syllabus upsc` (an operator
+  // simply forgetting `--exam`) produces NO key at all, sails past the
+  // unknown-key check below, and runs against DEFAULT_EXAM_CODE for real. This
+  // script takes no positional arguments, so any positional is a misparse.
+  // Checked FIRST because it is the one shape neither check below can see.
+  const rawArgv = process.argv.slice(2);
+  const positionals = rawArgv.filter((a, i) => {
+    if (a.startsWith("--")) return false;
+    const prev = rawArgv[i - 1];
+    return !(prev && prev.startsWith("--")); // consumed as the previous flag's value
+  });
+  if (positionals.length > 0) {
+    throw new Error(
+      `Unexpected argument(s): ${positionals.map((p) => `"${p}"`).join(", ")}.\n` +
+        `  This script takes no positional arguments — every input is a --flag.\n` +
+        `  Did you mean --exam ${positionals[0]}? Refusing to run: a bare positional is silently\n` +
+        `  IGNORED by the arg parser, so the run would fall back to the default exam and write for real.`,
+    );
+  }
+
+  const KNOWN_FLAGS = ["exam", "paper", "dry-run", "limit-nodes"] as const;
+  const unknown = Object.keys(args).filter((k) => !(KNOWN_FLAGS as readonly string[]).includes(k));
+  if (unknown.length > 0) {
+    throw new Error(
+      `Unrecognised flag(s): ${unknown.map((k) => `--${k}`).join(", ")}.\n` +
+        `  Known flags: ${KNOWN_FLAGS.map((k) => `--${k}`).join(", ")}.\n` +
+        `  Refusing to run: an unrecognised flag means this argv was not parsed the way you intended,\n` +
+        `  and every misparse here silently WIDENS or REDIRECTS the run into a real, billed, DB-writing\n` +
+        `  pass over the DEFAULT exam. If a flag name contains a space it was not word-split by your\n` +
+        `  shell — quote it correctly (note zsh does NOT word-split an unquoted "$var").`,
+    );
+  }
+
+  // A value-taking flag with no value: `parseArgs` sets the key to boolean
+  // `true`, and every read below tests `typeof === "string"`, so it collapses to
+  // the unscoped branch.
+  for (const k of ["exam", "paper", "limit-nodes"] as const) {
+    if (args[k] === true) {
+      throw new Error(
+        `--${k} requires a value (e.g. --${k} ${
+          k === "exam" ? DEFAULT_EXAM_CODE : k === "paper" ? "PRE_GS1" : "5"
+        }). Refusing to run: a valueless value-flag would silently widen or redirect this run.`,
+      );
+    }
+  }
+
   const dryRun = !!args["dry-run"];
   const onlyPaper = typeof args.paper === "string" ? args.paper : null;
   const onlyExam = typeof args.exam === "string" ? args.exam : null;
-  const limitNodes = typeof args["limit-nodes"] === "string" ? Number(args["limit-nodes"]) : undefined;
+  // NaN is FALSY, and `ingestPaper` gates on `opts.limitNodes ? slice : raw` — so
+  // an unparseable `--limit-nodes abc` would silently widen a capped smoke test
+  // to the FULL tree, the exact failure this block exists to prevent. Validate.
+  const limitNodesRaw = typeof args["limit-nodes"] === "string" ? args["limit-nodes"] : null;
+  const limitNodes = limitNodesRaw === null ? undefined : Number(limitNodesRaw);
+  if (limitNodes !== undefined && (!Number.isInteger(limitNodes) || limitNodes <= 0)) {
+    throw new Error(
+      `--limit-nodes must be a positive integer (got "${limitNodesRaw}"). Refusing to run: any value that ` +
+        `is not a positive integer is falsy here (a non-numeric one parses to NaN, and 0 is falsy outright), ` +
+        `so it would silently widen the run from a capped smoke test to the FULL tree.`,
+    );
+  }
 
   report.section(`ingest:syllabus${dryRun ? " (dry-run — writes JSON, no DB)" : ""}`);
+
+  // Resolve + gate the exam scope FIRST — before the manifest is read, before any
+  // PDF is extracted, and so before even a theoretical scanned-PDF vision call.
+  // A refusal must cost nothing and touch nothing.
+  //
+  // REGRESSION GUARD (kept): this used to default to ALL of PAPERS. Now that
+  // PAPERS also holds UPSC papers, a bare `pnpm ingest:syllabus` would try to
+  // LLM-structure them and die partway through an otherwise-good UPPSC run. An
+  // omitted --exam therefore means the DEFAULT exam only, never all exams.
+  const examScope = resolveExamScope(onlyExam);
+  if (!onlyExam) {
+    report.step(`--exam not given → defaulting to '${DEFAULT_EXAM_CODE}' papers only (never all exams)`);
+  }
+  let papers = PAPERS.filter((p) => p.exam === examScope);
+  if (papers.length === 0) {
+    throw new Error(`No papers defined for --exam ${examScope}. Known exams: ${[...new Set(PAPERS.map((p) => p.exam))].join(", ")}`);
+  }
+  if (onlyPaper) {
+    papers = papers.filter((p) => p.paperCode === onlyPaper);
+    if (papers.length === 0) {
+      throw new Error(
+        `Unknown --paper ${onlyPaper} for exam '${examScope}'. Known: ${PAPERS.filter((p) => p.exam === examScope).map((p) => p.paperCode).join(", ")}`,
+      );
+    }
+  }
 
   const manifest = await readManifest();
   const syllabusEntries = manifestBySection(manifest, "syllabus");
@@ -407,30 +592,6 @@ async function main(): Promise<void> {
   }
   const viaVision = sources.filter((s) => s.viaVision).map((s) => s.lang);
   if (viaVision.length) report.warn(`Vision-extracted languages (flag for review): ${viaVision.join(", ")}`);
-
-  // REGRESSION GUARD: this used to default to ALL of PAPERS. Now that PAPERS
-  // also holds UPSC papers, a bare `pnpm ingest:syllabus` would try to
-  // LLM-structure them and die on `requireAuthored(...)` UNAUTHORED partway
-  // through an otherwise-good UPPSC run (and it could never work anyway — this
-  // script's sources are the UPPSC manifest ids). So an omitted --exam now means
-  // the DEFAULT exam only; a second exam must be asked for explicitly, and its
-  // real path is `pnpm ingest:upsc-syllabus` (hand-authored, zero-LLM).
-  const examScope = onlyExam ?? DEFAULT_EXAM_CODE;
-  if (!onlyExam) {
-    report.step(`--exam not given → defaulting to '${DEFAULT_EXAM_CODE}' papers only (never all exams)`);
-  }
-  let papers = PAPERS.filter((p) => p.exam === examScope);
-  if (papers.length === 0) {
-    throw new Error(`No papers defined for --exam ${examScope}. Known exams: ${[...new Set(PAPERS.map((p) => p.exam))].join(", ")}`);
-  }
-  if (onlyPaper) {
-    papers = papers.filter((p) => p.paperCode === onlyPaper);
-    if (papers.length === 0) {
-      throw new Error(
-        `Unknown --paper ${onlyPaper} for exam '${examScope}'. Known: ${PAPERS.filter((p) => p.exam === examScope).map((p) => p.paperCode).join(", ")}`,
-      );
-    }
-  }
 
   report.section("Structuring papers");
   let totalNodes = 0;

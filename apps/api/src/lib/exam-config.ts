@@ -1206,8 +1206,18 @@ const UPSC_SEVERITY_ANCHOR =
 // upsc — REFERENCE ROW. `exams.is_live` is false. Naming, papers, cutoffs and
 // calendar are fact; the judgment-bearing groups are authored ONE AT A TIME as a
 // pipeline genuinely needs them (relevanceLens, qgen, mentor, ca and the U5
-// ingest slots landed 2026-07-31; `evaluation` below landed the same day), and
-// `notes` plus most of `misc` remain deliberately UNAUTHORED (U6).
+// ingest slots landed 2026-07-31; `evaluation`, then `notes` and the rest of
+// `misc`, landed the same day).
+//
+// EXACTLY THREE SLOTS REMAIN UNAUTHORED, AND ALL THREE ARE DELIBERATE — they are
+// not the tail of an unfinished pass and must not be "completed" by one:
+//   * `misc.syllabusExpertFraming` + `misc.syllabusStructureNote` — a live
+//     safety guard. Authoring them helps re-open `ingest:syllabus` for upsc,
+//     which would overwrite the coverage-gated hand-authored tree in place AND
+//     build it from UPPSC's syllabus text. Full reasoning at the fields.
+//   * `misc.translateDomainHint` — its sole consumer is that same permanently
+//     closed path, so a value here is a string nothing can emit.
+// Each carries its own ⚑ block below explaining why; read it before filling one.
 //
 // DO NOT fill any remaining slot by adapting UPPSC's text (§6a). The severity
 // anchor in particular is a researched claim about ONE commission's marking
@@ -1553,48 +1563,254 @@ const UPSC: ExamConfig = {
       "ONE specific UPSC Civil Services Prelims General Studies Paper I syllabus topic",
   },
 
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — study notes + study chapters.
+  //
+  // THE ONE JUDGMENT THAT IS NOT UPPSC'S: there is no state angle, anywhere.
+  // UPPSC's notes group is built around a UP lens (`stateAngleDirective`,
+  // `stateAngleLabel: "UP ANGLE"`, and the "especially Uttar-Pradesh-specific
+  // schemes" clause in both research slots). UPSC is a NATIONAL examination:
+  // there is no state-focused node anywhere in its hand-authored 195-node tree,
+  // and its Prelims line P1-L01 is literally "Current events of national and
+  // INTERNATIONAL importance." Renaming UPPSC's UP clauses would instruct the
+  // author to hunt for a state angle this exam never tests, in the one block
+  // whose whole job is to be exam-specific. So the four affected slots are
+  // RE-DERIVED to the national/comparative dimension UPSC actually tests, and
+  // `stateAngleLabel` names that dimension rather than a state.
+  //
+  // ⚠ `up_angle` IS A PERSISTED IDENTIFIER IN FIVE PLACES AT ONCE — a field of
+  // `noteBodySchema`/`NoteContentI18n`, a value of the add-to-revision block
+  // enum (it crosses the API boundary), a property of `NOTE_GEN_SCHEMA` AND a
+  // member of its `required` list, a key inside every stored
+  // `notes.content_i18n` jsonb (migration 0038), and text that `notes/embed.ts`
+  // flattens into the RAG chunk. NEVER rename it. Because the schema marks it
+  // REQUIRED, an empty string is not an option either — the slot must carry a
+  // non-empty directive, which is exactly why it is redirected rather than
+  // blanked. This mirrors the precedent set one group up by
+  // `relevanceLens.curationDirective`, which faced the identical
+  // live-column-with-no-national-analogue constraint (`is_up_specific`) and
+  // solved it by giving the field its only defensible national meaning instead
+  // of mirroring UPPSC.
+  //
+  // WHAT IS STRUCTURAL NAMING (same category as `misc.translateQuestionsDomainHint`,
+  // authored for U5): the six persona slots, the two research-topic openers, and
+  // `groundingStoreLabel`. Each is a noun phrase naming THIS commission in a
+  // slot whose grammar belongs to the template. `groundingStoreLabel` is
+  // deliberately byte-identical to `evaluation.groundingStoreLabel` and
+  // `qgen.groundingStoreLabel` — one corpus, so the examiner, the question
+  // setter and the note author all name the store identically.
+  //
+  // MEASURED, from the 2,791 real UPSC PYQs ingested by U5, and used by
+  // `outlineCompletenessLens` / `pyqAnalysisFraming`: a UPSC chapter has to serve
+  // TWO structurally different stages, which is why both slots name both.
+  // Prelims GS-I is a fact base tested through scaffolded statement sets (65.8%
+  // of stems are scaffolded; the statement-combination family alone is 55.3%),
+  // while Mains is analytical prose at 10 marks / 150 words or 15 marks / 250
+  // words in near-equal measure (~45% each). Naming only "what the commission
+  // has asked", as uppsc's lens does, loses that split.
+  //
+  // CACHE (§6b/§6c): `facultyFraming` sits in cached segment `[0]` of BOTH
+  // `buildNoteGenParams` and `buildSectionParams`, and `groundingStoreLabel` in
+  // `[1]` — in each the cached prefix is `[0]+[1]`, so per-exam text PARTITIONS
+  // the cache (one entry per exam) and destroys nothing. `buildSectionParams` is
+  // the only live cache among these (~10,656 tokens measured on a real run, ~10x
+  // sonnet-5's 1024 minimum), so there is no floor to clear. `buildNoteGenParams`
+  // measures 817 tokens with an empty context — already below 1024 for uppsc
+  // too, pre-existing and not exam-specific — so these four `[0]` slots are kept
+  // at or above uppsc's combined 219 chars rather than shortened. And
+  // `buildNoteCriticParams` (206 tokens) is a MEASURED NO-OP (M25): authoring
+  // `criticFraming` cannot change its caching either way, and no caching benefit
+  // is claimed for it.
+  // ---------------------------------------------------------------------------
   notes: {
-    facultyFraming: UNAUTHORED,
-    outlineFacultyFraming: UNAUTHORED,
-    researcherFraming: UNAUTHORED,
-    chapterResearcherFraming: UNAUTHORED,
-    auditorFraming: UNAUTHORED,
-    factEscalateFraming: UNAUTHORED,
-    factEscalateUserFraming: UNAUTHORED,
-    criticFraming: UNAUTHORED,
-    outlineCompletenessLens: UNAUTHORED,
-    stateAngleDirective: UNAUTHORED,
-    stateAngleLabel: UNAUTHORED,
-    authorRelevanceFraming: UNAUTHORED,
-    pyqAnalysisFraming: UNAUTHORED,
-    researchTopicFraming: UNAUTHORED,
-    chapterResearchTopicFraming: UNAUTHORED,
-    researchStateFocus: UNAUTHORED,
-    chapterResearchStateFocus: UNAUTHORED,
-    researchPriorityDirective: UNAUTHORED,
-    chapterResearchPriorityDirective: UNAUTHORED,
-    groundingStoreLabel: UNAUTHORED,
+    facultyFraming: "an expert UPSC Civil Services faculty member",
+    outlineFacultyFraming: "a senior UPSC (Civil Services Examination) faculty member",
+    researcherFraming: "a UPSC (Civil Services Examination) subject researcher",
+    chapterResearcherFraming: "a UPSC Civil Services subject researcher",
+    auditorFraming: "a strict UPSC Civil Services fact-checker auditing a study chapter",
+    factEscalateFraming: "ONE decisive fact from a UPSC Civil Services study chapter",
+    // A COMPLETE IMPERATIVE SENTENCE ending in its colon (the newline and the
+    // quoted claim are structural). NOT interchangeable with
+    // `factEscalateFraming` above, which is the noun phrase the SYSTEM prompt
+    // embeds — neither is derivable from the other, which is why both exist.
+    factEscalateUserFraming: "Verify this decisive fact from a UPSC Civil Services study chapter:",
+    criticFraming: "a strict UPSC Civil Services content reviewer",
+    // Names BOTH stages deliberately — see the MEASURED note above. No trailing
+    // period: the template continues "… and what a topper must know — never
+    // padding".
+    //
+    // ⚑ THE SHAPE OF THIS VALUE IS LOAD-BEARING, and two earlier shapes were
+    // both wrong AT THE BOUNDARY — invisible in the raw string, visible only in
+    // the assembled prompt (`notes/buildOutlineParams:upsc`):
+    //   1. An em-dash gloss opened a clause the template never closes, so "and
+    //      what a topper must know" read as part of the gloss.
+    //   2. Replacing it with a COLON gloss was ALSO wrong, and its own comment
+    //      claimed otherwise ("the colon closes at the parenthesis") — a colon
+    //      has no closing bracket. The template already opens on a colon ("The
+    //      EXAM defines completeness:"), so that nested a second colon inside
+    //      the first; the gloss's internal "A, and B" list then captured the
+    //      template's own trailing "and what a topper must know" as a third list
+    //      item; and "(use the weightage + PYQ patterns)" — which modifies the
+    //      WHOLE clause for uppsc — ended up scoped to the Mains item alone.
+    // The fix keeps both stages but expresses them as two PARALLEL "in …"
+    // phrases, so the template's trailing "and what …" (not an "in" phrase)
+    // cannot be read into the list, and the parenthetical again trails the whole
+    // clause exactly as it does for uppsc. Re-read the assembled snapshot, not
+    // this string, before changing it again.
+    outlineCompletenessLens:
+      "what UPSC has actually asked at both stages, in Prelims statement sets and in GS Mains answers " +
+      "(use the weightage + PYQ patterns)",
+    // ⚠ The block key `up_angle` is PERSISTED and must never be renamed; only
+    // this description is configurable. UPSC has no state lens, so the directive
+    // fences the author OFF a state angle and names the national/comparative
+    // dimension instead. The template supplies the trailing period.
+    stateAngleDirective:
+      "UPSC is a NATIONAL examination with no state-specific paper and no state-focused syllabus topic, so never " +
+      "write a state angle here; instead give the national and comparative dimension the exam actually tests — " +
+      "Union policy and its handling in Parliament, centre-state and federal implications, Economic Survey / NITI " +
+      "Aayog / ministry data, India's standing on the relevant global index, and any cross-country comparison an " +
+      "examiner would reward",
+    // The rendering label for that SAME persisted `up_angle` block — never the
+    // key. Stored WITHOUT its colon, which is structural (it matches the sibling
+    // "OVERVIEW:", "KEY FACTS:", "PYQ ANALYSIS:" labels). It names the dimension
+    // the directive above redirects to, not a state.
+    stateAngleLabel: "NATIONAL AND COMPARATIVE ANGLE",
+    authorRelevanceFraming:
+      "orienting the aspirant to the topic and why it matters across both UPSC Prelims and UPSC Mains",
+    // No internal em dash: the host already appends "(use the PYQ + weightage
+    // data provided) and what to focus on.", and reading the assembled prompt
+    // showed a dash here opened a clause the template never closes.
+    pyqAnalysisFraming:
+      "how UPSC has actually asked this topic in Prelims statement sets and in 150- or 250-word Mains answers",
+    // Byte-identical to `chapterResearchTopicFraming` below TODAY. Written twice
+    // rather than hoisted to a shared const because this pass is scoped to edit
+    // only inside the UPSC block — exactly the situation M34 recorded for
+    // UPSC_DIRECTIVE_VERBS / UPSC_MAINS_SETTER, which were likewise authored as
+    // duplicated literals by a block-scoped pass and hoisted afterwards. Hoist
+    // these two the same way if a later pass has the file open; the FIELDS must
+    // stay separate either way (separate call sites, separate structural tails —
+    // " topic:" vs " topic and its sub-topics:").
+    researchTopicFraming: "Research current, exam-relevant facts for this UPSC Civil Services",
+    chapterResearchTopicFraming: "Research current, exam-relevant facts for this UPSC Civil Services",
+    // National, not state. No trailing period — the template continues
+    // ". Prefer official government and reputable sources."
+    researchStateFocus:
+      "especially Union government schemes and flagship missions, the latest official data and figures (Economic " +
+      "Survey, ministry and NITI Aayog releases), India's position on the major global indices, and anything that " +
+      "has changed recently",
+    // The chapter variant additionally names Budget numbers, mirroring the extra
+    // clause uppsc's chapter slot carries over its note slot.
+    chapterResearchStateFocus:
+      "especially Union government schemes and flagship missions, the latest official data and figures (Economic " +
+      "Survey, ministry and NITI Aayog releases), Union Budget numbers, India's position on the major global " +
+      "indices, and anything changed recently",
+    // Both carry their OWN period — the template appends " Cite …" after them.
+    researchPriorityDirective:
+      "Prioritise Union government schemes, the latest official figures, India's standing on the major global " +
+      "indices, and recent developments.",
+    chapterResearchPriorityDirective:
+      "Prioritise Union government schemes, the latest official figures, Union Budget data, India's standing on " +
+      "the major global indices, and recent developments.",
+    // NO leading article — it must read both after "REFERENCE PASSAGES (from the "
+    // (notes) and directly after "(" (chapters). Identical to the evaluation and
+    // qgen labels for the same corpus, on purpose.
+    groundingStoreLabel: "official UPSC syllabus/PYQ store",
   },
 
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — everything else that names the exam in a prompt.
+  //
+  // ALL SEVENTEEN VALUES BELOW ARE STRUCTURAL NAMING, not judgment: each is a
+  // noun phrase (or a bilingual label) naming THIS commission in a slot whose
+  // grammar, and whose substantive instruction, belong entirely to the template.
+  // Nothing here encodes how UPSC marks, what it asks, or what to curate — that
+  // judgment lives in `evaluation`, `qgen`, `mentor`, `ca` and `notes`, and was
+  // researched there. Two consequences worth stating, because they are what make
+  // this pass legitimate rather than a find-and-replace:
+  //
+  //  * The long parentheticals kept verbatim from uppsc
+  //    (`personalNotesTranslateDomainHint`, `chapterTranslateDomainHint`) are
+  //    TRANSLATION-QUALITY instructions — "write natural, fully-idiomatic text,
+  //    no leftover source-language words for ordinary terms" — with no exam
+  //    content at all. Their 'Preamble'/'flowchart' examples are generic
+  //    study-material vocabulary, not UP-specific. Keeping that shape is correct;
+  //    only the corpus name changes. This matters more for UPSC than for UPPSC,
+  //    not less: the U5-ingested UPSC corpus is 100% bilingual with 0
+  //    machine-translated rows, so Hindi output is held to exam register.
+  //  * MEASURED and used below: UPSC sets MCQs in Prelims ONLY (GS-I and CSAT);
+  //    all 811 ingested Mains rows are descriptive. So the three MCQ-facing
+  //    slots (`explanationFraming`, `streamExplanationFraming`,
+  //    `ingestKeySupportFraming`) say "Prelims" where uppsc's say only "exam" —
+  //    more precise, and true of this exam's corpus by construction.
+  //
+  // DEVANAGARI: the four `I18nLabel`s are rendered to a learner, so both sides
+  // must be real exam register rather than transliteration. UPSC is यूपीएससी;
+  // प्रारंभिक / मुख्य are the standard Hindi names for the Prelims / Mains
+  // stages and are reused from uppsc's labels because they name the STAGE, not
+  // the commission.
+  //
+  // CACHE (§6c): `ocrFraming` feeds `buildTranscribeSystem`, a MEASURED NO-OP
+  // (270/280 tokens vs sonnet-5's 1024 — M25). Authoring it cannot change
+  // caching either way and no caching benefit is claimed for it.
+  //
+  // NOT YET REACHABLE, authored anyway and honestly flagged: `services/mocks.ts`
+  // reads `prelimsMockTitlePrefix`/`mainsMockTitlePrefix` through a
+  // module-level `MOCK_TITLE_EXAM` pinned to `DEFAULT_EXAM_CODE`, because mocks
+  // are titled AND marked to one commission's pattern and a second exam needs
+  // its own verified builder, not a threaded parameter. These two values are
+  // therefore correct-but-dormant until that builder exists — they are labels,
+  // so authoring them early costs nothing and removes a trip hazard.
+  // ---------------------------------------------------------------------------
   misc: {
-    moderationFraming: UNAUTHORED,
-    ocrFraming: UNAUTHORED,
-    drillExaminerFraming: UNAUTHORED,
-    explanationFraming: UNAUTHORED,
-    streamExplanationFraming: UNAUTHORED,
-    explanationTranslateDomainHint: UNAUTHORED,
-    studyPlanCoachFraming: UNAUTHORED,
-    studyPlanAspirantFallback: UNAUTHORED,
-    personalNotesAudience: UNAUTHORED,
-    personalNotesTranslateDomainHint: UNAUTHORED,
-    chapterTranslateDomainHint: UNAUTHORED,
+    moderationFraming: "a UPSC Civil Services exam-prep community",
+    ocrFraming: "a handwritten UPSC Civil Services Mains exam answer",
+    drillExaminerFraming: "an examiner scoring UPSC (Civil Services Examination) Mains answer-writing practice",
+    // MCQ-facing, so "Prelims": every UPSC MCQ is a Prelims question (GS-I or
+    // CSAT) — all 811 ingested Mains rows are descriptive. Reads correctly in
+    // BOTH hosts (`services/question-explanation.ts` and `ingest/prompts.ts`),
+    // which share this one fragment.
+    explanationFraming: "UPSC Civil Services Prelims MCQ answer explanations",
+    // A DIFFERENT grammatical form — the object of "You explain … for exam
+    // aspirants." Not derivable from `explanationFraming` above.
+    streamExplanationFraming: "UPSC (Civil Services Examination) Prelims MCQ answers",
+    explanationTranslateDomainHint: "UPSC Civil Services MCQ explanation",
+    studyPlanCoachFraming: "an expert UPSC (Civil Services Examination) exam-prep coach",
+    // A display-name fallback rendered mid-sentence, so it stays short.
+    studyPlanAspirantFallback: "a UPSC Civil Services aspirant",
+    personalNotesAudience: "a UPSC Civil Services aspirant",
+    // The parenthetical is a TRANSLATION-QUALITY instruction with no exam
+    // content; kept in uppsc's shape deliberately. Direction-agnostic ("the
+    // target language") — a user's own note may be in either locale.
+    personalNotesTranslateDomainHint:
+      "UPSC Civil Services study note (write natural, fully-idiomatic text in the target language — no leftover " +
+      "source-language words for ordinary terms; keep only genuine loanwords/acronyms readers actually use as-is)",
+    // Distinct from the hint above: this one is hard-wired to HINDI output,
+    // because `chapter-generate.ts` step 6 translates a chapter EN→HI.
+    chapterTranslateDomainHint:
+      "UPSC Civil Services study material (write natural, fully-Hindi text — no leftover English words for " +
+      "ordinary terms like 'Preamble' or 'flowchart'; keep only genuine loanwords/acronyms Hindi speakers " +
+      "actually use as-is)",
+    // ⚑ DELIBERATELY LEFT UNAUTHORED — not an omission, and not a slot waiting
+    // to be filled by a future bulk pass.
+    //
+    // Its SOLE consumer repo-wide is `ingest/syllabus.ts`'s `fillBilingual`
+    // (verified by grep: that one call site, plus a doc mention in
+    // `lib/anthropic.ts`'s header). `fillBilingual` is reachable only from the
+    // LLM syllabus-structuring pipeline — the one path that must NEVER run for
+    // upsc, for the two independently fatal reasons spelled out at
+    // `syllabusExpertFraming`/`syllabusStructureNote` below. Authoring this
+    // would produce a string nothing can emit, while quietly implying that
+    // pipeline is open to this exam. `translate()` itself is unaffected: its
+    // `domainHint` is a REQUIRED parameter (the "UPPSC exam-prep content"
+    // default was removed in slice 2d), so every other caller names its own
+    // hint explicitly and none of them reads this slot.
     translateDomainHint: UNAUTHORED,
-    translatePlatformFraming: UNAUTHORED,
+    translatePlatformFraming: "a UPSC Civil Services exam platform",
     // AUTHORED 2026-07-30 for the U5 PYQ ingest (rationale in the block below).
     // Structural naming of WHAT is being translated, in the same grammatical
     // slot as uppsc's — not a judgment slot.
     translateQuestionsDomainHint: "UPSC Civil Services exam questions",
-    ingestKeySupportFraming: UNAUTHORED,
+    ingestKeySupportFraming: "a UPSC Civil Services Prelims MCQ",
 
     // -----------------------------------------------------------------------
     // AUTHORED 2026-07-30 — the slots the U5 PYQ-ingest path actually needs
@@ -1624,18 +1840,58 @@ const UPSC: ExamConfig = {
       "cover next to the words 'Test Booklet Series', and SEPARATELY prints a T.B.C. paper code such as " +
       "'KSPC-P-GSPO' or 'HGY-D-LKUV' which is NOT the series and whose own letters must be ignored (a booklet " +
       "coded 'HGY-D-LKUV' can still be Series A)",
-    // Still UNAUTHORED on purpose: `ingest:syllabus` must never run for upsc —
-    // its tree is hand-authored and coverage-gated by `ingest:upsc-syllabus`.
+    // ⚑ DELIBERATELY LEFT UNAUTHORED — this pair is a LIVE SAFETY GUARD, not a
+    // gap. Do not fill them as part of a bulk authoring pass.
+    //
+    // They are the only two config reads in `buildStructurePaperSystem`
+    // (`ingest/prompts.ts`), which `ingest:syllabus` calls to LLM-STRUCTURE a
+    // syllabus tree. That pipeline must never run for upsc, for two
+    // independently fatal reasons — both verified, neither cosmetic:
+    //
+    //  1. OVERWRITE IN PLACE. `ingest/syllabus.ts`'s `upsertNode` conflicts on
+    //     `(paper_code, path)` — the IDENTICAL key the hand-authored seed
+    //     (`ingest/seed/upsc-syllabus-seed.ts`) writes under. An LLM-invented
+    //     tree would therefore overwrite the coverage-gated 195-node UPSC tree
+    //     in place: `title_i18n`/`description_i18n`/`meta` replaced wholesale,
+    //     `meta.source` flipped off `official_syllabus_hand_authored`, and paths
+    //     inserted that `verify-coverage.ts`'s 13 defect kinds never approved.
+    //  2. WRONG SOURCE TEXT. `loadLangSource` hardcodes UPPSC's manifest ids
+    //     (`uppsc_syllabus_2026_${lang}`, `uppsc_syllabus_drishti_${lang}`) and
+    //     has no code path to select `upsc_syllabus_*`, so a successfully
+    //     authored run would structure UPSC's tree FROM UPPSC's syllabus PDF.
+    //
+    // UPSC's real path is `pnpm ingest:upsc-syllabus` — hand-authored, zero-LLM,
+    // coverage-gated.
+    //
+    // ⚠ THIS GUARD IS NOW THE SECOND LAYER, NOT THE FIRST. `ingest/syllabus.ts`
+    // gained an explicit `LLM_STRUCTURABLE_SYLLABUS_EXAMS = ["uppsc"]` allow-list
+    // whose `resolveExamScope` throws in `main()` before any module here is
+    // consulted — verified live: `pnpm ingest:syllabus --exam upsc --dry-run`
+    // dies at `syllabus.ts:104` with that allow-list's message, never reaching
+    // `buildStructurePaperSystem`. The redundancy is deliberate and runs BOTH
+    // ways: that file's comment says the local gate exists because this one
+    // could be filled by a well-meaning bulk pass, and this comment exists
+    // because an allow-list is one line someone could widen. Removing either
+    // alone still leaves a guard; do not remove both, and do not treat the
+    // allow-list's existence as a reason to author these two.
     syllabusExpertFraming: UNAUTHORED,
     syllabusStructureNote: UNAUTHORED,
     pyqNodeClassifyFraming: "each UPSC Civil Services question",
     auditSolverFraming: "a top UPSC Civil Services aspirant taking the exam",
     auditEscalateFraming: "a meticulous fact-checker auditing a UPSC Civil Services exam question",
 
-    pyqTestTitlePrefix: UNAUTHORED,
-    prelimsMockTitlePrefix: UNAUTHORED,
-    mainsMockTitlePrefix: UNAUTHORED,
-    shareCardBrand: UNAUTHORED,
+    // Stored WITHOUT the trailing space, which is structural:
+    // `${prefix.en} ${paper.title.en} — ${year}`.
+    pyqTestTitlePrefix: { en: "UPSC", hi: "यूपीएससी" },
+    // Dormant until `services/mocks.ts` grows a UPSC builder — see the block
+    // comment above. प्रारंभिक / मुख्य name the STAGE, not the commission, so
+    // they are the same words uppsc's labels use.
+    prelimsMockTitlePrefix: { en: "UPSC Prelims", hi: "यूपीएससी प्रारंभिक" },
+    mainsMockTitlePrefix: { en: "UPSC Mains", hi: "यूपीएससी मुख्य" },
+    // One FUSED rendered line in a share PNG (satori), so the whole line is
+    // configured rather than assembled from a product constant plus an exam
+    // name. "Neev"/"नींव" is the product and is exam-independent.
+    shareCardBrand: { en: "Neev · UPSC prep", hi: "नींव · यूपीएससी तैयारी" },
   },
 
   launchScope: { source: "db:exams.launch_scope_i18n" },

@@ -27,7 +27,7 @@ Every synthetic row was deleted by an id captured at insert time and
 left in `syllabus_nodes` / `tests` / `evaluations` / `questions` /
 `current_affairs_items` / `users_profile` / `discussion_threads`.
 
-Still open: §8c's ops items (M12, M21, **M23**) and **M20** (the CA magazine
+Still open: §8c's ops items (M12, M42; **M21 and M23 are now closed**) and **M20** (the CA magazine
 and its two UPPSC-shaped fields, deferred together — see §3 item 7). **M11 and M14
 closed 2026-07-29** — M11 as a reasoned decision *not* to add a paper-code FK
 registry (§0a, which also records the one place the invariant genuinely leaks:
@@ -600,8 +600,11 @@ every Q1-6 was discarded; Essay sections that both number 1-4 collided and lost 
 of 8 topics; and `marks: integer` could not represent 2016's 12.5. **Keep the
 marks-total check** — it is the only thing that has ever seen this bug class.
 
-**Still open after U5:** **M21** (chapter `pyq_ids` validated for existence, not
-exam) gates a UPSC chapter rollout, and **U6** gates every model-facing path —
+**Still open after U5:** ~~**M21** (chapter `pyq_ids` validated for existence, not
+exam)~~ **— M21 ✅ closed 2026-07-31, and U6 is down to 3 deliberate slots (§6f),
+so neither gates a UPSC chapter rollout any more; `docs/multi-exam.md` §5's
+re-derivation rule is the remaining discipline, and it is human, not enforced.**
+Historically, **U6** gated every model-facing path —
 U5 needed only **6** of U6's 74 slots, authored per-slot from directly observed
 evidence (e.g. UPSC prints a large standalone series letter AND a separate T.B.C.
 code whose own letters mislead — a booklet coded `HGY-D-LKUV` is Series **A**),
@@ -802,13 +805,18 @@ facts**. These five are exam-specific and must come from the target exam's own
 context pack:
 
 1. **PYQ id chips (`pyq_ids` on sections and boxes) — the one that fails
-   SILENTLY.** `validatePyqIds` in `notes/chapter-assemble.ts` checks only that
-   an id exists in `questions` **at all**; it has **no exam scoping**. So a
-   copied UPPSC `pyq_id` resolves cleanly, passes the loader without a warning,
-   and renders a chip deep-linking the reader to *another exam's* question.
-   Always take ids from the target node's own `notes:chapter:context` pack.
-   Tracked as **M21** in `docs/OUTSTANDING.md` §8c — until it is fixed, this is
-   a human-discipline guard, not an enforced one.
+   SILENTLY — ~~and nothing catches it~~ **NO LONGER SILENT: M21 ✅ FIXED
+   2026-07-31.** `validatePyqIds` in `notes/chapter-assemble.ts` now derives the
+   chapter node's own exam (`examCodeForNode`) and scopes the check with
+   `questionExamScopeFilter`, so a copied UPPSC `pyq_id` in another exam's
+   chapter is **dropped with an explicit warning** naming the node's exam and
+   saying the chapter was probably drafted from another exam's without being
+   re-grounded. **`missing` (typo / truncated id) and `foreign` (copied draft)
+   are reported separately because they mean different things.** It is now an
+   enforced guard, not merely a human one — but still **take ids from the target
+   node's own `notes:chapter:context` pack**, because the loader can only *drop*
+   a wrong chip, never invent the right one, so a carried-over draft silently
+   loses its PYQ chips rather than gaining correct ones.
 2. **The state / regional angle.** In the DIGEST layer this is a literal field:
    `up_angle` on `noteBodySchema`, with `notes/prompts.ts` naming Uttar Pradesh
    in both the instruction and the JSON schema (a chapter has no such field —
@@ -1161,3 +1169,101 @@ code, so `upsc` values are **unreachable from any `uppsc` prompt** — the byte
 output cannot change, and the snapshot proves it mechanically (128 keys
 byte-identical). `ca/prompts.ts`'s ordering was not touched and no `cache: true`
 was added or moved.
+
+### 6f. UPSC's `notes` + `misc` — authored 2026-07-31 (the last 37 slots, and the 3 deliberate holdouts)
+
+`EXAM_CONFIGS.upsc` went from **40 UNAUTHORED to 3** — `notes` 20 and `misc` 17
+authored, `mppsc` still untouched at 96, `uppsc` still 0. The evidence standard
+was §6e's unchanged: measured corpus and the hand-authored tree, never UPPSC's
+text with the name swapped.
+
+**⚑ THE 3 REMAINING SLOTS ARE A LIVE GUARD. DO NOT AUTHOR THEM.**
+`misc.syllabusExpertFraming`, `misc.syllabusStructureNote` and
+`misc.translateDomainHint` are read *only* by `ingest:syllabus`'s LLM-structuring
+path, which must never run for UPSC — for two independently fatal reasons, both
+verified:
+
+1. `upsertNode` conflicts on **`(paper_code, path)`, the identical key the
+   hand-authored seed writes under**, so an invented tree would overwrite the
+   coverage-gated 195-node UPSC tree *in place*: `title_i18n` /
+   `description_i18n` / `meta` replaced wholesale and `meta.source` flipped from
+   `official_syllabus_hand_authored` to `official_syllabus`.
+2. `loadLangSource` **hardcodes UPPSC's manifest ids**, so a successfully
+   authored run would build UPSC's tree from UPPSC's syllabus PDF.
+
+Authoring those slots removes a guard and adds no capability. `upsc`'s real path
+is `pnpm ingest:upsc-syllabus` (hand-authored, zero-LLM, coverage-gated).
+
+**The refusal is now deliberately redundant.** `ingest/syllabus.ts` carries an
+explicit `LLM_STRUCTURABLE_SYLLABUS_EXAMS = ["uppsc"]` allow-list that refuses
+*before* `readManifest`/`loadLangSource`, because the `UNAUTHORED` guard lives in
+a different file from the thing it protects — a future bulk-authoring pass could
+legitimately fill those slots for the mentor/qgen paths and silently unblock this
+pipeline without anyone noticing. It is an allow-list rather than
+`=== DEFAULT_EXAM_CODE` so that "which exams may be LLM-structured" and "which
+exam is the default" stay separate questions. **Both guards were verified to fire
+independently.**
+
+**FOR THE NEXT AUTHOR — the snapshot now carries `:upsc` fixtures, so a new
+exam's values are no longer invisible to the harness.** This is the single most
+useful change here. Before this pass, *every* fixture was pinned to `uppsc`, so
+"N prompts byte-identical" was predominantly a **UPPSC** regression check and a
+second exam's prose had **zero** machine coverage. There are now **157** keys
+(the raw file has 159 — 157 prompts plus `__unreachable__` and
+`__not_reachable_without_editing__`), of which 27 mention `upsc`.
+
+Two things follow, and both are load-bearing:
+
+- **Add a `:upsc`-style fixture for every slot you author**, alongside the value.
+  A key costs one line and is the only thing that will ever notice a boundary
+  defect in your prose. Six `misc` slots authored in the U5 pass still have no
+  fixture despite reachable, already-snapshotted builders
+  (`translateQuestionsDomainHint`, `seriesPaperFraming`,
+  `seriesBookletCodeNote`, `pyqNodeClassifyFraming`, `auditSolverFraming`,
+  `auditEscalateFraming`) — closable with the same one-line-per-key pattern.
+- **The snapshot proves byte-identity; it does not proofread.** A new key is
+  whatever you wrote, so adding it *blesses* your prose rather than checking it.
+  **Read the assembled string, and diff it against the `uppsc` sibling key.**
+
+**Why that last point is not advice but a finding: three grammar bugs in this
+work were invisible to typecheck AND to reading the raw values.** All three lived
+at the *boundary* between a fragment and its host template. Two were caught
+during authoring (an em-dash gloss opening a clause the template never closes,
+so the template's own trailing "and what a topper must know" read as part of the
+gloss; and the same shape in `pyqAnalysisFraming`). The third survived both and
+was caught only by a later audit — `notes.outlineCompletenessLens`, whose own
+in-file comment asserted it was fine ("the colon closes at the parenthesis"),
+**which is false: a colon has no closing bracket.** The host is:
+
+```
+The EXAM defines completeness: plan sections that map to ${value} and what a
+topper must know — never padding.
+```
+
+The value opened a *second* colon inside the template's first; its internal
+`A, and B` list then captured the template's trailing `and what a topper must
+know` as a third list item; and `(use the weightage + PYQ patterns)` — which
+modifies the whole clause for `uppsc` — ended up scoped to the Mains item alone.
+Fixed value-only, to two **parallel `in …` phrases**, so the template's trailing
+`and what …` is not an `in`-phrase and cannot be read into the list. The `uppsc`
+sibling had read cleanly the entire time, which is what made the defect obvious
+in a one-line diff.
+
+**A census gotcha worth not re-deriving:** count slots by **walking
+`EXAM_CONFIGS`**, never by `rg UNAUTHORED` — this file's comments name the
+sentinel constantly, so a grep over-counts badly. And note **`upsc` has 119 slots
+where `uppsc` and `mppsc` have 120: that is CORRECT, not a missing slot.**
+`RelevanceLens` is a discriminated union — `state_specific` carries `state`,
+`national` does not — so `upsc` legitimately has no `relevanceLens.state`,
+TypeScript forces the sole consumer (`ca/prompts.ts`) to narrow on `kind` before
+reading it, and that consumer omits the "Source hints at <state> focus" line
+entirely rather than rendering a borrowed or empty state name.
+
+**Cache boundaries were checked and none moved.** Per-exam text *partitions* a
+cached prefix (one entry per exam) and cannot push it below a floor the shared
+scaffolding already sits under. One measurement is worth recording because it is
+**not** exam-specific: `buildNoteGenParams`'s cached prefix is **817 tokens with
+an empty context — already below sonnet-5's 1024 minimum today, for `uppsc` too**
+— so that flag is inert for a sparse node and active for a rich one, i.e. the
+same key both hits and misses depending on input. Tracked as **M43**; §6c's rule
+stands — measure with `messages.countTokens`, never `chars/4`.

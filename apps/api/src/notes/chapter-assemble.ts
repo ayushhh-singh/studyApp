@@ -24,6 +24,7 @@ import {
   bilingualTextSchema,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { examCodeForNode, questionExamScopeFilter } from "../lib/exams.js";
 import { persistChapter } from "./chapter-persist.js";
 import { CHAPTER_PROMPT_VERSION } from "./chapter-prompts.js";
 
@@ -42,33 +43,86 @@ export const chapterAssembleInputSchema = z.object({
 });
 export type ChapterAssembleInput = z.infer<typeof chapterAssembleInputSchema>;
 
+/** `.in()` builds a URL-encoded list — chunk it so a long id list can't blow the URL length limit. */
+const ID_CHUNK = 100;
+
+function chunk<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}
+
 /**
- * Validate every real pyq_id referenced actually exists in the bank (id-linked chips must resolve).
+ * Validate every real pyq_id referenced (a) exists in the bank and (b) belongs to
+ * the SAME exam as the chapter's node.
  *
- * KNOWN GAP (docs/OUTSTANDING.md §8c M21): this checks EXISTENCE only, not that the
- * question belongs to the same exam as the chapter's node. Harmless while uppsc is the
- * only exam with chapters — but M15 makes "draft from the corresponding UPPSC chapter"
- * the recommended starting point, so a carried-over UPPSC pyq_id would resolve here,
- * load with no warning, and render a chip linking to another exam's question. Scope this
- * by the node's exam as the FIRST step of any real second-exam chapter rollout.
+ * (b) closes docs/OUTSTANDING.md §8c M21. Checking existence alone was harmless
+ * only while uppsc was the sole exam with chapters — but M15 makes "draft from the
+ * corresponding UPPSC chapter" the RECOMMENDED starting point for a second exam, so
+ * a carried-over UPPSC pyq_id would resolve cleanly here, load with NO warning, and
+ * render a reader chip deep-linking to another exam's question. The two failure
+ * kinds are reported separately because they mean different things: a nonexistent id
+ * is a typo/truncation, a cross-exam id is a copied draft that was never re-grounded.
+ *
+ * `questionExamScopeFilter` is the established notion of "belongs to this exam"
+ * (paper_code in the exam's syllabus papers, OR a CURRENT_AFFAIRS question generated
+ * for it) — deliberately NOT `questions.exam_code`, which is provenance and whose
+ * domain includes exams we ingest PYQs from but never sell (`up_ro_aro`,
+ * `upsssc_pet`) whose papers ARE legitimately part of the default exam's bank.
+ *
+ * No `selectAll` paging needed: every read here is bounded by an `.in()` of at most
+ * ID_CHUNK ids, so it can never approach PostgREST's 1000-row cap.
+ *
+ * Exported (though only used by `assembleChapter` below) so this guard can be
+ * exercised directly against the live DB without invoking the WRITING assemble
+ * path — the only way to verify it read-only.
  */
-async function validatePyqIds(input: ChapterAssembleInput): Promise<string[]> {
+export async function validatePyqIds(
+  input: ChapterAssembleInput,
+): Promise<{ missing: string[]; foreign: string[]; examCode: string }> {
   const ids = new Set<string>();
   for (const s of input.sections) {
     s.pyq_ids.forEach((id) => ids.add(id));
     s.boxes.forEach((b) => b.pyq_ids.forEach((id) => ids.add(id)));
   }
-  if (ids.size === 0) return [];
-  const { data } = await supabase().from("questions").select("id").in("id", [...ids]);
-  const found = new Set(((data ?? []) as { id: string }[]).map((r) => r.id));
-  return [...ids].filter((id) => !found.has(id));
+  const examCode = await examCodeForNode(input.node_id);
+  if (ids.size === 0) return { missing: [], foreign: [], examCode };
+
+  const scope = await questionExamScopeFilter(examCode);
+  const exists = new Set<string>();
+  const inExam = new Set<string>();
+  for (const part of chunk([...ids], ID_CHUNK)) {
+    const all = await supabase().from("questions").select("id").in("id", part);
+    if (all.error) throw new Error(`pyq_id existence check failed: ${all.error.message}`);
+    ((all.data ?? []) as { id: string }[]).forEach((r) => exists.add(r.id));
+
+    const scoped = await supabase().from("questions").select("id").in("id", part).or(scope);
+    if (scoped.error) throw new Error(`pyq_id exam-scope check failed: ${scoped.error.message}`);
+    ((scoped.data ?? []) as { id: string }[]).forEach((r) => inExam.add(r.id));
+  }
+
+  return {
+    missing: [...ids].filter((id) => !exists.has(id)),
+    foreign: [...ids].filter((id) => exists.has(id) && !inExam.has(id)),
+    examCode,
+  };
 }
 
 export async function assembleChapter(input: ChapterAssembleInput, log: (m: string) => void = () => {}): Promise<string> {
-  const missing = await validatePyqIds(input);
+  const { missing, foreign, examCode } = await validatePyqIds(input);
   if (missing.length > 0) {
     log(`  (warn) ${missing.length} referenced pyq_id(s) not in the bank — dropping them: ${missing.join(", ")}`);
-    const drop = new Set(missing);
+  }
+  if (foreign.length > 0) {
+    log(
+      `  (warn) ${foreign.length} referenced pyq_id(s) belong to a DIFFERENT exam than this node ` +
+        `(node exam: ${examCode}) — dropping them: ${foreign.join(", ")}. ` +
+        `This usually means the chapter was drafted from another exam's chapter and its PYQ chips ` +
+        `were carried over without being re-grounded in this exam's own bank.`,
+    );
+  }
+  const drop = new Set([...missing, ...foreign]);
+  if (drop.size > 0) {
     for (const s of input.sections) {
       s.pyq_ids = s.pyq_ids.filter((id) => !drop.has(id));
       s.boxes.forEach((b) => (b.pyq_ids = b.pyq_ids.filter((id) => !drop.has(id))));
