@@ -902,8 +902,12 @@ changed; `uppsc` remains the only `is_live` exam.
 `apps/api/src/lib/exam-config.ts` is the single source of every per-exam prompt
 string. Each `uppsc` value is copied **byte-for-byte** out of the prompt it came
 from — that is what made byte-identity provable. For `upsc` and `mppsc`, every
-judgment-bearing slot is the `UNAUTHORED` sentinel: **uppsc 98/98 filled, upsc
-and mppsc 74 unauthored each** (tracked as **U6** in `docs/OUTSTANDING.md` §8f).
+judgment-bearing slot is the `UNAUTHORED` sentinel (tracked as **U6** in
+`docs/OUTSTANDING.md` §8f). **Re-measured 2026-07-31: `uppsc` 0 unauthored,
+`upsc` 40, `mppsc` 96** — the "74 unauthored each" this section used to state is
+stale, because the config has grown slots since it was written. `upsc` fell to 40
+when the authoring pass filled 50 of them (§6e). **Measure, do not restate:** the
+count is a property of the current object, not of a changelog.
 
 **It is wrong to author a second exam's value by string-replacing "UPPSC" with
 "UPSC" in UPPSC's text.** The severity anchor encodes empirical findings about
@@ -1030,8 +1034,15 @@ always passes is worthless.
 2. Author the exam's config values. **Every `UNAUTHORED` slot you fill is
    research, not translation** (§6a).
 3. `pnpm prompts:snapshot` again — **the uppsc keys must still be byte-identical.**
-   A new exam adds no keys (the harness snapshots uppsc); a diff there means you
-   changed shared structure, not exam content.
+   A diff there means you changed shared structure, not exam content.
+   **⚑ CORRECTION (2026-07-31): "a new exam adds no keys" is true of every key
+   EXCEPT ONE.** The harness dumps the **entire `RUBRICS` registry** into
+   `rubric/RUBRICS:labels-and-weights`, so registering a rubric **for any exam**
+   legitimately changes that key — it is not scoped to uppsc like the rest.
+   Before re-baselining, prove the incumbent sub-objects (`v1`, `essay-v1`)
+   byte-identical **individually**, then confirm `git diff --numstat` on the
+   baseline shows **insertions only, 0 deletions**. A whole-key diff summary
+   cannot distinguish "added a rubric" from "edited an existing one".
 4. Watch the mentor-persona floor WARN (§6c). Below 2950 chars, the harness fails.
 
 **Byte-identity alone is not sufficient proof** — it would also pass if nothing
@@ -1049,3 +1060,104 @@ verifiable at all); and for a CLI whose module ends in a bare `main().catch()`,
 prompts were moved into a side-effect-free `ingest/prompts.ts` rather than
 guarded with `argv` — this repo has a recorded incident where a scratch filename
 ending in the same substring self-triggered a CLI.
+
+### 6e. UPSC's prompt config — authored 2026-07-31 (50 of U6's slots)
+
+`EXAM_CONFIGS.upsc` went from **90 UNAUTHORED to 40** (`notes` 20 + `misc` 20
+remain). Authored: `relevanceLens` 2, `evaluation` 12, `qgen` 15, `mentor` 7,
+`ca` 14. `mppsc` untouched at 96. Three rubrics were registered at the same time
+(`upsc-gs-v1`, `upsc-essay-v1`, `upsc-ethics-v1`).
+
+**The evidence standard actually used**, so a future author matches it rather
+than lowering it. Every value came from one of two measured sources, never from
+UPPSC's text with the name swapped (§6a):
+
+- **The real UPSC PYQ corpus** — 2,791 rows ingested by U5, **read with
+  pagination past PostgREST's 1000-row cap** (Prelims GS-I alone is 1,100 rows,
+  so an unpaged read would have silently biased every percentage). This is what
+  makes the qgen/mentor/CA guidance defensible: the statement-combination family
+  is 55.3% of Prelims GS-I, **Assertion-Reason is 0 of 1,100**, "Critically
+  examine" is only 2.3% of Mains stems, and **a third of Mains stems carry no
+  directive verb at all**. UPPSC's own corpus differs on every one of those axes
+  (A/R 6.6%, pair-matching 16.3% vs 3.4%, chronological 6.3% vs 0.5%), so
+  reusing UPPSC's guidance would have over-produced two formats several-fold and
+  emitted one UPSC has never set.
+- **Sourced written-stage marksheets** for the severity anchor, with each figure
+  labelled measured / interpolated / arithmetic-under-an-assumption in the
+  comment above `UPSC_SEVERITY_ANCHOR`. **The trap it exists to block:** the
+  widely quoted ~54% "topper" figure is the **blended written+interview**
+  aggregate, and UPSC marks the interview far more generously (58-75%) than the
+  written stage. An answer-writing evaluator never sees an interview, so
+  anchoring near 54% inflates every score systematically — the anchor names the
+  trap explicitly, because the model's own priors carry the blended number.
+
+**Per-slot, not per-group.** `notes` and most of `misc` were deliberately left
+`UNAUTHORED`: a slot is authored when a pipeline genuinely needs it, so the
+sentinel keeps meaning "nobody has researched this yet" rather than decaying
+into "somebody filled the group".
+
+**The two things a future author most needs to know:**
+
+1. **The mentor-persona cache floor (§6c, M26) binds you.** `upsc/en` came out
+   at **3547 chars** against the harness's 2950 hard floor (uppsc reference
+   2995), because `platformFraming` + `testingLens` supply **820 chars vs
+   uppsc's 268** — ~216 tokens of headroom against uppsc's 22. That length is
+   genuine UPSC-specific content, not padding. A **terser** exam silently
+   disables the only cached segment on the generic-doubt path, with no error.
+   The sanctioned fix is to lengthen the persona, never to lower the floor.
+2. **The snapshot's `rubric/RUBRICS:labels-and-weights` key covers the WHOLE
+   registry** — see the correction in §6d step 3. Registering a rubric for any
+   exam legitimately changes it; verify the incumbent sub-objects individually
+   before re-baselining.
+
+**GS-IV gets its own rubric, and exactly one variant.** The load-bearing fact is
+primary-source: UPSC's notification says GS-IV *"will include questions to test
+the candidates' attitude and approach…"* and that *"questions may utilise the
+case study approach"* — **a sentence with no counterpart anywhere else in the
+notification**, since GS I-III, Essay and the Optionals are pure topic lists. So
+`upsc-ethics-v1` re-weights and **redefines** `examples_data` (relabelled
+"Realism & Practicability", explicitly *not* statistics or citations). Its
+`kind` is **`gs`, not a third kind** — GS-IV is a General Studies paper and must
+compete on the GS board, and `evaluations.rubric_kind` is a CHECK-constrained
+column admitting only `gs`/`essay`, so a third kind means a migration *and* a
+change to `mv_mains_weekly_board`'s segmentation.
+
+The research recommended **two** sub-variants (theory vs case study); one was
+shipped. Reasons and the reopening gate are recorded as **M33**
+in `docs/OUTSTANDING.md` §8f — the short version is that the registry forbids
+two rubrics claiming one paper code, the proposed discriminator is a hypothesis
+at ~10-15% estimated error, and the `description` fields are prose read by a
+model that sees the real question text, so they discriminate **conditionally**
+better than a regex would. Two corrections worth preserving: the widely cited
+GS-IV **"125/125" Section A/B split is wrong** (five real papers reconstruct to
+**130/120**), and the "options → merits/demerits → recommend" arc is a
+**coaching template, not a universal demand** — about half of real case studies
+ask something structurally different, so a rubric hard-coding it would mis-score
+half the corpus.
+
+**Two real bugs were fixed in the same pass**, both invisible until a second
+exam existed — worth knowing because they are the shape a third exam will hit:
+
+- `services/evaluation/prompts.ts` compared the **literal `"essay-v1"`** in two
+  places. `upsc-essay-v1` fails that test, so a UPSC essay would have been
+  prompted as a GS "descriptive answer" and never seen `essayAnswerFraming` or
+  the `MODEL ESSAY` framing. Both now ask the registry for the **kind**
+  (`rubricKindOf(...) === "essay"`), the same fix `services/scoreboard.ts`
+  already uses. **A version string is not a segmentation axis** — this is the
+  identical lesson M5 recorded for the boards.
+- `services/evaluation/rubric.ts` pinned its dimension descriptions to
+  `DEFAULT_EXAM_CODE`, so **every** rubric's `examples_data` described UPPSC's
+  "UP-specific data" — meaning a UPSC evaluation would have carried a
+  state-specific instruction for a national exam, inside its **cached** system
+  prompt. Descriptions now read the rubric's own `examCode`, and the essay word
+  limit was parameterised too (it hard-coded "~700-word", flatly wrong for
+  UPSC's ~1200).
+
+**The noise-floor rule (the 3-arm control design) correctly did NOT apply**, and
+this is provable rather than a judgement call: it governs changes to *shared*
+prompt structure, where model nondeterminism makes a plain before/after
+uninterpretable. `getExamConfig` is a pure per-exam lookup memoised per exam
+code, so `upsc` values are **unreachable from any `uppsc` prompt** — the byte
+output cannot change, and the snapshot proves it mechanically (128 keys
+byte-identical). `ca/prompts.ts`'s ordering was not touched and no `cache: true`
+was added or moved.

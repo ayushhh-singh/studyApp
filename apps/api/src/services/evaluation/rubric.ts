@@ -13,6 +13,16 @@
  *    subject, arrange ideas in an orderly fashion, write concisely; credit for
  *    effective and exact expression" — reflected in the weights below (coverage
  *    + substantiation + language weigh more than headings/presentation).
+ *  - "upsc-gs-v1"     — UPSC's general Mains descriptive-answer rubric
+ *    (GS-I..III; 10 marks/150 words and 15 marks/250 words in near-equal
+ *    measure, so 10/150 is the default assumption).
+ *  - "upsc-essay-v1"  — the UPSC Essay paper: ~1200 words for 125 marks, one of
+ *    the two essays that make up the 250-mark paper.
+ *  - "upsc-ethics-v1" — UPSC GS Paper IV (Ethics, Integrity and Aptitude). The
+ *    ONE paper UPSC's own notification describes as testing "attitude and
+ *    approach" rather than a topic list, which is why it needs its own weights
+ *    and its own reading of `examples_data` — see the block above its
+ *    dimensions for the full evidence and the one-variant-not-two decision.
  *
  * The weights + descriptions are server-only exam-domain knowledge; the
  * dimension keys are the shared contract. Weights within a rubric sum to 1.0
@@ -68,34 +78,38 @@ import { ESSAY_PAPER_CODE, ESSAY_WORD_LIMIT, ESSAY_MAX_MARKS } from "../../lib/e
 export { RUBRIC_VERSION, ESSAY_RUBRIC_VERSION };
 
 /**
- * The substantiation examples named in v1's `examples_data` description are the
- * SAME string as `evaluation.substantiationExamples` in lib/exam-config.ts (the
- * model-answer prompt interpolates it too). Read it rather than keeping a
- * parallel copy, so the two cannot drift.
+ * The substantiation examples named in a GS rubric's `examples_data` description
+ * are the SAME string as `evaluation.substantiationExamples` in
+ * lib/exam-config.ts (the model-answer prompt interpolates it too). Read it
+ * rather than keep a parallel copy, so the two cannot drift.
  *
- * Keyed off THIS rubric's own `examCode` (v1 is the default exam's GS scheme —
- * see the header). A future `<exam>-gs-v1` reads its own exam's config the same
- * way; the registry itself is deliberately NOT restructured.
+ * FIXED 2026-07-31: these used to be module constants pinned to
+ * `DEFAULT_EXAM_CODE`, so EVERY rubric's dimension descriptions read UPPSC's
+ * "UP-specific data" no matter which exam the rubric belonged to — a second
+ * exam's GS rubric would have told its examiner to look for state-specific
+ * evidence for a national exam. Each rubric now reads its OWN `examCode`.
  */
-const V1_EXAM_CODE = DEFAULT_EXAM_CODE;
-const V1_SUBSTANTIATION_EXAMPLES = requireAuthored(
-  getExamConfig(V1_EXAM_CODE).evaluation.substantiationExamples,
-  V1_EXAM_CODE,
-  "evaluation.substantiationExamples",
-);
+function substantiationFor(examCode: string): string {
+  return requireAuthored(
+    getExamConfig(examCode).evaluation.substantiationExamples,
+    examCode,
+    "evaluation.substantiationExamples",
+  );
+}
 
 /**
- * Same rationale for `essay-v1`'s `examples_data`, which names the substantiation
- * in a different grammatical form ("UP-/India-specific evidence"). It is the same
- * string as `evaluation.essaySubstantiationExamples`, which the model-answer
- * ESSAY prompt also interpolates — read it rather than keep a parallel copy.
+ * Same rationale for an essay rubric's `examples_data`, which names the
+ * substantiation in a different grammatical form. It is the same string as
+ * `evaluation.essaySubstantiationExamples`, which the model-answer ESSAY prompt
+ * also interpolates.
  */
-const ESSAY_V1_EXAM_CODE = DEFAULT_EXAM_CODE;
-const ESSAY_V1_SUBSTANTIATION_EXAMPLES = requireAuthored(
-  getExamConfig(ESSAY_V1_EXAM_CODE).evaluation.essaySubstantiationExamples,
-  ESSAY_V1_EXAM_CODE,
-  "evaluation.essaySubstantiationExamples",
-);
+function essaySubstantiationFor(examCode: string): string {
+  return requireAuthored(
+    getExamConfig(examCode).evaluation.essaySubstantiationExamples,
+    examCode,
+    "evaluation.essaySubstantiationExamples",
+  );
+}
 
 /** Fallback max marks when a custom prompt / question carries no `marks`. */
 export const DEFAULT_MAX_SCORE = 10;
@@ -126,123 +140,334 @@ export interface RubricDefinition {
 }
 
 // ---------------------------------------------------------------------------
-// v1 — general Mains descriptive answer
+// The general Mains descriptive-answer dimension set. The prose is generic
+// answer-writing rubric semantics (structure / coverage / vocabulary /
+// substantiation / layout / length), so it is shared across exams; the one
+// exam-bearing part is the substantiation list, which is exactly why that lives
+// in exam-config. `v1` is the default exam's instance; `upsc-gs-v1` is UPSC's.
 // ---------------------------------------------------------------------------
-const V1_DIMENSIONS: readonly RubricDimension[] = [
+function gsDimensions(examCode: string): readonly RubricDimension[] {
+  const substantiation = substantiationFor(examCode);
+  return [
+    {
+      key: "structure_flow",
+      label: "Structure & Flow",
+      weight: 0.2,
+      description:
+        "A clear introduction, body, and conclusion are present and in that order. Ideas " +
+        "progress logically, paragraphs connect, and the answer reads as a coherent whole " +
+        "rather than disjointed points.",
+    },
+    {
+      key: "content_coverage",
+      label: "Content Coverage",
+      weight: 0.3,
+      description:
+        "Every demand of the question is addressed, honouring its directive word (examine, " +
+        "critically analyse, discuss, etc.). Points are syllabus-relevant and substantive, " +
+        "with breadth and depth proportionate to the marks. This is the most heavily weighted " +
+        "dimension.",
+    },
+    {
+      key: "keywords_concepts",
+      label: "Keywords & Concepts",
+      weight: 0.15,
+      description:
+        "Correct, precise use of subject terminology and the relevant constitutional, " +
+        "administrative, economic, or policy concepts — the vocabulary an examiner expects at " +
+        "the Mains level.",
+    },
+    {
+      key: "examples_data",
+      label: "Examples & Data",
+      weight: 0.15,
+      description:
+        `Claims are substantiated with concrete facts, figures, ${substantiation}, committees ` +
+        "and commissions, constitutional articles, government schemes, case studies, or court " +
+        "judgments — not left as unsupported assertions.",
+    },
+    {
+      key: "presentation",
+      label: "Presentation",
+      weight: 0.1,
+      description:
+        "Readable organisation: helpful headings/sub-headings, and points or short paragraphs " +
+        "where they aid clarity. Credit a diagram, flowchart, or map only if the candidate " +
+        "explicitly states they have drawn one (this is typed text — none is visible).",
+    },
+    {
+      key: "word_limit_language",
+      label: "Word Limit & Language",
+      weight: 0.1,
+      description:
+        "The answer respects the word limit — neither padded far beyond it nor too thin to " +
+        "earn the marks — and the language is clear, grammatical, and exam-appropriate.",
+    },
+  ];
+}
+
+// ---------------------------------------------------------------------------
+// The Essay-paper dimension set. Shared prose again; the two exam-bearing parts
+// are the substantiation list and the word limit named in the language
+// dimension — UPPSC sets one ~700-word essay for 50 marks, UPSC two ~1200-word
+// essays for 125 marks each, so a hardcoded "~700-word" would be flatly wrong
+// for UPSC. The official-directive quotations are UPPSC's own phrasing of a
+// universal essay-marking instruction and read correctly for either paper.
+// ---------------------------------------------------------------------------
+function essayDimensions(examCode: string, wordLimit: number): readonly RubricDimension[] {
+  const essaySubstantiation = essaySubstantiationFor(examCode);
+  return [
+    {
+      key: "structure_flow",
+      label: "Structure & Coherence",
+      weight: 0.2,
+      description:
+        "A compelling introduction that frames the theme, a well-organised body, and a " +
+        "forward-looking conclusion. Paragraphs link smoothly with clear transitions and the " +
+        "essay reads as one continuous, orderly argument — the official directive to 'arrange " +
+        "ideas in an orderly fashion'.",
+    },
+    {
+      key: "content_coverage",
+      label: "Relevance & Multidimensional Coverage",
+      weight: 0.3,
+      description:
+        "The essay stays closely on the chosen topic (no padding) AND treats it from multiple " +
+        "angles — political, economic, social, technological, legal, environmental, ethical as " +
+        "relevant — with cause, effect, and solution, and a balanced, objective view of more " +
+        "than one side. The most heavily weighted dimension.",
+    },
+    {
+      key: "keywords_concepts",
+      label: "Depth & Critical Analysis",
+      weight: 0.1,
+      description:
+        "Analysis over mere description: original insight, nuanced argument, and precise use of " +
+        "relevant concepts and terminology rather than generic, surface-level statements.",
+    },
+    {
+      key: "examples_data",
+      label: "Substantiation",
+      weight: 0.2,
+      description:
+        "Arguments are backed with concrete facts, data, real examples, case studies, apt " +
+        `quotations, historical references, and ${essaySubstantiation} — not unsupported ` +
+        "generalisation.",
+    },
+    {
+      key: "presentation",
+      label: "Presentation",
+      weight: 0.05,
+      description:
+        "Overall readability and flow. Essays are continuous prose, so credit clean paragraphing " +
+        "and (sparingly) a helpful sub-heading; do not require the bullet/heading layout of a GS " +
+        "answer.",
+    },
+    {
+      key: "word_limit_language",
+      label: "Language & Expression",
+      weight: 0.15,
+      description:
+        `Stays close to the ~${wordLimit}-word limit and is written concisely with effective and exact ` +
+        "expression — clear, grammatical, precise, and engaging language, the official mark of " +
+        "credit for the essay.",
+    },
+  ];
+}
+
+/**
+ * UPSC's paper codes are declared here as literals rather than imported: the
+ * canonical list lives in the hand-authored syllabus seed
+ * (`ingest/seed/upsc-syllabus-tree.ts`, bound to `exams.paper_structure` by
+ * migration 0112), and `lib/exam-papers.ts` is UPPSC's own constants module. If
+ * a shared UPSC paper-code module is ever added, re-point these at it.
+ */
+const UPSC_EXAM_CODE = "upsc";
+const UPSC_ESSAY_PAPER_CODE = "UPSC_MAINS_ESSAY";
+const UPSC_GS4_PAPER_CODE = "UPSC_MAINS_GS4";
+
+/** One UPSC essay: ~1200 words for 125 marks (the paper sets two, for 250). */
+const UPSC_ESSAY_WORD_LIMIT = 1200;
+const UPSC_ESSAY_MAX_MARKS = 125;
+
+/**
+ * UPSC GS-I..III defaults: 10 marks / 150 words and 15 marks / 250 words occur
+ * in near-equal measure (~45%/45% of the ingested corpus), so the 10/150 pair is
+ * the conservative assumption when a question carries none.
+ */
+const UPSC_GS_WORD_LIMIT = 150;
+const UPSC_GS_MAX_SCORE = 10;
+
+/** GS-IV Section-B case studies are 20 marks / 250 words; 77.9% of the
+ * ingested GS-IV corpus is 20-mark. Section-A theory items are 10/150 and carry
+ * their own marks on the question row, so this default only fills the gap. */
+const UPSC_ETHICS_WORD_LIMIT = 250;
+const UPSC_ETHICS_MAX_MARKS = 20;
+
+// Per-exam instances of the two shared sets. Built once at module load, so a
+// missing/UNAUTHORED config slot is a loud startup failure naming the field
+// rather than a surprise at the first billed evaluation.
+const V1_DIMENSIONS = gsDimensions(DEFAULT_EXAM_CODE);
+const ESSAY_V1_DIMENSIONS = essayDimensions(DEFAULT_EXAM_CODE, ESSAY_WORD_LIMIT);
+const UPSC_GS_DIMENSIONS = gsDimensions(UPSC_EXAM_CODE);
+const UPSC_ESSAY_DIMENSIONS = essayDimensions(UPSC_EXAM_CODE, UPSC_ESSAY_WORD_LIMIT);
+
+// ---------------------------------------------------------------------------
+// upsc-ethics-v1 — UPSC GS Paper IV (Ethics, Integrity and Aptitude)
+// ---------------------------------------------------------------------------
+/**
+ * WHY GS-IV GETS ITS OWN RUBRIC AT ALL — the load-bearing fact is UPSC's own
+ * notification, which describes GS-IV and describes no other paper:
+ *
+ *   "This paper will include questions to test the candidates' attitude and
+ *    approach to issues relating to integrity, probity in public life and his
+ *    problem solving approach to various issues and conflicts faced by him in
+ *    dealing with society. Questions may utilise the case study approach to
+ *    determine these aspects."
+ *
+ * GS-I..III, the Essay and the Optionals are pure topic lists. GS-IV alone is
+ * described by the commission as testing DISPOSITION AND JUDGMENT rather than a
+ * checkable body of knowledge, so grading it on the standard GS rubric — which
+ * weights substantiation with committees, data and judgments at 15% — measures
+ * the wrong thing.
+ *
+ * WHY ONE VARIANT AND NOT TWO (theory vs case study). The research that produced
+ * this rubric recommended splitting it, and that recommendation is DELIBERATELY
+ * not followed:
+ *  1. The registry's load-time assertion forbids two rubrics claiming the same
+ *     `paperCodes` entry, and `paperCodes` is its only per-paper mechanism — two
+ *     sub-variants would both claim `UPSC_MAINS_GS4`.
+ *  2. Splitting them needs a PER-QUESTION discriminator, and the proposed
+ *     heuristic is explicitly a hypothesis rather than a measurement, with an
+ *     estimated 10-15% error on the 20-mark subset. Silently routing an answer
+ *     to a different marking scheme on an unvalidated heuristic is worse than
+ *     one variant.
+ *  3. A better mechanism already exists. These `description` fields are PROSE
+ *     READ BY THE EXAMINER MODEL, which sees the actual question text — so each
+ *     one below is written CONDITIONALLY ("if the question is a short
+ *     definitional or quotation item… if it is a narrative case study…"). The
+ *     model discriminates from the real text, which beats a regex.
+ *
+ * FOLLOW-UP if the split is ever wanted: our corpus already carries ground-truth
+ * case-study tagging, so validate a discriminator against the ~50-100 already
+ * tagged 20-markers BEFORE shipping it — do not ship the estimate.
+ *
+ * MEASURED from our own 2,791-row UPSC PYQ corpus: 10-mark GS-IV questions
+ * (n=20) are median 25 words and 0% case-study-shaped; 20-markers (n=102) are
+ * median 141 words and 51% case-study-shaped, up to 637 words; 71.8% carry
+ * (a)/(b) sub-parts. Real papers split 13 × 10 marks = 130 (Section A) and
+ * 6 × 20 marks = 120 (Section B), reconstructed from five actual papers
+ * 2019-2024 — NOT the widely cited "125/125", which matches no printed paper.
+ *
+ * The "options → merits/demerits → recommend" arc is a COACHING TEMPLATE, not a
+ * universal demand: roughly half of real case studies ask something structurally
+ * different (evaluate a third party's conduct; diagnose and suggest measures;
+ * a direct first-person response naming the traits involved; or even a factual
+ * sub-part bolted onto a scenario — 2023's Joint-Secretary case asks the
+ * candidate to "briefly describe at least four laws"). A rubric that hard-coded
+ * the arc would systematically mis-score about half the corpus, so the
+ * structure dimension below rewards the arc only WHERE THE QUESTION ASKS FOR IT.
+ *
+ * WEIGHTS — blended from the two researched profiles rather than averaged
+ * blindly, and each value is one of the two profiles' own numbers or their
+ * midpoint, so nothing here is invented:
+ *   structure_flow      .20  midpoint of theory .15 / case .25
+ *   content_coverage    .25  both profiles agree
+ *   keywords_concepts   .20  the HIGHER (theory) value — ethical terminology is
+ *                            the one thing both formats reward
+ *   examples_data       .10  the LOWER (case) value — see below
+ *   presentation        .10  both profiles agree
+ *   word_limit_language .15  both profiles agree
+ * Sum = 1.00 exactly (asserted at load).
+ *
+ * `examples_data` is deliberately DE-EMPHASISED (.15 → .10) and REDEFINED: for
+ * GS-IV it means the realism and administrative plausibility of the
+ * illustration, option or resolution, explicitly NOT statistics or citations.
+ * The strongest evidence available on what actually earns marks here is
+ * VisionIAS's analysis of Aditya Srivastava's real GS-IV script (AIR-1 2023,
+ * 143/250 = 57.2%): examiners rewarded "conceptual clarity over data
+ * accumulation" and "practical, logical reasoning over statistics", with
+ * "notably absent: heavy reliance on citations or statistical evidence". That is
+ * coaching-sourced and n=1 — the best available evidence, not a systematic
+ * sample, and recorded here as such.
+ */
+const ETHICS_DIMENSIONS: readonly RubricDimension[] = [
   {
     key: "structure_flow",
-    label: "Structure & Flow",
+    label: "Structure & Problem-Solving Approach",
     weight: 0.2,
     description:
-      "A clear introduction, body, and conclusion are present and in that order. Ideas " +
-      "progress logically, paragraphs connect, and the answer reads as a coherent whole " +
-      "rather than disjointed points.",
+      "Judge the shape the QUESTION actually asks for, not a memorised template. If it is a " +
+      "narrative case study, the answer should establish the facts and the ethical issues at " +
+      "stake, then respond in whatever form is demanded — weighing options against their merits " +
+      "and demerits before recommending one, OR evaluating another party's conduct, OR " +
+      "diagnosing a situation and proposing measures, OR answering in the first person as the " +
+      "officer — and close with a defensible, actionable position. Only require the " +
+      "options-then-recommendation arc where the question asks for a course of action; about " +
+      "half of real case studies do not. If it is a short definitional, quotation or " +
+      "'what do you understand by' item, expect a crisp definition, an unpacking, and an " +
+      "illustration, not a case-study scaffold. Sub-parts labelled (a)/(b) must each be answered " +
+      "and answered separately.",
   },
   {
     key: "content_coverage",
-    label: "Content Coverage",
-    weight: 0.3,
+    label: "Coverage of the Ethical Demands",
+    weight: 0.25,
     description:
-      "Every demand of the question is addressed, honouring its directive word (examine, " +
-      "critically analyse, discuss, etc.). Points are syllabus-relevant and substantive, " +
-      "with breadth and depth proportionate to the marks. This is the most heavily weighted " +
-      "dimension.",
+      "Every demand the question makes is addressed. For a case study that means all the " +
+      "stakeholders and the interests genuinely in tension, the competing values or duties that " +
+      "create the dilemma, the legal or institutional constraints in play, and the consequences " +
+      "of the course chosen — plus any explicitly bolted-on sub-part (a named number of " +
+      "provisions, laws, or measures) actually delivered in full. For a theory item it means the " +
+      "concept explained in its own terms and in its administrative context. The most heavily " +
+      "weighted dimension.",
   },
   {
     key: "keywords_concepts",
-    label: "Keywords & Concepts",
-    weight: 0.15,
+    label: "Ethical Concepts & Vocabulary",
+    weight: 0.2,
     description:
-      "Correct, precise use of subject terminology and the relevant constitutional, " +
-      "administrative, economic, or policy concepts — the vocabulary an examiner expects at " +
-      "the Mains level.",
+      "Correct and precise use of ethical and administrative vocabulary — integrity, probity, " +
+      "objectivity, impartiality, conflict of interest, accountability, emotional intelligence, " +
+      "conscience, foundational values of civil service — and of the ethical frameworks " +
+      "(deontological, consequentialist, virtue-based) where they genuinely illuminate the " +
+      "question. Reward conceptual clarity and correct application; do NOT reward name-dropping " +
+      "a philosopher or a framework that does no work in the answer. Weighted above the standard " +
+      "GS rubric because this paper tests exactly this.",
   },
   {
     key: "examples_data",
-    label: "Examples & Data",
-    weight: 0.15,
+    label: "Realism & Practicability",
+    weight: 0.1,
     description:
-      `Claims are substantiated with concrete facts, figures, ${V1_SUBSTANTIATION_EXAMPLES}, committees ` +
-      "and commissions, constitutional articles, government schemes, case studies, or court " +
-      "judgments — not left as unsupported assertions.",
+      "For this paper alone, this dimension is NOT about statistics, citations or data. Judge " +
+      "whether the illustration, the options considered, or the recommended resolution is " +
+      "REALISTIC and ADMINISTRATIVELY PLAUSIBLE — something an officer in that post could " +
+      "actually do, within the powers and constraints available, with the consequences honestly " +
+      "faced. A concrete real-world or plausible hypothetical example, or a lived administrative " +
+      "detail, earns credit; a moralising abstraction does not. Deliberately weighted BELOW the " +
+      "standard GS rubric: on this paper examiners reward practical, logical reasoning over " +
+      "accumulated data, so do not penalise an answer merely for citing few facts.",
   },
   {
     key: "presentation",
     label: "Presentation",
     weight: 0.1,
     description:
-      "Readable organisation: helpful headings/sub-headings, and points or short paragraphs " +
-      "where they aid clarity. Credit a diagram, flowchart, or map only if the candidate " +
-      "explicitly states they have drawn one (this is typed text — none is visible).",
+      "Readable organisation: helpful headings or labelled parts where they aid clarity (a " +
+      "stakeholder list, an options table in prose form, clearly separated (a)/(b) answers). " +
+      "Credit a diagram or flowchart only if the candidate explicitly states they have drawn one " +
+      "(this is typed text — none is visible).",
   },
   {
     key: "word_limit_language",
     label: "Word Limit & Language",
-    weight: 0.1,
-    description:
-      "The answer respects the word limit — neither padded far beyond it nor too thin to " +
-      "earn the marks — and the language is clear, grammatical, and exam-appropriate.",
-  },
-];
-
-// ---------------------------------------------------------------------------
-// essay-v1 — UPPSC Essay paper (one ~700-word essay, 50 marks)
-// ---------------------------------------------------------------------------
-const ESSAY_V1_DIMENSIONS: readonly RubricDimension[] = [
-  {
-    key: "structure_flow",
-    label: "Structure & Coherence",
-    weight: 0.2,
-    description:
-      "A compelling introduction that frames the theme, a well-organised body, and a " +
-      "forward-looking conclusion. Paragraphs link smoothly with clear transitions and the " +
-      "essay reads as one continuous, orderly argument — the official directive to 'arrange " +
-      "ideas in an orderly fashion'.",
-  },
-  {
-    key: "content_coverage",
-    label: "Relevance & Multidimensional Coverage",
-    weight: 0.3,
-    description:
-      "The essay stays closely on the chosen topic (no padding) AND treats it from multiple " +
-      "angles — political, economic, social, technological, legal, environmental, ethical as " +
-      "relevant — with cause, effect, and solution, and a balanced, objective view of more " +
-      "than one side. The most heavily weighted dimension.",
-  },
-  {
-    key: "keywords_concepts",
-    label: "Depth & Critical Analysis",
-    weight: 0.1,
-    description:
-      "Analysis over mere description: original insight, nuanced argument, and precise use of " +
-      "relevant concepts and terminology rather than generic, surface-level statements.",
-  },
-  {
-    key: "examples_data",
-    label: "Substantiation",
-    weight: 0.2,
-    description:
-      "Arguments are backed with concrete facts, data, real examples, case studies, apt " +
-      `quotations, historical references, and ${ESSAY_V1_SUBSTANTIATION_EXAMPLES} — not unsupported ` +
-      "generalisation.",
-  },
-  {
-    key: "presentation",
-    label: "Presentation",
-    weight: 0.05,
-    description:
-      "Overall readability and flow. Essays are continuous prose, so credit clean paragraphing " +
-      "and (sparingly) a helpful sub-heading; do not require the bullet/heading layout of a GS " +
-      "answer.",
-  },
-  {
-    key: "word_limit_language",
-    label: "Language & Expression",
     weight: 0.15,
     description:
-      "Stays close to the ~700-word limit and is written concisely with effective and exact " +
-      "expression — clear, grammatical, precise, and engaging language, the official mark of " +
-      "credit for the essay.",
+      "The answer respects the word limit — neither padded far beyond it nor too thin to earn " +
+      "the marks — and the language is clear, grammatical and exam-appropriate. On this paper " +
+      "also judge TONE: a balanced, non-preachy, professionally detached register that reasons " +
+      "rather than sermonises is what an examiner credits.",
   },
 ];
 
@@ -265,6 +490,34 @@ export const RUBRICS: Record<string, RubricDefinition> = {
     paperCodes: [ESSAY_PAPER_CODE],
     defaults: { wordLimit: ESSAY_WORD_LIMIT, maxScore: ESSAY_MAX_MARKS },
     dimensions: ESSAY_V1_DIMENSIONS,
+  },
+  "upsc-gs-v1": {
+    version: "upsc-gs-v1",
+    examCode: UPSC_EXAM_CODE,
+    kind: "gs",
+    paperCodes: [], // UPSC's default: every Mains paper except Essay and GS-IV.
+    defaults: { wordLimit: UPSC_GS_WORD_LIMIT, maxScore: UPSC_GS_MAX_SCORE },
+    dimensions: UPSC_GS_DIMENSIONS,
+  },
+  "upsc-essay-v1": {
+    version: "upsc-essay-v1",
+    examCode: UPSC_EXAM_CODE,
+    kind: "essay",
+    paperCodes: [UPSC_ESSAY_PAPER_CODE],
+    defaults: { wordLimit: UPSC_ESSAY_WORD_LIMIT, maxScore: UPSC_ESSAY_MAX_MARKS },
+    dimensions: UPSC_ESSAY_DIMENSIONS,
+  },
+  // kind is "gs", NOT a third kind: GS-IV IS a General Studies paper and must
+  // compete on the GS board. `evaluations.rubric_kind` is a DB CHECK-constrained
+  // column admitting only 'gs' | 'essay', so a third kind would need a migration
+  // AND would change mv_mains_weekly_board's segmentation.
+  "upsc-ethics-v1": {
+    version: "upsc-ethics-v1",
+    examCode: UPSC_EXAM_CODE,
+    kind: "gs",
+    paperCodes: [UPSC_GS4_PAPER_CODE],
+    defaults: { wordLimit: UPSC_ETHICS_WORD_LIMIT, maxScore: UPSC_ETHICS_MAX_MARKS },
+    dimensions: ETHICS_DIMENSIONS,
   },
 };
 

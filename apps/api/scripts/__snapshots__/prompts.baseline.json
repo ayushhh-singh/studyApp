@@ -4937,6 +4937,151 @@
           "description": "Stays close to the ~700-word limit and is written concisely with effective and exact expression — clear, grammatical, precise, and engaging language, the official mark of credit for the essay."
         }
       ]
+    },
+    "upsc-gs-v1": {
+      "examCode": "upsc",
+      "kind": "gs",
+      "paperCodes": [],
+      "defaults": {
+        "wordLimit": 150,
+        "maxScore": 10
+      },
+      "dimensions": [
+        {
+          "key": "structure_flow",
+          "label": "Structure & Flow",
+          "weight": 0.2,
+          "description": "A clear introduction, body, and conclusion are present and in that order. Ideas progress logically, paragraphs connect, and the answer reads as a coherent whole rather than disjointed points."
+        },
+        {
+          "key": "content_coverage",
+          "label": "Content Coverage",
+          "weight": 0.3,
+          "description": "Every demand of the question is addressed, honouring its directive word (examine, critically analyse, discuss, etc.). Points are syllabus-relevant and substantive, with breadth and depth proportionate to the marks. This is the most heavily weighted dimension."
+        },
+        {
+          "key": "keywords_concepts",
+          "label": "Keywords & Concepts",
+          "weight": 0.15,
+          "description": "Correct, precise use of subject terminology and the relevant constitutional, administrative, economic, or policy concepts — the vocabulary an examiner expects at the Mains level."
+        },
+        {
+          "key": "examples_data",
+          "label": "Examples & Data",
+          "weight": 0.15,
+          "description": "Claims are substantiated with concrete facts, figures, national and international evidence (Economic Survey and NITI Aayog data, global indices and rankings, and cross-country comparisons), committees and commissions, constitutional articles, government schemes, case studies, or court judgments — not left as unsupported assertions."
+        },
+        {
+          "key": "presentation",
+          "label": "Presentation",
+          "weight": 0.1,
+          "description": "Readable organisation: helpful headings/sub-headings, and points or short paragraphs where they aid clarity. Credit a diagram, flowchart, or map only if the candidate explicitly states they have drawn one (this is typed text — none is visible)."
+        },
+        {
+          "key": "word_limit_language",
+          "label": "Word Limit & Language",
+          "weight": 0.1,
+          "description": "The answer respects the word limit — neither padded far beyond it nor too thin to earn the marks — and the language is clear, grammatical, and exam-appropriate."
+        }
+      ]
+    },
+    "upsc-essay-v1": {
+      "examCode": "upsc",
+      "kind": "essay",
+      "paperCodes": [
+        "UPSC_MAINS_ESSAY"
+      ],
+      "defaults": {
+        "wordLimit": 1200,
+        "maxScore": 125
+      },
+      "dimensions": [
+        {
+          "key": "structure_flow",
+          "label": "Structure & Coherence",
+          "weight": 0.2,
+          "description": "A compelling introduction that frames the theme, a well-organised body, and a forward-looking conclusion. Paragraphs link smoothly with clear transitions and the essay reads as one continuous, orderly argument — the official directive to 'arrange ideas in an orderly fashion'."
+        },
+        {
+          "key": "content_coverage",
+          "label": "Relevance & Multidimensional Coverage",
+          "weight": 0.3,
+          "description": "The essay stays closely on the chosen topic (no padding) AND treats it from multiple angles — political, economic, social, technological, legal, environmental, ethical as relevant — with cause, effect, and solution, and a balanced, objective view of more than one side. The most heavily weighted dimension."
+        },
+        {
+          "key": "keywords_concepts",
+          "label": "Depth & Critical Analysis",
+          "weight": 0.1,
+          "description": "Analysis over mere description: original insight, nuanced argument, and precise use of relevant concepts and terminology rather than generic, surface-level statements."
+        },
+        {
+          "key": "examples_data",
+          "label": "Substantiation",
+          "weight": 0.2,
+          "description": "Arguments are backed with concrete facts, data, real examples, case studies, apt quotations, historical references, and India-specific and comparative international evidence — not unsupported generalisation."
+        },
+        {
+          "key": "presentation",
+          "label": "Presentation",
+          "weight": 0.05,
+          "description": "Overall readability and flow. Essays are continuous prose, so credit clean paragraphing and (sparingly) a helpful sub-heading; do not require the bullet/heading layout of a GS answer."
+        },
+        {
+          "key": "word_limit_language",
+          "label": "Language & Expression",
+          "weight": 0.15,
+          "description": "Stays close to the ~1200-word limit and is written concisely with effective and exact expression — clear, grammatical, precise, and engaging language, the official mark of credit for the essay."
+        }
+      ]
+    },
+    "upsc-ethics-v1": {
+      "examCode": "upsc",
+      "kind": "gs",
+      "paperCodes": [
+        "UPSC_MAINS_GS4"
+      ],
+      "defaults": {
+        "wordLimit": 250,
+        "maxScore": 20
+      },
+      "dimensions": [
+        {
+          "key": "structure_flow",
+          "label": "Structure & Problem-Solving Approach",
+          "weight": 0.2,
+          "description": "Judge the shape the QUESTION actually asks for, not a memorised template. If it is a narrative case study, the answer should establish the facts and the ethical issues at stake, then respond in whatever form is demanded — weighing options against their merits and demerits before recommending one, OR evaluating another party's conduct, OR diagnosing a situation and proposing measures, OR answering in the first person as the officer — and close with a defensible, actionable position. Only require the options-then-recommendation arc where the question asks for a course of action; about half of real case studies do not. If it is a short definitional, quotation or 'what do you understand by' item, expect a crisp definition, an unpacking, and an illustration, not a case-study scaffold. Sub-parts labelled (a)/(b) must each be answered and answered separately."
+        },
+        {
+          "key": "content_coverage",
+          "label": "Coverage of the Ethical Demands",
+          "weight": 0.25,
+          "description": "Every demand the question makes is addressed. For a case study that means all the stakeholders and the interests genuinely in tension, the competing values or duties that create the dilemma, the legal or institutional constraints in play, and the consequences of the course chosen — plus any explicitly bolted-on sub-part (a named number of provisions, laws, or measures) actually delivered in full. For a theory item it means the concept explained in its own terms and in its administrative context. The most heavily weighted dimension."
+        },
+        {
+          "key": "keywords_concepts",
+          "label": "Ethical Concepts & Vocabulary",
+          "weight": 0.2,
+          "description": "Correct and precise use of ethical and administrative vocabulary — integrity, probity, objectivity, impartiality, conflict of interest, accountability, emotional intelligence, conscience, foundational values of civil service — and of the ethical frameworks (deontological, consequentialist, virtue-based) where they genuinely illuminate the question. Reward conceptual clarity and correct application; do NOT reward name-dropping a philosopher or a framework that does no work in the answer. Weighted above the standard GS rubric because this paper tests exactly this."
+        },
+        {
+          "key": "examples_data",
+          "label": "Realism & Practicability",
+          "weight": 0.1,
+          "description": "For this paper alone, this dimension is NOT about statistics, citations or data. Judge whether the illustration, the options considered, or the recommended resolution is REALISTIC and ADMINISTRATIVELY PLAUSIBLE — something an officer in that post could actually do, within the powers and constraints available, with the consequences honestly faced. A concrete real-world or plausible hypothetical example, or a lived administrative detail, earns credit; a moralising abstraction does not. Deliberately weighted BELOW the standard GS rubric: on this paper examiners reward practical, logical reasoning over accumulated data, so do not penalise an answer merely for citing few facts."
+        },
+        {
+          "key": "presentation",
+          "label": "Presentation",
+          "weight": 0.1,
+          "description": "Readable organisation: helpful headings or labelled parts where they aid clarity (a stakeholder list, an options table in prose form, clearly separated (a)/(b) answers). Credit a diagram or flowchart only if the candidate explicitly states they have drawn one (this is typed text — none is visible)."
+        },
+        {
+          "key": "word_limit_language",
+          "label": "Word Limit & Language",
+          "weight": 0.15,
+          "description": "The answer respects the word limit — neither padded far beyond it nor too thin to earn the marks — and the language is clear, grammatical and exam-appropriate. On this paper also judge TONE: a balanced, non-preachy, professionally detached register that reasons rather than sermonises is what an examiner credits."
+        }
+      ]
     }
   },
   "rubric/renderRubricForPrompt:default-noarg": "1. Structure & Flow [key: structure_flow, weight 20%]\n   A clear introduction, body, and conclusion are present and in that order. Ideas progress logically, paragraphs connect, and the answer reads as a coherent whole rather than disjointed points.\n2. Content Coverage [key: content_coverage, weight 30%]\n   Every demand of the question is addressed, honouring its directive word (examine, critically analyse, discuss, etc.). Points are syllabus-relevant and substantive, with breadth and depth proportionate to the marks. This is the most heavily weighted dimension.\n3. Keywords & Concepts [key: keywords_concepts, weight 15%]\n   Correct, precise use of subject terminology and the relevant constitutional, administrative, economic, or policy concepts — the vocabulary an examiner expects at the Mains level.\n4. Examples & Data [key: examples_data, weight 15%]\n   Claims are substantiated with concrete facts, figures, UP-specific data, committees and commissions, constitutional articles, government schemes, case studies, or court judgments — not left as unsupported assertions.\n5. Presentation [key: presentation, weight 10%]\n   Readable organisation: helpful headings/sub-headings, and points or short paragraphs where they aid clarity. Credit a diagram, flowchart, or map only if the candidate explicitly states they have drawn one (this is typed text — none is visible).\n6. Word Limit & Language [key: word_limit_language, weight 10%]\n   The answer respects the word limit — neither padded far beyond it nor too thin to earn the marks — and the language is clear, grammatical, and exam-appropriate.",

@@ -12,7 +12,7 @@
  */
 import type { Locale, RubricDimensionKey, SubmissionMode } from "@neev/shared";
 import { getExamConfig, requireAuthored } from "../../lib/exam-config.js";
-import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt } from "./rubric.js";
+import { RUBRIC_DIMENSION_KEYS, renderRubricForPrompt, rubricKindOf } from "./rubric.js";
 import type { GroundingResult } from "./grounding.js";
 
 /**
@@ -172,7 +172,14 @@ export function buildAnalysisSystem(
   hasPageImage = false,
   rubricVersion?: string,
 ): string {
-  const isEssay = rubricVersion === "essay-v1";
+  // FIXED 2026-07-31: was `rubricVersion === "essay-v1"`, i.e. UPPSC's essay
+  // version string as a literal. A second exam's essay rubric (`upsc-essay-v1`)
+  // fails that test, so a UPSC essay would have been prompted as a GS
+  // "descriptive answer" and never seen `essayAnswerFraming`. Ask the registry
+  // for the KIND instead — the same fix `services/scoreboard.ts` already uses.
+  // A missing/unknown version reads as "gs", matching the old `undefined`
+  // behaviour exactly (byte-identity is asserted by the prompt snapshot).
+  const isEssay = rubricKindOf(rubricVersion ?? "") === "essay";
   const cfg = evalConfig(examCode);
   return (
     "You are a strict but fair examiner for " +
@@ -378,7 +385,10 @@ export const FEEDBACK_WRITE_NOW = "Write your response now, following the instru
 export function buildModelAnswerSystem(ctx: EvalContext): string {
   const { examCode } = ctx;
   const cfg = evalConfig(examCode);
-  if (ctx.rubricVersion === "essay-v1") {
+  // Kind, not the literal version string — same fix and same reason as
+  // buildAnalysisSystem above: `upsc-essay-v1` would otherwise have been given
+  // the GS model-answer prompt.
+  if (rubricKindOf(ctx.rubricVersion) === "essay") {
     const framing = requireAuthored(
       cfg.modelAnswerFramingEssay,
       examCode,

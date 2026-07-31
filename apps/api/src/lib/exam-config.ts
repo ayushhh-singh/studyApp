@@ -1066,16 +1066,127 @@ const UPPSC: ExamConfig = {
   paperStructure: { source: "db:exams.paper_structure" },
 };
 
+/**
+ * UPSC's OWN severity anchor for `buildAnalysisSystem`. Structurally parallel to
+ * `UPPSC_SEVERITY_ANCHOR` (five 0-10 bands + a hard anchoring rule + the
+ * severity-is-not-brevity guard is enforced separately in the prompt), but every
+ * NUMBER in it is UPSC's own, measured from UPSC's own written-stage marksheets.
+ * It is NOT UPPSC's text with the exam renamed (§6a) — the two marking regimes
+ * genuinely differ, and UPSC's is the harsher of the two.
+ *
+ * WHAT IS MEASURED, and what is not — recorded because a future session will be
+ * tempted to "tidy" the hedges out:
+ *  * MEASURED, from real sourced written-only marksheets:
+ *      - Excellent (AIR-1, whole-paper average across the four GS papers):
+ *        45-51%; five-topper mean 46.9%, range 44.8-50.7%.
+ *      - Barely adequate (last recommended General candidate): ~42% of written
+ *        marks; six-year mean 42.4%.
+ *      - Single papers sit far lower than the average even for the year's
+ *        topper: one AIR-1's GS-III was 88/250 = 35.2%.
+ *      - Essay: topper range 43-62% of 250, six-topper mean 52.1%.
+ *  * INTERPOLATED, not measured: the "solid but unremarkable ~45-47%" band. It
+ *    is bracketed by the two measured anchors above and is stated in the prompt
+ *    as a calibration target, never as an observation.
+ *  * ARITHMETIC FROM PAPER TOTALS, assuming proportional distribution — an
+ *    ASSUMPTION, not a measurement: a genuinely strong 10-marker earns ~4-5/10
+ *    and a strong 15-marker ~7-8/15. Independently corroborated by
+ *    coaching-community figures derived separately ("6-7/10 is highest-scoring",
+ *    "8/15 is a strong performance"); the convergence is meaningful, but neither
+ *    is a direct per-question measurement. The 20-mark GS-IV figure in the
+ *    prompt is a further extrapolation from the same ratio and says so.
+ *
+ * TWO CLAIMS DELIBERATELY NOT MADE, because the evidence refuses them:
+ *  1. "Essay is more generous than GS" is NOT a stable rule — true by 2-10
+ *     points in 2018/2021/2022 and REVERSED in 2023 and 2025. The anchor says
+ *     essay is *comparable and not reliably more generous*, which is what the
+ *     data supports.
+ *  2. GS-IV scoring a few points above the other GS papers rests on n=4, AIR-1
+ *     candidates only (3 of 4 had GS-IV as their best GS paper; one AIR-1's
+ *     143/250 = 57.2%). Stated as a mild directional hint, never as a rule.
+ *
+ * ⚑ THE TRAP THIS ANCHOR EXISTS TO BLOCK. The widely quoted "~54% for a UPSC
+ * topper" is the BLENDED written+interview aggregate. UPSC's interview is marked
+ * far more generously (toppers 58-75%) than the written stage. An answer-writing
+ * evaluator never sees an interview, so anchoring to ~54% inflates every score
+ * systematically. The anchor names the trap explicitly rather than merely
+ * avoiding it, because the model's own priors carry the blended number.
+ *
+ * NET: UPSC is calibrated at least as severely as UPPSC and arguably slightly
+ * more — its written-only excellent ceiling (~51%) sits at or below UPPSC's
+ * anchor low end, and its adequate floor (~42%) is 8-13 points below it.
+ *
+ * HONEST GAP, recorded rather than hidden: UPSC publishes no marking scheme and
+ * releases evaluated scripts only by personal RTI, and the "topper copies" in
+ * circulation are overwhelmingly test-series mocks rather than UPSC-marked
+ * scripts. There is therefore NO verifiable per-question UPSC data anywhere; the
+ * per-question bands are the best available inference, not a published tariff.
+ *
+ * Paper structure is measured from the 2,791 ingested UPSC PYQs: GS-I..III use
+ * 10 marks / 150 words and 15 marks / 250 words at ~45%/45%; GS-IV is mostly
+ * 20 marks; Essay is 125 marks / 1200 words per essay, two essays for 250.
+ *
+ * DO NOT REFLOW: the prompt-snapshot harness treats any whitespace change as a
+ * regression. Stored WITHOUT the blank lines the prompt puts around it.
+ */
+const UPSC_SEVERITY_ANCHOR =
+  "SCORING CALIBRATION — read carefully; this is where auto-graders most often go wrong.\n" +
+  "Real UPSC Civil Services Mains marking is SEVERE, and harsher than most graders assume. From " +
+  "published written-stage marksheets: across the four GS papers even the year's top-ranked " +
+  "candidate averages only about 45-51% (five-topper mean ≈47%), and the LAST candidate " +
+  "recommended in the General list clears it on roughly 42% of the written marks. Individual " +
+  "papers run lower still — one AIR-1 scored 88/250 (35%) on GS-III in the very year they topped " +
+  "the exam. The Essay paper spans about 43-62% of 250 for toppers: comparable to GS, and NOT " +
+  "reliably more generous — in some years it scores BELOW the GS papers, so never mark an essay " +
+  "on a softer scale.\n" +
+  "TRAP — the '~54% for a topper' figure you may have absorbed is the BLENDED written-plus-" +
+  "interview aggregate. UPSC marks the interview far more generously (toppers 58-75%) than the " +
+  "written stage. You are grading a WRITTEN answer and there is no interview in view, so " +
+  "anchoring anywhere near 54% inflates every score systematically. Anchor ONLY to the " +
+  "written-only numbers above.\n" +
+  "In the units the candidate actually sees: a genuinely strong answer earns roughly 4-5 out of " +
+  "10 on a 10-mark / 150-word question, 7-8 out of 15 on a 15-mark / 250-word one, and by the " +
+  "same ratio around 9-10 out of 20 on a 20-mark GS-IV question. That IS the good outcome, not a " +
+  "poor one. (UPSC publishes no marking scheme and releases scripts only on personal request, so " +
+  "these per-question figures are inferred from real paper totals rather than published — treat " +
+  "them as the calibration target, not as an exact tariff.) Apply these bands to EACH dimension " +
+  "(0-10):\n" +
+  "  9-10  Exceptional and rare. The standard at which a dimension is essentially flawless and a " +
+  "demanding UPSC examiner would have nothing material to add. Keep this GENUINELY UNCOMMON: on " +
+  "real papers even AIR-1 candidates average under 51% across their GS papers, so this band is " +
+  "never the reward for work that is merely complete, correct and on-topic.\n" +
+  "  7-8   Clearly above the well-prepared candidate — a dimension that would visibly lift this " +
+  "answer above the crowd sitting the same paper. Good, competent treatment does NOT default " +
+  "here; 7-8 has to be earned by something that stands out.\n" +
+  "  5-6   Sound, on-topic, well-prepared work that still has real, nameable gaps. THIS IS THE " +
+  "MODAL BAND FOR A GENUINELY STRONG ANSWER: most dimensions of the ≈4-5/10, ≈7-8/15 answer " +
+  "described above are 5s, and an overall around 45-47% is the target for solid, unremarkable " +
+  "competence. Award 6 only where a dimension carries no material gap for its level yet still " +
+  "would not stand out. A 5-heavy strong answer is the CORRECT result, not a disappointment.\n" +
+  "  3-4   Weak, generic, or with significant gaps in coverage, structure, or substantiation.\n" +
+  "  0-2   Absent, off-topic, or empty/irrelevant (see the honesty guardrail).\n" +
+  "HARD ANCHORING RULE — this is how you avoid the over-scoring that ruins auto-graded feedback: " +
+  "a dimension's NUMBER must agree with its own JUSTIFICATION. If the justification you write " +
+  "names any real omission or shortfall — a demand of the question left unaddressed, no data or " +
+  "examples, thin coverage, an unearned conclusion, a mishandled directive word — then that " +
+  "dimension is 5 or lower, NEVER 6, 7 or 8. Do not praise a dimension in the number while " +
+  "criticising it in the words. Only a dimension you can honestly say carries essentially NO " +
+  "material gap for its level may exceed 5. It follows that a complete, well-structured, " +
+  "on-topic answer that still has real gaps — as nearly every answer does — lands near 5 per " +
+  "dimension, a weighted overall around 45-50% of the max marks. On this exam that is the " +
+  "expected outcome for a strong candidate: reserve 7-8 for work that genuinely stands out, and " +
+  "9-10 for the exceptional.";
+
 // ---------------------------------------------------------------------------
-// upsc — REFERENCE ROW. Naming is fact and is filled in; every judgment slot is
-// UNAUTHORED. `exams.is_live` is false and the exam carries zero syllabus nodes,
-// questions, chapters and current affairs (migration 0106), so nothing reads
-// these slots today.
+// upsc — REFERENCE ROW. `exams.is_live` is false. Naming, papers, cutoffs and
+// calendar are fact; the judgment-bearing groups are authored ONE AT A TIME as a
+// pipeline genuinely needs them (relevanceLens, qgen, mentor, ca and the U5
+// ingest slots landed 2026-07-31; `evaluation` below landed the same day), and
+// `notes` plus most of `misc` remain deliberately UNAUTHORED (U6).
 //
-// DO NOT fill them by adapting UPPSC's text. In particular the severity anchor's
-// "45-55% per answer" is a researched claim about a marking regime, not a
-// template — and UPSC's Essay paper is ~1000-1200 words at 250 marks, a
-// materially different scheme from UPPSC's 700/50.
+// DO NOT fill any remaining slot by adapting UPPSC's text (§6a). The severity
+// anchor in particular is a researched claim about ONE commission's marking
+// regime, not a template with a swappable exam name — see UPSC_SEVERITY_ANCHOR
+// above for what is measured, what is interpolated, and what is assumed.
 // ---------------------------------------------------------------------------
 const UPSC: ExamConfig = {
   code: "upsc",
@@ -1104,72 +1215,308 @@ const UPSC: ExamConfig = {
     minimumSource: "db:exams.paper_structure[].papers[].minimum",
   },
 
-  // Structurally national (no single state focus). The curation lens itself —
-  // what a national exam's CA triage should actually prioritise — is unwritten.
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — CA triage's relevance lens.
+  //
+  // Structurally national (no single state focus), so `kind` was already
+  // "national" — which makes `ca/prompts.ts` suppress the "Source hints at
+  // <state> focus" content line entirely. These two slots are the remaining
+  // prose.
+  //
+  // THE CONSTRAINT THAT SHAPES BOTH VALUES: `is_up_specific` is a REAL COLUMN on
+  // `current_affairs_items`, and `GS5_UP`/`GS6_UP` are REAL enum values of
+  // `currentAffairsGsPaperSchema` (packages/shared/src/current-affairs.ts) that
+  // the triage JSON schema offers and requires for EVERY exam. Renaming or
+  // migrating them is M20's job (docs/OUTSTANDING.md §8b), deliberately NOT
+  // started here — half-migrating a live schema is worse than writing honest
+  // prose inside it. So:
+  //   * `curationDirective` gives the boolean the only defensible national
+  //     meaning — ALWAYS false. UPSC has no state paper and no state lens, so
+  //     no item is ever "state-specific" for this exam. This does NOT mirror
+  //     uppsc's value (which defines a real UP editorial signal); it disables a
+  //     field that has no national analogue.
+  //   * `stateGsPapersNote` actively fences the model OFF the two UP enum
+  //     values and names UPSC's real Mains paper set instead (GS-I..GS-IV plus
+  //     Essay — `ESSAY` is a valid enum value and IS a real UPSC paper).
+  // ---------------------------------------------------------------------------
   relevanceLens: {
     kind: "national",
-    curationDirective: UNAUTHORED,
-    stateGsPapersNote: UNAUTHORED,
+    curationDirective:
+      "ALWAYS false for this exam — UPSC is a national examination with no state-specific paper, so no item is " +
+      "ever state-specific here, however strongly the story centres on one state",
+    stateGsPapersNote:
+      "choose ONLY from GS1, GS2, GS3, GS4 and ESSAY, which are UPSC's real Mains papers, and NEVER emit GS5_UP " +
+      "or GS6_UP — those are another commission's state-specific papers and do not exist in this exam",
   },
 
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — answer evaluation.
+  //
+  // `severityAnchor` is the judgment core; its evidence, its hedges and the
+  // blended-aggregate trap it blocks are documented on UPSC_SEVERITY_ANCHOR
+  // above. The other eleven slots split into two categories, and the split is
+  // what keeps this from being a find-and-replace:
+  //
+  //  * STRUCTURAL NAMING (same category as `misc.translateQuestionsDomainHint`,
+  //    authored for U5): examinerFraming, the four mentor/model-answer personas,
+  //    the two grounding labels, and feedbackTranslateDomainHint. Each is a noun
+  //    phrase naming THIS commission and THIS corpus in a slot whose grammar
+  //    belongs to the template. The grounding labels deliberately match the
+  //    qgen block's wording for the same two corpora, so the mentor, the question
+  //    setter and the examiner all name the store identically.
+  //
+  //  * GENUINELY RE-DERIVED, because UPPSC's value would be WRONG here:
+  //     - essayAnswerFraming. UPPSC's is one ~700-word essay for 50 marks; UPSC
+  //       sets TWO essays of ~1200 words at 125 marks each (100% of the ingested
+  //       Essay PYQ rows), so both the length and the mark scale differ. It also
+  //       drops UPPSC's "निबंध paper" gloss, which names a UP-specific paper.
+  //     - substantiationExamples. UPPSC's "UP-specific data" has no UPSC
+  //       analogue at all: UPSC is a NATIONAL examination with no state angle,
+  //       so the analogue is national/international substantiation. The value is
+  //       worded to NOT duplicate what its two host sentences already list
+  //       (both already name committees/commissions, constitutional articles,
+  //       schemes and judgments), which is why it reaches for the Economic
+  //       Survey / NITI Aayog / global-index / cross-country material instead.
+  //     - essaySubstantiationExamples. Same reasoning; UPPSC's "UP-/India-
+  //       specific" collapses to India-plus-comparative for a national paper.
+  //
+  // BOTH substantiation slots are ALSO read by services/evaluation/rubric.ts
+  // (the `examples_data` dimension description of the GS and Essay rubrics), so
+  // each is worded to read correctly in that sentence as well as in the model-
+  // answer prompt. Verify both hosts before editing either.
+  // ---------------------------------------------------------------------------
   evaluation: {
-    examinerFraming: UNAUTHORED,
-    essayAnswerFraming: UNAUTHORED,
-    severityAnchor: UNAUTHORED,
-    strengthsMentorFraming: UNAUTHORED,
-    improvementsMentorFraming: UNAUTHORED,
-    modelAnswerFramingGs: UNAUTHORED,
-    modelAnswerFramingEssay: UNAUTHORED,
-    groundingStoreLabel: UNAUTHORED,
-    groundingFallbackLabel: UNAUTHORED,
-    substantiationExamples: UNAUTHORED,
-    essaySubstantiationExamples: UNAUTHORED,
-    feedbackTranslateDomainHint: UNAUTHORED,
+    examinerFraming: "the UPSC (Union Public Service Commission) Civil Services Mains examination",
+    // No trailing space — the template supplies it. No Devanagari gloss: unlike
+    // UPPSC's निबंध paper, UPSC's is simply the Essay paper.
+    essayAnswerFraming:
+      "ESSAY (Essay paper — one ~1200-word essay for 125 marks, one of the two essays written in the paper)",
+    severityAnchor: UPSC_SEVERITY_ANCHOR,
+    strengthsMentorFraming: "an encouraging but honest UPSC Civil Services Mains mentor",
+    improvementsMentorFraming: "a UPSC Civil Services Mains mentor",
+    modelAnswerFramingGs: "a top UPSC Civil Services Mains answer writer",
+    modelAnswerFramingEssay: "a top UPSC Civil Services Essay-paper writer",
+    // No leading article — the template says "retrieved from the ${...}".
+    groundingStoreLabel: "official UPSC syllabus/PYQ store",
+    // Carries its own article — the template says "your own knowledge of ${...}".
+    groundingFallbackLabel: "the UPSC Civil Services syllabus",
+    substantiationExamples:
+      "national and international evidence (Economic Survey and NITI Aayog data, global indices " +
+      "and rankings, and cross-country comparisons)",
+    essaySubstantiationExamples: "India-specific and comparative international evidence",
+    feedbackTranslateDomainHint:
+      "UPSC Civil Services answer-evaluation feedback (an examiner's critique of a candidate's answer)",
   },
 
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — question generation.
+  //
+  // MEASURED, NOT ADAPTED. Every format/verb/marks claim below is a frequency
+  // measured over the 2,791 real UPSC PYQs ingested by U5 (Prelims GS-I n=1,100,
+  // CSAT n=880, Mains n=811) — not coaching lore, and emphatically not UPPSC's
+  // guidance with the name swapped. The two commissions set genuinely different
+  // papers, and reusing UPPSC's `formatGuidance` here would be actively wrong:
+  //
+  //   format                UPSC PRE_GS1    UPPSC PRE_GS1
+  //   assertion-reason           0.0%            6.6%   ← 0 of 1,100. FORBIDDEN.
+  //   pair-matching              3.4%           16.3%   ← would be ~5x over-produced
+  //   chronological ordering     0.5%            6.3%   ← would be ~12x over-produced
+  //   negative ("which is NOT")  2.1%           12.1%
+  //   four content options      35.6%           67.6%
+  //   "Consider the following"  45.0%            6.1%
+  //
+  // WHAT `formatGuidance` DELIBERATELY ENCODES:
+  //  * Scaffolded multi-part stems are the norm (65.8% overall, 74-83% in
+  //    2024-25); the statement-combination family alone is 55.3%. Modal design
+  //    is THREE numbered statements (53.5% of scaffolded stems; 2 → 21.1%,
+  //    4 → 19.7%), so 5+ is forbidden outright (5.8% combined, and lengthening
+  //    a statement set is the easiest way to drift off-format).
+  //  * ASSERTION-REASON IS BANNED BY NAME — 0/1,100 in the real corpus. UPSC's
+  //    counterpart is the "Statement-I / Statement-II" pair (4.1%, 2023 onward)
+  //    closed by "Which one of the following is correct in respect of the above
+  //    statements?" with a four-way explanation code, so the ban ships WITH the
+  //    real substitute rather than as a bare prohibition.
+  //  * The counting variant ("How many of the above statements are correct?",
+  //    options Only one / Only two / All three / None) is flagged MODERN, not
+  //    classic: 0/600 across 2016-2021, then 8% (2022), 47% (2023), 18% (2024),
+  //    27% (2025) — 7.6% overall. Calling it a staple would over-produce it;
+  //    omitting it would miss the single biggest recent shift in the paper.
+  //  * The canonical "1 only / 2 only / Both / Neither" quartet is explicitly
+  //    NOT the default: only 13.0% of option sets, behind broad combinations
+  //    (38.9%) and four substantive content options (35.6%).
+  //  * CSAT is named as a different animal (68.9% direct single-item, only
+  //    25.5% scaffolded, counting variant 1/880) so a CSAT node cannot inherit
+  //    the statement-set norm.
+  //
+  // MAINS VERBS — the trap here is coaching lore. "Critically examine" reads as
+  // the signature UPSC verb but is only 2.3% of primary stems (all "Critically
+  // X" forms together 4.2%), so it is explicitly DEMOTED rather than promoted.
+  // Discuss is the workhorse (20.8%), and A THIRD OF REAL STEMS CARRY NO
+  // DIRECTIVE VERB AT ALL (33.3% — a bare What/How/Why or a bare topic), which
+  // no adapted UPPSC verb list would ever have produced.
+  //
+  // MARKS: 10 marks/150w and 15 marks/250w in near-equal measure for GS-I..III
+  // (45%/45%), GS-IV usually 20 marks (77.9%), Essay 125 marks / 1200 words
+  // (100% of rows) — materially different from UPPSC's 7/125w and 10/200w.
+  //
+  // The few-shot and grounding labels are STRUCTURAL naming of a corpus, not
+  // judgment (same category as `misc.translateQuestionsDomainHint`, authored for
+  // U5 below), so they keep uppsc's grammatical shape — the shape belongs to the
+  // template; only the corpus name differs. NOTE they are ALSO consumed by the
+  // CA MCQ generator (`ca/prompts.ts` calls `fewShotBlock`), so each is worded
+  // to read correctly in both contexts.
+  // ---------------------------------------------------------------------------
   qgen: {
-    prelimsSetterFraming: UNAUTHORED,
-    mainsSetterFraming: UNAUTHORED,
-    criticFraming: UNAUTHORED,
-    verifierFraming: UNAUTHORED,
-    fewShotHeader: UNAUTHORED,
-    fewShotFallback: UNAUTHORED,
-    fewShotAttribution: UNAUTHORED,
-    groundingStoreLabel: UNAUTHORED,
-    groundingFallbackLabel: UNAUTHORED,
-    formatGuidance: UNAUTHORED,
-    directiveVerbGuidance: UNAUTHORED,
-    marksNormGuidance: UNAUTHORED,
-    toneCriterion: UNAUTHORED,
-    mcqOutputLabel: UNAUTHORED,
-    descOutputLabel: UNAUTHORED,
+    prelimsSetterFraming:
+      "an experienced UPSC (Union Public Service Commission) Civil Services Prelims question setter",
+    mainsSetterFraming: "an experienced UPSC Civil Services Mains paper setter",
+    criticFraming: "a strict UPSC Civil Services question-quality reviewer",
+    verifierFraming: "a top UPSC Civil Services aspirant sitting the exam",
+    fewShotHeader:
+      "REAL UPSC PAST-YEAR QUESTIONS FOR THIS TOPIC (match their stem length, option style, and trap patterns):",
+    fewShotFallback:
+      "No sample past-year questions were available for this exact topic; follow the general UPSC style described above.",
+    fewShotAttribution: "UPSC",
+    groundingStoreLabel: "official UPSC syllabus/PYQ store",
+    groundingFallbackLabel: "the UPSC Civil Services syllabus",
+    formatGuidance:
+      "Prefer UPSC's real formats: about two-thirds of Prelims GS-I stems are scaffolded, most often 'Consider the " +
+      "following statements' or 'With reference to X, consider the following' followed by THREE numbered statements " +
+      "(two or four are also common; never five or more), closed either by a combination option set ('1 and 2 only', " +
+      "'1, 2 and 3', 'None of the above') or by the modern counting form 'How many of the above statements are " +
+      "correct?' with options 'Only one / Only two / All three / None'. The remaining third are direct single-item " +
+      "questions answered by four substantive content options; do not default to the '1 only / 2 only / Both 1 and 2 " +
+      "/ Neither 1 nor 2' quartet, which is only about one option set in eight. NEVER write an Assertion-Reason " +
+      "(A/R) question — UPSC does not set them; where a two-part logical pair is wanted, use UPSC's actual " +
+      "counterpart, a 'Statement-I / Statement-II' pair closed by 'Which one of the following is correct in respect " +
+      "of the above statements?' with the four-way code (both correct and II explains I / both correct but II does " +
+      "not explain I / I correct, II incorrect / I incorrect, II correct). Keep matching-pairs, chronological " +
+      "ordering and negative 'which is NOT' framings rare — each is under 4% of real papers. For a CSAT topic drop " +
+      "the statement-set norm entirely: CSAT is passage comprehension, logical inference and quantitative aptitude, " +
+      "and is overwhelmingly direct single-item.",
+    // Shares its wording with `ca.mainsDirectiveVerbGuidance` below (as uppsc's
+    // does via one const), but is DUPLICATED rather than hoisted: this authoring
+    // pass edits only inside the UPSC block, and the two fields exist precisely
+    // so the two generators can diverge per exam later.
+    directiveVerbGuidance:
+      "a real UPSC directive verb — Discuss most often, then Explain / Examine / Comment / Analyse / Elucidate " +
+      "('Critically examine' is only about 2% of real stems, so never make it the default) — or, in roughly a third " +
+      "of questions as real UPSC papers do, with no directive verb at all (a bare What / How / Why interrogative, " +
+      "or a bare topic statement)",
+    marksNormGuidance:
+      "real UPSC Mains norms (a GS-I to GS-III question is either 10 marks / 150 words or 15 marks / 250 words, in " +
+      "roughly equal measure; a GS-IV Ethics question is usually 20 marks and is often a case study; an Essay is " +
+      "125 marks / 1200 words)",
+    toneCriterion:
+      "does it read like a real UPSC Civil Services question in difficulty, phrasing, and format — and, for a " +
+      "Prelims MCQ, does it use a format UPSC actually sets (a statement-combination set or a direct single-item " +
+      "question), never Assertion-Reason?",
+    mcqOutputLabel: "UPSC-Prelims MCQs",
+    descOutputLabel: "UPSC-Mains descriptive questions",
   },
 
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — mentor.
+  //
+  // ⚠ CACHE FLOOR. `buildMentorPersona` is the ONLY cached segment on the
+  // generic-doubt path and clears claude-sonnet-5's 1024-token minimum by ~22
+  // tokens for uppsc, where `platformFraming` + `testingLens` supply 268 chars /
+  // 102 tokens. A TERSER second exam silently disables that cache with no error
+  // (§6c). These two keys deliberately supply MORE than uppsc's 268 chars — the
+  // sanctioned fix is to lengthen the persona, never to lower the floor — and the
+  // extra length is genuine UPSC-specific content, not padding.
+  //
+  // `testingLens` is where the measured Prelims evidence lands for the mentor
+  // (same corpus as the qgen block above): the statement-combination norm, the
+  // modern counting form, the Statement-I/II pair, and the fact that UPSC sets
+  // NO Assertion-Reason — which is the single most useful thing a UPSC mentor
+  // can tell an aspirant who has been drilled on A/R by state-exam material. It
+  // also names CSAT as a different paper, which UPPSC's lens has no reason to.
+  // Both this field and `mainsAnglesLens` carry the SOURCE'S OWN hard wrapping
+  // ("\n  " and "\n     " respectively) — those sequences are part of the
+  // assembled prompt once `buildMentorPersona`'s array is joined by "\n". Do not
+  // reflow them.
+  //
+  // `mainsAnglesLens` states UPSC's real answer lengths (150/250 words) and its
+  // real Mains paper set (GS-I..GS-IV) rather than UPPSC's six-paper structure.
+  // ---------------------------------------------------------------------------
   mentor: {
-    platformFraming: UNAUTHORED,
-    teacherPlatformFraming: UNAUTHORED,
-    testingLens: UNAUTHORED,
-    mainsAnglesLens: UNAUTHORED,
-    revisionAudience: UNAUTHORED,
-    researchFraming: UNAUTHORED,
-    quizFraming: UNAUTHORED,
+    platformFraming: "a UPSC Civil Services Examination (CSE) prep platform",
+    teacherPlatformFraming: "UPSC Civil Services Examination (CSE) prep platform",
+    // Spans several joined array lines in buildMentorPersona — the "\n  "
+    // sequences are part of the assembled prompt.
+    testingLens:
+      "Connect explanations to how UPSC actually tests the topic — in Prelims GS-I roughly two-thirds of questions\n" +
+      "  are scaffolded 'Consider the following statements' sets, usually three statements, closed either by a\n" +
+      "  combination option set or by the newer 'How many of the above statements are correct?' counting form, with\n" +
+      "  'Statement-I / Statement-II' pairs used for cause-and-effect; UPSC sets NO Assertion-Reason questions at\n" +
+      "  all, so do not drill that format. Flag the commonly confused pairs and the precise wording traps those\n" +
+      "  formats exploit. CSAT is a different paper — comprehension, logical reasoning and quantitative aptitude,\n" +
+      "  not statement recall. For Mains, say what a 150- or 250-word answer must actually contain and which GS\n" +
+      "  paper it belongs to.",
+    // Spans two joined array lines in buildTeacherPersona.
+    mainsAnglesLens:
+      "how UPSC frames this in a 150- or 250-word descriptive answer, which\n" +
+      "     GS paper (GS-I to GS-IV) it feeds, and the analytical angle an examiner rewards.",
+    revisionAudience: "a UPSC Civil Services (CSE) aspirant",
+    researchFraming: "a UPSC Civil Services (CSE) exam topic",
+    quizFraming: "UPSC-Prelims-style objective questions",
   },
 
+  // ---------------------------------------------------------------------------
+  // AUTHORED 2026-07-31 — current affairs.
+  //
+  // THE ONE JUDGMENT THAT IS NOT UPPSC'S: the curation bar is NATIONAL. UPPSC's
+  // CA lens is built around a state signal (`is_up_specific`, GS5_UP/GS6_UP);
+  // UPSC has no state paper at all (see the relevanceLens block above), so
+  // `examWorthinessBar` and `mcqRelevanceFilter` both make national/international
+  // significance the filter rather than adding a second state test. That is the
+  // substantive difference; the rest of this group is naming in the template's
+  // own grammatical shape.
+  //
+  // The Mains slots reuse the measured UPSC verb distribution and mark scheme
+  // from the qgen block above (Discuss-led, a third of stems verb-less,
+  // 10/150w or 15/250w) — NOT UPPSC's 7/125w and 10/200w. `mainsMarksNorm` is a
+  // COMPLETE BULLET SENTENCE with its own period, unlike `qgen.marksNormGuidance`
+  // which is a noun phrase; the two templates differ and the values must match
+  // their own template, not each other.
+  //
+  // `deepDivePyqHeader` carries a LEADING "\n" (it is pushed as its own element
+  // of `buildContext`'s parts array, and the newline is what produces the blank
+  // line before the block).
+  //
+  // `nodeClassifyFraming` must be SINGULAR — the template's relative clause
+  // ("…that its facts most concretely belong to") has to agree with it. UPSC's
+  // prelims paper code is UPSC_PRE_GS1; the paper is named in prose, not by code.
+  // ---------------------------------------------------------------------------
   ca: {
-    strategistFraming: UNAUTHORED,
-    enrichAudience: UNAUTHORED,
-    examWorthinessBar: UNAUTHORED,
-    mcqStyleFraming: UNAUTHORED,
-    mcqExamplesFraming: UNAUTHORED,
-    mcqOutputLabel: UNAUTHORED,
-    mcqRelevanceFilter: UNAUTHORED,
-    mainsSetterFraming: UNAUTHORED,
-    mainsDirectiveVerbGuidance: UNAUTHORED,
-    mainsMarksNorm: UNAUTHORED,
-    deepDiveFraming: UNAUTHORED,
-    deepDiveIntroFraming: UNAUTHORED,
-    deepDivePyqHeader: UNAUTHORED,
-    nodeClassifyFraming: UNAUTHORED,
+    strategistFraming: "a UPSC (national civil services) exam strategist",
+    enrichAudience: "UPSC Civil Services aspirants",
+    examWorthinessBar:
+      "would a real UPSC prelims paper — which tests facts of national or international significance — plausibly " +
+      "ask this, or is it just colour/context from the news story?",
+    mcqStyleFraming: "UPSC-Prelims objective questions",
+    mcqExamplesFraming: "the REAL past-year UPSC questions shown below",
+    mcqOutputLabel: "UPSC-Prelims MCQs",
+    mcqRelevanceFilter:
+      "write a question for a fact ONLY if it carries national or international significance AND a real UPSC " +
+      "Civil Services prelims paper would plausibly test it",
+    mainsSetterFraming: "an experienced UPSC Civil Services Mains paper setter",
+    // Byte-identical to `qgen.directiveVerbGuidance` above; duplicated for the
+    // same reason recorded there.
+    mainsDirectiveVerbGuidance:
+      "a real UPSC directive verb — Discuss most often, then Explain / Examine / Comment / Analyse / Elucidate " +
+      "('Critically examine' is only about 2% of real stems, so never make it the default) — or, in roughly a third " +
+      "of questions as real UPSC papers do, with no directive verb at all (a bare What / How / Why interrogative, " +
+      "or a bare topic statement)",
+    mainsMarksNorm:
+      "Realistic UPSC Mains marks + word limit (a GS-I to GS-III question is either 10 marks / 150 words or 15 " +
+      "marks / 250 words; a GS-IV Ethics question is usually 20 marks).",
+    deepDiveFraming: "a UPSC Civil Services Mains current-affairs magazine",
+    deepDiveIntroFraming: "why this issue matters for UPSC Mains right now",
+    deepDivePyqHeader: "\nRELATED PAST UPSC QUESTIONS (for angle, not to answer):",
+    nodeClassifyFraming:
+      "ONE specific UPSC Civil Services Prelims General Studies Paper I syllabus topic",
   },
 
   notes: {
