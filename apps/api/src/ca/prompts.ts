@@ -291,6 +291,10 @@ export async function triageItem(opts: {
   const out = await structuredJson<TriageResult>({
     ...triageParams(opts),
     purpose: "ca_triage",
+    // The exam this call was FRAMED as and whose pool it was shown — triage fans
+    // out one call per live exam, so each row is attributable to exactly one.
+    // Metadata only: `triageParams` builds the prompt and is untouched.
+    examCode: opts.examCode,
     onUsage: opts.onUsage,
   });
   return normalizeTriage(out, opts.candidates, opts.sourceIsUp, opts.examCode);
@@ -481,6 +485,10 @@ export async function enrichItem(opts: EnrichParamsOpts & { onUsage?: (u: LlmUsa
   return structuredJson<EnrichResult>({
     ...enrichParams(opts),
     purpose: "ca_enrich",
+    // Enrichment deliberately does NOT fan out (the item is ONE shared row —
+    // see ./exam-fanout.ts), so this is the single framing exam
+    // `resolveItemFramingExam` chose: the voice the call was actually paid for.
+    examCode: opts.examCode,
     onUsage: opts.onUsage,
   });
 }
@@ -589,6 +597,10 @@ export async function generateMcqs(
   const out = await structuredJson<{ questions: GeneratedMcq[] }>({
     ...mcqsParams(opts),
     purpose: "ca_mcq_gen",
+    // The exam this MCQ is GENERATED FOR — the same value stamped on
+    // `questions.exam_code`, which for a CURRENT_AFFAIRS row is the OWNER
+    // (questionExamScopeFilter's second disjunct), not mere provenance.
+    examCode: opts.examCode,
     onUsage: opts.onUsage,
   });
   return out.questions;
@@ -669,6 +681,8 @@ export async function generateMainsQuestion(
   return structuredJson<GeneratedMainsQuestion>({
     ...mainsQuestionParams(opts),
     purpose: "ca_mains_gen",
+    // Same as generateMcqs: the exam this question is generated for and owned by.
+    examCode: opts.examCode,
     onUsage: opts.onUsage,
   });
 }

@@ -310,6 +310,10 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
       maxTokens: 8000,
     }),
     purpose: "magazine_deepdive",
+    // The exam this deep dive is written for — `buildRequests` already resolved
+    // it from the issue's primary syllabus node (examCodeForNode), and it is the
+    // exam both the system prompt and the grounding were scoped to.
+    examCode: r.examCode,
   }));
 
   const onUsage = (u: LlmUsage) => (result.costUsd += u.costUsd);

@@ -114,6 +114,10 @@ export async function classifyPrelimsMcqNode(opts: {
       content,
       schema: buildMcqNodeClassifySchema(validIds),
       purpose: "ca_mcq_node_classify",
+      // The exam whose prelims curriculum is being chosen from — by
+      // construction (pipeline.ts step 5) the same exam the MCQ is generated
+      // for and owned by, so the spend attributes to that exam's pipeline.
+      examCode: opts.examCode,
       onUsage: opts.onUsage,
     });
     if (out.syllabus_node_id === "none") return null;

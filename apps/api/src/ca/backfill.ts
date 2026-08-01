@@ -223,6 +223,9 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
           }),
         ),
         purpose: "ca_triage" as const,
+        // Attributed to the exam whose pool/framing this request carries —
+        // triage fans out one request per live exam (migration 0114).
+        examCode: scope.examCode,
       })),
     );
     const triageRes = await runBatch(triageReqs, { onUsage: (u) => (result.costUsd += u.costUsd) });
@@ -312,6 +315,9 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
             }),
           ),
           purpose: "ca_enrich",
+          // One shared call, one framing exam — the same value the prompt above
+          // is built with, so the row records the voice that was paid for.
+          examCode: s.merged.framingExamCode,
         };
       });
       const enrichRes = await runBatch(enrichReqs, { onUsage: (u) => (result.costUsd += u.costUsd) });

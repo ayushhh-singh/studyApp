@@ -40,8 +40,19 @@ interface PendingMcq {
   stem_i18n: BilingualPair;
   options_i18n: { key: string; text_i18n: BilingualPair }[];
   correct_option_key: string;
-  /** The topic this MCQ was placed on — how its exam is derived (see examForNodes). */
+  /** The topic this MCQ was placed on — how its PROMPT FRAMING exam is derived (see examForNodes). */
   syllabus_node_id: string | null;
+  /**
+   * The exam that OWNS this question, and what the llm_calls row is stamped with.
+   *
+   * ⚑ THIS FILE ONLY EVER READS `paper_code = CURRENT_AFFAIRS` ROWS, and for such
+   * a row `exam_code` is NOT provenance — it is the OWNER, because
+   * `questionExamScopeFilter`'s second disjunct is
+   * `and(paper_code.eq.CURRENT_AFFAIRS, exam_code.eq.<exam>)`. So the verify
+   * spend belongs to whichever exam's bank this question can actually reach.
+   * `not null default 'uppsc'` (migration 0036), so it is always a real code.
+   */
+  exam_code: string;
 }
 
 /**
@@ -75,7 +86,7 @@ async function loadPendingMcqs(): Promise<PendingMcq[]> {
   for (;;) {
     const { data, error } = await supabase()
       .from("questions")
-      .select("id, stem_i18n, options_i18n, correct_option_key, syllabus_node_id")
+      .select("id, stem_i18n, options_i18n, correct_option_key, syllabus_node_id, exam_code")
       .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
       .eq("type", "mcq")
       .eq("review_state", "needs_review")
@@ -201,6 +212,17 @@ export async function runVerifyMcqs(opts: { maxUsd: number; log?: Log }): Promis
           }),
         ),
         purpose: "ca_mcq_verify",
+        // ⚑ THE STAMP AND THE PROMPT FRAMING ARE RESOLVED DIFFERENTLY, ON PURPOSE.
+        // The framing above stays NODE-derived and byte-unchanged. The stamp is
+        // the row's OWNER (see PendingMcq.exam_code) — the exam whose bank this
+        // verification actually serves. For every question the current pipeline
+        // generates the two agree by construction (the MCQ is placed on a node
+        // scoped to the exam it is stamped with). They can only diverge for a
+        // question whose `syllabus_node_id` is null or whose node has since been
+        // deleted, where the framing falls back to the default exam while
+        // `exam_code` still names the truth — so the stamp is the more accurate
+        // of the two, and does not need the framing changed to be correct.
+        examCode: q.exam_code,
       };
     });
 

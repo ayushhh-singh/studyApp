@@ -286,8 +286,12 @@ interface PendingSubmission {
   customId: string;
   contentHash: string;
   payload: PendingTriagePayload;
-  /** One Anthropic request per live exam; ids match `payload.perExam[].customId`. */
-  requests: { customId: string; params: BatchRequest["params"] }[];
+  /**
+   * One Anthropic request per live exam; ids match `payload.perExam[].customId`.
+   * `examCode` rides along so the llm_calls row is attributed to the exam whose
+   * pool and framing the request actually carries (migration 0114).
+   */
+  requests: { customId: string; params: BatchRequest["params"]; examCode: string }[];
 }
 
 
@@ -448,6 +452,10 @@ async function insertMainsQuestionForItem(opts: {
       grounding: { chunks: [], nodeChunkCount: 0 },
     }),
     purpose: "ca_mains_critic",
+    // The critic judges the question against the commission it was written for,
+    // so its spend belongs to that same exam — not to whichever exam happens to
+    // be the default.
+    examCode: opts.examCode,
     onUsage: opts.onUsage,
   });
   const critic = parseCritic(criticJson);
@@ -592,7 +600,11 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
         const usage = results.get(req.customId)?.usage;
         if (!usage) continue;
         ctx.onUsage(usage);
-        await recordBatchLlmCall(usage, "ca_triage");
+        // `undefined` userId (cron, no user); `req.examCode` is the exam this
+        // request was framed as. For a LEGACY pre-fan-out row that is the
+        // DEFAULT exam, which is exactly what the old `caPromptExamCode`
+        // returned for it — so the attribution is true, not a guess.
+        await recordBatchLlmCall(usage, "ca_triage", undefined, req.examCode);
       }
     };
 
@@ -1024,6 +1036,7 @@ export async function runPipeline(
         requests: plans.map((plan, i) => ({
           customId: `${baseCustomId}_e${i}`,
           params: structuredParams(plan.params),
+          examCode: plan.examCode,
         })),
       });
       // Mirrors the sync path exactly: the hash is banked so the same link is
@@ -1067,6 +1080,7 @@ export async function runPipeline(
           customId: r.customId,
           params: r.params,
           purpose: "ca_triage" as const,
+          examCode: r.examCode,
         })),
       );
 
