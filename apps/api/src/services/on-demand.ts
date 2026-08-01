@@ -500,7 +500,7 @@ export async function createFreshCustomSet(
  * the same weightedSample the seeded series uses.
  */
 export async function createFreshMockSet(userId: string, body: CreateFreshMockSetBody): Promise<FreshSetResult> {
-  const cfg = freshMockPaperConfig(body.paper_code);
+  const cfg = await freshMockPaperConfig(body.paper_code);
   if (!cfg) throw badRequest("This paper has no mock structure");
 
   // Mocks are Pro-only. kind='on_demand' bypasses startAttempt's mock gate, so
@@ -510,15 +510,18 @@ export async function createFreshMockSet(userId: string, body: CreateFreshMockSe
 
   // `paper_code` is untrusted request body exactly like `node_ids` is, so the
   // same exam check applies: resolve the paper's own exam through its root node
-  // and refuse a paper outside the caller's exam. (freshMockPaperConfig only
-  // knows UPPSC papers today, so this is currently belt-and-braces — but it is
-  // the check that keeps being right as soon as a second exam has mock configs.)
+  // and refuse a paper outside the caller's exam. This is no longer
+  // belt-and-braces — `freshMockPaperConfig` now knows a second exam's papers,
+  // so this check is what stops a UPPSC user minting a UPSC mock.
   const examCode = await getUserExam(userId);
   const rootId = await paperRootNodeId(body.paper_code);
   if (rootId) {
     const paperExam = await examCodeForNode(rootId);
     if (paperExam !== examCode) throw notFound("This paper is not part of your exam");
-    await logDemand(userId, [rootId], "mock", UPPSC_EXAM_CODE);
+    // The caller's OWN exam, resolved two lines up — this logged UPPSC
+    // unconditionally, so a second exam's demand signal was filed against the
+    // wrong exam's reserve.
+    await logDemand(userId, [rootId], "mock", examCode);
   }
 
   const seen = cfg.kind === "mcq" ? await seenMcqIds(userId) : await seenDescriptiveIds(userId);
@@ -575,8 +578,13 @@ export async function createFreshMockSet(userId: string, body: CreateFreshMockSe
       official_max_marks: cfg.officialMaxMarks,
       qualifying_pct: cfg.qualifyingPct,
       marking_scheme: cfg.marksPattern
-        ? { type: "descriptive", negative_marking: 0 }
-        : { type: "uppsc_prelims", negative_marking: cfg.negativeMarking, note: "one-third (1/3) negative marking" },
+        ? { type: cfg.markingSchemeType, negative_marking: 0 }
+        : {
+            // Type label follows the paper's own exam, not a hardcoded UPPSC.
+            type: cfg.markingSchemeType,
+            negative_marking: cfg.negativeMarking,
+            note: "one-third (1/3) negative marking",
+          },
     },
   });
   return { status: "ready", test };

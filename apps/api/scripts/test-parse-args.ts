@@ -550,6 +550,21 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     spec: { boolean: ["write"] },
     documented: [[], ["--write"]],
   },
+  {
+    // Both mock builders share one spec (src/mocks/exams.ts MOCK_BUILD_FLAGS)
+    // because .github/workflows/mocks-build.yml runs them back to back as one
+    // workflow — a policy that drifted between them would rebuild the two
+    // stages for different exam sets. A BARE run is that workflow's own
+    // invocation (default = live exams) and MUST keep parsing.
+    script: "mocks:build",
+    spec: { value: ["exam"] },
+    documented: [[], ["--exam", "upsc"]],
+  },
+  {
+    script: "mocks:build:mains",
+    spec: { value: ["exam"] },
+    documented: [[], ["--exam", "upsc"]],
+  },
 ];
 
 for (const { script, spec, documented } of SHIPPED) {
