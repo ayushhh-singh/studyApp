@@ -62,6 +62,7 @@
     "og:generate": "tsx scripts/generate-marketing-og.ts",
     "ca:assemble": "tsx --env-file-if-exists=.env src/ca/assemble-run.ts",
     "ca:backfill": "tsx --env-file-if-exists=.env src/ca/backfill-run.ts",
+    "ca:widen-exam": "tsx --env-file-if-exists=.env src/ca/widen-exam-run.ts",
     "ca:deepdive": "tsx --env-file-if-exists=.env src/ca/deepdive-run.ts",
     "ca:verify-mcqs": "tsx --env-file-if-exists=.env src/ca/verify-mcqs-run.ts",
     "guest:rls": "tsx --env-file-if-exists=.env --env-file=../web/.env.local scripts/guest-rls-check.ts",

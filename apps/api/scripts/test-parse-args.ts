@@ -325,6 +325,25 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     documented: [["--run", "--max-usd", "5"], [], ["--exam", "upsc"], ["--exam", "upsc", "--run", "--max-usd", "0.5"]],
   },
   {
+    // The ADDITIVE sibling of ca:backfill (M48). Three kinds are load-bearing
+    // here and none is cosmetic: `--exam` is `value` because it is REQUIRED and
+    // a valueless one collapsing to `true` would be read as "no override" and
+    // silently widen by the LIVE exam instead of the named one; `--apply` is the
+    // write opt-in, so a lost `--apply` must fail closed to a dry run (it does —
+    // the default IS dry run) and a stray `--apply true` must be rejected rather
+    // than parsed; `--max-usd` is `positiveNumber` because it is a DOLLAR cap,
+    // and `--limit` is `positiveInt` because a NaN sample size would widen the
+    // run to the whole 2,104-item corpus.
+    script: "ca:widen-exam",
+    spec: { boolean: ["apply", "dry-run"], value: ["exam"], positiveInt: ["limit"], positiveNumber: ["max-usd"] },
+    documented: [
+      ["--exam", "upsc"],
+      ["--exam", "upsc", "--dry-run"],
+      ["--exam", "upsc", "--limit", "5"],
+      ["--exam", "upsc", "--apply", "--max-usd", "8"],
+    ],
+  },
+  {
     script: "ca:deepdive",
     spec: { value: ["month"], boolean: ["run"] },
     documented: [["--month", "2026-07", "--run"]],
@@ -657,5 +676,51 @@ accepts("ca:backfill: targeted capped run parses", ["--exam", "upsc", "--run", "
   run: true,
   "max-usd": "0.5",
 });
+
+// ---------------------------------------------------------------------------
+// ca:widen-exam — the ADDITIVE corpus-widening tool (M48).
+//
+// Its argv failure modes are strictly WORSE than ca:backfill's, because it is
+// the tool an operator reaches for AFTER being warned off the rewriting one: a
+// lost `--exam` would widen the corpus by the exam that already owns it, and a
+// lost `--apply` must fail CLOSED (to the dry run) rather than open.
+// ---------------------------------------------------------------------------
+const CA_WIDEN: FlagSpec = {
+  boolean: ["apply", "dry-run"],
+  value: ["exam"],
+  positiveInt: ["limit"],
+  positiveNumber: ["max-usd"],
+};
+
+accepts("ca:widen-exam: bare --exam is the DEFAULT dry run (no apply key ⇒ no write)", ["--exam", "upsc"], CA_WIDEN, {
+  exam: "upsc",
+});
+accepts("ca:widen-exam: sampled dry run parses", ["--exam", "upsc", "--limit", "5"], CA_WIDEN, {
+  exam: "upsc",
+  limit: "5",
+});
+accepts("ca:widen-exam: capped write pass parses", ["--exam", "upsc", "--apply", "--max-usd", "8"], CA_WIDEN, {
+  exam: "upsc",
+  apply: true,
+  "max-usd": "8",
+});
+rejects("ca:widen-exam: valueless --exam would widen by the wrong exam", ["--exam", "--apply"], CA_WIDEN, ["value"]);
+rejects("ca:widen-exam: empty --exam= is not 'no exam'", ["--exam="], CA_WIDEN, ["empty"]);
+rejects(
+  "ca:widen-exam: collapsed token defeats --exam AND --limit AND --max-usd at once",
+  ["--exam upsc --apply --max-usd 8"],
+  CA_WIDEN,
+  ["unrecognised", "whitespace"],
+);
+rejects("ca:widen-exam: --apply true is not a boolean spelling", ["--exam", "upsc", "--apply", "true"], CA_WIDEN, [
+  "positional",
+]);
+rejects("ca:widen-exam: NaN --limit would widen the run to the whole corpus", ["--exam", "upsc", "--limit", "abc"], CA_WIDEN, [
+  "limit",
+]);
+rejects("ca:widen-exam: --limit 0 is not a sample size", ["--exam", "upsc", "--limit", "0"], CA_WIDEN, ["limit"]);
+rejects("ca:widen-exam: a negative budget cap is rejected", ["--exam", "upsc", "--apply", "--max-usd", "-1"], CA_WIDEN, [
+  "max-usd",
+]);
 
 console.log(`✓ parseArgs guards: ${passed}/${passed} assertions passed`);

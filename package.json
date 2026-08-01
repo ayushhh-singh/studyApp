@@ -48,6 +48,7 @@
     "demo:seed": "pnpm --filter api demo:seed",
     "ca:assemble": "pnpm --filter api ca:assemble",
     "ca:backfill": "pnpm --filter api ca:backfill",
+    "ca:widen-exam": "pnpm --filter api ca:widen-exam",
     "ca:deepdive": "pnpm --filter api ca:deepdive",
     "ca:verify-mcqs": "pnpm --filter api ca:verify-mcqs"
   },
