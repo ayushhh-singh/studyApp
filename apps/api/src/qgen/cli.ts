@@ -10,7 +10,7 @@
  */
 import { parseArgs } from "../ingest/_shared.js";
 import { supabase } from "../lib/supabase.js";
-import { listExams } from "../lib/exams.js";
+import { resolveTargetExams } from "../lib/exams.js";
 import {
   generateBatch,
   generateForNode,
@@ -65,60 +65,23 @@ async function resolveNodeId(nodeArg: string): Promise<string> {
 }
 
 /**
- * Which exams tonight's top-up plans for. THE EXAM-SELECTION POLICY LIVES HERE,
- * deliberately — `runTopup` takes `examCodes` as a REQUIRED parameter precisely
- * so this decision cannot hide behind a default nobody has to think about (M24;
- * a defaulted `examCode` is exactly what kept the planner pinned to uppsc while
- * looking parameterised).
+ * Which exams tonight's top-up plans for.
  *
- * DEFAULT = every LIVE exam, not every registered one. A reference exam (`upsc`
- * and `mppsc` today, `is_live = false`) is one no user can select, so generating
- * for it is real nightly spend on a bank nobody can reach. Measured today the
- * live set is exactly `["uppsc"]`, so the scheduled cron
- * (`.github/workflows/qgen-topup.yml`, which passes no `--exam`) plans EXACTLY
- * the papers it planned before the multi-exam change — the second exam costs
- * nothing until it either goes live or is named explicitly.
- *
- * Reads the registry through `listExams` rather than `liveExamCodes` because the
- * override path needs the SAME rows to validate the code and to report whether
- * it is live; one query answers both instead of two that could disagree.
- *
- * `--exam <code>` is that explicit naming, and it is allowed to name a NON-live
- * exam on purpose: stocking a bank BEFORE launch is the real use case (`upsc`
- * has a 202-node tree and a real PYQ bank while still being unselectable). It is
- * only ever ONE exam — a multi-exam override would need a shared-budget policy
- * argument, and the live set already covers "several".
- *
- * ⚑ VALIDATED AGAINST THE REGISTRY, never passed through. `getExamConfig` does
- * NOT throw on an unknown code — it logs a warn and FALLS BACK to the default
- * exam — so `--exam upcs` would silently plan UPPSC's papers under the wrong
- * label and generate real questions against them. That is the same
- * silently-wrong-scope class this whole change closes, so a typo dies here.
+ * The policy itself — default to the LIVE set, allow one explicitly-named
+ * non-live exam, validate against the registry — is `resolveTargetExams` in
+ * `lib/exams.ts`, shared verbatim with `ca:run` and `ca:backfill`. It used to
+ * live here; it was lifted out when the CA pipelines needed the identical rule,
+ * because a second copy of a validator is exactly how this repo ended up with
+ * six dialects of argv parsing. Read that function for the full reasoning.
  */
 async function resolveTopupExams(examArg: string | boolean | undefined, log: (m: string) => void): Promise<string[]> {
-  const registry = await listExams();
-
-  if (typeof examArg === "string") {
-    const hit = registry.find((e) => e.exam_code === examArg);
-    if (!hit) {
-      const codes = registry.map((e) => e.exam_code).sort().join(", ");
-      throw new Error(`Unknown --exam "${examArg}". Registered exams: ${codes}`);
-    }
-    if (!hit.is_live) {
-      // Not an error — but never silent. Generating for an unselectable exam is
-      // a deliberate pre-launch act, and the operator should see that it was.
-      log(`--exam ${examArg}: this exam is NOT live (no user can select it yet) — generating anyway, as explicitly named.`);
-    }
-    return [examArg];
-  }
-
-  const live = registry.filter((e) => e.is_live).map((e) => e.exam_code);
-  if (live.length === 0) {
-    // A zero-plan run and a "nothing is below floor" run are indistinguishable
-    // in the output, so refuse rather than exit 0 having done nothing.
-    throw new Error("No exam has exams.is_live = true, so there is nothing to top up. Pass --exam <code> to override.");
-  }
-  return live;
+  const { examCodes } = await resolveTargetExams({
+    examArg,
+    cli: "qgen:topup",
+    action: "generating",
+    log,
+  });
+  return examCodes;
 }
 
 function parseDifficulty(v: string | boolean | undefined): DifficultyMix | undefined {

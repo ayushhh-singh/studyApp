@@ -71,7 +71,6 @@ import { CandidatePrefilter, PREFILTER_TOP_K, PREFILTER_TOP_K_DEVANAGARI } from 
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import { caEmbeddingExamCode } from "./embed-exam.js";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
-import { liveExamCodes } from "../lib/exams.js";
 import {
   RELEVANCE_GATE,
   mergeExamTriages,
@@ -180,6 +179,17 @@ export interface PipelineOptions {
   maxPerSource: number;
   maxTotal: number;
   /**
+   * WHICH EXAMS THIS RUN BUILDS FOR. REQUIRED, never defaulted — the selection
+   * policy belongs to the caller (`resolveTargetExams` in lib/exams.ts), and a
+   * default here would be the M24 trap: every caller keeps the old behaviour by
+   * doing nothing, so the parameter looks decided while nobody decided it.
+   *
+   * Normally `liveExamCodes()`. `ca:run --exam <code>` overrides it so content
+   * can be built for a not-yet-live exam WITHOUT flipping `exams.is_live`, which
+   * would also make that exam selectable by real users (U7).
+   */
+  examCodes: string[];
+  /**
    * "batch" (default) routes triage through the Message Batches API as
    * submit-now/collect-later — half price, but an item goes live on a LATER
    * run. "sync" is the original blocking one-call-per-item path.
@@ -262,7 +272,7 @@ interface ProcessCtx {
    * only the PROMPT pools that must stay per-exam.
    */
   candidateById: Map<string, SyllabusCandidate>;
-  /** One entry per live exam, in `liveExamCodes()` order. That order is the deterministic tie-break. */
+  /** One entry per TARGET exam, in `PipelineOptions.examCodes` order. That order is the deterministic tie-break. */
   scopes: ExamScope[];
   onUsage: (u: LlmUsage) => void;
   log: (msg: string) => void;
@@ -785,9 +795,10 @@ export async function runPipeline(
   };
   const onUsage = (u: LlmUsage) => (result.costUsd += u.costUsd);
 
-  // ONE SCOPE PER LIVE EXAM. Built before anything else because BOTH phases need
-  // them: collect reconstructs each row's shown-candidate list from the merged
-  // map, submit narrows against each exam's own pool.
+  // ONE SCOPE PER TARGET EXAM (normally the live set — see
+  // `PipelineOptions.examCodes`). Built before anything else because BOTH phases
+  // need them: collect reconstructs each row's shown-candidate list from the
+  // merged map, submit narrows against each exam's own pool.
   //
   // ⚑ THE POOLS ARE PER EXAM, NOT MERGED. A merged pool would keep the
   // pre-filter's FIXED K (150/220) while doubling the tree, silently halving
@@ -795,7 +806,7 @@ export async function runPipeline(
   // ./exam-fanout.ts). One pool per exam keeps K per-exam, so coverage is
   // unchanged however many exams are live. With ONE live exam this is exactly
   // the previous single pool, single pre-filter, single triage call.
-  const live = await liveExamCodes();
+  const live = opts.examCodes;
   const scopes: ExamScope[] = [];
   for (const examCode of live) {
     const candidates = await loadSyllabusCandidates({ examCodes: [examCode] });
@@ -824,7 +835,7 @@ export async function runPipeline(
         }`,
     );
   }
-  if (scopes.length === 0) throw new Error("ca:run: no live exams — nothing to triage against");
+  if (scopes.length === 0) throw new Error("ca:run: no target exams — nothing to triage against");
   if (scopes.length > 1) {
     log(
       `MULTI-EXAM RUN: triage fans out to ${scopes.length} exams (${live.join(", ")}) — ` +

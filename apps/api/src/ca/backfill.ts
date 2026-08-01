@@ -15,6 +15,36 @@
  * We re-use the item's OWN stored (own-words) title/summary as the model's
  * context — we no longer hold the original RSS snippet, and the stored summary
  * is already a clean paraphrase, so this stays within ToS.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚑ THIS TOOL RE-SCORES AND REWRITES. IT DOES NOT ADD.
+ * ---------------------------------------------------------------------------
+ * Read this before reaching for it to "give a second exam a mapping onto the
+ * existing corpus" — it is the wrong tool for that, in three independent ways,
+ * and each one is silent:
+ *
+ *  1. SELECTION. It only ever sees items with `prelims_relevance IS NULL` (see
+ *     `loadItemsNeedingBackfill`) — i.e. the ones NEVER re-scored under the
+ *     two-lives model. Measured 2026-08-01: 107 of 2,104 published items. The
+ *     other 1,997 are invisible to it no matter what `--exam` says.
+ *  2. REPLACEMENT, NOT UNION. Both update statements below write
+ *     `exam_codes: merged.itemExamCodes` and `syllabus_node_ids:
+ *     triage.syllabus_node_ids` — the merge of THIS RUN'S scopes only. Narrow
+ *     the scope to one exam and every processed row LOSES the other exams'
+ *     codes and node mappings. `mergeExamTriages` unions across the exams it is
+ *     GIVEN; it cannot union with what is already on the row, which it never
+ *     reads.
+ *  3. CONTENT REWRITE. The enrich branch also overwrites `title_i18n`,
+ *     `summary_i18n`, `prelims_facts`, `mains_brief`, `possible_questions`,
+ *     `node_significance`, `category`, `gs_papers`, `is_up_specific` and
+ *     `status` — and an item the target exam gates out is set to `archived`,
+ *     pulling a perfectly good live item out of the feed for every OTHER exam.
+ *
+ * An additive "map exam B onto the existing corpus" pass is a DIFFERENT
+ * operation: triage-only, no enrich, selecting PUBLISHED items rather than
+ * unscored ones, writing a UNION of the stored arrays with the new verdict, and
+ * touching no content column and no status. It does not exist yet —
+ * `docs/OUTSTANDING.md` §8c **M48**.
  */
 import { supabase } from "../lib/supabase.js";
 import { estimateCostUsd, MODELS } from "../lib/models.js";
@@ -30,7 +60,6 @@ import {
 } from "./prompts.js";
 import { RELEVANCE_GATE, mergeExamTriages, type ExamTriage } from "./exam-fanout.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
-import { liveExamCodes } from "../lib/exams.js";
 import { selectAll } from "../lib/paginate.js";
 import { CandidatePrefilter } from "./candidate-prefilter.js";
 import type {
@@ -94,8 +123,19 @@ export interface BackfillPlan {
   totalCostUsd: number;
 }
 
-/** Estimate the cost of backfilling every not-yet-done item (no LLM calls). */
-export async function planBackfill(): Promise<BackfillPlan> {
+/**
+ * Estimate the cost of backfilling every not-yet-done item (no LLM calls).
+ *
+ * `examCodes` is REQUIRED because triage FANS OUT — one call per exam — while
+ * enrichment does not. Omitting that factor under-projects by exactly the number
+ * of exams, which is the same class of error that had `EST.triageInput` set to
+ * 2300 against a measured ~6100: the number the operator budgets against is
+ * quietly smaller than the number that gets billed. `runBackfill`'s own
+ * per-chunk projection already multiplies by the scope count; this one did not,
+ * so the two disagreed the moment a second exam entered the picture.
+ */
+export async function planBackfill(examCodes: string[]): Promise<BackfillPlan> {
+  if (examCodes.length === 0) throw new Error("planBackfill: no target exams");
   const items = await loadItemsNeedingBackfill();
   const count = items.length;
   const survivors = Math.round(count * EST.survivalRate);
@@ -103,7 +143,7 @@ export async function planBackfill(): Promise<BackfillPlan> {
   const triagePer = estimateCostUsd(MODELS.haiku, EST.triageInput, EST.triageOutput) * BATCH_DISCOUNT;
   const enrichPer = estimateCostUsd(MODELS.haiku, EST.enrichInput, EST.enrichOutput) * BATCH_DISCOUNT;
 
-  const triageCostUsd = triagePer * count;
+  const triageCostUsd = triagePer * count * examCodes.length;
   const enrichCostUsd = enrichPer * survivors;
   return {
     count,
@@ -141,26 +181,47 @@ export interface BackfillRunResult {
 
 type Log = (msg: string) => void;
 
-export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<BackfillRunResult> {
+export async function runBackfill(opts: {
+  maxUsd: number;
+  /**
+   * WHICH EXAMS THIS BACKFILL RE-SCORES FOR. REQUIRED, never defaulted (M24) —
+   * normally `liveExamCodes()`, overridable with `ca:backfill --exam <code>`.
+   *
+   * ⚑ THIS SET IS REPLACING, NOT ADDITIVE — see `runBackfill`'s own warning and
+   * the header note. Narrowing it to one exam rewrites every processed row's
+   * `exam_codes` and `syllabus_node_ids` to THAT exam's verdict alone.
+   */
+  examCodes: string[];
+  log?: Log;
+}): Promise<BackfillRunResult> {
   const log = opts.log ?? (() => {});
-  // ONE SCOPE PER LIVE EXAM, exactly as the live pipeline does: triage fans out
-  // (one call per exam, over that exam's OWN pool, in that exam's OWN framing)
-  // and the verdicts are merged by `mergeExamTriages`. Enrichment stays one call
-  // per item, framed by the exam that merge picks. With one live exam this
+  // ONE SCOPE PER TARGET EXAM, exactly as the live pipeline does: triage fans
+  // out (one call per exam, over that exam's OWN pool, in that exam's OWN
+  // framing) and the verdicts are merged by `mergeExamTriages`. Enrichment stays
+  // one call per item, framed by the exam that merge picks. With one exam this
   // collapses to the previous single pool / single call per item.
-  const live = await liveExamCodes();
+  const live = opts.examCodes;
   const scopes: { examCode: string; candidates: SyllabusCandidate[]; prefilter: CandidatePrefilter }[] = [];
   for (const examCode of live) {
     const candidates = await loadSyllabusCandidates({ examCodes: [examCode] });
     scopes.push({ examCode, candidates, prefilter: await CandidatePrefilter.create(candidates) });
   }
-  if (scopes.length === 0) throw new Error("ca:backfill: no live exams — nothing to triage against");
+  if (scopes.length === 0) throw new Error("ca:backfill: no target exams — nothing to triage against");
   // Node ids are globally unique, so one merged map resolves any node's exam.
   const candidateById = new Map(scopes.flatMap((s) => s.candidates).map((c) => [c.id, c]));
   const all = await loadItemsNeedingBackfill();
   log(
     `items needing backfill: ${all.length}; budget cap: $${opts.maxUsd.toFixed(2)}; ` +
       `exams: ${live.join(", ")} (${scopes.length} triage call(s) per item)`,
+  );
+  // Loud, unconditional, and stated in terms of the columns actually written —
+  // "exam_codes and syllabus_node_ids are REPLACED by this scope's verdict" is
+  // the thing an operator running `--exam <one-exam>` over a shared corpus needs
+  // to know BEFORE the first chunk commits, not after. See the header.
+  log(
+    `⚑ REWRITE, NOT MERGE: every processed row's exam_codes + syllabus_node_ids are REPLACED by this run's ` +
+      `verdict for [${live.join(", ")}] — codes/nodes from any exam outside that set are DROPPED — and each ` +
+      `enriched row's title/summary/facts/mains_brief/category/gs_papers/is_up_specific/status are rewritten.`,
   );
 
   const result: BackfillRunResult = {

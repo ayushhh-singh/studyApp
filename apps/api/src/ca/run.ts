@@ -15,15 +15,32 @@
  *              batch in this same run — for running it by hand; cron leaves it 0.
  *   --mode sync  the original blocking one-triage-call-per-item path, full
  *              price, everything live immediately.
+ *
+ * CONTENT TARGETING (`--exam <code>`): by default the run builds for every LIVE
+ * exam. `--exam` names ONE exam explicitly and may name a NOT-YET-LIVE one, so
+ * an exam's current-affairs corpus can be built BEFORE launch without flipping
+ * `exams.is_live` — which would also make it selectable by real users
+ * (docs/OUTSTANDING.md U7). See `resolveTargetExams`.
+ *
+ * ⚑ `--exam` AND THE TRIAGE-BATCH LEDGER DO NOT MIX ACROSS RUNS. A pending batch
+ * carries the exams it was SUBMITTED for, and collect rebuilds each request's
+ * shown-candidate list from THIS run's pools — so collecting a uppsc batch under
+ * `--exam upsc` would resolve none of its node ids and generate none of its
+ * questions, silently. The guard below refuses rather than degrade; drain first.
  */
 import { parseArgs, report } from "../ingest/_shared.js";
+import { resolveTargetExams } from "../lib/exams.js";
+import { listPendingBatches } from "./triage-batch-store.js";
 import { runPipeline } from "./pipeline.js";
 
 async function main(): Promise<void> {
   const args = parseArgs(
     process.argv.slice(2),
     {
-      value: ["mode"],
+      // `exam` is the content-targeting override (see the header). A `value`
+      // flag, so a valueless `--exam` is rejected by the parser rather than
+      // collapsing to boolean `true` and silently falling back to the live set.
+      value: ["mode", "exam"],
       // `days` is a positiveNumber, NOT a positiveInt: it is compared against a
       // FRACTIONAL `ageDays` float downstream, so `--days 0.5` (a 12-hour
       // window) is a semantically valid narrowing an integer validator would
@@ -38,6 +55,13 @@ async function main(): Promise<void> {
     },
     "ca:run",
   );
+  // Resolved BEFORE anything is read or spent, so an unknown code dies here.
+  const { examCodes, overridden } = await resolveTargetExams({
+    examArg: args.exam,
+    cli: "ca:run",
+    action: "ingesting",
+    log: (m) => report.warn(m),
+  });
   const days = typeof args.days === "string" ? Number(args.days) : 3;
   const maxPerSource = typeof args["max-per-source"] === "string" ? Number(args["max-per-source"]) : 15;
   const maxTotal = typeof args["max-total"] === "string" ? Number(args["max-total"]) : 40;
@@ -46,12 +70,43 @@ async function main(): Promise<void> {
   // `nonNegativeNumber` kind enforces exactly that, before anything is spent.
   const collectWaitMinutes = typeof args.wait === "string" ? Number(args.wait) : 0;
 
+  // ⚑ REFUSE TO MIX A TARGETED RUN WITH SOMEONE ELSE'S PENDING BATCH.
+  //
+  // A pending triage batch was submitted for the exams that were in scope AT
+  // SUBMIT TIME, and `collectBatch` rebuilds each request's shown-candidate list
+  // from THIS run's `candidateById` — which is built only from this run's target
+  // exams. Collect a uppsc batch under `--exam upsc` and every stored uppsc node
+  // id resolves to nothing: the item is persisted with no syllabus mapping, its
+  // exam bookkeeping falls back, and `scopeFor` returns undefined so no MCQ and
+  // no mains question is generated for it. All silent, and the ledger row is
+  // marked collected, so the work is gone rather than retried.
+  //
+  // Rather than teach collect to reconstruct pools for exams this run is not
+  // building for (real complexity, on a path nobody exercises), refuse and say
+  // exactly what to do. The reverse direction is the operator's to respect: a
+  // batch SUBMITTED under `--exam X` must be collected under `--exam X` too.
+  if (overridden) {
+    const pending = await listPendingBatches();
+    if (pending.length > 0) {
+      const items = pending.reduce((n, b) => n + b.count, 0);
+      console.error(
+        `\nca:run --exam ${examCodes[0]}: ${pending.length} triage batch(es) covering ${items} item(s) are still ` +
+          `pending. They were submitted for a DIFFERENT exam scope, and collecting them under this one would ` +
+          `silently drop their syllabus mappings and generate none of their questions.\n` +
+          `Drain them first with a plain \`pnpm ca:run --wait <minutes>\` (no --exam), then re-run this command.\n` +
+          `Pending: ${pending.map((b) => `${b.batchId} (${b.count} items, submitted ${b.submittedAt})`).join("; ")}`,
+      );
+      process.exit(1);
+    }
+  }
+
   report.section(
     `ca:run  (mode=${mode}, days=${days}, max-per-source=${maxPerSource}, max-total=${maxTotal}` +
-      `${mode === "batch" && collectWaitMinutes > 0 ? `, wait=${collectWaitMinutes}m` : ""})`,
+      `${mode === "batch" && collectWaitMinutes > 0 ? `, wait=${collectWaitMinutes}m` : ""}` +
+      `, exams=${examCodes.join(",")}${overridden ? " [--exam override]" : " [live set]"})`,
   );
 
-  const result = await runPipeline({ days, maxPerSource, maxTotal, mode, collectWaitMinutes }, (msg) =>
+  const result = await runPipeline({ days, maxPerSource, maxTotal, mode, collectWaitMinutes, examCodes }, (msg) =>
     report.step(msg),
   );
 

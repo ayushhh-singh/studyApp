@@ -297,18 +297,32 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
   {
     script: "ca:run",
     spec: {
-      value: ["mode"],
+      // `exam` is the content-targeting override (build for a NOT-YET-LIVE exam
+      // without flipping `exams.is_live`). A `value` flag, so a valueless
+      // `--exam` is rejected rather than collapsing to boolean `true` and
+      // silently falling back to the live set.
+      value: ["mode", "exam"],
       positiveNumber: ["days"],
       positiveInt: ["max-per-source", "max-total"],
       nonNegativeNumber: ["wait"],
     },
-    documented: [["--days", "3"], ["--mode", "sync"], ["--wait", "0"], ["--max-per-source", "15", "--max-total", "40"]],
+    documented: [
+      ["--days", "3"],
+      ["--mode", "sync"],
+      ["--wait", "0"],
+      ["--max-per-source", "15", "--max-total", "40"],
+      ["--exam", "upsc"],
+      ["--exam", "upsc", "--days", "3", "--wait", "0"],
+    ],
   },
   { script: "ca:assemble", spec: { positiveNumber: ["days"] }, documented: [["--days", "7"]] },
   {
     script: "ca:backfill",
-    spec: { boolean: ["run"], positiveNumber: ["max-usd"] },
-    documented: [["--run", "--max-usd", "5"], []],
+    // Same `--exam` override as ca:run. On THIS tool a valueless `--exam` would
+    // be a data-loss shape (it rewrites exam_codes/syllabus_node_ids), so the
+    // `value` kind is load-bearing, not cosmetic.
+    spec: { boolean: ["run"], value: ["exam"], positiveNumber: ["max-usd"] },
+    documented: [["--run", "--max-usd", "5"], [], ["--exam", "upsc"], ["--exam", "upsc", "--run", "--max-usd", "0.5"]],
   },
   {
     script: "ca:deepdive",
@@ -597,6 +611,48 @@ accepts("ALIAS notes:embed: nightly cron invocation still parses", ["--missing-o
 accepts("ALIAS notes:embed: scoped re-embed still parses", ["--node", "n-1", "--limit", "10"], NOTES_EMBED, {
   node: "n-1",
   limit: "10",
+});
+
+// ---------------------------------------------------------------------------
+// ca:run / ca:backfill --exam — THE CONTENT-TARGETING OVERRIDE.
+//
+// This flag is what lets a run build for a NOT-YET-LIVE exam without flipping
+// `exams.is_live` (which would also make that exam user-selectable — U7). Its
+// failure mode is the one this whole parser exists to stop: if a malformed
+// `--exam` yields no key, `resolveTargetExams` sees `undefined` and SILENTLY
+// falls back to the LIVE set. On `ca:run` that spends against the wrong exam;
+// on `ca:backfill`, which REWRITES `exam_codes` and `syllabus_node_ids` rather
+// than adding to them, it is a data-loss shape. Hence `value`, not `boolean`.
+// ---------------------------------------------------------------------------
+const CA_RUN: FlagSpec = {
+  value: ["mode", "exam"],
+  positiveNumber: ["days"],
+  positiveInt: ["max-per-source", "max-total"],
+  nonNegativeNumber: ["wait"],
+};
+const CA_BACKFILL: FlagSpec = { boolean: ["run"], value: ["exam"], positiveNumber: ["max-usd"] };
+
+rejects("ca:run: valueless --exam would silently fall back to the live set", ["--exam", "--mode", "sync"], CA_RUN, [
+  "value",
+]);
+rejects("ca:run: collapsed --exam token", ["--exam upsc --wait 0"], CA_RUN, ["unrecognised", "whitespace"]);
+rejects("ca:run: empty --exam= is not 'no exam'", ["--exam="], CA_RUN, ["empty"]);
+accepts("ca:run: cron invocation (no --exam) is unchanged", ["--wait", "0"], CA_RUN, { wait: "0" });
+accepts("ca:run: targeted pre-launch run parses", ["--exam", "upsc", "--days", "3"], CA_RUN, {
+  exam: "upsc",
+  days: "3",
+});
+
+rejects("ca:backfill: valueless --exam on a REWRITING tool", ["--exam", "--run"], CA_BACKFILL, ["value"]);
+rejects("ca:backfill: collapsed token defeats --exam AND --max-usd", ["--exam upsc --run --max-usd 0.5"], CA_BACKFILL, [
+  "unrecognised",
+  "whitespace",
+]);
+accepts("ca:backfill: default plan-only invocation unchanged", [], CA_BACKFILL, {});
+accepts("ca:backfill: targeted capped run parses", ["--exam", "upsc", "--run", "--max-usd", "0.5"], CA_BACKFILL, {
+  exam: "upsc",
+  run: true,
+  "max-usd": "0.5",
 });
 
 console.log(`✓ parseArgs guards: ${passed}/${passed} assertions passed`);

@@ -9,6 +9,7 @@
  */
 import cron from "node-cron";
 import { logger } from "../lib/logger.js";
+import { liveExamCodes } from "../lib/exams.js";
 import { runPipeline } from "./pipeline.js";
 import { assembleWeeklySets } from "./assemble.js";
 
@@ -25,7 +26,14 @@ export function startDevCaScheduler(): void {
   // a fresh item goes live within roughly one cadence at half the triage cost.
   cron.schedule(DEV_SCHEDULE, () => {
     logger.info("ca: scheduled pipeline run starting");
-    runPipeline({ days: 3, maxPerSource: 15, maxTotal: 40 }, (msg) => logger.info(`ca: ${msg}`))
+    // Always the LIVE set. A scheduled run must never inherit `ca:run --exam`'s
+    // pre-launch override — that flag is for a human building content for an
+    // exam nobody can select yet, and a cron doing it silently is exactly the
+    // unattended spend the flag's default is designed to prevent.
+    liveExamCodes()
+      .then((examCodes) =>
+        runPipeline({ days: 3, maxPerSource: 15, maxTotal: 40, examCodes }, (msg) => logger.info(`ca: ${msg}`)),
+      )
       .then((result) => logger.info({ result }, "ca: scheduled pipeline run finished"))
       .catch((err) => logger.error({ err }, "ca: scheduled pipeline run failed"));
   });

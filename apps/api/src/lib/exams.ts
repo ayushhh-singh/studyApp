@@ -106,6 +106,97 @@ export async function liveExamCodes(): Promise<string[]> {
   return (await listExams()).filter((e) => e.is_live).map((e) => e.exam_code);
 }
 
+/** What a content-building CLI resolved its `--exam` flag to. */
+export interface TargetExams {
+  /** The exams this run will build content for. Never empty. */
+  examCodes: string[];
+  /** True when `--exam` was supplied, i.e. this is NOT the default live set. */
+  overridden: boolean;
+}
+
+/**
+ * WHICH EXAMS A CONTENT-BUILDING CLI BUILDS FOR — the one implementation, shared
+ * by `qgen:topup`, `ca:run` and `ca:backfill`.
+ *
+ * THE EXAM-SELECTION POLICY LIVES IN THE CLI, deliberately: every runner takes
+ * `examCodes` as a REQUIRED parameter precisely so this decision cannot hide
+ * behind a default nobody has to think about (M24 — a defaulted `examCode` is
+ * exactly what kept the qgen planner pinned to uppsc while looking
+ * parameterised, and what kept `getCutoffs`' filter inert). This function is
+ * where that decision is made, once.
+ *
+ * DEFAULT = every LIVE exam, not every registered one. A reference exam (`upsc`
+ * and `mppsc` today, `is_live = false`) is one no user can select, so building
+ * content for it is real spend on material nobody can reach. Measured today the
+ * live set is exactly `["uppsc"]`, so every scheduled cron (none of which passes
+ * `--exam`) does EXACTLY what it did before this flag existed — the second exam
+ * costs nothing until it either goes live or is named explicitly.
+ *
+ * `--exam <code>` is that explicit naming, and it is allowed to name a NON-live
+ * exam on purpose: **that is the entire point**. Stocking an exam's content
+ * BEFORE launch is the real use case (`upsc` has a 202-node tree and a 2,791-row
+ * PYQ bank while still being unselectable), and the alternative — flipping
+ * `exams.upsc.is_live = true` to make the pipelines see it — would ALSO make it
+ * selectable by real users in onboarding and Profile, exposing an exam with no
+ * content. `is_live` is a SELECTION gate; using it as a LAUNCH gate is the
+ * confusion `docs/OUTSTANDING.md` U7 already records. This flag is how a build
+ * targets an unlaunched exam without touching that gate.
+ *
+ * It is only ever ONE exam. A multi-exam override would need a shared-budget
+ * policy argument, and the live set already covers "several".
+ *
+ * Reads the registry through `listExams` rather than `liveExamCodes` because the
+ * override path needs the SAME rows to validate the code and to report whether
+ * it is live; one query answers both instead of two that could disagree.
+ *
+ * ⚑ VALIDATED AGAINST THE REGISTRY, never passed through. `getExamConfig` does
+ * NOT throw on an unknown code — it logs a warn and FALLS BACK to the default
+ * exam — so `--exam upcs` would silently build UPPSC's content under the wrong
+ * label. That is the same silently-wrong-scope class this whole flag exists to
+ * avoid, so a typo dies here, before anything is spent.
+ */
+export async function resolveTargetExams(opts: {
+  /** The raw parsed flag. `parseArgs` yields `string | boolean | undefined`. */
+  examArg: string | boolean | undefined;
+  /** Script name, for error text (e.g. "ca:run"). */
+  cli: string;
+  /** Gerund naming what this CLI does, for the not-live notice (e.g. "ingesting"). */
+  action: string;
+  log?: (msg: string) => void;
+}): Promise<TargetExams> {
+  const log = opts.log ?? (() => {});
+  const registry = await listExams();
+
+  if (typeof opts.examArg === "string") {
+    const hit = registry.find((e) => e.exam_code === opts.examArg);
+    if (!hit) {
+      const codes = registry
+        .map((e) => e.exam_code)
+        .sort()
+        .join(", ");
+      throw new Error(`Unknown --exam "${opts.examArg}". Registered exams: ${codes}`);
+    }
+    if (!hit.is_live) {
+      // Not an error — but never silent. Building for an unselectable exam is a
+      // deliberate pre-launch act, and the operator should see that it was.
+      log(
+        `--exam ${opts.examArg}: this exam is NOT live (no user can select it yet) — ${opts.action} anyway, as explicitly named.`,
+      );
+    }
+    return { examCodes: [opts.examArg], overridden: true };
+  }
+
+  const live = registry.filter((e) => e.is_live).map((e) => e.exam_code);
+  if (live.length === 0) {
+    // A zero-work run and a "nothing was due" run are indistinguishable in the
+    // output, so refuse rather than exit 0 having done nothing.
+    throw new Error(
+      `No exam has exams.is_live = true, so ${opts.cli} has nothing to work on. Pass --exam <code> to override.`,
+    );
+  }
+  return { examCodes: live, overridden: false };
+}
+
 /**
  * Every `paper_code` belonging to one exam, for scoping a read of a table that
  * carries `paper_code` but no `exam_code` of its own — principally `questions`.
