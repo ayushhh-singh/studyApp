@@ -128,11 +128,20 @@ export function anthropic(): Anthropic {
  * logging failure never fails the caller's actual LLM request. Batch calls are
  * billed at 0.5x (Message Batches API discount); the flag halves the recorded
  * cost and tags meta.batch so cost:report can price the row correctly.
+ *
+ * `examCode` (migration 0114) is which exam's pipeline this call served, so
+ * `pnpm cost:report` can separate a second exam's spend from the default one's.
+ * It is OPTIONAL ON PURPOSE and must stay that way: many calls are genuinely
+ * exam-agnostic (ingest translate, community post screening, OCR), and making
+ * it required would force a decision at every one of the ~60 call sites at once.
+ * An unstamped row is NULL and reports as "(shared/untagged)" — honest, not
+ * silently folded into the default exam.
  */
 async function recordLlmCall(opts: {
   model: ModelId;
   purpose: string;
   userId?: string;
+  examCode?: string;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
@@ -146,6 +155,7 @@ async function recordLlmCall(opts: {
       user_id: opts.userId ?? null,
       model: opts.model,
       purpose: opts.purpose,
+      exam_code: opts.examCode ?? null,
       input_tokens: opts.inputTokens,
       output_tokens: opts.outputTokens,
       cache_read_tokens: opts.cacheReadTokens,
@@ -239,6 +249,8 @@ function messageText(message: Anthropic.Message): string {
 export async function structuredJson<T>(opts: StructuredParams & {
   purpose?: string;
   userId?: string;
+  /** Which exam's pipeline this call serves — see recordLlmCall. Optional. */
+  examCode?: string;
   onUsage?: (usage: LlmUsage) => void;
   /** Abort the in-flight request (e.g. the SSE client disconnected). */
   signal?: AbortSignal;
@@ -258,6 +270,7 @@ export async function structuredJson<T>(opts: StructuredParams & {
         model: opts.model,
         purpose: opts.purpose,
         userId: opts.userId,
+        examCode: opts.examCode,
         inputTokens: message.usage.input_tokens,
         outputTokens: message.usage.output_tokens,
         cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
@@ -308,6 +321,8 @@ export interface BatchRequest {
   /** llm_calls purpose for this request's usage row (per-request so a mixed-stage batch logs correctly). */
   purpose: string;
   userId?: string;
+  /** Which exam's pipeline this request serves — see recordLlmCall. Optional. */
+  examCode?: string;
 }
 
 export interface BatchItemResult {
@@ -337,6 +352,8 @@ export interface BatchRequestMeta {
   model: ModelId;
   purpose: string;
   userId?: string;
+  /** Which exam's pipeline this request served — see recordLlmCall. Optional. */
+  examCode?: string;
 }
 
 /** A batch's processing status plus its per-outcome request counts. */
@@ -449,6 +466,7 @@ export async function fetchBatchResults(
           model,
           purpose: info.purpose,
           userId: info.userId,
+          examCode: info.examCode,
           inputTokens,
           outputTokens,
           cacheReadTokens,
@@ -484,11 +502,17 @@ export async function fetchBatchResults(
  * settles to a terminal state — so a partial-collect crash can't double-bill
  * the rows it hadn't reached yet.
  */
-export async function recordBatchLlmCall(usage: LlmUsage, purpose: string, userId?: string): Promise<void> {
+export async function recordBatchLlmCall(
+  usage: LlmUsage,
+  purpose: string,
+  userId?: string,
+  examCode?: string,
+): Promise<void> {
   await recordLlmCall({
     model: usage.model,
     purpose,
     userId,
+    examCode,
     inputTokens: usage.inputTokens,
     outputTokens: usage.outputTokens,
     cacheReadTokens: usage.cacheReadTokens,
@@ -521,7 +545,7 @@ export async function runBatch(
   const meta = new Map<string, BatchRequestMeta>(
     requests.map((r) => [
       r.customId,
-      { model: r.params.model as ModelId, purpose: r.purpose, userId: r.userId },
+      { model: r.params.model as ModelId, purpose: r.purpose, userId: r.userId, examCode: r.examCode },
     ]),
   );
   const batchId = await submitBatch(requests);
@@ -574,6 +598,8 @@ export async function streamText(opts: {
   effort?: "low" | "medium" | "high";
   purpose: string;
   userId?: string;
+  /** Which exam's pipeline this call serves — see recordLlmCall. Optional. */
+  examCode?: string;
   onDelta?: (text: string) => void;
   onUsage?: (usage: LlmUsage) => void;
   /** Abort the in-flight request (e.g. the SSE client disconnected). */
@@ -614,6 +640,7 @@ export async function streamText(opts: {
       model: opts.model,
       purpose: opts.purpose,
       userId: opts.userId,
+      examCode: opts.examCode,
       inputTokens: message.usage.input_tokens,
       outputTokens: message.usage.output_tokens,
       cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
@@ -667,6 +694,8 @@ export async function streamChat(opts: {
   effort?: "low" | "medium" | "high";
   purpose: string;
   userId?: string;
+  /** Which exam's pipeline this call serves — see recordLlmCall. Optional. */
+  examCode?: string;
   onDelta?: (text: string) => void;
   onUsage?: (usage: LlmUsage) => void;
   signal?: AbortSignal;
@@ -690,6 +719,7 @@ export async function streamChat(opts: {
     model: opts.model,
     purpose: opts.purpose,
     userId: opts.userId,
+    examCode: opts.examCode,
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
     cacheReadTokens: message.usage.cache_read_input_tokens ?? 0,
@@ -743,6 +773,8 @@ export async function webResearch(opts: {
   maxTokens?: number;
   purpose: string;
   userId?: string;
+  /** Which exam's pipeline this call serves — see recordLlmCall. Optional. */
+  examCode?: string;
   onUsage?: (usage: LlmUsage) => void;
   signal?: AbortSignal;
 }): Promise<WebResearchResult> {
@@ -815,6 +847,7 @@ export async function webResearch(opts: {
       model,
       purpose: opts.purpose,
       userId: opts.userId,
+      examCode: opts.examCode,
       inputTokens: inTok,
       outputTokens: outTok,
       cacheReadTokens: cacheR,
@@ -902,7 +935,7 @@ export async function translateBatch(
   texts: string[],
   target: "hi" | "en",
   domainHint: string,
-  opts?: { purpose?: string; userId?: string; onUsage?: (usage: LlmUsage) => void },
+  opts?: { purpose?: string; userId?: string; examCode?: string; onUsage?: (usage: LlmUsage) => void },
 ): Promise<string[]> {
   const targetName = target === "hi" ? "Hindi (Devanagari)" : "English";
   const uniq = [...new Set(texts.map((t) => t.trim()).filter(Boolean))];
@@ -938,6 +971,7 @@ export async function translateBatch(
       maxTokens: 16000,
       purpose: opts?.purpose,
       userId: opts?.userId,
+      examCode: opts?.examCode,
       onUsage: opts?.onUsage,
     });
     for (const it of out.items) {

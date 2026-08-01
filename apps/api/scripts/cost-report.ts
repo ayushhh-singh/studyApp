@@ -6,18 +6,48 @@
  * time, not discovered in an invoice.
  *
  *   pnpm cost:report [--days N]
+ *
+ * PER-EXAM SPEND (migration 0114): every row carries a nullable `exam_code`
+ * naming which exam's pipeline paid for the call, so a second exam's spend is
+ * separable from the default one's — the prerequisite for checking a signed-off
+ * per-exam cost projection against reality. NULL is reported as
+ * "(shared/untagged)" and covers BOTH genuinely exam-agnostic calls (ingest
+ * translate, community screening, OCR) and calls whose site has not been
+ * stamped yet — never silently folded into the default exam. Until the
+ * per-pipeline stamping commits land, expect everything to read as untagged;
+ * that is correct, not a bug in this report.
+ *
+ * DELIBERATELY NO `--exam` FILTER FLAG. Only the llm_calls sections below carry
+ * an exam at all — the qgen (generation_batches), mentor-latency (events),
+ * question-quality and embedding-coverage sections have no exam column, so a
+ * report headed "upsc" would silently show four platform-wide sections under a
+ * single-exam heading. The per-exam summary + the exam column on the purpose
+ * table answer "what did exam X cost" without that hazard.
  */
 import { parseArgs } from "../src/ingest/_shared.js";
 import { MODEL_PRICING, costFromPriceSet, type ModelId } from "../src/lib/models.js";
+import { selectAll } from "../src/lib/paginate.js";
 import { supabase } from "../src/lib/supabase.js";
 import { computeEmbedCoverage, hasCoverageGap, INGEST_EMBED_TYPES, REMEDY } from "../src/ingest/embed-coverage.js";
 
 /** Message Batches API discount — batch rows carry meta.batch=true and are priced at 0.5x. */
 const BATCH_DISCOUNT = 0.5;
 
+/**
+ * How a NULL `llm_calls.exam_code` renders. It means one of two things and the
+ * label deliberately covers both without pretending to tell them apart: the call
+ * was genuinely exam-agnostic (ingest translate, community post screening, OCR),
+ * or its call site has not been stamped yet. Attributing either to the default
+ * exam would be a guess presented as data.
+ */
+const UNTAGGED_EXAM = "(shared/untagged)";
+
+const examLabel = (code: string | null): string => code ?? UNTAGGED_EXAM;
+
 interface LlmCallRow {
   purpose: string;
   model: string;
+  exam_code: string | null;
   input_tokens: number;
   output_tokens: number;
   cache_read_tokens: number;
@@ -30,12 +60,25 @@ interface Bucket {
   purpose: string;
   model: string;
   batch: boolean;
+  examCode: string | null;
   calls: number;
   callsWithCacheHit: number;
   inputTokens: number;
   outputTokens: number;
   cacheReadTokens: number;
   cacheWriteTokens: number;
+}
+
+/** Both price schedules for one bucket, with the batch discount already applied. */
+function bucketCost(b: Bucket): { intro: number; standard: number } | null {
+  if (!isModelId(b.model)) return null;
+  const schedule = MODEL_PRICING[b.model];
+  const disc = b.batch ? BATCH_DISCOUNT : 1;
+  return {
+    intro: costFromPriceSet(schedule.intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc,
+    standard:
+      costFromPriceSet(schedule.standard, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc,
+  };
 }
 
 /**
@@ -173,16 +216,17 @@ interface PurposeBucket {
  * cost." Check weekly per docs/operations.md — a purpose whose hit-rate drops
  * from its usual level (or a `cache`-eligible purpose showing 0%) is a
  * regression worth chasing before the next invoice, not after.
+ *
+ * Deliberately stays collapsed across exam_code too: one row per purpose IS the
+ * point of this table, and a cache breakpoint is a property of the prompt, not
+ * of the exam. Per-exam spend is the section above this one.
  */
 function reportCacheHitRateByPurpose(buckets: Bucket[], totalIntro: number): void {
   const byPurpose = new Map<string, PurposeBucket>();
   for (const b of buckets) {
-    if (!isModelId(b.model)) continue;
-    const schedule = MODEL_PRICING[b.model];
-    const disc = b.batch ? BATCH_DISCOUNT : 1;
-    const costIntro = costFromPriceSet(schedule.intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
-    const costStandard =
-      costFromPriceSet(schedule.standard, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
+    const cost = bucketCost(b);
+    if (!cost) continue;
+    const { intro: costIntro, standard: costStandard } = cost;
     const pb = byPurpose.get(b.purpose) ?? {
       purpose: b.purpose,
       calls: 0,
@@ -237,16 +281,158 @@ function reportCacheHitRateByPurpose(buckets: Bucket[], totalIntro: number): voi
   console.log("-".repeat(header.length));
 }
 
+interface ExamBucket {
+  examCode: string | null;
+  calls: number;
+  callsWithCacheHit: number;
+  inputTokens: number;
+  outputTokens: number;
+  costIntro: number;
+  costStandard: number;
+  purposes: Set<string>;
+}
+
+/**
+ * Top-level spend per exam — the single number a per-exam cost projection is
+ * checked against. Collapsed across purpose/model/batch, since the question is
+ * "what did running exam X cost this window", not "how".
+ *
+ * "(shared/untagged)" is listed like any other row rather than hidden or
+ * apportioned: a large untagged share is itself the finding (either genuinely
+ * shared spend, or call sites still to be stamped), and quietly splitting it
+ * across exams would manufacture per-exam numbers nobody measured.
+ */
+function reportSpendByExam(buckets: Bucket[], totalIntro: number, examColumnMissing: boolean): void {
+  const byExam = new Map<string, ExamBucket>();
+  for (const b of buckets) {
+    const cost = bucketCost(b);
+    if (!cost) continue; // unknown model — already reported as skipped above
+    const key = b.examCode ?? "";
+    const eb = byExam.get(key) ?? {
+      examCode: b.examCode,
+      calls: 0,
+      callsWithCacheHit: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      costIntro: 0,
+      costStandard: 0,
+      purposes: new Set<string>(),
+    };
+    eb.calls += b.calls;
+    eb.callsWithCacheHit += b.callsWithCacheHit;
+    eb.inputTokens += b.inputTokens;
+    eb.outputTokens += b.outputTokens;
+    eb.costIntro += cost.intro;
+    eb.costStandard += cost.standard;
+    eb.purposes.add(b.purpose);
+    byExam.set(key, eb);
+  }
+
+  console.log("\n" + "=".repeat(100));
+  console.log("LLM spend by exam (llm_calls.exam_code — migration 0114)");
+  console.log("=".repeat(100));
+  if (examColumnMissing) {
+    console.log(
+      "⚠️  llm_calls.exam_code does not exist yet — migration 0114 has not been applied to this database.\n" +
+        "    Every row below is reported as untagged. Apply 0114 to enable per-exam attribution;\n" +
+        "    every other section of this report is unaffected.",
+    );
+  }
+  if (byExam.size === 0) {
+    console.log("No calls with a recognized model in this window (see the skip warnings above, if any).");
+    return;
+  }
+  const header = [
+    "exam".padEnd(18),
+    "calls".padStart(8),
+    "purposes".padStart(9),
+    "cache hit".padStart(10),
+    "in tok".padStart(12),
+    "out tok".padStart(11),
+    "cost (intro)".padStart(14),
+    "cost (std)".padStart(14),
+    "% of total".padStart(11),
+  ].join(" ");
+  console.log(header);
+  console.log("-".repeat(header.length));
+  // Real exams first (by spend), untagged last — it is context for the numbers
+  // above it, not a competitor with them.
+  const sorted = [...byExam.values()].sort((a, b) => {
+    if ((a.examCode === null) !== (b.examCode === null)) return a.examCode === null ? 1 : -1;
+    return b.costIntro - a.costIntro;
+  });
+  for (const eb of sorted) {
+    console.log(
+      [
+        examLabel(eb.examCode).padEnd(18),
+        String(eb.calls).padStart(8),
+        String(eb.purposes.size).padStart(9),
+        fmtPct(eb.calls ? eb.callsWithCacheHit / eb.calls : 0).padStart(10),
+        String(eb.inputTokens).padStart(12),
+        String(eb.outputTokens).padStart(11),
+        fmtUsd(eb.costIntro).padStart(14),
+        fmtUsd(eb.costStandard).padStart(14),
+        fmtPct(totalIntro > 0 ? eb.costIntro / totalIntro : 0).padStart(11),
+      ].join(" "),
+    );
+  }
+  console.log("-".repeat(header.length));
+  const tagged = sorted.filter((e) => e.examCode !== null);
+  if (tagged.length === 0 && !examColumnMissing) {
+    console.log(
+      "Every call in this window is untagged. Expected until the per-pipeline stamping commits land\n" +
+        "(0114 adds the column; lib/anthropic.ts accepts an optional `examCode` that call sites pass).",
+    );
+  } else if (tagged.length === 1) {
+    console.log(`Only ${tagged[0].examCode} is tagged so far — other exams' spend, if any, is inside the untagged row.`);
+  }
+}
+
+/** Pre-0114 column list — the fallback when `exam_code` is not there yet. */
+const LLM_CALL_COLUMNS_BASE =
+  "purpose, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta, created_at";
+const LLM_CALL_COLUMNS_WITH_EXAM = `${LLM_CALL_COLUMNS_BASE}, exam_code`;
+
+/**
+ * Read the window's llm_calls rows, tolerating migration 0114 not being applied
+ * yet.
+ *
+ * WHY the fallback exists: PostgREST does NOT return NULL for a column that does
+ * not exist — it fails the whole query with 42703 ("column llm_calls.exam_code
+ * does not exist"). 0114 is applied as its own authorised step, so between this
+ * commit landing and that step, an unconditional `exam_code` in the select would
+ * take the entire cost report down — every section, including the five that have
+ * nothing to do with exams. Degrading to the pre-0114 column list keeps the whole
+ * report working and says plainly why the exam sections are empty.
+ *
+ * PAGED via selectAll. This read was previously an unranged `.select()`, so it
+ * SILENTLY TRUNCATED at PostgREST's 1000-row cap — the whole report (total spend,
+ * cost-per-evaluation, cost-per-CA-day, every cache hit-rate) was computed from
+ * at most 1000 calls, which is why a 30-day window kept reporting exactly 1000.
+ * A truncated sample makes a per-exam split actively misleading rather than
+ * merely incomplete, so it had to be fixed here rather than noted. `.order("id")`
+ * gives paging a total order (uuid PK) so no row is skipped or repeated.
+ */
+async function fetchLlmCalls(sinceIso: string): Promise<{ rows: LlmCallRow[]; examColumnMissing: boolean }> {
+  const page = (columns: string) => () =>
+    supabase().from("llm_calls").select(columns).gte("created_at", sinceIso).order("id");
+  try {
+    return { rows: await selectAll<LlmCallRow>(page(LLM_CALL_COLUMNS_WITH_EXAM)), examColumnMissing: false };
+  } catch (err) {
+    // 42703 = undefined_column (selectAll surfaces the message, not the code).
+    // Anything else is a real failure worth rethrowing.
+    const msg = err instanceof Error ? err.message : String(err);
+    if (!/exam_code.*does not exist/i.test(msg)) throw new Error(`llm_calls query failed: ${msg}`);
+  }
+  const rows = await selectAll<Omit<LlmCallRow, "exam_code">>(page(LLM_CALL_COLUMNS_BASE));
+  return { rows: rows.map((r) => ({ ...r, exam_code: null })), examColumnMissing: true };
+}
+
 async function main(): Promise<void> {
   const { days } = parseCliArgs(process.argv.slice(2));
   const since = new Date(Date.now() - days * 24 * 3600 * 1000);
 
-  const { data, error } = await supabase()
-    .from("llm_calls")
-    .select("purpose, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta, created_at")
-    .gte("created_at", since.toISOString());
-  if (error) throw new Error(`llm_calls query failed: ${error.message}`);
-  const rows = (data ?? []) as unknown as LlmCallRow[];
+  const { rows, examColumnMissing } = await fetchLlmCalls(since.toISOString());
 
   console.log("=".repeat(100));
   console.log(`Cost report — last ${days} days (${rows.length} calls, since ${since.toISOString().slice(0, 10)})`);
@@ -257,15 +443,19 @@ async function main(): Promise<void> {
     return;
   }
 
-  // Group by (purpose, model, batch) — batch rows price at 0.5x.
+  // Group by (purpose, model, batch, exam_code) — batch rows price at 0.5x.
+  // Adding exam_code to the key only SPLITS rows; every downstream number here
+  // (the TOTAL, cache-hit-by-purpose, cost-per-evaluation, cost-per-CA-day) is a
+  // sum or filter over these buckets, so all of them are unchanged by the split.
   const buckets = new Map<string, Bucket>();
   for (const r of rows) {
     const isBatch = !!r.meta?.batch;
-    const key = `${r.purpose}::${r.model}::${isBatch ? "batch" : "sync"}`;
+    const key = `${r.purpose}::${r.model}::${isBatch ? "batch" : "sync"}::${r.exam_code ?? ""}`;
     const b = buckets.get(key) ?? {
       purpose: r.purpose,
       model: r.model,
       batch: isBatch,
+      examCode: r.exam_code,
       calls: 0,
       callsWithCacheHit: 0,
       inputTokens: 0,
@@ -290,6 +480,7 @@ async function main(): Promise<void> {
   const header = [
     "purpose".padEnd(24),
     "model".padEnd(18),
+    "exam".padEnd(18),
     "calls".padStart(7),
     "cache hit".padStart(10),
     "in tok".padStart(10),
@@ -306,11 +497,7 @@ async function main(): Promise<void> {
       console.log(`  (skipping unknown model ${b.model} for purpose ${b.purpose})`);
       continue;
     }
-    const schedule = MODEL_PRICING[b.model];
-    const disc = b.batch ? BATCH_DISCOUNT : 1;
-    const costIntro = costFromPriceSet(schedule.intro, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
-    const costStandard =
-      costFromPriceSet(schedule.standard, b.inputTokens, b.outputTokens, b.cacheReadTokens, b.cacheWriteTokens) * disc;
+    const { intro: costIntro, standard: costStandard } = bucketCost(b)!;
     totalIntro += costIntro;
     totalStandard += costStandard;
 
@@ -318,6 +505,7 @@ async function main(): Promise<void> {
       [
         (b.batch ? `${b.purpose}*` : b.purpose).padEnd(24),
         b.model.padEnd(18),
+        examLabel(b.examCode).padEnd(18),
         String(b.calls).padStart(7),
         fmtPct(b.callsWithCacheHit / b.calls).padStart(10),
         String(b.inputTokens).padStart(10),
@@ -334,6 +522,7 @@ async function main(): Promise<void> {
     [
       "TOTAL".padEnd(24),
       "".padEnd(18),
+      "".padEnd(18),
       "".padStart(7),
       "".padStart(10),
       "".padStart(10),
@@ -347,6 +536,7 @@ async function main(): Promise<void> {
   console.log(`\nStandard pricing would cost ${jumpPct.toFixed(0)}% more than intro pricing for this window's usage.`);
   if (sorted.some((b) => b.batch)) console.log("(* = Message-Batches API rows, priced at 0.5x.)");
 
+  reportSpendByExam(sorted, totalIntro, examColumnMissing);
   reportCacheHitRateByPurpose(sorted, totalIntro);
 
   // Cost per evaluation: total answer_eval_* cost / number of real (non-replayed)
