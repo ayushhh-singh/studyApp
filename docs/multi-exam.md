@@ -817,6 +817,14 @@ context pack:
    node's own `notes:chapter:context` pack**, because the loader can only *drop*
    a wrong chip, never invent the right one, so a carried-over draft silently
    loses its PYQ chips rather than gaining correct ones.
+   **Two limits of that guard, measured 2026-07-31 and recorded as `docs/OUTSTANDING.md`
+   A11 + M44 — read them before relying on it.** (a) `validatePyqIds` runs **only at
+   assemble time**; nothing re-validates a chapter once persisted, and **12 dangling
+   `pyq_id`s are live in 8 published chapters right now** because the questions were
+   deleted after the chapters were written. (b) `foreign` is **warn-and-drop, not a
+   gate**, and the CLI still counts such a file in its `N/M chapter(s) assembled`
+   line — so a copied chapter that loses *every* chip still reports as a success.
+   For this workflow specifically, that is the case most worth knowing about.
 2. **The state / regional angle.** In the DIGEST layer this is a literal field:
    `up_angle` on `noteBodySchema`, with `notes/prompts.ts` naming Uttar Pradesh
    in both the instruction and the JSON schema (a chapter has no such field —
