@@ -817,14 +817,21 @@ context pack:
    node's own `notes:chapter:context` pack**, because the loader can only *drop*
    a wrong chip, never invent the right one, so a carried-over draft silently
    loses its PYQ chips rather than gaining correct ones.
-   **Two limits of that guard, measured 2026-07-31 and recorded as `docs/OUTSTANDING.md`
-   A11 + M44 — read them before relying on it.** (a) `validatePyqIds` runs **only at
-   assemble time**; nothing re-validates a chapter once persisted, and **12 dangling
-   `pyq_id`s are live in 8 published chapters right now** because the questions were
-   deleted after the chapters were written. (b) `foreign` is **warn-and-drop, not a
-   gate**, and the CLI still counts such a file in its `N/M chapter(s) assembled`
-   line — so a copied chapter that loses *every* chip still reports as a success.
-   For this workflow specifically, that is the case most worth knowing about.
+   **`foreign` is now a HARD GATE, not a warning — M44 ✅ RESOLVED 2026-08-01.**
+   A chapter that references a question outside its node's exam is **refused
+   outright**: `assembleChapter` throws `ForeignPyqIdsError` *before any write*,
+   nothing is persisted, and the CLI exits non-zero. The error names each id, its
+   `paper_code` and its real owning exam, and tells you to re-take the ids from
+   the node's own context pack. `missing` (an id that exists nowhere) is
+   deliberately still warn-and-drop — there is no correct id to recover — but the
+   drop is now **reported** in the summary (`assembled N · refused N · failed N`,
+   plus a per-file list of dropped ids) instead of hiding inside the old
+   `N/M chapter(s) assembled` line. **One limit of the guard remains, and it is
+   the reason A11 exists:** `validatePyqIds` runs **only at assemble time**;
+   nothing re-validates a chapter once persisted, so **12 dangling `pyq_id`s are
+   live in 8 published chapters right now** because those questions were deleted
+   *after* the chapters were written. The durable fix for that is a
+   re-validation pass, not this gate.
 2. **The state / regional angle.** In the DIGEST layer this is a literal field:
    `up_angle` on `noteBodySchema`, with `notes/prompts.ts` naming Uttar Pradesh
    in both the instruction and the JSON schema (a chapter has no such field —

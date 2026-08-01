@@ -13,6 +13,11 @@
  *
  *   pnpm notes:chapter:assemble --file <path.json>
  *   pnpm notes:chapter:assemble --dir <dir-of-json>
+ *
+ * GATE: a chapter referencing a `pyq_id` that belongs to ANOTHER exam is
+ * REFUSED outright (nothing written, non-zero exit) — see the disposition note
+ * on `assembleChapter`. Ids that exist nowhere are still warn-and-dropped, but
+ * the drop is now reported in the summary instead of hiding inside `N/M`.
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -54,6 +59,64 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 /**
+ * A referenced `pyq_id` that EXISTS in the bank but is not in this chapter's
+ * exam scope. `ownerExam` is the exam that actually owns the question's paper
+ * (resolved from `syllabus_nodes`' depth-0 roots), or null when the paper code
+ * is in NO exam's list — a synthetic/administrative code such as `EDGE`.
+ *
+ * That null case exists because the previous message asserted "belongs to a
+ * DIFFERENT exam" for every out-of-scope id, which is FALSE for a synthetic
+ * paper code (docs/OUTSTANDING.md M44 records one real row: `0988b99e…`,
+ * `paper_code='EDGE'`, `exam_code='uppsc'`, no node) and would send a reader
+ * hunting a cross-exam bug that does not exist.
+ */
+export interface ForeignPyqRef {
+  id: string;
+  paperCode: string | null;
+  ownerExam: string | null;
+}
+
+/** Thrown by `assembleChapter` when a chapter references another exam's questions. */
+export class ForeignPyqIdsError extends Error {
+  constructor(
+    readonly nodeId: string,
+    readonly examCode: string,
+    readonly refs: ForeignPyqRef[],
+  ) {
+    super(
+      `${refs.length} referenced pyq_id(s) are NOT in this node's exam (${examCode}) — refusing the chapter.\n` +
+        refs
+          .map(
+            (r) =>
+              `      ${r.id}  paper_code=${r.paperCode ?? "?"}  ` +
+              (r.ownerExam
+                ? `owned by exam "${r.ownerExam}"`
+                : `in NO exam's paper list (synthetic/administrative paper code — not a chapter-referenceable question)`),
+          )
+          .join("\n") +
+        `\n    A chip that RESOLVES but points outside this exam means the chapter was drafted from ` +
+        `another exam's chapter and its PYQ chips were carried over without being re-grounded ` +
+        `(docs/multi-exam.md §5b). Re-take the ids from this node's OWN ` +
+        `\`notes:chapter:context\` pack and re-run — do not simply delete them, or the chapter ` +
+        `ships with no PYQ chips at all.`,
+    );
+    this.name = "ForeignPyqIdsError";
+  }
+}
+
+/** paper_code -> owning exam_code, from the depth-0 syllabus roots (≤ ~30 rows). */
+async function paperCodeOwners(): Promise<Map<string, string>> {
+  const { data, error } = await supabase()
+    .from("syllabus_nodes")
+    .select("paper_code, exam_code")
+    .eq("depth", 0);
+  if (error) throw new Error(`paper-code owner lookup failed: ${error.message}`);
+  const out = new Map<string, string>();
+  for (const r of (data ?? []) as { paper_code: string; exam_code: string }[]) out.set(r.paper_code, r.exam_code);
+  return out;
+}
+
+/**
  * Validate every real pyq_id referenced (a) exists in the bank and (b) belongs to
  * the SAME exam as the chapter's node.
  *
@@ -80,7 +143,7 @@ function chunk<T>(items: T[], size: number): T[][] {
  */
 export async function validatePyqIds(
   input: ChapterAssembleInput,
-): Promise<{ missing: string[]; foreign: string[]; examCode: string }> {
+): Promise<{ missing: string[]; foreign: ForeignPyqRef[]; examCode: string }> {
   const ids = new Set<string>();
   for (const s of input.sections) {
     s.pyq_ids.forEach((id) => ids.add(id));
@@ -90,40 +153,75 @@ export async function validatePyqIds(
   if (ids.size === 0) return { missing: [], foreign: [], examCode };
 
   const scope = await questionExamScopeFilter(examCode);
-  const exists = new Set<string>();
+  const exists = new Map<string, string | null>();
   const inExam = new Set<string>();
   for (const part of chunk([...ids], ID_CHUNK)) {
-    const all = await supabase().from("questions").select("id").in("id", part);
+    const all = await supabase().from("questions").select("id, paper_code").in("id", part);
     if (all.error) throw new Error(`pyq_id existence check failed: ${all.error.message}`);
-    ((all.data ?? []) as { id: string }[]).forEach((r) => exists.add(r.id));
+    ((all.data ?? []) as { id: string; paper_code: string | null }[]).forEach((r) => exists.set(r.id, r.paper_code));
 
     const scoped = await supabase().from("questions").select("id").in("id", part).or(scope);
     if (scoped.error) throw new Error(`pyq_id exam-scope check failed: ${scoped.error.message}`);
     ((scoped.data ?? []) as { id: string }[]).forEach((r) => inExam.add(r.id));
   }
 
+  const foreignIds = [...ids].filter((id) => exists.has(id) && !inExam.has(id));
+  // One extra read only when something is actually out of scope, so the clean
+  // path (every rollout that is doing the right thing) costs nothing.
+  const owners = foreignIds.length > 0 ? await paperCodeOwners() : new Map<string, string>();
+
   return {
     missing: [...ids].filter((id) => !exists.has(id)),
-    foreign: [...ids].filter((id) => exists.has(id) && !inExam.has(id)),
+    foreign: foreignIds.map((id) => {
+      const paperCode = exists.get(id) ?? null;
+      return { id, paperCode, ownerExam: (paperCode && owners.get(paperCode)) || null };
+    }),
     examCode,
   };
 }
 
-export async function assembleChapter(input: ChapterAssembleInput, log: (m: string) => void = () => {}): Promise<string> {
+export interface AssembleChapterResult {
+  noteId: string;
+  /** Nonexistent ids stripped from the chapter before persisting (see below). */
+  droppedMissing: string[];
+}
+
+/**
+ * DISPOSITION OF A BAD `pyq_id` — the two kinds are treated DIFFERENTLY on
+ * purpose (docs/OUTSTANDING.md M44, decided 2026-08-01):
+ *
+ *   `foreign` (exists, but outside this node's exam) → **HARD FAILURE.** Nothing
+ *   is persisted and the CLI exits non-zero. The id RESOLVES, which is proof the
+ *   author had a real question in hand — just the wrong exam's. Under M15 the
+ *   recommended workflow is to draft a second exam's chapter FROM the
+ *   corresponding UPPSC one, so a carried-over chip is the single most likely
+ *   defect in a cross-exam rollout, and it is one the loader cannot repair:
+ *   dropping can only remove a wrong chip, never supply the right one, so
+ *   "warn and drop" silently shipped a chapter with no PYQ chips at all while
+ *   still reporting success. There IS a correct answer available (the node's own
+ *   context pack), so refusing forces it to be used.
+ *
+ *   `missing` (in no `questions` row at all) → **warn and drop, unchanged.** A
+ *   nonexistent id is a typo or a truncated uuid; there is no correct id to
+ *   recover, so dropping is strictly better than persisting a dead reader chip.
+ *   Refusing here would also buy nothing durable: `validatePyqIds` runs ONLY at
+ *   assemble time and nothing re-validates a persisted chapter, so chips rot
+ *   afterwards anyway when a question is deleted (A11 — 12 such ids are live in
+ *   8 published chapters today). The drop is now REPORTED in the CLI summary
+ *   instead of vanishing into an `N/M assembled` line.
+ */
+export async function assembleChapter(
+  input: ChapterAssembleInput,
+  log: (m: string) => void = () => {},
+): Promise<AssembleChapterResult> {
   const { missing, foreign, examCode } = await validatePyqIds(input);
+  // Refuse BEFORE any write, so a rejected chapter leaves no partial row behind.
+  if (foreign.length > 0) throw new ForeignPyqIdsError(input.node_id, examCode, foreign);
   if (missing.length > 0) {
     log(`  (warn) ${missing.length} referenced pyq_id(s) not in the bank — dropping them: ${missing.join(", ")}`);
   }
-  if (foreign.length > 0) {
-    log(
-      `  (warn) ${foreign.length} referenced pyq_id(s) belong to a DIFFERENT exam than this node ` +
-        `(node exam: ${examCode}) — dropping them: ${foreign.join(", ")}. ` +
-        `This usually means the chapter was drafted from another exam's chapter and its PYQ chips ` +
-        `were carried over without being re-grounded in this exam's own bank.`,
-    );
-  }
-  const drop = new Set([...missing, ...foreign]);
-  if (drop.size > 0) {
+  if (missing.length > 0) {
+    const drop = new Set(missing);
     for (const s of input.sections) {
       s.pyq_ids = s.pyq_ids.filter((id) => !drop.has(id));
       s.boxes.forEach((b) => (b.pyq_ids = b.pyq_ids.filter((id) => !drop.has(id))));
@@ -152,7 +250,7 @@ export async function assembleChapter(input: ChapterAssembleInput, log: (m: stri
     `  ✓ node ${input.node_id} → chapter v${result.chapterVersion}, ${result.sectionCount} sections, ` +
       `${result.factCount} facts (${result.factSummary.verified} verified / ${result.factSummary.flagged} flagged / ${result.factSummary.unverifiable} unverifiable)`,
   );
-  return result.noteId;
+  return { noteId: result.noteId, droppedMissing: missing };
 }
 
 async function main(): Promise<void> {
@@ -176,17 +274,44 @@ async function main(): Promise<void> {
 
   console.log(`notes:chapter:assemble — ${files.length} file(s)\n`);
   let ok = 0;
+  const refused: string[] = [];
+  const failed: string[] = [];
+  const withDrops: { file: string; dropped: string[] }[] = [];
   for (const f of files) {
     try {
       const parsed = chapterAssembleInputSchema.parse(JSON.parse(readFileSync(f, "utf8")));
       console.log(`[${f}]`);
-      await assembleChapter(parsed, (m) => console.log(m));
+      const res = await assembleChapter(parsed, (m) => console.log(m));
       ok++;
+      if (res.droppedMissing.length > 0) withDrops.push({ file: f, dropped: res.droppedMissing });
     } catch (err) {
-      console.error(`  ✗ ${f}: ${err instanceof z.ZodError ? JSON.stringify(err.issues.slice(0, 3)) : (err as Error).message}`);
+      if (err instanceof ForeignPyqIdsError) {
+        refused.push(f);
+        console.error(`  ✗ REFUSED ${f}\n    ${err.message}`);
+      } else {
+        failed.push(f);
+        console.error(`  ✗ ${f}: ${err instanceof z.ZodError ? JSON.stringify(err.issues.slice(0, 3)) : (err as Error).message}`);
+      }
     }
   }
-  console.log(`\n${ok}/${files.length} chapter(s) assembled → needs_review. Review + publish at /<locale>/review (Notes tab).`);
+
+  // The old summary was a bare `N/M chapter(s) assembled`, which reported 30/30
+  // for a rollout in which a copied chapter had every chip silently stripped
+  // (M44). Drops and refusals are now first-class lines, and any refusal or
+  // error exits non-zero so a batch script cannot treat the run as clean.
+  console.log(
+    `\nassembled ${ok} · refused ${refused.length} (foreign pyq_ids) · failed ${failed.length} · of ${files.length} file(s)`,
+  );
+  if (withDrops.length > 0) {
+    console.log(
+      `${withDrops.length} assembled chapter(s) lost pyq_id chip(s) that are not in the bank ` +
+        `(assembled anyway — see the disposition note in assembleChapter):`,
+    );
+    for (const d of withDrops) console.log(`  - ${d.file}: dropped ${d.dropped.length} → ${d.dropped.join(", ")}`);
+  }
+  for (const f of refused) console.log(`REFUSED (nothing written): ${f}`);
+  if (ok > 0) console.log(`\nAssembled chapters are → needs_review. Review + publish at /<locale>/review (Notes tab).`);
+  if (refused.length > 0 || failed.length > 0) process.exitCode = 1;
 }
 
 // Run as CLI only (not when imported by the generate path).

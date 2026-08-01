@@ -10,8 +10,10 @@
  * GENERATING CHAPTERS FOR A SECOND EXAM? Read `docs/multi-exam.md` §5 FIRST.
  * Chapters are exam-specific (M15) and must be DRAFTED FROM the corresponding
  * UPPSC chapter where the topic is common — not authored blank-slate — and five
- * things must be re-derived rather than copied, `pyq_ids` most urgently (it
- * fails silently; see validatePyqIds in chapter-assemble.ts).
+ * things must be re-derived rather than copied, `pyq_ids` most urgently — a
+ * carried-over id from another exam now REFUSES the chapter at assemble time
+ * (see validatePyqIds / ForeignPyqIdsError in chapter-assemble.ts), so the ids
+ * in THIS pack are the only ones that will load.
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
