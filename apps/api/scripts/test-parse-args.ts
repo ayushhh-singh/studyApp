@@ -329,7 +329,7 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
   {
     script: "qgen",
     spec: {
-      value: ["node", "kind", "difficulty"],
+      value: ["node", "kind", "difficulty", "exam"],
       boolean: ["topup", "batch", "dry-run"],
       positiveInt: ["count"],
       positiveNumber: ["max-usd"],
@@ -337,6 +337,12 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     documented: [
       ["--topup"], // exactly what `pnpm qgen:topup` supplies
       ["--topup", "--max-usd", "2.5", "--dry-run"],
+      // Topup-only exam override. Omitted, the planner runs for every LIVE exam;
+      // named, for exactly that one (which may deliberately be a NON-live exam,
+      // to stock its bank before launch). The CLI validates the code against the
+      // registry because `getExamConfig` falls back to the default on a typo
+      // instead of throwing.
+      ["--topup", "--exam", "upsc", "--dry-run"],
       ["--node", "PRE_GS1", "--kind", "mcq", "--count", "10", "--batch"],
       ["--difficulty", "3:5:2"], // NOT a number — positiveInt would wrongly reject it
     ],
