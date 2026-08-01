@@ -46,6 +46,19 @@ jobs:
           node-version: 22
           cache: pnpm
 
+      # A `schedule:` run always executes the repository's DEFAULT branch — this
+      # checkout names no `ref:`. On 2026-08-01 that meant a four-day-stale `main`
+      # publishing cross-exam-contaminated content while every run stayed green.
+      # Fails loudly when the branch these pipelines run from has stopped moving.
+      # See scripts/assert-fresh-checkout.mjs for why the check is commit AGE and
+      # not a marker (the workflow and the code come from the same commit, so a
+      # marker check is self-consistent and cannot detect staleness).
+      # Skipped on workflow_dispatch: there the caller picked the ref, and a manual
+      # run from a known-good ref is the recovery path while a merge is decided.
+      - name: Stale-checkout guard (a scheduled run executes the default branch)
+        if: ${{ github.event_name == 'schedule' }}
+        run: node scripts/assert-fresh-checkout.mjs
+
       - name: Install dependencies (api + its workspace deps only)
         run: pnpm install --frozen-lockfile --filter api...
 
