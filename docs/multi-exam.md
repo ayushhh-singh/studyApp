@@ -857,6 +857,18 @@ context pack:
 
 ### 5c. Mechanics
 
+- **Start from the coverage report, not from a list you keep in the session.**
+  `pnpm notes:coverage --exam <code> [--out docs/<exam>-chapter-coverage.md]`
+  reads live from the DB and prints every node with its paper, depth, rolled-up
+  PYQ weightage and chapter status, **ordered by weightage descending — which is
+  the worklist**. The committed artifact for UPSC is
+  `docs/upsc-chapter-coverage.md`; regenerate it after every batch and the diff
+  is the progress record. This exists because Sessions 28.5/29 lost their
+  session-scratch `ctx-*` packs to a restart and silently skipped 2 GS5 nodes to
+  an off-by-two in a hand-kept batch list — caught only when a per-paper count
+  disagreed with the running tally. Every query in it is paged (`selectAll`);
+  an unpaged one would silently UNDER-report coverage rather than fail, which is
+  the same trap that produced 97 false "missing embedding" reports in 28.5.
 - Dump the target node's pack exactly as for UPPSC:
   `pnpm notes:chapter:context --node <uuid|PAPER_CODE> [--top N] --dir <dir>`.
   Everything it reads is scoped through the node, so it is exam-correct with one

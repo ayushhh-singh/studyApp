@@ -51,6 +51,7 @@
     "notes:chapter:context": "tsx --env-file-if-exists=.env src/notes/chapter-context.ts",
     "notes:chapter:assemble": "tsx --env-file-if-exists=.env src/notes/chapter-assemble.ts",
     "notes:embed": "tsx --env-file-if-exists=.env src/notes/embed.ts",
+    "notes:coverage": "tsx --env-file-if-exists=.env scripts/chapter-coverage.ts",
     "migrate:dev-user": "tsx --env-file-if-exists=.env scripts/migrate-dev-user.ts",
     "security:rls": "tsx --env-file-if-exists=.env --env-file=../web/.env.local scripts/rls-security-check.ts",
     "set-password": "tsx --env-file-if-exists=.env scripts/set-password.ts",

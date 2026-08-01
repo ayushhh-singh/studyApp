@@ -424,6 +424,15 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     documented: [["--file", "c.json"], ["--dir", "d"]],
   },
   {
+    // Read-only report; `--out` OVERWRITES a git-tracked generated doc, so a
+    // collapsed/valueless `--out` must be refused rather than silently writing
+    // somewhere unintended. `--exam` has no default on purpose: a defaulted one
+    // would let a caller regenerate the wrong exam's file without noticing.
+    script: "notes:coverage",
+    spec: { value: ["exam", "out"], boolean: ["json"] },
+    documented: [["--exam", "upsc"], ["--exam", "upsc", "--out", "docs/upsc-chapter-coverage.md"], ["--exam", "uppsc", "--json"]],
+  },
+  {
     // Its old call site SPREAD the parsed object into DailyBuildOptions, so the
     // raw key `user` would silently not become `userId` — fanning the build out
     // to every onboarded user. `--size` is positiveInt because `?? default` does

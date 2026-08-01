@@ -43,6 +43,7 @@
     "notes:chapter:context": "pnpm --filter api notes:chapter:context",
     "notes:chapter:assemble": "pnpm --filter api notes:chapter:assemble",
     "notes:embed": "pnpm --filter api notes:embed",
+    "notes:coverage": "pnpm --filter api notes:coverage",
     "migrate:dev-user": "pnpm --filter api migrate:dev-user",
     "push:send": "pnpm --filter api push:send",
     "demo:seed": "pnpm --filter api demo:seed",
