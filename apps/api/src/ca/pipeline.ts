@@ -78,6 +78,7 @@ import {
   pickPrelimsMcqNode,
   planTriageRequests,
   prelimsPaperCodeFor,
+  withExamScope,
   type ExamTriage,
 } from "./exam-fanout.js";
 import type {
@@ -1230,22 +1231,22 @@ export async function processTriagedItem(
   if (bestScore < RELEVANCE_GATE) {
     const { error: archiveError } = await supabase()
       .from("current_affairs_items")
-      .insert({
-        date: dateStr,
-        status: "archived",
-        category: triage.category,
-        is_up_specific: triage.is_up_specific,
-        prelims_relevance: triage.prelims_relevance,
-        mains_relevance: triage.mains_relevance,
-        gs_papers: triage.gs_papers,
-        title_i18n: { hi: "", en: title },
-        syllabus_node_ids: triage.syllabus_node_ids,
-        exam_codes: itemExamCodes,
-        mcq_question_ids: [],
-        content_hash: hash,
-        source_id: sourceId,
-        source_urls: [link],
-      });
+      .insert(
+        withExamScope(merged, {
+          date: dateStr,
+          status: "archived",
+          category: triage.category,
+          is_up_specific: triage.is_up_specific,
+          prelims_relevance: triage.prelims_relevance,
+          mains_relevance: triage.mains_relevance,
+          gs_papers: triage.gs_papers,
+          title_i18n: { hi: "", en: title },
+          mcq_question_ids: [],
+          content_hash: hash,
+          source_id: sourceId,
+          source_urls: [link],
+        }),
+      );
     if (archiveError) {
       // 23505 = unique_violation on content_hash. loadRecentHashes() only
       // looks back 60 days by the ITEM's own article date, but the
@@ -1302,26 +1303,27 @@ export async function processTriagedItem(
 
   const { data: row, error: insertError } = await supabase()
     .from("current_affairs_items")
-    .insert({
-      date: dateStr,
-      status,
-      category: triage.category,
-      is_up_specific: triage.is_up_specific,
-      prelims_relevance: triage.prelims_relevance,
-      mains_relevance: triage.mains_relevance,
-      gs_papers: triage.gs_papers,
-      title_i18n: enrich.title_i18n,
-      summary_i18n: enrich.summary_i18n,
-      prelims_facts: prelimsFacts,
-      mains_brief: mainsBrief,
-      possible_questions: possibleQuestions,
-      node_significance: nodeSignificance,
-      source_urls: [link],
-      syllabus_node_ids: triage.syllabus_node_ids,
-      mcq_question_ids: [],
-      content_hash: hash,
-      source_id: sourceId,
-    })
+    .insert(
+      withExamScope(merged, {
+        date: dateStr,
+        status,
+        category: triage.category,
+        is_up_specific: triage.is_up_specific,
+        prelims_relevance: triage.prelims_relevance,
+        mains_relevance: triage.mains_relevance,
+        gs_papers: triage.gs_papers,
+        title_i18n: enrich.title_i18n,
+        summary_i18n: enrich.summary_i18n,
+        prelims_facts: prelimsFacts,
+        mains_brief: mainsBrief,
+        possible_questions: possibleQuestions,
+        node_significance: nodeSignificance,
+        source_urls: [link],
+        mcq_question_ids: [],
+        content_hash: hash,
+        source_id: sourceId,
+      }),
+    )
     .select("id")
     .single();
   if (insertError) {

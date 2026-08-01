@@ -58,7 +58,7 @@ import {
   type SyllabusCandidate,
   type TriageResult,
 } from "./prompts.js";
-import { RELEVANCE_GATE, mergeExamTriages, type ExamTriage } from "./exam-fanout.js";
+import { RELEVANCE_GATE, mergeExamTriages, withExamScope, type ExamTriage } from "./exam-fanout.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import { selectAll } from "../lib/paginate.js";
 import { CandidatePrefilter } from "./candidate-prefilter.js";
@@ -328,20 +328,22 @@ export async function runBackfill(opts: {
       if (best < RELEVANCE_GATE) {
         await supabase()
           .from("current_affairs_items")
-          .update({
-            status: "archived",
-            category: triage.category,
-            is_up_specific: triage.is_up_specific,
-            prelims_relevance: triage.prelims_relevance,
-            mains_relevance: triage.mains_relevance,
-            gs_papers: triage.gs_papers,
-            syllabus_node_ids: triage.syllabus_node_ids,
-            // Kept in step with syllabus_node_ids, which this same statement
-            // rewrites. Leaving the pre-existing exam_codes behind would make the
-            // row disagree with the nodes it now points at — and with the
-            // embedding `ca:embed` later stamps from that array.
-            exam_codes: merged.itemExamCodes,
-          })
+          .update(
+            // The scope pair is supplied by withExamScope and cannot be named
+            // here — see exam-fanout.ts. It keeps exam_codes in step with the
+            // syllabus_node_ids this same statement rewrites: leaving the
+            // pre-existing exam_codes behind would make the row disagree with
+            // the nodes it now points at, and with the embedding `ca:embed`
+            // later stamps from that array.
+            withExamScope(merged, {
+              status: "archived",
+              category: triage.category,
+              is_up_specific: triage.is_up_specific,
+              prelims_relevance: triage.prelims_relevance,
+              mains_relevance: triage.mains_relevance,
+              gs_papers: triage.gs_papers,
+            }),
+          )
           .eq("id", chunk[i].id);
         result.archived++;
         result.processed++;
@@ -404,28 +406,29 @@ export async function runBackfill(opts: {
 
         await supabase()
           .from("current_affairs_items")
-          .update({
-            status: republished ? "published" : "draft",
-            category: triage.category,
-            is_up_specific: triage.is_up_specific,
-            prelims_relevance: triage.prelims_relevance,
-            mains_relevance: triage.mains_relevance,
-            gs_papers: triage.gs_papers,
-            // Framing exam first — see mergeExamTriages. Written here for the
-            // same reason as on the archive path above: this statement rewrites
-            // syllabus_node_ids, so exam_codes must move with it.
-            exam_codes: s.merged.itemExamCodes,
-            title_i18n: enrich.title_i18n,
-            summary_i18n: enrich.summary_i18n,
-            prelims_facts: prelimsFacts,
-            mains_brief: mainsBrief,
-            possible_questions: {
-              prelims_i18n: hasPrelims ? enrich.possible_questions.prelims_i18n : null,
-              mains_i18n: hasMains ? enrich.possible_questions.mains_i18n : null,
-            },
-            node_significance: buildNodeSignificance(enrich, hasPrelims, hasMains),
-            syllabus_node_ids: triage.syllabus_node_ids,
-          })
+          .update(
+            // Scope pair via withExamScope (framing exam first — see
+            // mergeExamTriages), for the same reason as the archive path above:
+            // this statement rewrites syllabus_node_ids, so exam_codes moves
+            // with it. Neither column can be named here.
+            withExamScope(s.merged, {
+              status: republished ? "published" : "draft",
+              category: triage.category,
+              is_up_specific: triage.is_up_specific,
+              prelims_relevance: triage.prelims_relevance,
+              mains_relevance: triage.mains_relevance,
+              gs_papers: triage.gs_papers,
+              title_i18n: enrich.title_i18n,
+              summary_i18n: enrich.summary_i18n,
+              prelims_facts: prelimsFacts,
+              mains_brief: mainsBrief,
+              possible_questions: {
+                prelims_i18n: hasPrelims ? enrich.possible_questions.prelims_i18n : null,
+                mains_i18n: hasMains ? enrich.possible_questions.mains_i18n : null,
+              },
+              node_significance: buildNodeSignificance(enrich, hasPrelims, hasMains),
+            }),
+          )
           .eq("id", chunk[s.idx].id);
         result.processed++;
         if (republished) result.republished++;

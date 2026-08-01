@@ -357,3 +357,68 @@ export function planTriageRequests(
     }),
   }));
 }
+
+// ---------------------------------------------------------------------------
+// The exam-scope write pair — STRUCTURAL, not documented
+// ---------------------------------------------------------------------------
+
+/**
+ * The two columns that must always be written by the SAME statement.
+ *
+ * ⚑ WHY THIS EXISTS. Until 2026-08-01 the invariant "a statement that writes
+ * `syllabus_node_ids` must also write `exam_codes`" was stated only in comments
+ * on three of the four write paths — and the fourth, `pipeline.ts`'s
+ * published/draft insert, simply never had the key. It therefore took the column
+ * DEFAULT (`array['uppsc']`, migration 0106) on every user-visible row it ever
+ * produced, while the archive path beside it wrote the real value. The two paths
+ * diverged silently, and nothing could have caught it: the insert succeeded, the
+ * row looked well-formed, and the wrong value is a plausible one.
+ *
+ * That mattered the moment `ca:run --exam <not-live>` became possible: a run
+ * targeting an unlaunched exam would have published items authored in that
+ * exam's voice, mapped to its syllabus nodes, straight into the DEFAULT exam's
+ * live feed.
+ */
+export const EXAM_SCOPE_COLUMNS = ["syllabus_node_ids", "exam_codes"] as const;
+export type ExamScopeColumn = (typeof EXAM_SCOPE_COLUMNS)[number];
+
+/** The pair itself, exactly as it goes onto the row. */
+export interface ExamScopeWrite {
+  syllabus_node_ids: string[];
+  exam_codes: string[];
+}
+
+/**
+ * Build a `current_affairs_items` insert/update payload whose exam scope comes
+ * from the merge and NOWHERE else.
+ *
+ * ⚑ THIS IS THE ENFORCEMENT, AND IT IS A COMPILE ERROR IN BOTH DIRECTIONS:
+ *
+ *  - You cannot OMIT `exam_codes`, because you never write it — this function
+ *    always does. That is the defect above, made unrepresentable.
+ *  - You cannot write EITHER column yourself: `rest` forbids both via
+ *    `?: never`, so naming one fails to typecheck with the offending column
+ *    named. `?: never` rather than excess-property checking on purpose (the
+ *    same reason `ca/widen-exam.ts` uses it) — excess-property checks are
+ *    defeated by first assigning the literal to a wider variable; `?: never`
+ *    is not, it reduces the whole argument to `never`.
+ *
+ * So the only way to reach these two columns on this table is through here, and
+ * reaching one always carries the other. A new write path added by copying an
+ * existing one inherits the guarantee rather than the bug.
+ *
+ * Pure — no DB, no clock, no model — so it is unit-assertable like the rest of
+ * this module. Deliberately takes the whole `MergedTriage` rather than two loose
+ * arrays: passing the wrong pair of arrays would typecheck, passing the wrong
+ * merge object cannot happen because there is only ever one per item.
+ */
+export function withExamScope<T extends Record<string, unknown>>(
+  merged: Pick<MergedTriage, "triage" | "itemExamCodes">,
+  rest: T & { [K in ExamScopeColumn]?: never },
+): T & ExamScopeWrite {
+  return {
+    ...(rest as T),
+    syllabus_node_ids: merged.triage.syllabus_node_ids,
+    exam_codes: merged.itemExamCodes,
+  };
+}
