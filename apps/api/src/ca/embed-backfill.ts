@@ -19,6 +19,7 @@
  * (source_type, source_id, locale, chunk_index).
  */
 import { supabase } from "../lib/supabase.js";
+import { parseArgs } from "../ingest/_shared.js";
 import { selectAll } from "../lib/paginate.js";
 import { embeddings } from "../lib/embeddings.js";
 import { toVectorLiteral, upsertEmbeddingRows, type EmbeddingRow } from "../lib/embed-upsert.js";
@@ -41,10 +42,13 @@ function embedText(title: string | undefined, summary: string | undefined): stri
 }
 
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const all = argv.includes("--all");
-  const limIdx = argv.indexOf("--limit");
-  const limit = limIdx >= 0 ? Math.max(0, Number(argv[limIdx + 1]) || 0) : undefined;
+  // `--limit` is a positiveInt, not a raw Number. The old `Number(x) || 0` read
+  // turned a non-numeric or valueless `--limit` into 0, and `items.slice(0, 0)`
+  // is an empty, silent no-op run — the operator sees "nothing to embed" and
+  // believes the backfill converged. A bad value is now refused outright.
+  const args = parseArgs(process.argv.slice(2), { boolean: ["all"], positiveInt: ["limit"] }, "ca:embed");
+  const all = args.all === true;
+  const limit = typeof args.limit === "string" ? Number(args.limit) : undefined;
 
   console.log(`ca:embed  (provider: ${embeddings().id}, ${embeddings().dimensions}d)${all ? "  [all published]" : "  [missing only]"}`);
 

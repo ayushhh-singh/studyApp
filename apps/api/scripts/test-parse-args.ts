@@ -285,6 +285,14 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     spec: { value: ["raw", "key", "out"] },
     documented: [["--raw", "r.json", "--key", "k.json", "--out", "o.json"]],
   },
+  {
+    // `--purge-orphans` DELETES embedding rows. `--show 0` ("print no sample
+    // ids") is a real invocation, which is why `show` is nonNegativeNumber and
+    // not positiveInt.
+    script: "ingest:embed:verify",
+    spec: { boolean: ["strict", "purge-orphans"], nonNegativeNumber: ["show"] },
+    documented: [[], ["--strict"], ["--show", "10"], ["--show", "0"], ["--purge-orphans", "--strict"]],
+  },
   // ca/
   {
     script: "ca:run",
@@ -469,6 +477,30 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     documented: [[], ["--days", "7"], ["--window-hours", "24", "--min-accounts", "3"]],
   },
   { script: "ca:compile", spec: { value: ["month", "exam"] }, documented: [["--month", "2026-07"], ["--exam", "uppsc"]] },
+
+  // ---- CLIs the ALIAS HOLE hid until 2026-08-01 ---------------------------
+  // These four bound `process.argv.slice(2)` to a local and then read flags off
+  // the local, which `scripts/check-cli-args.mjs` could not see — so they were
+  // reported as protected while still on a hand-rolled dialect. See §0d.
+  {
+    // ⚑ The widest blast radius of the four: absent `--user` this recomputes
+    // node_mastery for EVERY user (same Supabase project for dev AND prod).
+    script: "mastery:build",
+    spec: { value: ["user"] },
+    documented: [[], ["--user", "00000000-0000-4000-8000-000000000001"]],
+  },
+  {
+    script: "ca:embed",
+    spec: { boolean: ["all"], positiveInt: ["limit"] },
+    documented: [[], ["--all"], ["--limit", "50"], ["--all", "--limit", "50"]],
+  },
+  {
+    script: "notes:embed",
+    // `--missing-only` is the LIVE nightly cron invocation
+    // (.github/workflows/nightly-settle.yml), same as ingest:embed above.
+    spec: { value: ["node"], boolean: ["missing-only"], positiveInt: ["limit"] },
+    documented: [[], ["--missing-only"], ["--node", "abc"], ["--limit", "10", "--node", "abc"]],
+  },
   {
     // The prompt-regression harness itself. `--write` rewrites the committed
     // baseline, so it must stay a plain boolean that defaults to off.
@@ -495,5 +527,70 @@ for (const { script, spec, documented } of SHIPPED) {
   rejects(`SHIPPED ${script}: rejects a bare positional`, ["stray"], spec, ["positional"]);
   rejects(`SHIPPED ${script}: rejects a collapsed token`, ["--a b --c"], spec, ["unrecognised"]);
 }
+
+// ---------------------------------------------------------------------------
+// THE ALIAS-HOLE FOUR — the specific silent-widening branch each one had.
+//
+// `scripts/check-cli-args.mjs` reported these as protected because they bound
+// `process.argv.slice(2)` to a local first, which every one of its regexes
+// (anchored on the literal `process.argv`) went blind to. Each assertion below
+// names the branch the old parser fell into, so a future migration back to a
+// hand-rolled loop fails here rather than in production.
+//
+// PURE, like the rest of this file: the parser is called directly with literal
+// argv arrays. `mastery:build` and `notes:embed` WRITE to the DB, so nothing
+// here may ever invoke them (the incident was caused by testing a guard by
+// running the real pipeline).
+// ---------------------------------------------------------------------------
+const MASTERY: FlagSpec = { value: ["user"] };
+const CA_EMBED: FlagSpec = { boolean: ["all"], positiveInt: ["limit"] };
+const EMBED_VERIFY: FlagSpec = { boolean: ["strict", "purge-orphans"], nonNegativeNumber: ["show"] };
+const NOTES_EMBED: FlagSpec = { value: ["node"], boolean: ["missing-only"], positiveInt: ["limit"] };
+
+// mastery:build — a collapsed or valueless --user left `userArg` undefined, and
+// the very next line is `userArg ? [userArg] : await listAllUserIds()`: a
+// one-user backfill silently became an ALL-USERS write.
+rejects("ALIAS mastery:build: collapsed --user token", ["--user 00000000-0000-4000-8000-000000000001"], MASTERY, [
+  "unrecognised",
+  "whitespace",
+]);
+rejects("ALIAS mastery:build: valueless --user", ["--user"], MASTERY, ["value"]);
+rejects("ALIAS mastery:build: bare uuid positional", ["00000000-0000-4000-8000-000000000001"], MASTERY, ["positional"]);
+accepts("ALIAS mastery:build: scoped run still parses", ["--user", "u-1"], MASTERY, { user: "u-1" });
+
+// ca:embed — `Math.max(0, Number(argv[i+1]) || 0)` mapped a bad --limit to 0,
+// and `items.slice(0, 0)` is an EMPTY run reported as a successful backfill.
+rejects("ALIAS ca:embed: non-numeric --limit is no longer 0", ["--limit", "abc"], CA_EMBED, ["positive integer"]);
+rejects("ALIAS ca:embed: --limit 0 is no longer a silent no-op", ["--limit", "0"], CA_EMBED, ["positive integer"]);
+rejects("ALIAS ca:embed: collapsed token", ["--all --limit 50"], CA_EMBED, ["unrecognised", "whitespace"]);
+rejects("ALIAS ca:embed: valueless --limit", ["--limit", "--all"], CA_EMBED, ["value"]);
+accepts("ALIAS ca:embed: capped run still parses", ["--all", "--limit", "50"], CA_EMBED, { all: true, limit: "50" });
+
+// ingest:embed:verify — --purge-orphans DELETES rows, so it must never be
+// reachable by accident; --show 0 must stay legal (it is documented).
+rejects("ALIAS embed:verify: collapsed token hiding --purge-orphans", ["--strict --purge-orphans"], EMBED_VERIFY, [
+  "unrecognised",
+  "whitespace",
+]);
+rejects("ALIAS embed:verify: non-numeric --show is no longer 0", ["--show", "abc"], EMBED_VERIFY, ["number >= 0"]);
+rejects("ALIAS embed:verify: --purge-orphans given a value", ["--purge-orphans=false"], EMBED_VERIFY, ["boolean"]);
+accepts("ALIAS embed:verify: --show 0 stays legal", ["--show", "0"], EMBED_VERIFY, { show: "0" });
+accepts("ALIAS embed:verify: destructive run still parses", ["--purge-orphans"], EMBED_VERIFY, {
+  "purge-orphans": true,
+});
+
+// notes:embed — a valueless --node became undefined, WIDENING a one-node
+// re-embed to every published note; a bad --limit became NaN, and
+// `slice(0, NaN)` is `slice(0, 0)` — an empty run reported as success.
+rejects("ALIAS notes:embed: valueless --node widened to all notes", ["--node", "--missing-only"], NOTES_EMBED, ["value"]);
+rejects("ALIAS notes:embed: collapsed token", ["--node abc --limit 10"], NOTES_EMBED, ["unrecognised", "whitespace"]);
+rejects("ALIAS notes:embed: NaN --limit is no longer slice(0,0)", ["--limit", "abc"], NOTES_EMBED, ["positive integer"]);
+accepts("ALIAS notes:embed: nightly cron invocation still parses", ["--missing-only"], NOTES_EMBED, {
+  "missing-only": true,
+});
+accepts("ALIAS notes:embed: scoped re-embed still parses", ["--node", "n-1", "--limit", "10"], NOTES_EMBED, {
+  node: "n-1",
+  limit: "10",
+});
 
 console.log(`✓ parseArgs guards: ${passed}/${passed} assertions passed`);

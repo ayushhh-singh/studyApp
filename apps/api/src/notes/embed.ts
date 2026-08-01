@@ -21,6 +21,7 @@ import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
 import { DEFAULT_EXAM_CODE, hasChapter, type NoteBody, type StudyContent } from "@neev/shared";
 import { computeEmbedCoverage } from "../ingest/embed-coverage.js";
+import { parseArgs } from "../ingest/_shared.js";
 
 type Locale = "hi" | "en";
 const LOCALES: Locale[] = ["hi", "en"];
@@ -175,12 +176,18 @@ export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; li
 }
 
 async function main(): Promise<void> {
-  const args = process.argv.slice(2);
-  const limIdx = args.indexOf("--limit");
-  const limit = limIdx >= 0 ? Number(args[limIdx + 1]) : undefined;
-  const nodeIdx = args.indexOf("--node");
-  const nodeId = nodeIdx >= 0 ? args[nodeIdx + 1] : undefined;
-  const missingOnly = args.includes("--missing-only");
+  // `--limit` fed `notes.slice(0, opts.limit)` through a bare `Number(...)`:
+  // `--limit abc` produced NaN, and `slice(0, NaN)` is `slice(0, 0)` — an empty
+  // run reported as success. A valueless `--node` likewise became `undefined`
+  // and silently WIDENED a one-node re-embed to every published note.
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["node"], boolean: ["missing-only"], positiveInt: ["limit"] },
+    "notes:embed",
+  );
+  const limit = typeof args.limit === "string" ? Number(args.limit) : undefined;
+  const nodeId = typeof args.node === "string" ? args.node : undefined;
+  const missingOnly = args["missing-only"] === true;
 
   console.log(`notes:embed  (provider: ${embeddings().id}, ${embeddings().dimensions}d)${missingOnly ? "  [missing-only]" : ""}`);
 

@@ -18,7 +18,7 @@
  * or `pnpm notes:embed` (notes); CA re-embeds on the next `pnpm ca:run`.
  */
 import { supabase } from "../lib/supabase.js";
-import { report } from "./_shared.js";
+import { parseArgs, report } from "./_shared.js";
 import { computeEmbedCoverage, hasCoverageGap, INGEST_EMBED_TYPES, REMEDY, type TypeCoverage } from "./embed-coverage.js";
 
 async function purgeOrphans(coverage: TypeCoverage[]): Promise<number> {
@@ -46,11 +46,21 @@ function pct(n: number, d: number): string {
 }
 
 async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const strict = argv.includes("--strict");
-  const purge = argv.includes("--purge-orphans");
-  const showIdx = argv.indexOf("--show");
-  const show = showIdx >= 0 ? Math.max(0, Number(argv[showIdx + 1]) || 0) : 5;
+  // `--purge-orphans` DELETES rows, so it must never be reachable by accident:
+  // as a declared boolean it can no longer be produced by a value flag swallowing
+  // the next token, nor survive inside a collapsed multi-word argv element.
+  // `--show` is nonNegativeNumber rather than positiveInt because `--show 0`
+  // ("print no sample ids") is a real, documented invocation — but the old
+  // `Number(x) || 0` also mapped a TYPO to 0, silently suppressing the sample ids
+  // an operator asked for. Zero now has to be meant.
+  const args = parseArgs(
+    process.argv.slice(2),
+    { boolean: ["strict", "purge-orphans"], nonNegativeNumber: ["show"] },
+    "ingest:embed:verify",
+  );
+  const strict = args.strict === true;
+  const purge = args["purge-orphans"] === true;
+  const show = typeof args.show === "string" ? Math.floor(Number(args.show)) : 5;
 
   report.section("ingest:embed:verify  (embedding coverage)");
   let coverage = await computeEmbedCoverage();
