@@ -1,6 +1,7 @@
 import type { CurrentAffairsItem, CurrentAffairsQuery } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
+import { stateLensFor } from "../lib/exam-config.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 
 export const CURRENT_AFFAIRS_PAGE_SIZE = 20;
@@ -43,6 +44,20 @@ export async function listCurrentAffairs(
   if (filters.date) query = query.eq("date", filters.date);
   if (filters.category) query = query.eq("category", filters.category);
 
+  // THE STATE LENS EXISTS ONLY FOR A STATE-SCOPED EXAM. `is_up_specific` is a
+  // property of the shared ROW, not of the reader — `current_affairs_items` is
+  // deliberately one row across several `exam_codes` (0106 §11) and
+  // `mergeExamTriages` ORs the flag across every exam that triaged it — so for a
+  // nationally-scoped exam it is another commission's verdict. Filtering on it
+  // would hand a UPSC aspirant a "UP" tab built from UPPSC's judgment.
+  //
+  // Not a 400: the tab is hidden client-side, but `?lens=up` survives in the URL
+  // across an exam switch, and erroring the whole feed over a stale query param
+  // is worse than serving it. The filter is DROPPED (never silently narrowed or
+  // widened to some other lens), and the client normalises the param away so the
+  // user sees the "All" tab actually selected rather than a phantom one.
+  const stateLensAvailable = stateLensFor(examCode) !== null;
+
   // Exam-lens tabs. `up_only` (legacy query param) still works and is ANDed in.
   switch (filters.lens) {
     case "prelims":
@@ -52,12 +67,12 @@ export async function listCurrentAffairs(
       query = query.gte("mains_relevance", RELEVANCE_GATE);
       break;
     case "up":
-      query = query.eq("is_up_specific", true);
+      if (stateLensAvailable) query = query.eq("is_up_specific", true);
       break;
     default:
       break;
   }
-  if (filters.up_only) query = query.eq("is_up_specific", true);
+  if (filters.up_only && stateLensAvailable) query = query.eq("is_up_specific", true);
 
   const from = (filters.page - 1) * CURRENT_AFFAIRS_PAGE_SIZE;
   const to = from + CURRENT_AFFAIRS_PAGE_SIZE - 1;

@@ -48,7 +48,7 @@
  * CLAUDE.md's "Extended-TTL prompt caching investigated" session note.
  */
 import { MODELS, structuredJson, type LlmUsage, type StructuredParams } from "../lib/anthropic.js";
-import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { getExamConfig, gsPapersFor, requireAuthored, stateLensFor } from "../lib/exam-config.js";
 import { fewShotBlock, type FewShotQuestion } from "../qgen/prompts.js";
 import type {
   CurrentAffairsCategory,
@@ -97,7 +97,13 @@ const CATEGORIES: CurrentAffairsCategory[] = [
   "up_special",
 ];
 
-const GS_PAPERS: CurrentAffairsGsPaper[] = ["GS1", "GS2", "GS3", "GS4", "ESSAY", "GS5_UP", "GS6_UP"];
+// The `gs_papers` enum is PER EXAM — `gsPapersFor(examCode)` in lib/exam-config.ts.
+// It used to be one module-level list here offering GS5_UP/GS6_UP (UPPSC's two
+// UP-specific Mains papers) to every exam, with a nationally-scoped exam fenced
+// off them by `relevanceLens.stateGsPapersNote` alone — prose, i.e. a constraint
+// the model may ignore, while the structured-output GRAMMAR said they were legal.
+// uppsc's list is byte-for-byte the old one, in the old order, so the live exam's
+// triage schema is unchanged (guarded by `pnpm prompts:snapshot`).
 
 const FACT_KINDS: CurrentAffairsFact["kind"][] = [
   "scheme",
@@ -219,7 +225,9 @@ export function triageParams(opts: {
         prelims_reason: { type: "string" },
         mains_reason: { type: "string" },
         category: { type: "string", enum: CATEGORIES },
-        gs_papers: { type: "array", items: { type: "string", enum: GS_PAPERS } },
+        // Spread, not the readonly array itself: this object is serialised as the
+        // structured-output schema, and the elements (hence the JSON) are identical.
+        gs_papers: { type: "array", items: { type: "string", enum: [...gsPapersFor(examCode)] } },
         is_up_specific: { type: "boolean" },
         syllabus_node_ids: { type: "array", items: { type: "string" } },
       },
@@ -238,19 +246,36 @@ export function triageParams(opts: {
   };
 }
 
-/** Normalize/clamp a raw triage JSON against the candidate set. Shared by sync + batch paths. */
+/**
+ * Normalize/clamp a raw triage JSON against the candidate set. Shared by sync + batch paths.
+ *
+ * `examCode` is REQUIRED, not defaulted, and validates against THAT exam's own
+ * `gs_papers` list — the same list its schema offered. Defaulting it would let a
+ * caller silently keep the old cross-exam behaviour (the M24 lesson), and here
+ * that means accepting a state paper for a commission that has none: the schema
+ * enum is the model's grammar, this filter is the last check before the value is
+ * persisted, and the two must be the same set or one of them is decorative.
+ */
 export function normalizeTriage(
   out: TriageResult,
   candidates: SyllabusCandidate[],
   sourceIsUp: boolean,
+  examCode: string,
 ): TriageResult {
   const validIds = new Set(candidates.map((c) => c.id));
+  const allowedPapers = gsPapersFor(examCode);
+  // The "source hints at <state> focus" signal is fed by CA_SOURCES[].isUpSource
+  // and only EXISTS under a state lens — `triageParams` already omits the line
+  // from a nationally-scoped exam's prompt, so OR-ing it back in here would set a
+  // flag from a signal that exam was never shown. Inert while uppsc is live
+  // (mergeExamTriages ORs across exams anyway), correct when it is not.
+  const stateSignal = stateLensFor(examCode) !== null && sourceIsUp;
   return {
     ...out,
     prelims_relevance: clamp03(out.prelims_relevance),
     mains_relevance: clamp03(out.mains_relevance),
-    gs_papers: [...new Set((out.gs_papers ?? []).filter((p) => GS_PAPERS.includes(p)))],
-    is_up_specific: out.is_up_specific || sourceIsUp,
+    gs_papers: [...new Set((out.gs_papers ?? []).filter((p) => allowedPapers.includes(p)))],
+    is_up_specific: out.is_up_specific || stateSignal,
     syllabus_node_ids: (out.syllabus_node_ids ?? []).filter((id) => validIds.has(id)).slice(0, 3),
   };
 }
@@ -268,7 +293,7 @@ export async function triageItem(opts: {
     purpose: "ca_triage",
     onUsage: opts.onUsage,
   });
-  return normalizeTriage(out, opts.candidates, opts.sourceIsUp);
+  return normalizeTriage(out, opts.candidates, opts.sourceIsUp, opts.examCode);
 }
 
 // ---------------------------------------------------------------------------

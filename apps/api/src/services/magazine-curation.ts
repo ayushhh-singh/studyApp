@@ -46,8 +46,22 @@ export const GS_PER_PAPER_MAX = 10;
 
 /** A relevance-3 issue always outranks a relevance-2 one (mirrors deepdive rankIssues). */
 const REL_TIER = 1000;
-/** UP-specific prominence boost — the platform's flagship focus. Kept < REL_TIER so it never crosses a relevance tier. */
-const UP_BOOST = 120;
+/**
+ * State-specific prominence boost — a state-scoped exam's flagship focus. Kept
+ * < REL_TIER so it never crosses a relevance tier.
+ *
+ * APPLIED ONLY UNDER A STATE LENS (`applyStateBoost`, threaded from
+ * `stateLensFor(examCode)`), never off `is_up_specific` alone. That column is a
+ * property of the ROW, not of the reader: `current_affairs_items` is deliberately
+ * shared across exams (one national story, several `exam_codes` — 0106 §11) and
+ * `mergeExamTriages` ORs the flag across every exam that triaged it, so a single
+ * uppsc-driven `true` is visible to a nationally-scoped reader too. Ranking on it
+ * unconditionally would push UP items up a UPSC aspirant's magazine. Gating on
+ * the reader's own lens makes that impossible whatever the column says — which
+ * is what makes deferring the `is_up_specific` → `state_focus` migration safe
+ * rather than merely postponed.
+ */
+const STATE_BOOST = 120;
 /** Ceiling on the syllabus-weightage contribution, so a many-node item can't cross a relevance tier either. */
 const WEIGHT_CAP = 400;
 /** Newest-in-month nudge, at most ~one relevance-independent day's worth. */
@@ -81,14 +95,20 @@ export interface Scored<T> {
   editors_pick: boolean;
 }
 
-function rawScore(inp: CurationInputs, weightage: Map<string, OwnWeightage>, year: number): { score: number; hotness: number } {
+function rawScore(
+  inp: CurationInputs,
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+  applyStateBoost: boolean,
+): { score: number; hotness: number } {
   const hotness = inp.syllabus_node_ids.reduce(
     (s, id) => s + hotnessRaw(weightage.get(id)?.byYear ?? EMPTY_BY_YEAR, year),
     0,
   );
   const day = Number((inp.date ?? "").slice(8, 10)) || 1;
+  const stateBoost = applyStateBoost && inp.is_up_specific ? STATE_BOOST : 0;
   const score =
-    inp.relevance * REL_TIER + Math.min(hotness, WEIGHT_CAP) + (inp.is_up_specific ? UP_BOOST : 0) + (day / 31) * RECENCY_MAX;
+    inp.relevance * REL_TIER + Math.min(hotness, WEIGHT_CAP) + stateBoost + (day / 31) * RECENCY_MAX;
   return { score, hotness };
 }
 
@@ -96,15 +116,21 @@ function rawScore(inp: CurationInputs, weightage: Map<string, OwnWeightage>, yea
  * Score every row and sort by importance (desc). weightage_pct is normalized
  * against the busiest item in THIS set, so it reads as "high/low for this
  * month" rather than an absolute the reader can't calibrate.
+ *
+ * `applyStateBoost` is REQUIRED, not defaulted — see STATE_BOOST. A default of
+ * `true` would silently keep every future caller on the old, reader-blind
+ * ranking; a default of `false` would silently drop the live exam's flagship
+ * boost. Neither is a decision this function may make for its caller.
  */
 export function scoreRows<T>(
   rows: T[],
   toInputs: (r: T) => CurationInputs,
   weightage: Map<string, OwnWeightage>,
   year: number,
+  applyStateBoost: boolean,
 ): Scored<T>[] {
   const withHot = rows.map((r) => {
-    const { score, hotness } = rawScore(toInputs(r), weightage, year);
+    const { score, hotness } = rawScore(toInputs(r), weightage, year, applyStateBoost);
     return { r, score, hotness };
   });
   // reduce, not Math.max(1, ...spread) — a huge month would blow the call-stack arg limit.

@@ -26,6 +26,7 @@ import { monthBounds, monthLabel } from "../lib/month.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { examCodeForNode } from "../lib/exams.js";
+import { gsPapersFor, stateLensFor } from "../lib/exam-config.js";
 import { loadNodeWeightage, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import {
   UP_SPECIAL_LIMIT,
@@ -66,7 +67,12 @@ const FACT_KIND_ORDER: CurrentAffairsFactKind[] = [
   "misc",
 ];
 
-const GS_PAPER_ORDER: CurrentAffairsGsPaper[] = ["GS1", "GS2", "GS3", "GS4", "ESSAY", "GS5_UP", "GS6_UP"];
+// The Mains edition's GS section structure is PER EXAM — `gsPapersFor(examCode)`
+// in lib/exam-config.ts, the same list the CA triage schema offers. It was one
+// module-level order here (GS1..GS4, ESSAY, GS5_UP, GS6_UP), so every exam's
+// Mains edition was laid out with UPPSC's two UP-specific papers as sections;
+// for a nationally-scoped exam those render as permanently-empty headings for
+// papers its commission does not set. uppsc's list is byte-for-byte the old one.
 
 const WORKBOOK_LIMIT = 30;
 const MODEL_QUESTIONS_LIMIT = 15;
@@ -102,7 +108,21 @@ interface MainsScoreRow {
   syllabus_node_ids: string[] | null;
 }
 
-function scorePrelims<T extends PrelimsScoreRow>(items: T[], weightage: Map<string, OwnWeightage>, year: number): Scored<T>[] {
+/**
+ * Does THIS exam have a state lens at all? The one gate on every state-shaped
+ * surface below — the lead section and the ranking boost. `examCode` is required
+ * everywhere it is needed, so this is a total function on a read path.
+ */
+function hasStateLens(examCode: string): boolean {
+  return stateLensFor(examCode) !== null;
+}
+
+function scorePrelims<T extends PrelimsScoreRow>(
+  items: T[],
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+  examCode: string,
+): Scored<T>[] {
   return scoreRows(
     items,
     (i) => ({
@@ -113,10 +133,16 @@ function scorePrelims<T extends PrelimsScoreRow>(items: T[], weightage: Map<stri
     }),
     weightage,
     year,
+    hasStateLens(examCode),
   );
 }
 
-function scoreMains<T extends MainsScoreRow>(items: T[], weightage: Map<string, OwnWeightage>, year: number): Scored<T>[] {
+function scoreMains<T extends MainsScoreRow>(
+  items: T[],
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+  examCode: string,
+): Scored<T>[] {
   return scoreRows(
     items,
     (i) => ({
@@ -127,16 +153,34 @@ function scoreMains<T extends MainsScoreRow>(items: T[], weightage: Map<string, 
     }),
     weightage,
     year,
+    hasStateLens(examCode),
   );
 }
 
-/** UP lead + capped topic sections. The one selection both the Prelims edition and its index count use. */
-function selectCuratedPrelims<T extends PrelimsScoreRow>(scored: Scored<T>[]): {
+/**
+ * State lead + capped topic sections. The one selection both the Prelims edition
+ * and its index count use.
+ *
+ * A NATIONALLY-SCOPED EXAM GETS NO LEAD SECTION AND LOSES NOTHING. `is_up_specific`
+ * is a shared-row flag OR-ed across every exam that triaged the item (see
+ * STATE_BOOST in magazine-curation.ts), so for such an exam it is not a signal —
+ * it is another exam's. So the lead is empty AND the topic filter stops excluding
+ * flagged rows: excluding them would silently drop a genuinely national story
+ * from the edition entirely, just because uppsc also called it UP-specific. Under
+ * a state lens the split is exactly as before (lead, then the rest).
+ */
+function selectCuratedPrelims<T extends PrelimsScoreRow>(
+  scored: Scored<T>[],
+  examCode: string,
+): {
   upScored: Scored<T>[];
   topicMap: Map<CurrentAffairsCategory, Scored<T>[]>;
 } {
-  const upScored = scored.filter((s) => s.row.is_up_specific).slice(0, UP_SPECIAL_LIMIT);
-  const nonUp = scored.filter((s) => !s.row.is_up_specific && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"));
+  const stateLens = hasStateLens(examCode);
+  const upScored = stateLens ? scored.filter((s) => s.row.is_up_specific).slice(0, UP_SPECIAL_LIMIT) : [];
+  const nonUp = scored.filter(
+    (s) => (!stateLens || !s.row.is_up_specific) && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"),
+  );
   const topicMap = curateTopicSections(
     nonUp,
     (r) => r.category ?? "polity_governance",
@@ -146,9 +190,12 @@ function selectCuratedPrelims<T extends PrelimsScoreRow>(scored: Scored<T>[]): {
   return { upScored, topicMap };
 }
 
-/** Top-N per GS paper. The one selection both the Mains edition and its index count use. */
-function selectCuratedMainsPerPaper<T extends MainsScoreRow>(scored: Scored<T>[]): { paper: CurrentAffairsGsPaper; top: Scored<T>[] }[] {
-  return GS_PAPER_ORDER.map((paper) => ({
+/** Top-N per GS paper, in THIS exam's paper order. The one selection both the Mains edition and its index count use. */
+function selectCuratedMainsPerPaper<T extends MainsScoreRow>(
+  scored: Scored<T>[],
+  examCode: string,
+): { paper: CurrentAffairsGsPaper; top: Scored<T>[] }[] {
+  return gsPapersFor(examCode).map((paper) => ({
     paper,
     top: scored.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX),
   }));
@@ -235,7 +282,7 @@ async function countCuratedPrelims(
       .order("id", { ascending: true }),
   );
   if (items.length === 0) return 0;
-  const { upScored, topicMap } = selectCuratedPrelims(scorePrelims(items, weightage, year));
+  const { upScored, topicMap } = selectCuratedPrelims(scorePrelims(items, weightage, year, examCode), examCode);
   let topic = 0;
   for (const arr of topicMap.values()) topic += arr.length;
   return upScored.length + topic;
@@ -263,7 +310,7 @@ async function countCuratedMainsIssues(
       .order("id", { ascending: true }),
   );
   if (items.length === 0) return 0;
-  const perPaper = selectCuratedMainsPerPaper(scoreMains(items, weightage, year));
+  const perPaper = selectCuratedMainsPerPaper(scoreMains(items, weightage, year, examCode), examCode);
   return new Set(perPaper.flatMap((p) => p.top.map((s) => s.row.id))).size;
 }
 
@@ -400,7 +447,10 @@ export async function compilePrelimsEdition(month: string, examCode: string): Pr
   // Rank by importance (relevance tier + syllabus weightage + UP + recency), then CAP each section
   // via the SHARED selection (also used by the index count, so they can't drift) — a busy month
   // clears every item past the survival gate, so unranked sections would dump hundreds.
-  const { upScored, topicMap } = selectCuratedPrelims(scorePrelims(items, weightage, currentExamYear()));
+  const { upScored, topicMap } = selectCuratedPrelims(
+    scorePrelims(items, weightage, currentExamYear(), examCode),
+    examCode,
+  );
 
   const upSpecial = upScored.map(toItemBlock);
   const topicSections: MagazineTopicSection[] = CATEGORY_ORDER.filter((c) => c !== "up_special" && topicMap.has(c)).map(
@@ -538,7 +588,7 @@ export async function compileMainsEdition(month: string, examCode: string): Prom
   // used by the index count, so they can't drift). gs_papers is multi-valued (an issue can span
   // papers), so the DISTINCT union of what renders IS the curated set — never a global pre-slice,
   // which would count items a later per-paper cap then dropped from view (rendering nowhere).
-  const perPaperTop = selectCuratedMainsPerPaper(scoreMains(items, weightage, currentExamYear()));
+  const perPaperTop = selectCuratedMainsPerPaper(scoreMains(items, weightage, currentExamYear(), examCode), examCode);
 
   const toBrief = (s: Scored<MainsItemRow>): MagazineIssueBrief => {
     const item = s.row;

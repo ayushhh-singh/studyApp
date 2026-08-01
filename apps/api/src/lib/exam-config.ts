@@ -58,6 +58,8 @@
 import {
   DEFAULT_EXAM_CODE,
   TARGET_EXAM_CODES,
+  type CurrentAffairsGsPaper,
+  type ExamStateLens,
   type TargetExamCode,
 } from "@neev/shared";
 import {
@@ -528,6 +530,34 @@ export interface ExamCaConfig {
   deepDivePyqHeader: Authored<string>;
   /** Call site: `ca/mcq-node-classify.ts` `MCQ_NODE_CLASSIFY_SYSTEM` — `` `…item to ${nodeClassifyFraming}, from the candidate list…` ``. */
   nodeClassifyFraming: Authored<string>;
+  /**
+   * Which `CurrentAffairsGsPaper` enum values are THIS exam's real Mains papers,
+   * in the order they are offered to the model and rendered by the magazine.
+   *
+   * ⚑ THIS IS A HARD CONSTRAINT, NOT PROSE, AND THAT IS WHY IT EXISTS. Until
+   * 2026-08-01 `ca/prompts.ts` held ONE module-level `GS_PAPERS` list offering
+   * `GS5_UP`/`GS6_UP` — UPPSC-only papers — inside the triage **JSON schema**,
+   * for every exam. A nationally-scoped exam was fenced off them by
+   * `relevanceLens.stateGsPapersNote` alone, i.e. by an instruction the model
+   * may ignore, while the structured-output grammar said they were legal
+   * values. Prose is a soft constraint; a schema enum is a hard one. Reading
+   * this per exam makes the two agree.
+   *
+   * ORDER IS BYTE-SIGNIFICANT: it is serialised into the triage schema's
+   * `enum` array, so `uppsc`'s list must stay exactly as `GS_PAPERS` was
+   * (GS1..GS4, ESSAY, GS5_UP, GS6_UP) or `pnpm prompts:snapshot` reports the
+   * live exam's prompt as CHANGED — which for this file is a stop-and-report
+   * event, not a re-baseline (see its NO PROMPT CACHING note).
+   *
+   * STRUCTURAL, not judgment — but still `Authored`, because the mapping from a
+   * commission's real Mains papers onto this UPPSC-shaped enum is not
+   * mechanical: UPPSC's six GS papers land on four `GS*` values plus the two
+   * `*_UP` ones, and its General Hindi paper has no value at all. Guessing it
+   * for an exam nobody has researched would be exactly the substitution U6
+   * forbids. Generalising the enum ITSELF (a jsonb `gs_papers_by_exam`) is M20,
+   * deliberately deferred.
+   */
+  gsPapers: Authored<readonly CurrentAffairsGsPaper[]>;
 }
 
 /** Study notes + chapters — `notes/prompts.ts`, `notes/chapter-prompts.ts`. */
@@ -1020,6 +1050,11 @@ const UPPSC: ExamConfig = {
     deepDiveIntroFraming: "why this issue matters for UPPSC Mains right now",
     deepDivePyqHeader: "\nRELATED PAST UPPSC QUESTIONS (for angle, not to answer):",
     nodeClassifyFraming: "ONE specific UPPSC Prelims General Studies Paper I curriculum topic",
+    // BYTE-FOR-BYTE the old module-level `GS_PAPERS` in ca/prompts.ts, in its
+    // exact order — this is the live exam's triage schema enum. GS5_UP/GS6_UP
+    // are UPPSC Mains GS-V/GS-VI, the two UP-specific papers. General Hindi has
+    // no value in this enum and never had one.
+    gsPapers: ["GS1", "GS2", "GS3", "GS4", "ESSAY", "GS5_UP", "GS6_UP"],
   },
 
   notes: {
@@ -1561,6 +1596,16 @@ const UPSC: ExamConfig = {
     deepDivePyqHeader: "\nRELATED PAST UPSC QUESTIONS (for angle, not to answer):",
     nodeClassifyFraming:
       "ONE specific UPSC Civil Services Prelims General Studies Paper I syllabus topic",
+    // UPSC Mains has exactly four General Studies papers (GS-I..GS-IV) plus the
+    // Essay paper — verified against the same 2026 examination notice the
+    // hand-authored syllabus tree was transcribed from (migration 0112 binds
+    // UPSC_MAINS_GS1..GS4 + UPSC_MAINS_ESSAY). GS5_UP/GS6_UP are another
+    // commission's state papers and MUST be absent: until now the triage schema
+    // offered them as legal values here, contradicting
+    // `relevanceLens.stateGsPapersNote`, which spends a whole clause fencing the
+    // model off them. Qualifying Paper-A/Paper-B and the two optional-subject
+    // papers carry no current-affairs life and have no value in this enum.
+    gsPapers: ["GS1", "GS2", "GS3", "GS4", "ESSAY"],
   },
 
   // ---------------------------------------------------------------------------
@@ -2002,6 +2047,16 @@ const MPPSC: ExamConfig = {
     deepDiveIntroFraming: UNAUTHORED,
     deepDivePyqHeader: UNAUTHORED,
     nodeClassifyFraming: UNAUTHORED,
+    // UNAUTHORED, consistent with every other slot in this group. MPPSC Mains
+    // has GS-I..GS-IV plus two Hindi papers (V: Hindi; VI: Hindi essay and
+    // drafting), and whether Paper VI maps onto this enum's `ESSAY` value is a
+    // real editorial call about a paper written under a different mark scheme —
+    // exactly the kind of judgment U6 forbids deriving by substitution. Nothing
+    // reaches it today: `triageParams` throws on `relevanceLens.stateGsPapersNote`
+    // and every other slot here long before the schema is built, and the
+    // magazine's reads are exam-scoped so an exam with zero current affairs
+    // returns before the enum is consulted.
+    gsPapers: UNAUTHORED,
   },
 
   notes: {
@@ -2111,6 +2166,44 @@ export function getExamConfig(code: string): ExamConfig {
     "exam-config: unknown exam code; falling back to the default exam",
   );
   return EXAM_CONFIGS[DEFAULT_EXAM_CODE];
+}
+
+/**
+ * This exam's Mains papers in the `CurrentAffairsGsPaper` taxonomy — the ONE
+ * place the triage schema's enum, `normalizeTriage`'s filter and the Mains
+ * magazine's section order are decided.
+ *
+ * Throws (via `requireAuthored`) for an exam whose CA config is unwritten,
+ * rather than falling back to UPPSC's seven — a fallback here would silently
+ * re-offer `GS5_UP`/`GS6_UP` to a commission that has no state paper, which is
+ * the exact defect this accessor was added to remove.
+ */
+export function gsPapersFor(examCode: string): readonly CurrentAffairsGsPaper[] {
+  return requireAuthored(getExamConfig(examCode).ca.gsPapers, examCode, "ca.gsPapers");
+}
+
+/**
+ * The state an exam's current-affairs curation is scoped to, or `null` when the
+ * exam is nationally scoped.
+ *
+ * THE POINT OF THE null: it is the gate on every state-shaped CA surface — the
+ * magazine's lead section, `magazine-curation.ts`'s `UP_BOOST`, and the feed's
+ * `lens=up` tab. Each of those keyed off the flat `is_up_specific` boolean
+ * alone, so a nationally-scoped exam would have rendered a state section and
+ * applied a state ranking boost the moment a single row carried a stray `true`.
+ * Gating on the LENS instead makes those surfaces impossible for a national
+ * exam regardless of what that column says — which is what makes deferring the
+ * `is_up_specific` → `state_focus` migration (M20) safe rather than merely
+ * postponed.
+ *
+ * Returns only STRUCTURAL facts (`state.code` / names), never an `Authored`
+ * slot, so it is total across all three exams and safe on a read path — mppsc's
+ * lens prose is UNAUTHORED but its state block is stated as fact.
+ */
+export function stateLensFor(examCode: string): ExamStateLens | null {
+  const lens = getExamConfig(examCode).relevanceLens;
+  if (lens.kind !== "state_specific") return null;
+  return { code: lens.state.code, name_i18n: { en: lens.state.nameEn, hi: lens.state.nameHi } };
 }
 
 // ---------------------------------------------------------------------------

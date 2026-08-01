@@ -620,7 +620,7 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
         reason = rr.error ?? "batch request failed";
       } else {
         try {
-          triage = normalizeTriage(JSON.parse(rr.text) as TriageResult, shown, row.payload.sourceIsUp);
+          triage = normalizeTriage(JSON.parse(rr.text) as TriageResult, shown, row.payload.sourceIsUp, req.examCode);
         } catch (err) {
           // Almost always a response truncated at triageParams' 1200-token cap:
           // JSON.parse on a cut-off fragment throws "Unterminated string", which

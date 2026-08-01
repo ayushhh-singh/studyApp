@@ -635,6 +635,28 @@ async function collectCaPrompts(): Promise<void> {
         }),
       ),
     );
+    // ⚑ NON-`uppsc` FIXTURE, deliberate (M47). Triage's `gs_papers` enum is now
+    // read per exam (`gsPapersFor`), and that enum is a HARD constraint — it is
+    // the structured-output grammar, not prose the model may weigh. Without a
+    // key here, `upsc`'s schema was unguarded: a regression that re-offered
+    // UPPSC's GS5_UP/GS6_UP to a national exam, or dropped one of its real
+    // papers, would leave every other key byte-identical and be reported as
+    // "157 prompts byte-identical". `sourceIsUp: true` is on purpose — it pins
+    // the OTHER half of the national-lens behaviour, that `triageParams` omits
+    // the "Source hints at <state> focus" line entirely rather than rendering it
+    // with a borrowed or empty state name.
+    put(
+      "ca/triageParams:upsc-national-lens",
+      paramsSnapshot(
+        mod.triageParams({
+          title: "Fixture headline about a scheme launch.",
+          snippet: "Fixture snippet describing the launch and its coverage.",
+          sourceIsUp: true,
+          candidates: CA_CANDIDATES as never,
+          examCode: "upsc",
+        }),
+      ),
+    );
 
     const enrich = (over: Record<string, unknown> = {}) =>
       ({

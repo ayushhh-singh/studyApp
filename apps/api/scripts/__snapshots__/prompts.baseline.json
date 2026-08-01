@@ -2410,6 +2410,86 @@
       ]
     }
   },
+  "ca/triageParams:upsc-national-lens": {
+    "model": "claude-haiku-4-5",
+    "effort": null,
+    "maxTokens": 1200,
+    "systemKind": "string",
+    "segments": [
+      {
+        "text": "You are a UPSC (national civil services) exam strategist triaging a news item. Score its TWO independent exam lives, each 0-3:\n- prelims_relevance: does it carry a concrete, IDENTIFIABLE fact a prelims MCQ could test — a named scheme, report/index (+rank), appointment, place/monument/river/park, organisation/institution, species, book/award, day/theme, treaty, or a specific number/first/location? Prelims tests 'what/where/who' identification, so a clearly NAMED entity in the news usually rates 2 EVEN IF the story's angle is analytical (e.g. a temple, an organisation, a scheme, a report). 0 = no nameable fact (pure opinion/procedure/crime with no examable entity); 1 = a fact too generic/ephemeral to test; 2 = a solid, testable named fact; 3 = a high-yield fact very likely to be asked.\n- mains_relevance: is it an ISSUE worth analysing in a descriptive answer (a policy debate, governance/economy/IR/environment/ethics theme with arguments on multiple sides)? 0 = no analytical substance; 1 = thin; 2 = a real issue with dimensions; 3 = a rich, debate-worthy issue central to the syllabus.\nBe discriminating — routine crime, entertainment, personal-interest, and pure-procedure items score 0-1 on BOTH and must be dropped. But MANY genuine current-affairs items carry BOTH a named prelims fact AND an analytical mains angle — do not force a single life; score each honestly on its own merits.\nAlso return: `category` (one fixed value), `gs_papers` (which Mains GS papers the item feeds — [] if mains isn't relevant; choose ONLY from GS1, GS2, GS3, GS4 and ESSAY, which are UPSC's real Mains papers, and NEVER emit GS5_UP or GS6_UP — those are another commission's state-specific papers and do not exist in this exam), `is_up_specific` (ALWAYS false for this exam — UPSC is a national examination with no state-specific paper, so no item is ever state-specific here, however strongly the story centres on one state), and 0-3 `syllabus_node_ids` chosen ONLY from the candidate list by id. Give a ONE-LINE justification for each relevance score.",
+        "cache": false
+      }
+    ],
+    "content": "Title: Fixture headline about a scheme launch.\nSnippet: Fixture snippet describing the launch and its coverage.\n\nCandidate syllabus nodes (id: title):\n44444444-4444-4444-8444-444444444444: Fixture Node One\n55555555-5555-4555-8555-555555555555: Fixture Node Two",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "prelims_relevance": {
+          "type": "integer"
+        },
+        "mains_relevance": {
+          "type": "integer"
+        },
+        "prelims_reason": {
+          "type": "string"
+        },
+        "mains_reason": {
+          "type": "string"
+        },
+        "category": {
+          "type": "string",
+          "enum": [
+            "polity_governance",
+            "economy",
+            "international_relations",
+            "environment_ecology",
+            "science_tech",
+            "security",
+            "social_issues",
+            "art_culture",
+            "schemes",
+            "reports_indices",
+            "places_persons",
+            "up_special"
+          ]
+        },
+        "gs_papers": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "GS1",
+              "GS2",
+              "GS3",
+              "GS4",
+              "ESSAY"
+            ]
+          }
+        },
+        "is_up_specific": {
+          "type": "boolean"
+        },
+        "syllabus_node_ids": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "prelims_relevance",
+        "mains_relevance",
+        "prelims_reason",
+        "mains_reason",
+        "category",
+        "gs_papers",
+        "is_up_specific",
+        "syllabus_node_ids"
+      ]
+    }
+  },
   "community-moderation/buildScreenSystem": "You screen user-generated posts on a UPPSC exam-prep community for abuse, spam, and PII. is_abusive: harassment, hate speech, threats, or sexual content. is_spam: unsolicited advertising, off-topic promotional links, or repetitive gibberish. has_pii: the poster's own or another named person's phone number, email, home address, or government ID number. Normal exam-prep discussion, disagreement, or criticism of content is NOT abusive. Give a one-sentence reason either way.",
   "community-moderation/buildScreenSystem:upsc": "You screen user-generated posts on a UPSC Civil Services exam-prep community for abuse, spam, and PII. is_abusive: harassment, hate speech, threats, or sexual content. is_spam: unsolicited advertising, off-topic promotional links, or repetitive gibberish. has_pii: the poster's own or another named person's phone number, email, home address, or government ID number. Normal exam-prep discussion, disagreement, or criticism of content is NOT abusive. Give a one-sentence reason either way.",
   "evaluation/FEEDBACK_WRITE_NOW": "Write your response now, following the instructions above.",

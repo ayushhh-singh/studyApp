@@ -176,6 +176,24 @@ export const examLaunchScopeSchema = z.object({
 });
 export type ExamLaunchScope = z.infer<typeof examLaunchScopeSchema>;
 
+/**
+ * The state an exam's CONTENT is scoped to, or `null` for a nationally-scoped
+ * one (see `examSchema.state_lens`).
+ *
+ * DELIBERATELY NOT A DB COLUMN. Unlike every other field on `examSchema`, this
+ * is derived server-side from `apps/api/src/lib/exam-config.ts`'s
+ * `relevanceLens`, which is where the fact already lives and is already the
+ * gate the CA pipeline and the magazine use. Adding an `exams` column for it
+ * would create a second source of truth for one boolean-ish fact and require a
+ * migration; the client only needs to know whether a state lens EXISTS.
+ */
+export const examStateLensSchema = z.object({
+  /** Short code as it appears in labels, e.g. "UP". */
+  code: z.string(),
+  name_i18n: bilingualTextSchema,
+});
+export type ExamStateLens = z.infer<typeof examStateLensSchema>;
+
 export const examSchema = z.object({
   exam_code: targetExamCodeSchema,
   display_name_i18n: bilingualTextSchema,
@@ -183,6 +201,14 @@ export const examSchema = z.object({
   paper_structure: examPaperStructureSchema,
   launch_scope_i18n: examLaunchScopeSchema,
   sort_order: z.number().int(),
+  /**
+   * null = nationally scoped: no state lens tab on the current-affairs feed, no
+   * state lead section in the magazine, no state ranking boost. Defaulted so a
+   * client parsing an older response (or a fixture) reads "national" rather
+   * than throwing — a missing state lens is the safe reading, since every
+   * state-shaped surface is opt-IN on this field.
+   */
+  state_lens: examStateLensSchema.nullable().default(null),
 });
 export type Exam = z.infer<typeof examSchema>;
 

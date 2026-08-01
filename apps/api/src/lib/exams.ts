@@ -15,6 +15,7 @@ import { DEFAULT_EXAM_CODE, examSchema, type Exam } from "@neev/shared";
 import { z } from "zod";
 import { supabase } from "./supabase.js";
 import { HttpError, badRequest } from "./http-error.js";
+import { stateLensFor } from "./exam-config.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "./question-visibility.js";
 
 export interface ExamRow {
@@ -61,7 +62,15 @@ export async function listExamsDetailed(): Promise<Exam[]> {
   if (!parsed.success) {
     throw new HttpError(500, `exam registry row failed validation: ${parsed.error.message}`);
   }
-  return parsed.data;
+  // `state_lens` is DERIVED, not selected — see its note on `examSchema`. It is
+  // attached AFTER parsing because the DB has no such column, so the parse must
+  // see the row exactly as stored (and the schema's `.default(null)` fills it).
+  //
+  // The client needs it to answer one question it otherwise cannot: whether the
+  // current-affairs feed's state-lens tab exists for this exam at all. Without
+  // it the tab is unconditional, and a nationally-scoped exam gets a filter on
+  // `is_up_specific` that is meaningless for it by construction.
+  return parsed.data.map((e) => ({ ...e, state_lens: stateLensFor(e.exam_code) }));
 }
 
 /**

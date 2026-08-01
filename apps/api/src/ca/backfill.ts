@@ -239,7 +239,12 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
         try {
           perExam.push({
             examCode: scope.examCode,
-            triage: normalizeTriage(JSON.parse(r.text) as TriageResult, chunkCandidates[e][i], it.is_up_specific),
+            triage: normalizeTriage(
+              JSON.parse(r.text) as TriageResult,
+              chunkCandidates[e][i],
+              it.is_up_specific,
+              scope.examCode,
+            ),
           });
         } catch {
           /* unusable (usually truncated) — that exam simply does not claim it */

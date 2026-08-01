@@ -13,18 +13,31 @@ import { CurrentAffairsDetailSheet } from "@/components/current-affairs/item-det
 import { CurrentAffairsWeeklyQuizButtons } from "@/components/current-affairs/quiz-button";
 import { QuickScanFeed } from "@/components/current-affairs/quick-scan-feed";
 import { useCurrentAffairs } from "@/hooks/use-current-affairs";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Nav.currentAffairs" };
 
+/**
+ * `up` is the STATE lens and is offered only to an exam that has one
+ * (`exam.state_lens !== null`). It filters on `is_up_specific`, a flag on the
+ * shared current-affairs row that is OR-ed across every exam which triaged the
+ * item — so for a nationally-scoped exam the tab would be a filter built from
+ * another commission's judgment. The server drops the filter for such an exam
+ * too; this is the half that stops the tab existing at all.
+ */
 const LENSES: CurrentAffairsLens[] = ["all", "prelims", "mains", "up"];
+const STATE_LENSES = new Set<CurrentAffairsLens>(["up"]);
 const LENS_LABEL: Record<CurrentAffairsLens, string> = {
   all: "CurrentAffairs.lensAll",
   prelims: "CurrentAffairs.lensPrelims",
   mains: "CurrentAffairs.lensMains",
   up: "CurrentAffairs.lensUp",
 };
+
+/** Same rule as STATE_LENSES, for the category chips: `up_special` is a state category. */
+const STATE_CATEGORIES = new Set<CurrentAffairsCategory>(["up_special"]);
 
 const CATEGORIES: CurrentAffairsCategory[] = [
   "polity_governance",
@@ -60,8 +73,21 @@ export function Component() {
   const locale = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const lens = (searchParams.get("lens") as CurrentAffairsLens | null) ?? "all";
-  const category = (searchParams.get("cat") as CurrentAffairsCategory | null) ?? "";
+  const { exam, isLoading: examLoading } = useCurrentExam();
+  // While the registry is still loading `exam` is null, which is NOT "this exam
+  // has no state lens" — assume it has one until we know, so the tab never
+  // flickers away and back for the live (state-scoped) exam.
+  const hasStateLens = examLoading || exam === null || exam.state_lens !== null;
+  const lenses = LENSES.filter((l) => hasStateLens || !STATE_LENSES.has(l));
+  const categories = CATEGORIES.filter((c) => hasStateLens || !STATE_CATEGORIES.has(c));
+
+  const rawLens = (searchParams.get("lens") as CurrentAffairsLens | null) ?? "all";
+  // A stale `?lens=up` survives an exam switch. Rather than erroring or leaving a
+  // phantom tab selected, fall back to "all" — matching the server, which drops
+  // the filter for the same reason.
+  const lens = lenses.includes(rawLens) ? rawLens : "all";
+  const rawCategory = (searchParams.get("cat") as CurrentAffairsCategory | null) ?? "";
+  const category = rawCategory === "" || categories.includes(rawCategory) ? rawCategory : "";
   const page = Number(searchParams.get("page")) || 1;
   const scan = searchParams.get("scan") === "1";
   const selectedId = searchParams.get("item");
@@ -118,7 +144,7 @@ export function Component() {
       <SectionCard title={t("CurrentAffairs.latest")}>
         {/* Exam-lens tabs */}
         <div className="flex w-full items-center gap-1 overflow-x-auto scrollbar-hide rounded-lg bg-muted p-1">
-          {LENSES.map((l) => (
+          {lenses.map((l) => (
             <button
               key={l}
               type="button"
@@ -146,7 +172,7 @@ export function Component() {
           >
             {t("CurrentAffairs.filterAllCategories")}
           </button>
-          {CATEGORIES.map((c) => (
+          {categories.map((c) => (
             <button
               key={c}
               type="button"
