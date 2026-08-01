@@ -340,6 +340,19 @@ function buildQuestionRow(node: NodeContext, c: Candidate, batchId: string, grou
   const base = {
     stage: node.stage,
     paper_code: node.paperCode,
+    // ⚑ MUST BE SET EXPLICITLY. `questions.exam_code` defaults to 'uppsc'
+    // (migration 0036) and nothing here used to override it, so the first
+    // multi-exam top-up run (2026-08-01, `--exam upsc`) stamped all 44 of its
+    // UPSC rows `uppsc`. Unlike the identical CA-pipeline bug this is NOT a
+    // serving leak — `questionExamScopeFilter` scopes a non-CURRENT_AFFAIRS row
+    // by `paper_code`, which M23 makes exam-prefixed and globally unique, so a
+    // mislabelled row was still served to the right exam. It is wrong
+    // PROVENANCE: `exam_code` is the column every per-exam bank count, audit and
+    // ExamChip label reads, so a generated row silently claimed the wrong
+    // commission. Taken from the NODE (never `questions.exam_code` of a
+    // few-shot source, which is provenance and admits exams we never sell).
+    // Identity for uppsc, whose nodes are `uppsc` — the live exam is unaffected.
+    exam_code: node.examCode,
     syllabus_node_id: node.id,
     year: null,
     source: "generated" as const,
