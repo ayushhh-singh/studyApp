@@ -242,12 +242,22 @@ async function main(): Promise<void> {
   // machine-specific one baked into a tracked file, exactly the M46 shape).
   // ROOT is derived from import.meta.url per the portability rule.
   const ROOT = resolve(fileURLToPath(import.meta.url), "../../../..");
-  const cmd = `pnpm notes:coverage --exam ${exam}${outPath ? ` --out ${relative(ROOT, resolve(process.cwd(), outPath))}` : ""}`;
+  // A RELATIVE `--out` resolves against the REPO ROOT, never `process.cwd()`.
+  // The documented invocation is `pnpm notes:coverage … --out docs/<exam>-chapter-coverage.md`
+  // from the repo root, and the root script delegates via `pnpm --filter api`, which
+  // re-runs the CLI with cwd=`apps/api` — so a cwd-relative write ENOENT'd on
+  // `apps/api/docs/`, i.e. the exact command this file prints into its own header
+  // could not be run. (It also made `cmd` render `--out apps/api/docs/…`.) Anchoring
+  // both on ROOT is the same portability rule the rest of the repo follows: the
+  // command now works identically from the repo root, from inside apps/api and in CI.
+  // An ABSOLUTE `--out` is unaffected — `resolve()` returns it unchanged.
+  const outAbs = outPath ? resolve(ROOT, outPath) : null;
+  const cmd = `pnpm notes:coverage --exam ${exam}${outAbs ? ` --out ${relative(ROOT, outAbs)}` : ""}`;
   const md = renderMarkdown(rep, cmd);
-  if (outPath) {
-    writeFileSync(outPath, md);
+  if (outAbs) {
+    writeFileSync(outAbs, md);
     const done = rep.rows.filter(covered).length;
-    console.log(`✓ ${outPath} — ${done}/${rep.rows.length} chapterable ${exam} nodes have a published chapter`);
+    console.log(`✓ ${relative(ROOT, outAbs)} — ${done}/${rep.rows.length} chapterable ${exam} nodes have a published chapter`);
   } else {
     process.stdout.write(md);
   }

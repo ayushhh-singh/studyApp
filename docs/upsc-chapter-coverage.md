@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-01** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**0 of 195 chapterable nodes have a published chapter (0%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**5 of 195 chapterable nodes have a published chapter (2.6%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 0 | 32 | 0% | 32 | 1846 |
-| `UPSC_PRE_CSAT` | 0 | 12 | 0% | 12 | 1407 |
+| `UPSC_PRE_GS1` | 1 | 32 | 3.1% | 31 | 1846 |
+| `UPSC_PRE_CSAT` | 4 | 12 | 33.3% | 8 | 1407 |
 | `UPSC_MAINS_GS2` | 0 | 30 | 0% | 30 | 398 |
 | `UPSC_MAINS_GS3` | 0 | 38 | 0% | 38 | 394 |
 | `UPSC_MAINS_GS1` | 0 | 44 | 0% | 44 | 384 |
 | `UPSC_MAINS_GS4` | 0 | 34 | 0% | 34 | 260 |
 | `UPSC_MAINS_ESSAY` | 0 | 5 | 0% | 5 | 80 |
-| **all** | **0** | **195** | **0%** | **195** | 4769 |
+| **all** | **5** | **195** | **2.6%** | **190** | 4769 |
 
 ## Every node, heaviest first
 
@@ -31,11 +31,11 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 
 | # | Weight | Paper | D | Node | Chapter | node_id |
 | ---: | ---: | --- | ---: | --- | --- | --- |
-| 1 | 292 | `UPSC_PRE_CSAT` | 1 | Basic Numeracy and Data Interpretation | — none | `c42d6a11-b800-4703-ae2d-eaed69b45b7f` |
-| 2 | 269 | `UPSC_PRE_CSAT` | 2 | Basic Numeracy | — none | `f902af4d-8db5-4fa4-af60-8aacdb0b8efd` |
-| 3 | 258 | `UPSC_PRE_CSAT` | 1 | Logical Reasoning and Analytical Ability | — none | `bac0e217-1cfe-4f8d-8c7e-1db4e3f570c6` |
-| 4 | 246 | `UPSC_PRE_CSAT` | 1 | Comprehension | — none | `e61f39da-fcbb-4672-a9fd-ede60695a730` |
-| 5 | 203 | `UPSC_PRE_GS1` | 1 | Indian Polity and Governance | — none | `8fd021cb-5d14-42b1-b6fa-36a071fd49d6` |
+| 1 | 292 | `UPSC_PRE_CSAT` | 1 | Basic Numeracy and Data Interpretation | published · chapter v1 | `c42d6a11-b800-4703-ae2d-eaed69b45b7f` |
+| 2 | 269 | `UPSC_PRE_CSAT` | 2 | Basic Numeracy | published · chapter v1 | `f902af4d-8db5-4fa4-af60-8aacdb0b8efd` |
+| 3 | 258 | `UPSC_PRE_CSAT` | 1 | Logical Reasoning and Analytical Ability | published · chapter v1 | `bac0e217-1cfe-4f8d-8c7e-1db4e3f570c6` |
+| 4 | 246 | `UPSC_PRE_CSAT` | 1 | Comprehension | published · chapter v1 | `e61f39da-fcbb-4672-a9fd-ede60695a730` |
+| 5 | 203 | `UPSC_PRE_GS1` | 1 | Indian Polity and Governance | published · chapter v1 | `8fd021cb-5d14-42b1-b6fa-36a071fd49d6` |
 | 6 | 185 | `UPSC_PRE_GS1` | 1 | Economic and Social Development | — none | `16357fb4-037f-4fc9-b0e6-d8b2e94ef8fb` |
 | 7 | 175 | `UPSC_PRE_GS1` | 1 | History of India and Indian National Movement | — none | `fc3c0ede-399f-4153-9036-48d2b557ce42` |
 | 8 | 154 | `UPSC_PRE_CSAT` | 2 | Logical Reasoning | — none | `33fb1f9c-b3c1-489f-9c69-c3bcda923b56` |
