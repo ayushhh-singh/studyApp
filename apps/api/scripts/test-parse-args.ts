@@ -315,7 +315,13 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
       ["--exam", "upsc", "--days", "3", "--wait", "0"],
     ],
   },
-  { script: "ca:assemble", spec: { positiveNumber: ["days"] }, documented: [["--days", "7"]] },
+  {
+    // Same `--exam` override as ca:run: omitted means every LIVE exam (what the
+    // weekly cron does), and a valueless `--exam` must not collapse into "all".
+    script: "ca:assemble",
+    spec: { positiveNumber: ["days"], value: ["exam"] },
+    documented: [["--days", "7"], ["--exam", "upsc"], ["--exam", "upsc", "--days", "7"]],
+  },
   {
     script: "ca:backfill",
     // Same `--exam` override as ca:run. On THIS tool a valueless `--exam` would

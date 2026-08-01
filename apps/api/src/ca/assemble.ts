@@ -14,6 +14,20 @@
  * in the Review Queue's CA / descriptive tabs before they enter a weekly set.
  * Either set is null until there's approved supply.
  *
+ * PER EXAM. Both sets are built for ONE exam and drawn from that exam's own
+ * approved CA questions. A CA question's `exam_code` is not mere provenance the
+ * way a PYQ's is — a CA question is GENERATED FOR one exam (ca/pipeline.ts), so
+ * that column IS its owner, and it is the right filter here (the same one
+ * `questionExamScopeFilter`'s current-affairs disjunct and the magazine's
+ * `loadWorkbook`/`loadModelQuestions` already use). Without it a second exam's
+ * weekly quiz drew from the live exam's entire CA bank.
+ *
+ * The slug carries the exam for a non-default exam (`ca-prelims-w2951:upsc`),
+ * exactly as the daily quiz does (daily/quiz.ts) — the DEFAULT exam keeps its
+ * historical bare slug so the existing weekly rows are not orphaned. The slug is
+ * the idempotency key, so without this a second exam's build would find the live
+ * exam's row and return it as if it were its own.
+ *
  * CUTOFF BASIS (investigated, deliberately NOT changed): the pool is filtered
  * by the question's `created_at`, not by when it was approved. This was
  * investigated after a hypothesis that a late approval could silently exclude
@@ -26,8 +40,9 @@
  * lags), so instead: if the pool at `days` is too thin, widen the window
  * once rather than redefining what "recent" means.
  */
-import type { BilingualText, TestSummary } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, type BilingualText, type TestSummary } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { liveExamCodes } from "../lib/exams.js";
 import { roundMarks } from "../lib/marks.js";
 import { HttpError } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
@@ -72,8 +87,30 @@ function shuffled<T>(items: T[]): T[] {
   return out;
 }
 
-async function findTestIdBySlug(slug: string): Promise<string | null> {
-  const { data, error } = await supabase().from("tests").select("id").eq("slug", slug).maybeSingle();
+/**
+ * The week's slug for one exam. The DEFAULT exam keeps the historical bare form
+ * so the weekly rows already in the table stay addressable; any other exam is
+ * suffixed, which is what makes `tests.slug`'s global uniqueness a PER-EXAM
+ * idempotency key rather than a cross-exam collision. Same convention as
+ * daily/quiz.ts.
+ */
+function weeklySlug(base: string, examCode: string): string {
+  return examCode === DEFAULT_EXAM_CODE ? base : `${base}:${examCode}`;
+}
+
+/**
+ * `examCode` is required, not decorative: it makes a foreign-exam row
+ * unreturnable even if a slug ever collided, so a lookup can never hand another
+ * exam's test to `getTestDetail` (which would then 404 the whole endpoint
+ * rather than report an honest empty state).
+ */
+async function findTestIdBySlug(slug: string, examCode: string): Promise<string | null> {
+  const { data, error } = await supabase()
+    .from("tests")
+    .select("id")
+    .eq("slug", slug)
+    .eq("exam_code", examCode)
+    .maybeSingle();
   if (error) throw new HttpError(500, `weekly set lookup failed: ${error.message}`);
   return (data?.id as string) ?? null;
 }
@@ -84,17 +121,27 @@ interface CaPoolQ {
   syllabus_node_id: string | null;
 }
 
-/** Approved CA questions of the given type dated within the last `days` days. */
-async function approvedCaQuestionIds(type: "mcq" | "descriptive", days: number): Promise<CaPoolQ[]> {
+/** Approved CA questions of the given type, for ONE exam, dated within the last `days` days. */
+async function approvedCaQuestionIds(
+  type: "mcq" | "descriptive",
+  days: number,
+  examCode: string,
+): Promise<CaPoolQ[]> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   // Paged: the 14-day fallback window already matches >1000 rows, so an
   // unranged select silently dropped approved questions from the quiz pool.
+  //
+  // `.eq("exam_code", examCode)` — see this module's header. Scoped by exam_code
+  // rather than by paper code because every row here is already pinned to the
+  // synthetic CURRENT_AFFAIRS paper, which belongs to no exam's syllabus; for a
+  // CA question the generating exam is its owner.
   return await selectAll<CaPoolQ & { created_at: string }>(() =>
     supabase()
       .from("questions")
       .select("id, marks, syllabus_node_id, created_at")
       .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
       .eq("type", type)
+      .eq("exam_code", examCode)
       .gte("created_at", cutoff)
       .or(questionVisibilityOrFilter("catalog"))
       .order("id", { ascending: true }),
@@ -107,13 +154,19 @@ async function approvedCaQuestionIds(type: "mcq" | "descriptive", days: number):
  * (Descriptive CA questions carry no such reverse array and are uniformly
  * mains_relevance 3, so they need no equivalent — see DESCRIPTIVE_RELEVANCE.)
  */
-async function prelimsRelevanceByQuestion(days: number): Promise<Map<string, number>> {
+async function prelimsRelevanceByQuestion(days: number, examCode: string): Promise<Map<string, number>> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
+  // `.overlaps("exam_codes", …)` — the established "current affairs for MY exam"
+  // idiom (services/current-affairs.ts, services/magazine.ts). A CA item is
+  // deliberately ONE row shared across exams, so this is a membership test, not
+  // equality. Scoping it keeps the relevance a question is ranked by sourced
+  // from an item that is actually part of this exam's feed.
   const rows = await selectAll<{ mcq_question_ids: string[] | null; prelims_relevance: number | null }>(() =>
     supabase()
       .from("current_affairs_items")
       .select("id, mcq_question_ids, prelims_relevance")
       .eq("is_published", true)
+      .overlaps("exam_codes", [examCode])
       .gte("date", cutoff)
       .order("id", { ascending: true }),
   );
@@ -160,26 +213,28 @@ async function assemble(
   days: number,
   weightage: Map<string, OwnWeightage>,
   year: number,
+  examCode: string,
 ): Promise<string | null> {
-  const existing = await findTestIdBySlug(spec.slug);
+  const existing = await findTestIdBySlug(spec.slug, examCode);
   if (existing) return existing;
 
-  let pool = await approvedCaQuestionIds(spec.type, days);
+  let pool = await approvedCaQuestionIds(spec.type, days, examCode);
   let usedDays = days;
   const minPool = MIN_POOL[spec.type];
   if (pool.length < minPool && days < FALLBACK_DAYS) {
-    const widerPool = await approvedCaQuestionIds(spec.type, FALLBACK_DAYS);
+    const widerPool = await approvedCaQuestionIds(spec.type, FALLBACK_DAYS, examCode);
     if (widerPool.length > pool.length) {
       pool = widerPool;
       usedDays = FALLBACK_DAYS;
     }
   }
+  // No approved supply for THIS exam — an honest null, never another exam's set.
   if (pool.length === 0) return null;
 
   // Relevance per question: prelims MCQs reverse-map to their source item's
   // prelims_relevance (loaded over the widest window a build might use, so it
   // covers a widened pool too); descriptive CA is uniformly mains_relevance 3.
-  const relMap = spec.type === "mcq" ? await prelimsRelevanceByQuestion(FALLBACK_DAYS) : null;
+  const relMap = spec.type === "mcq" ? await prelimsRelevanceByQuestion(FALLBACK_DAYS, examCode) : null;
   const relevanceOf = (id: string) => (relMap ? relMap.get(id) ?? PRELIMS_RELEVANCE_FLOOR : DESCRIPTIVE_RELEVANCE);
 
   // Rank the pool by relevance + weightage, then cap — for BOTH sets. Shuffle
@@ -193,6 +248,10 @@ async function assemble(
       slug: spec.slug,
       title_i18n: spec.title,
       kind: "custom",
+      // Stamped, never left on the column default — that default is 'uppsc'
+      // (migration 0106 §5), so a second exam's weekly set would silently
+      // become the live exam's and surface on its Current Affairs page.
+      exam_code: examCode,
       paper_code: CURRENT_AFFAIRS_PAPER_CODE,
       duration_minutes: spec.durationMinutes,
       total_marks: totalMarks || null,
@@ -203,7 +262,7 @@ async function assemble(
     .single();
   if (testError) {
     // A concurrent cron tick may have created the same slug — converge on it.
-    if (testError.code === "23505") return findTestIdBySlug(spec.slug);
+    if (testError.code === "23505") return findTestIdBySlug(spec.slug, examCode);
     throw new HttpError(500, `weekly set insert failed: ${testError.message}`);
   }
 
@@ -226,19 +285,29 @@ async function assemble(
 
 export interface WeeklyAssemblyResult {
   week: number;
+  examCode: string;
   prelimsTestId: string | null;
   mainsTestId: string | null;
 }
 
-/** Build (or return the existing) weekly Prelims Quiz + Mains Set for the current IST week. */
-export async function assembleWeeklySets(days = 7): Promise<WeeklyAssemblyResult> {
+/**
+ * Build (or return the existing) weekly Prelims Quiz + Mains Set for ONE exam.
+ * `examCode` is REQUIRED — a defaulted exam is exactly what kept this pipeline
+ * pinned to the live exam while looking parameterised (M24).
+ */
+export async function assembleWeeklySetsForExam(examCode: string, days = 7): Promise<WeeklyAssemblyResult> {
   const week = istWeekNumber();
-  // Load the weightage matview once and rank BOTH sets against it.
+  // Load the weightage matview once and rank BOTH sets against it. Deliberately
+  // UNSCOPED: it is keyed by node id, and node ids are globally unique per exam,
+  // so a lookup already returns only this exam's nodes. Passing an exam here
+  // would instead drop the provenance rows (up_ro_aro, upsssc_pet) that
+  // legitimately count toward the default exam's weightage, changing the live
+  // exam's ranking for no gain.
   const weightage = await loadNodeWeightage();
   const year = currentExamYear();
   const prelimsTestId = await assemble(
     {
-      slug: `ca-prelims-w${week}`,
+      slug: weeklySlug(`ca-prelims-w${week}`, examCode),
       title: { en: "CA Prelims Quiz — This Week", hi: "करेंट अफेयर्स प्रीलिम्स क्विज़ — इस सप्ताह" },
       type: "mcq",
       max: PRELIMS_MAX,
@@ -248,10 +317,11 @@ export async function assembleWeeklySets(days = 7): Promise<WeeklyAssemblyResult
     days,
     weightage,
     year,
+    examCode,
   );
   const mainsTestId = await assemble(
     {
-      slug: `ca-mains-w${week}`,
+      slug: weeklySlug(`ca-mains-w${week}`, examCode),
       title: { en: "CA Mains Set — This Week", hi: "करेंट अफेयर्स मेन्स सेट — इस सप्ताह" },
       type: "descriptive",
       max: MAINS_MAX,
@@ -261,16 +331,59 @@ export async function assembleWeeklySets(days = 7): Promise<WeeklyAssemblyResult
     days,
     weightage,
     year,
+    examCode,
   );
-  return { week, prelimsTestId, mainsTestId };
+  return { week, examCode, prelimsTestId, mainsTestId };
 }
 
-/** The current week's two sets as TestSummaries (null when there's no approved supply yet). */
-export async function getWeeklyCaSets(): Promise<{ prelims: TestSummary | null; mains: TestSummary | null }> {
+export interface WeeklyAssemblyRun {
+  week: number;
+  results: WeeklyAssemblyResult[];
+}
+
+/**
+ * THE EXAM-SELECTION BOUNDARY. Builds this IST week's two sittings for every
+ * named exam, defaulting to every LIVE exam.
+ *
+ * The default is resolved from the registry, NOT from `DEFAULT_EXAM_CODE` — the
+ * distinction M24 is about. A scheduled run must build for whoever can actually
+ * see the result and must never inherit a pre-launch `--exam` override, which is
+ * the same policy `ca/scheduler.ts` states for the pipeline tick. Measured today
+ * the live set is exactly ["uppsc"], so the cron does what it always did.
+ *
+ * Kept callable with no arguments so the dev scheduler's `assembleWeeklySets()`
+ * needs no change; every function below it takes a REQUIRED `examCode`.
+ */
+export async function assembleWeeklySets(
+  opts: { days?: number; examCodes?: string[] } = {},
+): Promise<WeeklyAssemblyRun> {
+  const days = opts.days ?? 7;
+  const examCodes = opts.examCodes ?? (await liveExamCodes());
+  const results: WeeklyAssemblyResult[] = [];
+  // Sequential: each exam's build loads the same weightage matview and hits the
+  // same tables; there is at most a handful of exams and no reason to fan out.
+  for (const examCode of examCodes) {
+    results.push(await assembleWeeklySetsForExam(examCode, days));
+  }
+  return { week: istWeekNumber(), results };
+}
+
+/**
+ * The current week's two sets for ONE exam as TestSummaries (null when that exam
+ * has no approved supply yet).
+ *
+ * `examCode` is REQUIRED. Without it this returned the DEFAULT exam's sets to
+ * every reader — and because `getTestDetail` refuses a test belonging to another
+ * exam, a second exam's reader got a 404 on the whole endpoint instead of the
+ * honest empty state this now returns.
+ */
+export async function getWeeklyCaSets(
+  examCode: string,
+): Promise<{ prelims: TestSummary | null; mains: TestSummary | null }> {
   const week = istWeekNumber();
   const [prelimsId, mainsId] = await Promise.all([
-    findTestIdBySlug(`ca-prelims-w${week}`),
-    findTestIdBySlug(`ca-mains-w${week}`),
+    findTestIdBySlug(weeklySlug(`ca-prelims-w${week}`, examCode), examCode),
+    findTestIdBySlug(weeklySlug(`ca-mains-w${week}`, examCode), examCode),
   ]);
   const toSummary = async (id: string | null): Promise<TestSummary | null> => {
     if (!id) return null;

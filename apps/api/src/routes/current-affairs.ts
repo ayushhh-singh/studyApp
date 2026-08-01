@@ -59,7 +59,7 @@ currentAffairsRouter.post(
 currentAffairsRouter.get(
   "/current-affairs/weekly-sets",
   asyncHandler(async (_req, res) => {
-    const sets = await getWeeklyCaSets();
+    const sets = await getWeeklyCaSets(await getUserExam(currentUserId()));
     res.json(currentAffairsWeeklySetsResponseSchema.parse({ data: sets, error: null }));
   }),
 );

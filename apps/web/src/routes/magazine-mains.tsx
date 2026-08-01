@@ -36,7 +36,28 @@ function SyllabusChips({ nodeIds, locale }: { nodeIds: string[]; locale: Locale 
   );
 }
 
-function IssueBriefCard({ item, locale }: { item: MagazineIssueBrief; locale: Locale }) {
+/**
+ * `hasStateLens` gates the state chip, exactly as the server gates the lead
+ * section and the ranking boost (services/magazine.ts's `hasStateLens`).
+ * `is_up_specific` is a flag on the SHARED current-affairs row, OR-ed across
+ * every exam that triaged the item — so for a nationally-scoped exam it is
+ * another commission's verdict, and rendering it puts a state badge on a
+ * national exam's magazine. The server can drop a whole section; it cannot drop
+ * a per-item flag that legitimately belongs to the row, so this is the half of
+ * the gate that lives on the client.
+ *
+ * Defaults to hidden while the exam registry is still loading — state chrome
+ * absent for a frame is the safe direction, and it is a decorative badge.
+ */
+function IssueBriefCard({
+  item,
+  locale,
+  hasStateLens,
+}: {
+  item: MagazineIssueBrief;
+  locale: Locale;
+  hasStateLens: boolean;
+}) {
   const { t } = useTranslation();
   const b = item.brief;
   return (
@@ -52,7 +73,7 @@ function IssueBriefCard({ item, locale }: { item: MagazineIssueBrief; locale: Lo
             mainsTitle: t("CurrentAffairs.mainsRelevanceTitle"),
           }}
         />
-        {item.is_up_specific && (
+        {hasStateLens && item.is_up_specific && (
           <span className="rounded-full bg-tulsi/15 px-2 py-0.5 font-semibold text-tulsi-foreground">
             {t("CurrentAffairs.upSpecific")}
           </span>
@@ -220,7 +241,9 @@ function ModelQuestionCard({ q, locale }: { q: MagazineModelQuestion; locale: Lo
 
 export function Component() {
   const { t } = useTranslation();
-  const { name: examName } = useCurrentExam();
+  const { name: examName, exam } = useCurrentExam();
+  // Null lens = a nationally-scoped exam. See IssueBriefCard.
+  const hasStateLens = exam?.state_lens != null;
   const locale = useLocale();
   const { month = "" } = useParams<{ month: string }>();
   const { data: mag, isLoading, isError, refetch } = useMagazineMains(month);
@@ -294,7 +317,7 @@ export function Component() {
                 <h2 className="mb-3 border-b border-border pb-1.5 text-lg font-bold">{s.paper}</h2>
                 <div className="flex flex-col gap-4">
                   {s.items.map((item) => (
-                    <IssueBriefCard key={item.item_id} item={item} locale={locale} />
+                    <IssueBriefCard key={item.item_id} item={item} locale={locale} hasStateLens={hasStateLens} />
                   ))}
                 </div>
               </section>
