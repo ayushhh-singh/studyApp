@@ -178,7 +178,11 @@ async function resolveFile(
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["id"], boolean: ["all", "force", "no-escalate"], positiveInt: ["concurrency"] },
+    "ingest:resolve",
+  );
   report.section("ingest:resolve — blind re-solve gate (parsed JSON → meta.blind_resolve)");
   let files: string[];
   if (args.all) files = await listParsed("pyq_");

@@ -8,6 +8,7 @@
  * top-up use the Message-Batches path (50% cheaper). Survivors land as
  * review_state='needs_review' for the Review Queue (/:locale/review).
  */
+import { parseArgs } from "../ingest/_shared.js";
 import { supabase } from "../lib/supabase.js";
 import {
   generateBatch,
@@ -19,22 +20,26 @@ import {
 } from "./generate.js";
 import { runTopup } from "./topup.js";
 
-function parseArgs(argv: string[]): Record<string, string | boolean> {
-  const out: Record<string, string | boolean> = {};
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
+/**
+ * Every flag this CLI reads, surveyed from the actual `args.*` accesses in
+ * `main()` — see the usage lines in the header comment.
+ *
+ * This file used to carry its OWN copy of the old unsafe parser, which made it
+ * the single most dangerous instance in the repo: a collapsed argv token (zsh
+ * does not word-split an unquoted `$var`) defeated `--max-usd` AND `--dry-run`
+ * at once, silently turning a capped dry run into a real, billed batch-
+ * generation run that writes `questions` rows.
+ */
+const QGEN_FLAGS = {
+  value: ["node", "kind", "difficulty"],
+  // `--topup` is PRE-SUPPLIED by the `qgen:topup` pnpm script, so it must stay
+  // declared here or that scheduled/CI entry point breaks immediately.
+  boolean: ["topup", "batch", "dry-run"],
+  positiveInt: ["count"],
+  // A dollar budget — fractional values like `--max-usd 2.5` are valid, so this
+  // must NOT be positiveInt.
+  positiveNumber: ["max-usd"],
+} as const;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -95,7 +100,7 @@ function reportResults(results: NodeGenerationResult[]): void {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2), QGEN_FLAGS, "qgen");
 
   if (args.topup) {
     const maxUsd = typeof args["max-usd"] === "string" ? Number(args["max-usd"]) : Number(process.env.QGEN_BATCH_MAX_USD ?? 5);

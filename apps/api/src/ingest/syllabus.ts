@@ -459,96 +459,22 @@ async function ingestPaper(
 // main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-
-  // AN ARGV THIS SCRIPT DOES NOT FULLY UNDERSTAND MUST BE A HARD ERROR, NOT A
-  // SILENT DEGRADE. Every unrecognised or malformed flag below ends the same
-  // way: `onlyExam`/`onlyPaper`/`limitNodes` fall back to their *unscoped*
-  // branch, so the run silently WIDENS or REDIRECTS — and then spends real
-  // sonnet calls and (outside --dry-run) writes to the production DB, which is
-  // the SAME Supabase project for dev and prod.
-  //
-  // ⚑ THE UNKNOWN-KEY CHECK IS THE ONE THAT MATTERS, AND IT IS NOT THEORETICAL —
-  // it is the 2026-07-31 incident, reproduced and verified. An agent batching
-  // invocations in a shell loop hit zsh's refusal to word-split an unquoted
-  // `$a`, so `--exam upsc --dry-run` arrived as ONE argv token. `parseArgs`
-  // reads that as the nonsense KEY `"exam upsc --dry-run"`, which leaves
-  // `args.exam` *undefined* — NOT `true` — so the valueless check below cannot
-  // see it, `--dry-run` is swallowed into the same nonsense key (dryRun ends up
-  // FALSE), and the run proceeds against DEFAULT_EXAM_CODE writing for real.
-  // That is exactly what happened, twice: +85 orphan rows and 35 rows
-  // overwritten in place, recovered from the weekly encrypted pg_dump.
-  // A valueless-flag check alone does NOT close this; only rejecting keys the
-  // script does not know does.
-  //
-  // Fixed HERE rather than in the shared `parseArgs` because ~22 other CLIs call
-  // it and several legitimately use bare boolean flags, so changing its shared
-  // semantics would reach far past this script — but note the same defect class
-  // has now been fixed per-call-site twice (the `--write-artifact` write-through
-  // in ingest/seed/upsc-syllabus-seed.ts, and here), which is an argument for
-  // moving validation into `parseArgs` itself. Tracked in docs/OUTSTANDING.md.
-  // ⚑ AND A BARE POSITIONAL IS INVISIBLE TO `parseArgs` ENTIRELY — it does
-  // `if (!a.startsWith("--")) continue`, so `ingest:syllabus upsc` (an operator
-  // simply forgetting `--exam`) produces NO key at all, sails past the
-  // unknown-key check below, and runs against DEFAULT_EXAM_CODE for real. This
-  // script takes no positional arguments, so any positional is a misparse.
-  // Checked FIRST because it is the one shape neither check below can see.
-  const rawArgv = process.argv.slice(2);
-  const positionals = rawArgv.filter((a, i) => {
-    if (a.startsWith("--")) return false;
-    const prev = rawArgv[i - 1];
-    return !(prev && prev.startsWith("--")); // consumed as the previous flag's value
-  });
-  if (positionals.length > 0) {
-    throw new Error(
-      `Unexpected argument(s): ${positionals.map((p) => `"${p}"`).join(", ")}.\n` +
-        `  This script takes no positional arguments — every input is a --flag.\n` +
-        `  Did you mean --exam ${positionals[0]}? Refusing to run: a bare positional is silently\n` +
-        `  IGNORED by the arg parser, so the run would fall back to the default exam and write for real.`,
-    );
-  }
-
-  const KNOWN_FLAGS = ["exam", "paper", "dry-run", "limit-nodes"] as const;
-  const unknown = Object.keys(args).filter((k) => !(KNOWN_FLAGS as readonly string[]).includes(k));
-  if (unknown.length > 0) {
-    throw new Error(
-      `Unrecognised flag(s): ${unknown.map((k) => `--${k}`).join(", ")}.\n` +
-        `  Known flags: ${KNOWN_FLAGS.map((k) => `--${k}`).join(", ")}.\n` +
-        `  Refusing to run: an unrecognised flag means this argv was not parsed the way you intended,\n` +
-        `  and every misparse here silently WIDENS or REDIRECTS the run into a real, billed, DB-writing\n` +
-        `  pass over the DEFAULT exam. If a flag name contains a space it was not word-split by your\n` +
-        `  shell — quote it correctly (note zsh does NOT word-split an unquoted "$var").`,
-    );
-  }
-
-  // A value-taking flag with no value: `parseArgs` sets the key to boolean
-  // `true`, and every read below tests `typeof === "string"`, so it collapses to
-  // the unscoped branch.
-  for (const k of ["exam", "paper", "limit-nodes"] as const) {
-    if (args[k] === true) {
-      throw new Error(
-        `--${k} requires a value (e.g. --${k} ${
-          k === "exam" ? DEFAULT_EXAM_CODE : k === "paper" ? "PRE_GS1" : "5"
-        }). Refusing to run: a valueless value-flag would silently widen or redirect this run.`,
-      );
-    }
-  }
+  // Argv SHAPE is now enforced centrally by `parseArgs`'s required spec: unknown
+  // flags (the 2026-07-31 collapsed-token incident), bare positionals, valueless
+  // value-flags and non-positive-integer numerics are all rejected there, before
+  // any billed call or DB write. See docs/OUTSTANDING.md §0d. The domain guards
+  // below (resolveExamScope et al.) are NOT argv-shape checks and still apply.
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["exam", "paper"], boolean: ["dry-run"], positiveInt: ["limit-nodes"] },
+    "ingest:syllabus",
+  );
 
   const dryRun = !!args["dry-run"];
   const onlyPaper = typeof args.paper === "string" ? args.paper : null;
   const onlyExam = typeof args.exam === "string" ? args.exam : null;
-  // NaN is FALSY, and `ingestPaper` gates on `opts.limitNodes ? slice : raw` — so
-  // an unparseable `--limit-nodes abc` would silently widen a capped smoke test
-  // to the FULL tree, the exact failure this block exists to prevent. Validate.
   const limitNodesRaw = typeof args["limit-nodes"] === "string" ? args["limit-nodes"] : null;
   const limitNodes = limitNodesRaw === null ? undefined : Number(limitNodesRaw);
-  if (limitNodes !== undefined && (!Number.isInteger(limitNodes) || limitNodes <= 0)) {
-    throw new Error(
-      `--limit-nodes must be a positive integer (got "${limitNodesRaw}"). Refusing to run: any value that ` +
-        `is not a positive integer is falsy here (a non-numeric one parses to NaN, and 0 is falsy outright), ` +
-        `so it would silently widen the run from a capped smoke test to the FULL tree.`,
-    );
-  }
 
   report.section(`ingest:syllabus${dryRun ? " (dry-run — writes JSON, no DB)" : ""}`);
 

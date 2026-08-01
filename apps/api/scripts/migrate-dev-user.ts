@@ -15,6 +15,7 @@
  * carried over) and the dev row deleted last, once nothing references it.
  */
 import { supabase } from "../src/lib/supabase.js";
+import { parseArgs } from "../src/ingest/_shared.js";
 
 const DEV_UUID = "00000000-0000-4000-8000-000000000001";
 
@@ -49,18 +50,6 @@ interface Args {
   dryRun: boolean;
 }
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = { from: DEV_UUID, dryRun: false };
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--to") args.to = argv[++i];
-    else if (a === "--from") args.from = argv[++i];
-    else if (a === "--email") args.email = argv[++i];
-    else if (a === "--dry-run") args.dryRun = true;
-  }
-  return args;
-}
-
 async function resolveTargetId(args: Args): Promise<string> {
   if (args.to) return args.to;
   if (!args.email) throw new Error("Provide --to <auth-uuid> or --email <email>");
@@ -82,7 +71,27 @@ async function countRows(table: string, userId: string): Promise<number> {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2));
+  // ⚑ THE SPEC IS NOT OPTIONAL — a misparse here is DESTRUCTIVE, not merely wrong.
+  // On a 23505 collision this script runs `.delete().eq("user_id", toId)` across
+  // all 16 USER_TABLES, and it finishes by DELETING the dev `users_profile` row.
+  // `--dry-run` — the one flag that suppresses every write — DEFAULTS TO FALSE.
+  // The deleted private parser did `args.to = argv[++i]` unconditionally, so a
+  // valueless `--to` ATE the following `--dry-run`: the guard silently switched
+  // off and the deletes ran for real against a project that is both dev AND
+  // production. `--dry-run=true` produced no key at all, with the same effect.
+  // Both shapes now throw here, before a single row is read. See
+  // docs/OUTSTANDING.md §0d (the 2026-07-31 collapsed-token incident).
+  const parsed = parseArgs(
+    process.argv.slice(2),
+    { value: ["to", "from", "email"], boolean: ["dry-run"] },
+    "migrate:dev-user",
+  );
+  const args: Args = {
+    to: typeof parsed.to === "string" ? parsed.to : undefined,
+    from: typeof parsed.from === "string" ? parsed.from : DEV_UUID,
+    email: typeof parsed.email === "string" ? parsed.email : undefined,
+    dryRun: !!parsed["dry-run"],
+  };
   const db = supabase();
 
   const fromId = args.from;

@@ -500,7 +500,16 @@ async function updateParsedJson(plan: Plan): Promise<void> {
 // Main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    {
+      value: ["paper", "chunks"],
+      positiveInt: ["year"],
+      positiveNumber: ["min-stem", "min-opt"],
+      boolean: ["apply"],
+    },
+    "ingest:hindi-overlay",
+  );
   const paper = typeof args.paper === "string" ? args.paper : "";
   const year = Number(args.year);
   const chunksDir = typeof args.chunks === "string" ? args.chunks : "";

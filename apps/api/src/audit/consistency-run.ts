@@ -13,6 +13,7 @@ import { writeFileSync } from "node:fs";
 import { runBatch } from "../lib/anthropic.js";
 import { MODELS } from "../lib/models.js";
 import { loadPublishedMcqs, upsertAuditMany, alreadyAudited, hideQuestion, type AuditRecord } from "./shared.js";
+import { parseArgs, type FlagSpec } from "../ingest/_shared.js";
 import {
   structuralCheck,
   hasExplanation,
@@ -21,18 +22,31 @@ import {
   type ArguedResult,
 } from "./consistency.js";
 
-function argVal(args: string[], flag: string): string | undefined {
-  const i = args.indexOf(flag);
-  return i >= 0 ? args[i + 1] : undefined;
-}
+/**
+ * `--limit` is the only thing standing between a smoke test and a haiku batch over
+ * the FULL published bank, and `--hide` unpublishes live questions — so a misparse
+ * here is a real cost/blast-radius event.
+ *
+ * What the old private `argVal` (indexOf + next token) used to cost: `--limit` is
+ * consumed as `if (limit) questions = questions.slice(0, limit)`, and BOTH failure
+ * shapes land on a falsy value that reads as "no limit". A collapsed argv token
+ * ("--limit 50" arriving as ONE token, which is what zsh produces from an unquoted
+ * "$var") made indexOf return -1 → undefined; a valueless `--limit --hide` returned
+ * "--hide" → NaN. Either way the capped run silently widened to the whole bank while
+ * --hide stayed on. `positiveInt` makes both refuse before the first batch call.
+ */
+const CONSISTENCY_FLAGS: FlagSpec = {
+  value: ["run-id", "out"],
+  boolean: ["hide"],
+  positiveInt: ["limit"],
+};
 
 async function main() {
-  const args = process.argv.slice(2);
-  const runId = argVal(args, "--run-id") ?? "consistency-1";
-  const limitStr = argVal(args, "--limit");
-  const limit = limitStr ? Number(limitStr) : undefined;
-  const doHide = args.includes("--hide");
-  const outFile = argVal(args, "--out");
+  const args = parseArgs(process.argv.slice(2), CONSISTENCY_FLAGS, "audit:consistency");
+  const runId = typeof args["run-id"] === "string" ? args["run-id"] : "consistency-1";
+  const limit = typeof args.limit === "string" ? Number(args.limit) : undefined;
+  const doHide = args.hide === true;
+  const outFile = typeof args.out === "string" ? args.out : undefined;
 
   console.log(`[consistency] run_id=${runId} hide=${doHide}`);
   let questions = await loadPublishedMcqs();

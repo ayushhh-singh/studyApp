@@ -13,9 +13,15 @@ import { currentIstMonth } from "../lib/month.js";
 import { planDeepDives, runDeepDives } from "./deepdive.js";
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["month"], boolean: ["run"] },
+    "ca:deepdive",
+  );
   const month = typeof args.month === "string" ? args.month : currentIstMonth();
-  const doRun = args.run === true || args.run === "true";
+  // `run` is declared boolean, so the parser yields only `true` or `undefined`
+  // — the old `|| args.run === "true"` branch is now dead.
+  const doRun = args.run === true;
 
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     report.fail(`--month must be YYYY-MM, got "${month}"`);

@@ -69,6 +69,10 @@ process.env.NODE_ENV ||= "test";
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
+// Safe for this harness's determinism contract: _shared.ts reads no env, opens
+// no connection and does no I/O at module scope (it is also what scripts/
+// test-parse-args.ts imports to run offline with no env).
+import { parseArgs } from "../src/ingest/_shared.js";
 
 // Portable paths only — resolved from this module's own location, never a
 // hardcoded prefix or an assumed process.cwd() (see CLAUDE.md → Dev conventions).
@@ -1476,6 +1480,11 @@ async function collectUpscNotesAndMiscPrompts(): Promise<void> {
 }
 
 async function main(): Promise<void> {
+  // Sole flag: --write. BOOLEAN, so it never swallows a following token, and an
+  // argv this harness does not fully understand is refused BEFORE any collection
+  // runs rather than silently diffing/writing under a misread invocation.
+  const args = parseArgs(process.argv.slice(2), { boolean: ["write"] }, "prompts:snapshot");
+
   await collectEvaluationPrompts();
   await collectMentorPrompts();
   await collectQgenPrompts();
@@ -1491,7 +1500,7 @@ async function main(): Promise<void> {
   snapshot.__not_reachable_without_editing__ = NOT_REACHABLE_WITHOUT_EDITING;
 
   const promptKeys = Object.keys(snapshot).filter((k) => !k.startsWith("__"));
-  const write = process.argv.includes("--write");
+  const write = !!args.write;
 
   // Runs in BOTH modes on purpose: --write must not be a way to bless a persona
   // that has silently dropped below the prompt-cache minimum.

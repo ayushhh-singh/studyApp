@@ -6,6 +6,7 @@
  *   pnpm ingest:regate                       (dry-run, both prelims MCQ papers)
  *   pnpm ingest:regate --paper PRE_CSAT       (dry-run, one paper)
  *   pnpm ingest:regate --apply                (write the recomputed gate + flags)
+ *   pnpm ingest:regate --apply --publish-only (write only the NON-destructive effects)
  *
  * For every prelims MCQ it recomputes {review_state, is_published, keyDispute} from
  * the SAME gate as ingest:pyq:load (gateMcq, keyed on key_provenance + verification
@@ -76,7 +77,11 @@ function humanLocked(r: QRow): boolean {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["paper"], boolean: ["apply", "publish-only"] },
+    "ingest:regate",
+  );
   const apply = !!args.apply;
   // --publish-only: apply only the NON-destructive effects — publish questions the
   // new gate now clears (held→published), benign review-state changes that keep a

@@ -46,6 +46,7 @@
  * itself would have produced.
  */
 import { supabase } from "../src/lib/supabase.js";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { MODELS } from "../src/lib/models.js";
 import { istToday, shiftDate, istClockUtc } from "../src/lib/ist.js";
 import { startAttempt, upsertAttemptAnswers, submitAttempt } from "../src/services/attempts.js";
@@ -120,14 +121,8 @@ interface Args {
   reset: boolean;
 }
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = { email: "demo@neevstudy.com", reset: false };
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--email") args.email = argv[++i] ?? args.email;
-    else if (argv[i] === "--reset") args.reset = true;
-  }
-  return args;
-}
+/** The account seeded when no `--email` is given. Correct ONLY as an absent-flag default. */
+const DEFAULT_DEMO_EMAIL = "demo@neevstudy.com";
 
 // ---------------------------------------------------------------------------
 // Wipe (--reset) — every user-scoped table, keyed by the FK column that
@@ -934,7 +929,30 @@ async function printSummary(userId: string, email: string, password: string): Pr
 // Main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  // ⚑ THE SPEC IS NOT OPTIONAL — a misparse here is DESTRUCTIVE, not merely wrong.
+  // `--reset` wipes every row the target account owns across 26 table/column
+  // pairs (WIPE_SPECS), and the target is decided ENTIRELY by `--email`. The
+  // deleted private parser did `args.email = argv[++i] ?? args.email`, so an
+  // `--email` whose address was omitted (or swallowed by a preceding valueless
+  // flag) silently fell back to the DEFAULT account and wiped that instead —
+  // against a project that is both dev AND production. A valueless `--email` is
+  // now rejected here, before anything is read. See docs/OUTSTANDING.md §0d.
+  const parsed = parseArgs(
+    process.argv.slice(2),
+    { value: ["email"], boolean: ["reset"] },
+    "demo:seed",
+  );
+  // An ABSENT `--email` correctly falls back to the documented default. A
+  // SUPPLIED one never may: `--email=` reaches the parser as a legitimate (if
+  // empty) inline value, so it is rejected here rather than quietly becoming
+  // the default account this run would then wipe.
+  if (typeof parsed.email === "string" && parsed.email.trim() === "") {
+    throw new Error("--email was given an empty value. Pass a real address, or omit --email entirely to use the default.");
+  }
+  const args: Args = {
+    email: typeof parsed.email === "string" ? parsed.email : DEFAULT_DEMO_EMAIL,
+    reset: !!parsed.reset,
+  };
   console.log(`\n=== demo:seed — ${args.email}${args.reset ? " (--reset)" : ""} ===\n`);
 
   const userId = await resolveOrCreateUser(args.email, DEMO_PASSWORD, args.reset);

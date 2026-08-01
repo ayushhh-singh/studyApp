@@ -24,16 +24,14 @@
 import { supabase } from "../src/lib/supabase.js";
 import { embeddings } from "../src/lib/embeddings.js";
 import { examCodeForNode } from "../src/lib/exams.js";
-
-function arg(name: string): string | undefined {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 ? process.argv[i + 1] : undefined;
-}
+import { parseArgs } from "../src/ingest/_shared.js";
 
 async function main(): Promise<void> {
-  const nodeId = arg("node");
-  const question = arg("q") ?? "";
-  const locale = (arg("locale") as "hi" | "en") ?? "en";
+  // All three take a value: --node <uuid>, --q "<question>", --locale en|hi.
+  const args = parseArgs(process.argv.slice(2), { value: ["node", "q", "locale"] }, "prove-chapter-retrieval");
+  const nodeId = typeof args.node === "string" ? args.node : undefined;
+  const question = typeof args.q === "string" ? args.q : "";
+  const locale = (typeof args.locale === "string" ? args.locale : "en") as "hi" | "en";
   if (!nodeId || !question) throw new Error('usage: --node <uuid> --q "question" [--locale en|hi]');
 
   const { data: note } = await supabase()

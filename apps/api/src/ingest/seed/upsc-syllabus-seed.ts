@@ -471,26 +471,16 @@ async function writePaper(
 // main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-
-  // A VALUE-TAKING FLAG WITH NO VALUE MUST BE A HARD ERROR, NOT A SILENT DEGRADE.
-  // `parseArgs` sets a key to boolean `true` when its value is absent or the next
-  // token is another flag. The reads below require a string, so a valueless
-  // `--write-artifact` would collapse to `artifact = null`, skip the terminal
-  // artifact guard, and fall through to the UPSERT — silently re-creating the
-  // production-write incident that guard exists to prevent, from nothing worse
-  // than a typo or a swapped flag order (`--write-artifact --paper X`). Likewise a
-  // valueless `--paper` would widen the run from one paper to all seven. Both are
-  // one keystroke away, so they are rejected here, before mode resolution and
-  // before any DB access.
-  for (const k of ["write-artifact", "paper"] as const) {
-    if (args[k] === true) {
-      throw new Error(
-        `--${k} requires a value (e.g. --${k} ${k === "paper" ? "UPSC_MAINS_GS4" : "docs/upsc-syllabus-coverage.md"}). ` +
-          "Refusing to run: a valueless value-flag would otherwise fall through to a database write.",
-      );
-    }
-  }
+  // Argv SHAPE (unknown flags, bare positionals, valueless value-flags, bad
+  // numerics) is now enforced centrally by `parseArgs`'s required spec — see
+  // docs/OUTSTANDING.md §0d. A valueless `--write-artifact` or `--paper` used to
+  // collapse to `null` and fall through to the UPSERT; the shared parser rejects
+  // that before mode resolution and before any DB access.
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["paper", "write-artifact"], boolean: ["verify-only", "dry-run", "write"] },
+    "ingest:upsc-syllabus",
+  );
 
   const verifyOnly = !!args["verify-only"];
   const dryRun = !!args["dry-run"];

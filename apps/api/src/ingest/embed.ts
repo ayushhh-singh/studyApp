@@ -4,7 +4,7 @@
  * (via src/lib/embeddings.ts, behind a swappable provider interface), and
  * upsert into the pgvector `embeddings` table (HNSW cosine index).
  *
- *   pnpm ingest:embed [--only syllabus|question] [--limit N]
+ *   pnpm ingest:embed [--only syllabus|question] [--limit N] [--missing-only]
  *
  * Idempotent: upsert keyed on (source_type, source_id, locale, chunk_index).
  * Each re-embedded source's existing chunks are deleted first (see
@@ -242,7 +242,16 @@ async function embedAndUpsert(chunks: Chunk[], opts: { clearStale?: boolean } = 
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  // `--missing-only` is load-bearing: .github/workflows/nightly-settle.yml runs
+  // `ingest:embed --missing-only` nightly, so it must stay in this spec.
+  // `--limit` is a positiveInt because it CAPS the run — 0/NaN are both falsy and
+  // would silently widen a capped pass into a full re-embed of the whole bank,
+  // which churns the HNSW index hard enough to trip statement_timeout.
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["only"], positiveInt: ["limit"], boolean: ["missing-only"] },
+    "ingest:embed",
+  );
   const only = typeof args.only === "string" ? args.only : null;
   const limit = typeof args.limit === "string" ? Number(args.limit) : undefined;
   // --missing-only: embed ONLY sources with no embedding yet, as plain inserts

@@ -15,16 +15,11 @@
  */
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import { parseArgs } from "../ingest/_shared.js";
 import { loadChapterContext } from "./chapter-generate.js";
 import { resolvePaperCode, topWeightageNodes } from "./generate.js";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function parseArgs(argv: string[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (let i = 0; i < argv.length; i++) if (argv[i].startsWith("--")) out[argv[i].slice(2)] = argv[i + 1] ?? "";
-  return out;
-}
 
 export async function buildContextPack(nodeId: string): Promise<Record<string, unknown>> {
   const { node, weightage, pyqs, grounding, nodeIds } = await loadChapterContext(nodeId);
@@ -43,8 +38,17 @@ export async function buildContextPack(nodeId: string): Promise<Record<string, u
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-  const nodeArg = args.node;
+  const args = parseArgs(
+    process.argv.slice(2),
+    // The old private parser here read `argv[i + 1] ?? ""` with NO `i++`, so a
+    // valueless `--node` took the literal string `"--top"` as its value — which
+    // then PASSED every `typeof === "string"` / truthiness check downstream and
+    // ran resolvePaperCode("--top") on garbage. `--top` is a positiveInt so a
+    // bad value can no longer widen the pack dump past its cap.
+    { value: ["node", "out", "dir"], positiveInt: ["top"] },
+    "notes:chapter:context",
+  );
+  const nodeArg = typeof args.node === "string" ? args.node : null;
   if (!nodeArg) throw new Error("usage: notes:chapter:context --node <uuid|PAPER_CODE> [--top N] [--out <path>] [--dir <dir>]");
 
   let nodeIds: { id: string; title: string }[] = [];
@@ -52,11 +56,12 @@ async function main(): Promise<void> {
     nodeIds = [{ id: nodeArg, title: nodeArg }];
   } else {
     const code = await resolvePaperCode(nodeArg);
-    const top = args.top ? Number(args.top) : 15;
+    const top = typeof args.top === "string" ? Number(args.top) : 15;
     nodeIds = (await topWeightageNodes(code, top)).map((t) => ({ id: t.id, title: t.title }));
   }
 
-  const dir = args.dir || null;
+  const outPath = typeof args.out === "string" && args.out ? args.out : null;
+  const dir = typeof args.dir === "string" && args.dir ? args.dir : null;
   if (dir) mkdirSync(dir, { recursive: true });
   for (const { id, title } of nodeIds) {
     const pack = await buildContextPack(id);
@@ -64,9 +69,9 @@ async function main(): Promise<void> {
     if (dir) {
       writeFileSync(join(dir, `${id}.json`), json);
       console.error(`✓ ${title} → ${id}.json (${(pack.pyqs as unknown[]).length} PYQs, ${(pack.grounding as unknown[]).length} chunks)`);
-    } else if (args.out) {
-      writeFileSync(args.out, json);
-      console.error(`✓ wrote ${args.out}`);
+    } else if (outPath) {
+      writeFileSync(outPath, json);
+      console.error(`✓ wrote ${outPath}`);
     } else {
       process.stdout.write(json + "\n");
     }

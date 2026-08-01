@@ -26,6 +26,14 @@ jobs:
       - name: Portability guard (no hardcoded local paths)
         run: node scripts/check-portable-paths.mjs
 
+      # Fails if a CLI parses process.argv itself instead of using the shared,
+      # schema-validated parseArgs. A permissive parser silently dropped a
+      # --dry-run and ran a billed, DB-writing pass against production on
+      # 2026-07-31 (docs/OUTSTANDING.md §0d); the repo had SIX hand-rolled
+      # dialects at the time. This stops a seventh appearing.
+      - name: CLI-argument guard (no hand-rolled argv parsing)
+        run: node scripts/check-cli-args.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 

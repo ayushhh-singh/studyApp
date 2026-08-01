@@ -15,6 +15,7 @@
  */
 import { writeFileSync } from "node:fs";
 import { runBatch, type LlmUsage } from "../lib/anthropic.js";
+import { parseArgs, type FlagSpec } from "../ingest/_shared.js";
 import {
   loadPublishedMcqs,
   upsertAuditMany,
@@ -36,10 +37,30 @@ import {
 } from "./resolve.js";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
-function argVal(args: string[], flag: string): string | undefined {
-  const i = args.indexOf(flag);
-  return i >= 0 ? args[i + 1] : undefined;
-}
+/**
+ * This script SPENDS REAL MONEY (sonnet blind solves + web_search escalation) and,
+ * with --hide, UNPUBLISHES live questions — so every flag here is a spend or blast
+ * -radius control and a misparse is expensive, not cosmetic.
+ *
+ * What the old private `argVal` (indexOf + next token) used to cost:
+ *  - a collapsed argv token ("--sample 20" arriving as ONE token, which is what zsh
+ *    produces from an unquoted "$var") made indexOf return -1, so --sample silently
+ *    fell back to 200 — a 10x over-spend with no warning;
+ *  - a valueless `--sample --hide` returned "--hide" as the value → Number(…) = NaN
+ *    → `sample(all, NaN)` selects nothing, so the run reported "nothing to do" while
+ *    ALSO turning on --hide;
+ *  - `--max-usd`/`--max-escalations` are the budget caps themselves: NaN and 0 are
+ *    both falsy-adjacent here (`totalCost >= NaN` is always false), so a mistyped cap
+ *    disabled the very ceiling it was meant to set.
+ * Declaring the shapes makes all three refuse loudly, before the first batch call.
+ */
+const RESOLVE_FLAGS: FlagSpec = {
+  value: ["run-id", "out"],
+  boolean: ["hide", "all"],
+  positiveInt: ["sample", "max-escalations"],
+  // Budget in dollars — fractional (`--max-usd 2.5`) must stay legal.
+  positiveNumber: ["max-usd"],
+};
 
 /** Deterministic stratified sample (see file header). */
 function sample(all: AuditQuestion[], n: number): AuditQuestion[] {
@@ -56,14 +77,16 @@ function sample(all: AuditQuestion[], n: number): AuditQuestion[] {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const runId = argVal(args, "--run-id") ?? "resolve-1";
-  const doHide = args.includes("--hide");
-  const doAll = args.includes("--all");
-  const sampleN = Number(argVal(args, "--sample") ?? "200");
-  const maxUsd = Number(argVal(args, "--max-usd") ?? "12");
-  const maxEscalations = Number(argVal(args, "--max-escalations") ?? "80");
-  const outFile = argVal(args, "--out");
+  const args = parseArgs(process.argv.slice(2), RESOLVE_FLAGS, "audit:resolve");
+  const runId = typeof args["run-id"] === "string" ? args["run-id"] : "resolve-1";
+  const doHide = args.hide === true;
+  const doAll = args.all === true;
+  // --all still wins over --sample (unchanged precedence — see `selected` below).
+  const sampleN = typeof args.sample === "string" ? Number(args.sample) : 200;
+  const maxUsd = typeof args["max-usd"] === "string" ? Number(args["max-usd"]) : 12;
+  const maxEscalations =
+    typeof args["max-escalations"] === "string" ? Number(args["max-escalations"]) : 80;
+  const outFile = typeof args.out === "string" ? args.out : undefined;
 
   console.log(`[resolve] run_id=${runId} hide=${doHide} ${doAll ? "ALL" : `sample=${sampleN}`} max_usd=${maxUsd} max_escalations=${maxEscalations}`);
   const all = await loadPublishedMcqs();

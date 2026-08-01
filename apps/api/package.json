@@ -10,6 +10,7 @@
     "start": "tsx src/index.ts",
     "verify:schema": "tsx --env-file-if-exists=.env scripts/verify-schema.ts",
     "test:mentor": "tsx scripts/test-mentor-heuristics.ts",
+    "test:args": "tsx scripts/test-parse-args.ts",
     "prompts:snapshot": "tsx scripts/prompt-snapshot.ts",
     "ingest:syllabus": "tsx --env-file-if-exists=.env src/ingest/syllabus.ts",
     "ingest:upsc-syllabus": "tsx --env-file-if-exists=.env src/ingest/seed/upsc-syllabus-seed.ts",

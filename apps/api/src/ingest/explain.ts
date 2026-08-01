@@ -120,7 +120,16 @@ function estTokens(s: string): number {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    // NOTE: `all` is an accepted NO-OP — nothing reads args.all; "every published
+    // MCQ missing one" is simply what selectTargets does when no --paper/--year
+    // filter is given. It stays in the spec because this file's own header
+    // documents `pnpm ingest:explain --dry-run --all`, and omitting it would make
+    // that documented command fail as an unrecognised flag.
+    { value: ["paper"], positiveInt: ["year", "limit"], boolean: ["dry-run", "force", "all"] },
+    "ingest:explain",
+  );
   const dryRun = !!args["dry-run"];
   report.section(`ingest:explain — grounded bilingual explanations (batch, 0.5x)${dryRun ? " — DRY RUN" : ""}`);
 

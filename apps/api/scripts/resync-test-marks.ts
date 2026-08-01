@@ -19,10 +19,16 @@
  */
 import { supabase } from "../src/lib/supabase.js";
 import { selectAll } from "../src/lib/paginate.js";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { roundMarks } from "../src/lib/marks.js";
 
-const APPLY = process.argv.includes("--apply");
-const kindsFlag = process.argv.find((a) => a.startsWith("--kinds="))?.split("=")[1];
+// `apply` is a BOOLEAN (never consumes the next token; absent ⇒ dry-run).
+// `kinds` takes a CSV value — the shared parser accepts BOTH `--kinds a,b` and
+// the `--kinds=a,b` form this script used to be the only one to understand, so
+// the documented space-separated form now works too. The CSV split is unchanged.
+const args = parseArgs(process.argv.slice(2), { boolean: ["apply"], value: ["kinds"] }, "tests:resync-marks");
+const APPLY = !!args.apply;
+const kindsFlag = typeof args.kinds === "string" ? args.kinds : undefined;
 const KINDS = (kindsFlag ? kindsFlag.split(",") : ["daily_quiz", "mock", "custom"]).map((s) => s.trim());
 
 async function main(): Promise<void> {

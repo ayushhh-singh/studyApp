@@ -5,7 +5,6 @@
  * JSON is loaded by `ingest:pyq:load`.
  *
  *   pnpm ingest:pyq --id uppsc_prelims_2024_gs1
- *   pnpm ingest:pyq --csv content-raw/pyq/my_questions.csv   (structured CSV path)
  *
  * Pipeline (per the brief):
  *   1. Structured CSV path (year,paper,question,options A-D,answer,...), OR
@@ -786,13 +785,10 @@ function assemble(
 // main
 // ---------------------------------------------------------------------------
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2), { value: ["id"] }, "ingest:pyq");
   const manifestId = typeof args.id === "string" ? args.id : null;
   if (!manifestId) {
-    throw new Error(
-      "Provide --id <manifest_id>, e.g. --id uppsc_prelims_2024_gs1. " +
-        "(CSV ingestion: --csv <path>.)",
-    );
+    throw new Error("Provide --id <manifest_id>, e.g. --id uppsc_prelims_2024_gs1.");
   }
 
   report.section(`ingest:pyq  (parse only — writes JSON for review, NO db writes)`);

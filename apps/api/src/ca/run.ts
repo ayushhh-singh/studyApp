@@ -20,16 +20,31 @@ import { parseArgs, report } from "../ingest/_shared.js";
 import { runPipeline } from "./pipeline.js";
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    {
+      value: ["mode"],
+      // `days` is a positiveNumber, NOT a positiveInt: it is compared against a
+      // FRACTIONAL `ageDays` float downstream, so `--days 0.5` (a 12-hour
+      // window) is a semantically valid narrowing an integer validator would
+      // wrongly reject.
+      positiveNumber: ["days"],
+      positiveInt: ["max-per-source", "max-total"],
+      // `wait` MUST be nonNegativeNumber, not positiveNumber: `--wait 0` means
+      // "submit the batch and exit without polling" and is the CRON'S OWN
+      // VALUE (see the header). A strictly-positive validator would reject the
+      // scheduled run outright.
+      nonNegativeNumber: ["wait"],
+    },
+    "ca:run",
+  );
   const days = typeof args.days === "string" ? Number(args.days) : 3;
   const maxPerSource = typeof args["max-per-source"] === "string" ? Number(args["max-per-source"]) : 15;
   const maxTotal = typeof args["max-total"] === "string" ? Number(args["max-total"]) : 40;
   const mode = args.mode === "sync" ? "sync" : "batch";
+  // No hand-rolled finite/>=0 check here any more — the parser's
+  // `nonNegativeNumber` kind enforces exactly that, before anything is spent.
   const collectWaitMinutes = typeof args.wait === "string" ? Number(args.wait) : 0;
-  if (!Number.isFinite(collectWaitMinutes) || collectWaitMinutes < 0) {
-    console.error("ca:run: --wait must be a non-negative number of minutes");
-    process.exit(1);
-  }
 
   report.section(
     `ca:run  (mode=${mode}, days=${days}, max-per-source=${maxPerSource}, max-total=${maxTotal}` +

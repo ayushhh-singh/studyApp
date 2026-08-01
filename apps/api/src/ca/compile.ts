@@ -15,15 +15,14 @@
  */
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { compileMainsEdition, compilePrelimsEdition, listMagazineMonths } from "../services/magazine.js";
-
-function arg(name: string): string | null {
-  const i = process.argv.indexOf(`--${name}`);
-  return i >= 0 && process.argv[i + 1] && !process.argv[i + 1].startsWith("--") ? process.argv[i + 1] : null;
-}
+import { parseArgs } from "../ingest/_shared.js";
 
 async function main(): Promise<void> {
-  const month = arg("month");
-  const examCode = arg("exam") ?? DEFAULT_EXAM_CODE;
+  // Both take a value: --month YYYY-MM, --exam <code>. Omitting --month is a
+  // supported mode (lists every compilable month), so it stays optional here.
+  const args = parseArgs(process.argv.slice(2), { value: ["month", "exam"] }, "ca:compile");
+  const month = typeof args.month === "string" ? args.month : null;
+  const examCode = typeof args.exam === "string" ? args.exam : DEFAULT_EXAM_CODE;
 
   if (!month) {
     const months = await listMagazineMonths(examCode);

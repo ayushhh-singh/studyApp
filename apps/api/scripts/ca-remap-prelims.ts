@@ -13,9 +13,13 @@
  */
 import { supabase } from "../src/lib/supabase.js";
 import { selectAll } from "../src/lib/paginate.js";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { getPrelimsCurrentAffairsNodeId } from "../src/ca/prelims-node.js";
 
-const APPLY = process.argv.includes("--apply");
+// Sole flag. `apply` is a BOOLEAN so it never consumes the next token and, when
+// absent, leaves APPLY false — this script stays dry-run by default.
+const args = parseArgs(process.argv.slice(2), { boolean: ["apply"] }, "ca:remap-prelims");
+const APPLY = !!args.apply;
 
 async function main(): Promise<void> {
   const target = await getPrelimsCurrentAffairsNodeId();

@@ -63,7 +63,11 @@ async function updateIds(ids: string[], target: number, onlyNull: boolean): Prom
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    { value: ["paper"], boolean: ["apply", "normalize"] },
+    "ingest:backfill-marks",
+  );
   const apply = !!args.apply;
   const normalize = !!args.normalize;
   const papers = typeof args.paper === "string" ? [args.paper] : PAPERS;

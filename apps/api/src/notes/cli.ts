@@ -10,6 +10,7 @@
  * (/:locale/review with ADMIN_MODE=true). Coverage is chosen by Session-12
  * weightage, not alphabetically — the top-weightage nodes get notes first.
  */
+import { parseArgs } from "../ingest/_shared.js";
 import {
   existingNoteNodeIds,
   generateNoteForNode,
@@ -18,29 +19,22 @@ import {
   type GenerateNoteResult,
 } from "./generate.js";
 
-function parseArgs(argv: string[]): Record<string, string | boolean> {
-  const out: Record<string, string | boolean> = {};
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      out[key] = next;
-      i++;
-    } else {
-      out[key] = true;
-    }
-  }
-  return out;
-}
-
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const log = (msg: string) => console.log(msg);
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    // `top` is a positiveInt. Under the old private parser a VALUELESS `--top`
+    // (or a collapsed `"--paper X --top 3"` argv token) parsed as boolean
+    // `true`, which the `typeof === "string"` read below treats as "not set" —
+    // silently widening `--top 3` to the 15-node default. That is 15 real
+    // web-research + author + critic runs (billed Anthropic calls + DB writes)
+    // and there is NO confirmation prompt anywhere in this file to catch it.
+    { value: ["node", "paper"], boolean: ["no-web", "regen"], positiveInt: ["top"] },
+    "notes:gen",
+  );
   const web = args["no-web"] !== true;
   const top = typeof args.top === "string" ? Math.max(1, Math.min(30, Number(args.top))) : 15;
 

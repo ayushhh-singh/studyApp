@@ -605,20 +605,343 @@ export const report = {
   },
 };
 
-/** Parse simple `--key value` / `--flag` CLI args into a record. */
-export function parseArgs(argv: string[]): Record<string, string | boolean> {
+// ---------------------------------------------------------------------------
+// CLI argument parsing — SCHEMA-DRIVEN AND FAIL-CLOSED.
+//
+// ⚑ THIS IS A SAFETY GUARD, NOT A CONVENIENCE. It exists because the previous
+// permissive version caused a real production incident (docs/OUTSTANDING.md
+// §0d, 2026-07-31): `ingest:syllabus` ran for real against the DB — which is the
+// SAME Supabase project for dev AND prod — twice, writing +85 orphan rows and
+// overwriting 35 in place, recovered only from the weekly encrypted pg_dump.
+//
+// The old parser had THREE silent-misparse shapes, and every one of them makes a
+// SCOPED run silently WIDEN or REDIRECT rather than fail:
+//
+//   (a) A BARE POSITIONAL was invisible. The loop did `if (!a.startsWith("--"))
+//       continue`, so `ingest:syllabus upsc` — an operator simply forgetting
+//       `--exam` — produced NO key at all and ran against the DEFAULT exam.
+//   (b) A COLLAPSED MULTI-WORD TOKEN became a NONSENSE KEY. This is the actual
+//       incident: zsh does NOT word-split an unquoted "$var", so
+//       `--exam upsc --dry-run` arrived as ONE argv token. That parsed to the key
+//       `"exam upsc --dry-run"`, leaving `args.exam` *undefined* (NOT `true`, so
+//       a valueless-flag check structurally could not see it) and swallowing
+//       `--dry-run` so `dryRun` was FALSE.
+//   (c) A VALUELESS VALUE-FLAG silently became boolean `true`. Callers test
+//       `typeof x === "string"`, so `--exam --dry-run` fell to the unscoped
+//       branch. Related: `Number("abc")` is NaN which is FALSY, so a cap like
+//       `limit ? slice : all` silently widened a smoke test to the FULL run.
+//
+// The spec parameter is REQUIRED, deliberately. A defaulted one would let every
+// existing caller keep the bug by doing nothing — this repo has recorded that
+// lesson twice already (docs/OUTSTANDING.md M24). Requiring it makes the
+// compiler force each of the callers to declare what it actually accepts.
+//
+// Validation lives HERE rather than per-call-site because the same defect class
+// had already been patched per-call-site twice (`ingest/seed/upsc-syllabus-seed.ts`,
+// then `ingest/syllabus.ts`), each fix protecting exactly one script while every
+// other caller kept the identical hole.
+// ---------------------------------------------------------------------------
+
+/**
+ * Which flags a CLI accepts, and what shape each one's value must take.
+ *
+ * Split by KIND rather than a blanket rule because these CLIs legitimately mix
+ * bare booleans with value flags — a blanket "every flag takes a value" (or the
+ * reverse) would break real invocations. The kind is what lets the parser know,
+ * for example, that `--dry-run` must NOT swallow a following bare word.
+ */
+export interface FlagSpec {
+  /** `--key value`, read back as a string. */
+  value?: readonly string[];
+  /** Bare presence flags (`--dry-run`). Never consume the following token. */
+  boolean?: readonly string[];
+  /** `--key N` where N must be an INTEGER strictly greater than zero. */
+  positiveInt?: readonly string[];
+  /**
+   * `--key N` where N must be a FINITE number strictly greater than zero.
+   * Fractional values are allowed — use this for budget/threshold flags such as
+   * `--max-usd 2.5`, which a positive-INTEGER validator would wrongly reject.
+   */
+  positiveNumber?: readonly string[];
+  /**
+   * `--key N` where N must be a FINITE number greater than or equal to zero.
+   *
+   * Distinct from `positiveNumber` because ZERO IS A MEANINGFUL VALUE for some
+   * flags and must not be rejected: `ca:run --wait 0` means "submit the batch and
+   * exit without polling", which is exactly what the cron does. Forcing that
+   * through a strictly-positive validator would break the scheduled run.
+   */
+  nonNegativeNumber?: readonly string[];
+}
+
+/** Every flag name in a spec, regardless of kind. */
+function allSpecFlags(spec: FlagSpec): string[] {
+  return [
+    ...(spec.value ?? []),
+    ...(spec.boolean ?? []),
+    ...(spec.positiveInt ?? []),
+    ...(spec.positiveNumber ?? []),
+    ...(spec.nonNegativeNumber ?? []),
+  ];
+}
+
+/**
+ * Guard the SPEC itself. These are authoring mistakes in the calling script, not
+ * operator errors, and each one would silently disable the protection: a flag
+ * written as `"--dry-run"` (with dashes) can never match the parsed key
+ * `"dry-run"`, so the real flag would be rejected as unknown forever.
+ */
+function assertSpecWellFormed(spec: FlagSpec, scriptName: string): void {
+  const all = allSpecFlags(spec);
+  const dashed = all.filter((f) => f.startsWith("-"));
+  if (dashed.length > 0) {
+    throw new Error(
+      `[${scriptName}] FlagSpec is malformed: ${dashed.map((f) => `"${f}"`).join(", ")} start with a dash. ` +
+        `Declare flag names WITHOUT the leading "--" (write "dry-run", not "--dry-run") — the parser strips ` +
+        `it before matching, so a dashed entry could never match and the real flag would be rejected as unknown.`,
+    );
+  }
+  // A flag named `__proto__` would be SILENTLY LOST: the parsed record is a plain
+  // object literal, so `out["__proto__"] = v` sets the prototype rather than an
+  // own property, and the caller reads back `undefined` — a value-flag that
+  // vanishes, i.e. exactly the silent-misparse class this parser exists to stop.
+  // Unreachable today (an undeclared `--__proto__` is rejected as unknown), so
+  // this closes the only path that could reach it.
+  const reserved = all.filter((f) => f === "__proto__" || f === "constructor" || f === "prototype");
+  if (reserved.length > 0) {
+    throw new Error(
+      `[${scriptName}] FlagSpec is malformed: ${reserved.map((f) => `"${f}"`).join(", ")} ${
+        reserved.length === 1 ? "is a" : "are"
+      } reserved JavaScript object key(s) and cannot be used as a flag name — the parsed value would be ` +
+        `silently dropped (or would mutate the result's prototype). Rename the flag.`,
+    );
+  }
+  const seen = new Set<string>();
+  const dupes = new Set<string>();
+  for (const f of all) {
+    if (seen.has(f)) dupes.add(f);
+    seen.add(f);
+  }
+  if (dupes.size > 0) {
+    throw new Error(
+      `[${scriptName}] FlagSpec is malformed: ${[...dupes].map((f) => `"${f}"`).join(", ")} declared under more ` +
+        `than one kind. A flag must be exactly one of value / boolean / positiveInt / positiveNumber — the kind ` +
+        `decides whether it consumes the next argv token, so a flag in two kinds has ambiguous parse behaviour.`,
+    );
+  }
+}
+
+/**
+ * Parse `--key value` / `--key=value` / `--flag` CLI args against a required
+ * schema, throwing on ANY argv this script does not fully understand.
+ *
+ * Returns the same `Record<string, string | boolean>` shape as before, so call
+ * sites keep their existing reads (`typeof args.x === "string"`, `!!args.flag`).
+ * Numeric flags are VALIDATED here but still returned as strings — an existing
+ * `Number(args.limit)` therefore keeps working and is now guaranteed safe.
+ *
+ * @param argv       usually `process.argv.slice(2)`
+ * @param spec       the flags this script accepts (REQUIRED — see the note above)
+ * @param scriptName name used in error messages, e.g. `"ingest:syllabus"`
+ */
+export function parseArgs(
+  argv: string[],
+  spec: FlagSpec,
+  scriptName = "cli",
+): Record<string, string | boolean> {
+  assertSpecWellFormed(spec, scriptName);
+
+  const valueFlags = new Set([
+    ...(spec.value ?? []),
+    ...(spec.positiveInt ?? []),
+    ...(spec.positiveNumber ?? []),
+    ...(spec.nonNegativeNumber ?? []),
+  ]);
+  const boolFlags = new Set(spec.boolean ?? []);
+  const known = new Set(allSpecFlags(spec));
+
   const out: Record<string, string | boolean> = {};
+  const positionals: string[] = [];
+  const unknown: string[] = [];
+  const valueless: string[] = [];
+  const valuedBooleans: string[] = [];
+  const duplicated: string[] = [];
+  const emptyValues: string[] = [];
+  const seenFlags = new Set<string>();
+
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const key = a.slice(2);
+
+    // (a) A bare positional. Checked first because it is the one shape the other
+    // checks structurally cannot see — the old parser skipped it entirely.
+    if (!a.startsWith("--")) {
+      positionals.push(a);
+      continue;
+    }
+
+    // `--key=value` is accepted and split here. Under the old parser this landed
+    // as the nonsense key "key=value" — the same silent-misparse class as (b).
+    const eq = a.indexOf("=");
+    const key = eq === -1 ? a.slice(2) : a.slice(2, eq);
+    const inlineValue = eq === -1 ? null : a.slice(eq + 1);
+
+    if (!known.has(key)) {
+      unknown.push(key);
+      continue;
+    }
+
+    // The same flag twice silently kept the LAST occurrence. That is a
+    // silent-wrong-scope: `--paper A --paper B` runs against B while the operator
+    // may well have meant A (easy to hit when a pnpm script pre-supplies a flag,
+    // e.g. `qgen:topup` supplies `--topup`, and the caller adds their own).
+    if (seenFlags.has(key)) duplicated.push(key);
+    seenFlags.add(key);
+
+    if (boolFlags.has(key)) {
+      // `--dry-run=false` reads as "off" to a human but is truthy here. Refuse
+      // rather than silently enabling the very thing the operator disabled.
+      if (inlineValue !== null) valuedBooleans.push(key);
+      else out[key] = true;
+      // NOTE: deliberately no `i++`. A boolean flag must NOT consume the next
+      // token — that is what turns `--dry-run somepaper` into a caught
+      // positional instead of a silently swallowed argument.
+      continue;
+    }
+
+    // A value flag.
+    if (inlineValue !== null) {
+      // `--paper=` is an EMPTY value, not an absent one. Callers test
+      // `typeof x === "string"`, which an empty string passes — so it flows into
+      // a query/filter as "" and silently matches nothing, or (worse) falls
+      // through a `?? default` that was meant to catch "not supplied".
+      if (inlineValue === "") emptyValues.push(key);
+      else out[key] = inlineValue;
+      continue;
+    }
     const next = argv[i + 1];
-    if (next && !next.startsWith("--")) {
-      out[key] = next;
+    if (next === undefined || next.startsWith("--")) {
+      valueless.push(key);
+      continue;
+    }
+    // Same reasoning as the inline case above — `--paper ""` is an empty value,
+    // which every `typeof x === "string"` caller accepts as if it were real.
+    if (next === "") {
+      emptyValues.push(key);
       i++;
-    } else {
-      out[key] = true;
+      continue;
+    }
+    out[key] = next;
+    i++;
+  }
+
+  // (d) Numeric shape. NaN and 0 are both FALSY, so an unvalidated bad value
+  // silently widens a capped run — validate before anything is spent or written.
+  const numericProblems: string[] = [];
+  for (const k of spec.positiveInt ?? []) {
+    const raw = out[k];
+    if (typeof raw !== "string") continue;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n <= 0) {
+      numericProblems.push(`--${k} must be a positive integer (got "${raw}")`);
     }
   }
-  return out;
+  for (const k of spec.positiveNumber ?? []) {
+    const raw = out[k];
+    if (typeof raw !== "string") continue;
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0) {
+      numericProblems.push(`--${k} must be a positive number (got "${raw}")`);
+    }
+  }
+  for (const k of spec.nonNegativeNumber ?? []) {
+    const raw = out[k];
+    if (typeof raw !== "string") continue;
+    const n = Number(raw);
+    // `Number("")` is 0, which would pass a bare `>= 0` test — reject the empty
+    // string explicitly so `--wait ""` cannot masquerade as a valid 0.
+    if (raw.trim() === "" || !Number.isFinite(n) || n < 0) {
+      numericProblems.push(`--${k} must be a number >= 0 (got "${raw}")`);
+    }
+  }
+
+  if (
+    positionals.length === 0 &&
+    unknown.length === 0 &&
+    valueless.length === 0 &&
+    valuedBooleans.length === 0 &&
+    duplicated.length === 0 &&
+    emptyValues.length === 0 &&
+    numericProblems.length === 0
+  ) {
+    return out;
+  }
+
+  // Aggregate every problem into ONE error, ordered most-diagnostic first, so an
+  // operator fixing an invocation sees all of it at once instead of peeling off
+  // one error per re-run.
+  const knownList = [...known].sort().map((k) => `--${k}`).join(", ");
+  const lines: string[] = [`[${scriptName}] refusing to run — this argv was not parsed the way you intended.`, ""];
+
+  if (positionals.length > 0) {
+    lines.push(
+      `  • Unexpected positional argument(s): ${positionals.map((p) => `"${p}"`).join(", ")}`,
+      `      This script takes no positional arguments — every input is a --flag.`,
+      `      A bare positional is IGNORED by the parser, so the run would silently fall back`,
+      `      to its default (unscoped) behaviour. Did you mean a flag, e.g. --exam ${positionals[0]}?`,
+    );
+  }
+  if (unknown.length > 0) {
+    lines.push(`  • Unrecognised flag(s): ${unknown.map((k) => `--${k}`).join(", ")}`);
+    // The incident's exact fingerprint. A generic "unknown flag" would leave an
+    // operator hunting a typo that does not exist.
+    const collapsed = unknown.filter((k) => /\s/.test(k));
+    if (collapsed.length > 0) {
+      lines.push(
+        `      ⚑ ${collapsed.map((k) => `"--${k}"`).join(", ")} contains WHITESPACE, so several flags arrived as a`,
+        `        SINGLE argv token — your shell did not word-split them. Note zsh does NOT`,
+        `        word-split an unquoted "$var"; use an array ("\${args[@]}") or quote each flag`,
+        `        separately. This exact shape caused the 2026-07-31 production incident: the`,
+        `        intended flags were silently absent AND a --dry-run was swallowed.`,
+      );
+    }
+  }
+  if (valueless.length > 0) {
+    lines.push(
+      `  • Flag(s) requiring a value but given none: ${valueless.map((k) => `--${k}`).join(", ")}`,
+      `      A valueless value-flag used to become boolean \`true\`, which every caller reads as`,
+      `      "not set" — silently widening or redirecting the run.`,
+    );
+  }
+  if (valuedBooleans.length > 0) {
+    lines.push(
+      `  • Boolean flag(s) given a value: ${valuedBooleans.map((k) => `--${k}=…`).join(", ")}`,
+      `      These are presence flags — pass \`--${valuedBooleans[0]}\` to enable, or omit it to disable.`,
+      `      \`--${valuedBooleans[0]}=false\` reads as "off" but would be truthy, enabling what you meant to turn off.`,
+    );
+  }
+  if (duplicated.length > 0) {
+    lines.push(
+      `  • Flag(s) given more than once: ${[...new Set(duplicated)].map((k) => `--${k}`).join(", ")}`,
+      `      Only the LAST occurrence used to win, silently — so a repeated --paper/--exam would`,
+      `      scope the run to something other than what the first one said. Pass each flag once.`,
+    );
+  }
+  if (emptyValues.length > 0) {
+    lines.push(
+      `  • Flag(s) given an EMPTY value: ${[...new Set(emptyValues)].map((k) => `--${k}`).join(", ")}`,
+      `      An empty string is not "not supplied": it passes a \`typeof x === "string"\` check, so it`,
+      `      reaches queries and filters as "" and silently matches nothing. Give a real value, or`,
+      `      omit the flag entirely to get its default.`,
+    );
+  }
+  if (numericProblems.length > 0) {
+    lines.push(
+      ...numericProblems.map((p) => `  • ${p}`),
+      `      Any non-positive-numeric value is FALSY here (a non-numeric one parses to NaN, and 0 is`,
+      `      falsy outright), so it would silently widen a capped run to the full one.`,
+    );
+  }
+
+  lines.push("", `  Known flags: ${knownList || "(none — this script takes no flags)"}`);
+  throw new Error(lines.join("\n"));
 }

@@ -6,6 +6,7 @@
  * (daily/scheduler.ts) and runnable by hand for a specific date. Idempotent —
  * re-running a date rebuilds that day's content in place.
  */
+import { parseArgs } from "../ingest/_shared.js";
 import { istToday } from "../lib/ist.js";
 import { logger } from "../lib/logger.js";
 import { listAllUserIds } from "../lib/users.js";
@@ -55,21 +56,33 @@ export async function runDailyBuild(opts: DailyBuildOptions = {}): Promise<void>
   }
 }
 
-function parseArgs(argv: string[]): DailyBuildOptions {
-  const opts: DailyBuildOptions = {};
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (a === "--date") opts.date = argv[++i];
-    else if (a === "--size") opts.size = Number(argv[++i]);
-    else if (a === "--user") opts.userId = argv[++i];
-  }
-  return opts;
-}
-
 // Run as a CLI only when invoked directly (not when imported by the scheduler).
 const invokedDirectly = process.argv[1]?.endsWith("run.ts") || process.argv[1]?.endsWith("run.js");
 if (invokedDirectly) {
-  runDailyBuild({ ...parseArgs(process.argv.slice(2)), log: (m) => console.log(`daily: ${m}`) })
+  const args = parseArgs(
+    process.argv.slice(2),
+    // `size` is a positiveInt, and that is what fixes a real silent-NaN path:
+    // it flows to clampSize(opts.size ?? cfg.defaultSize, cfg) and `??` does
+    // NOT catch NaN, so `--size abc` (or a valueless `--size`, which the old
+    // exact-match parser turned into Number(undefined) === NaN) used to
+    // propagate NaN through the whole quiz build. It is now rejected at parse.
+    { value: ["date", "user"], positiveInt: ["size"] },
+    "daily:build",
+  );
+
+  // Built EXPLICITLY rather than spread into runDailyBuild(). The shared parser
+  // returns a Record keyed by RAW FLAG NAMES with STRING values, so the old
+  // `{ ...parseArgs(...) }` spread would now silently pass `user` (not the
+  // `userId` option this function reads, so --user would be dropped and the
+  // build would fan out to EVERY onboarded user) and a string `size` where a
+  // number is required. Keys stay conditional so an omitted flag remains
+  // `undefined`, exactly as before.
+  const opts: DailyBuildOptions = { log: (m) => console.log(`daily: ${m}`) };
+  if (typeof args.date === "string") opts.date = args.date;
+  if (typeof args.size === "string") opts.size = Number(args.size);
+  if (typeof args.user === "string") opts.userId = args.user;
+
+  runDailyBuild(opts)
     .then(() => process.exit(0))
     .catch((err) => {
       console.error("\ndaily:build failed:", err instanceof Error ? err.stack : err);

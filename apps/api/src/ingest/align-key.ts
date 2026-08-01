@@ -51,7 +51,7 @@ function jaccard(a: Set<string>, b: Set<string>): number {
 const SIM_FLOOR = 0.35; // below this, treat as "no confident match"
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2), { value: ["raw", "key", "out"] }, "ingest:align-key");
   const rawPath = typeof args.raw === "string" ? args.raw : null;
   const keyPath = typeof args.key === "string" ? args.key : null;
   const outPath = typeof args.out === "string" ? args.out : null;

@@ -27,10 +27,14 @@ import { runBatch, structuredParams, MODELS, type BatchRequest } from "../src/li
 import { estimateCostUsd } from "../src/lib/models.js";
 import { supabase } from "../src/lib/supabase.js";
 import { selectAll } from "../src/lib/paginate.js";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { loadSyllabusCandidates } from "../src/ca/syllabus-candidates.js";
 import { getPrelimsCurrentAffairsNodeId } from "../src/ca/prelims-node.js";
 
-const APPLY = process.argv.includes("--apply");
+// Sole flag. `apply` is a BOOLEAN so it never consumes the next token and, when
+// absent, leaves APPLY false — this script stays dry-run (no spend, no writes).
+const args = parseArgs(process.argv.slice(2), { boolean: ["apply"] }, "ca:reclassify-mcq-nodes");
+const APPLY = !!args.apply;
 
 interface Item {
   id: string;

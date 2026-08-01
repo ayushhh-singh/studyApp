@@ -13,15 +13,16 @@
  *   --min-accounts  distinct accounts on one hash to flag    (default 2)
  */
 import { supabase } from "../src/lib/supabase.js";
+import { parseArgs } from "../src/ingest/_shared.js";
 
-function arg(name: string, fallback: number): number {
-  const i = process.argv.indexOf(`--${name}`);
-  if (i >= 0 && process.argv[i + 1]) {
-    const v = Number(process.argv[i + 1]);
-    if (Number.isFinite(v) && v > 0) return v;
-  }
-  return fallback;
-}
+// All three are counts (lookback days / cluster window hours / account
+// threshold) and all are documented as integers; the old helper likewise
+// required > 0, silently falling back to the default on anything else.
+const args = parseArgs(
+  process.argv.slice(2),
+  { positiveInt: ["days", "window-hours", "min-accounts"] },
+  "trial-abuse:report",
+);
 
 interface Row {
   user_id: string;
@@ -30,9 +31,9 @@ interface Row {
 }
 
 async function main() {
-  const days = arg("days", 30);
-  const windowHours = arg("window-hours", 48);
-  const minAccounts = arg("min-accounts", 2);
+  const days = typeof args.days === "string" ? Number(args.days) : 30;
+  const windowHours = typeof args["window-hours"] === "string" ? Number(args["window-hours"]) : 48;
+  const minAccounts = typeof args["min-accounts"] === "string" ? Number(args["min-accounts"]) : 2;
   const sinceIso = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString();
 
   const { data, error } = await supabase()

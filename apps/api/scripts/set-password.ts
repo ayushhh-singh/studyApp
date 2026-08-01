@@ -6,9 +6,18 @@
  *
  *   pnpm --filter api set-password --email you@example.com --password 'SomeStrongPass'
  *
+ * ⚑ If the password STARTS WITH TWO DASHES, use the `=` form:
+ *   --password='--myPassword'
+ * A `--`-leading token is how the arg parser detects a flag that was given no
+ * value at all, so `--password --myPassword` is REFUSED rather than silently
+ * misread as an empty password. `--password=<value>` is unambiguous and accepts
+ * any value. (A SINGLE leading dash — `--password -myPass` — parses fine, but
+ * the `=` form is the safe habit for any password with leading punctuation.)
+ *
  * Also stamps email_confirm so a never-confirmed account can log in immediately.
  */
 import { checkPasswordStrength } from "@neev/shared";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { supabase } from "../src/lib/supabase.js";
 
 interface Args {
@@ -16,18 +25,36 @@ interface Args {
   password?: string;
 }
 
-function parseArgs(argv: string[]): Args {
-  const args: Args = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--email") args.email = argv[++i];
-    else if (argv[i] === "--password") args.password = argv[++i];
-  }
-  return args;
+/**
+ * Every flag this CLI reads, surveyed from the actual reads in `main()`.
+ *
+ * ⚑ Both are plain `value` flags. A password may legitimately begin with `--`,
+ * which the shared parser reads as "the previous flag was given no value" and
+ * refuses (it tests `next.startsWith("--")`, so a single-dash value is fine).
+ * That refusal is correct and must NOT be weakened — the operator's escape
+ * hatch is the parser's own `--password=<value>` form, which cannot be misread
+ * whatever the value looks like (documented in the header above).
+ */
+const SET_PASSWORD_FLAGS = {
+  value: ["email", "password"],
+} as const;
+
+function parseCliArgs(argv: string[]): Args {
+  const args = parseArgs(argv, SET_PASSWORD_FLAGS, "set-password");
+  return {
+    email: typeof args.email === "string" ? args.email : undefined,
+    password: typeof args.password === "string" ? args.password : undefined,
+  };
 }
 
 async function main() {
-  const { email, password } = parseArgs(process.argv.slice(2));
-  if (!email || !password) throw new Error("Usage: set-password --email <email> --password <password>");
+  const { email, password } = parseCliArgs(process.argv.slice(2));
+  if (!email || !password) {
+    throw new Error(
+      "Usage: set-password --email <email> --password <password>\n" +
+        "       (if the password starts with '--', use the --password=<value> form)",
+    );
+  }
   const strength = checkPasswordStrength(password);
   if (!strength.ok) {
     throw new Error("Password cannot be empty");

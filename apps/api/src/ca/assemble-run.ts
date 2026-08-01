@@ -7,7 +7,7 @@ import { parseArgs, report } from "../ingest/_shared.js";
 import { assembleWeeklySets } from "./assemble.js";
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2), { positiveNumber: ["days"] }, "ca:assemble");
   const days = typeof args.days === "string" ? Number(args.days) : 7;
 
   report.section(`ca:assemble (week's sittings, last ${days} days of approved CA questions)`);

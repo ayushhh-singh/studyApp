@@ -43,7 +43,7 @@ interface RawItem {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2), { value: ["id", "raw", "keyjson"] }, "ingest:assemble");
   const id = typeof args.id === "string" ? args.id : null;
   const rawPath = typeof args.raw === "string" ? args.raw : null;
   if (!id || !rawPath) throw new Error("Provide --id <manifest_id> and --raw <extraction.json>.");

@@ -17,6 +17,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { z } from "zod";
+import { parseArgs } from "../ingest/_shared.js";
 import {
   auditedFactSchema,
   chapterSectionSchema,
@@ -154,20 +155,22 @@ export async function assembleChapter(input: ChapterAssembleInput, log: (m: stri
   return result.noteId;
 }
 
-function parseArgs(argv: string[]): Record<string, string> {
-  const out: Record<string, string> = {};
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i].startsWith("--")) out[argv[i].slice(2)] = argv[i + 1] ?? "";
-  }
-  return out;
-}
-
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    // The old private parser here read `argv[i + 1] ?? ""` with NO `i++`, so a
+    // valueless `--dir` took the literal string `"--file"` as its value — which
+    // passed the truthiness check below and reached readdirSync(), and a
+    // valueless `--file` would have been handed to readFileSync() the same way.
+    { value: ["file", "dir"] },
+    "notes:chapter:assemble",
+  );
+  const fileArg = typeof args.file === "string" && args.file ? args.file : null;
+  const dirArg = typeof args.dir === "string" && args.dir ? args.dir : null;
   const files: string[] = [];
-  if (args.file) files.push(args.file);
-  if (args.dir) {
-    for (const f of readdirSync(args.dir)) if (f.endsWith(".json")) files.push(join(args.dir, f));
+  if (fileArg) files.push(fileArg);
+  if (dirArg) {
+    for (const f of readdirSync(dirArg)) if (f.endsWith(".json")) files.push(join(dirArg, f));
   }
   if (files.length === 0) throw new Error("usage: notes:chapter:assemble --file <path.json> | --dir <dir>");
 

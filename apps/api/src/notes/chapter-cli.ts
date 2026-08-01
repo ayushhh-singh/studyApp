@@ -17,23 +17,13 @@
  * reserved for production/cron use. The standing rule is `docs/multi-exam.md` §5.
  */
 import { createInterface } from "node:readline/promises";
+import { parseArgs } from "../ingest/_shared.js";
 import { resolvePaperCode, topWeightageNodes, existingNoteNodeIds } from "./generate.js";
 import { generateChapterForNode, NOTES_CHAPTER_MAX_USD, type GenerateChapterResult } from "./chapter-generate.js";
 
 /** Rough per-chapter cost for the pre-run estimate (outline+research+~6 sections+coherence+audit+translate). */
 const EST_PER_CHAPTER_USD = 1.2;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function parseArgs(argv: string[]): Record<string, string | boolean> {
-  const out: Record<string, string | boolean> = {};
-  for (let i = 0; i < argv.length; i++) {
-    const a = argv[i];
-    if (!a.startsWith("--")) continue;
-    const next = argv[i + 1];
-    if (next && !next.startsWith("--")) { out[a.slice(2)] = next; i++; } else out[a.slice(2)] = true;
-  }
-  return out;
-}
 
 async function confirm(msg: string): Promise<boolean> {
   const rl = createInterface({ input: process.stdin, output: process.stdout });
@@ -43,7 +33,21 @@ async function confirm(msg: string): Promise<boolean> {
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(
+    process.argv.slice(2),
+    // `top` is a positiveInt. Under the old private parser a VALUELESS `--top`
+    // parsed as boolean `true`, which the `typeof === "string"` read below
+    // treats as "not set" — silently widening `--top 3` to the 15-node default,
+    // i.e. 15 chapters at ~$1.2 each. `--yes` is a boolean and must never
+    // swallow the following token: `--top --yes` used to lose BOTH the cap and
+    // the estimate/confirm gate in one invocation.
+    //
+    // `regen` is declared because main() reads args.regen below (line ~53) even
+    // though the usage string omits it — without it the shared parser would
+    // reject a documented-nowhere-but-live `--regen` as an unknown flag.
+    { value: ["node", "paper"], boolean: ["no-web", "regen", "yes"], positiveInt: ["top"] },
+    "notes:chapter",
+  );
   const web = args["no-web"] !== true;
   const top = typeof args.top === "string" ? Math.max(1, Math.min(30, Number(args.top))) : 15;
   const nodeArg = typeof args.node === "string" ? args.node : null;

@@ -251,7 +251,7 @@ async function loadFile(
 }
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
+  const args = parseArgs(process.argv.slice(2), { value: ["id"], boolean: ["all"] }, "ingest:pyq:load");
   report.section("ingest:pyq:load");
 
   let files: string[];

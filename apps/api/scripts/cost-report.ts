@@ -7,6 +7,7 @@
  *
  *   pnpm cost:report [--days N]
  */
+import { parseArgs } from "../src/ingest/_shared.js";
 import { MODEL_PRICING, costFromPriceSet, type ModelId } from "../src/lib/models.js";
 import { supabase } from "../src/lib/supabase.js";
 import { computeEmbedCoverage, hasCoverageGap, INGEST_EMBED_TYPES, REMEDY } from "../src/ingest/embed-coverage.js";
@@ -37,12 +38,19 @@ interface Bucket {
   cacheWriteTokens: number;
 }
 
-function parseArgs(argv: string[]): { days: number } {
-  let days = 30;
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--days") days = Math.max(1, Number(argv[++i]) || 30);
-  }
-  return { days };
+/**
+ * Every flag this CLI reads, surveyed from the actual `args.*` accesses — this
+ * script has exactly one, `--days`, consumed as the report window in `main()`.
+ * A positive INTEGER: a zero/negative/NaN window would silently produce an
+ * empty or nonsensical report rather than the last N days.
+ */
+const COST_REPORT_FLAGS = {
+  positiveInt: ["days"],
+} as const;
+
+function parseCliArgs(argv: string[]): { days: number } {
+  const args = parseArgs(argv, COST_REPORT_FLAGS, "cost:report");
+  return { days: typeof args.days === "string" ? Number(args.days) : 30 };
 }
 
 function fmtUsd(n: number): string {
@@ -230,7 +238,7 @@ function reportCacheHitRateByPurpose(buckets: Bucket[], totalIntro: number): voi
 }
 
 async function main(): Promise<void> {
-  const { days } = parseArgs(process.argv.slice(2));
+  const { days } = parseCliArgs(process.argv.slice(2));
   const since = new Date(Date.now() - days * 24 * 3600 * 1000);
 
   const { data, error } = await supabase()

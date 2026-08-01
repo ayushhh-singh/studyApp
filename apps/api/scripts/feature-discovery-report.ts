@@ -16,6 +16,7 @@
  *   pnpm feature-discovery:report [--days N]   (N = cohort age in days, default 7)
  */
 import { FEATURE_KEYS, type FeatureKey } from "@neev/shared";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { supabase } from "../src/lib/supabase.js";
 import { normalizeTourState } from "../src/services/tour.js";
 
@@ -38,17 +39,23 @@ async function fetchAllRows<T>(
   return rows;
 }
 
-function parseArgs(argv: string[]): { days: number } {
-  let days = 7;
-  for (let i = 0; i < argv.length; i++) {
-    // `|| 7` would silently discard an explicit `--days 0` (0 is falsy) —
-    // check for NaN instead so 0 means "everyone", not "use the default".
-    if (argv[i] === "--days") {
-      const parsed = Number(argv[++i]);
-      days = Number.isNaN(parsed) ? 7 : Math.max(0, parsed);
-    }
-  }
-  return { days };
+/**
+ * Every flag this CLI reads, surveyed from the actual `args.*` accesses — this
+ * script has exactly one, `--days`, the cohort-age cutoff in `main()`.
+ *
+ * ⚑ nonNegativeNumber, NOT positiveInt: `--days 0` is a MEANINGFUL, documented
+ * invocation here — it means "the whole cohort, everyone", not "fall back to the
+ * default". The old parser went out of its way to preserve that (checking for
+ * NaN rather than the falsy `|| 7`), and a strictly-positive validator would
+ * reject the very value that makes the report show every user.
+ */
+const FEATURE_DISCOVERY_FLAGS = {
+  nonNegativeNumber: ["days"],
+} as const;
+
+function parseCliArgs(argv: string[]): { days: number } {
+  const args = parseArgs(argv, FEATURE_DISCOVERY_FLAGS, "feature-discovery:report");
+  return { days: typeof args.days === "string" ? Number(args.days) : 7 };
 }
 
 function fmtPct(n: number): string {
@@ -84,7 +91,7 @@ function printRateTable(label: string, ids: Set<string>, touchedBy: Map<FeatureK
 }
 
 async function main(): Promise<void> {
-  const { days } = parseArgs(process.argv.slice(2));
+  const { days } = parseCliArgs(process.argv.slice(2));
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000);
 
   const profiles = await fetchAllRows<{ id: string; created_at: string; tour_state: unknown }>((from, to) =>

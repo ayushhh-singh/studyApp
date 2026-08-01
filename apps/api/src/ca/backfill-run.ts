@@ -10,8 +10,15 @@ import { parseArgs, report } from "../ingest/_shared.js";
 import { planBackfill, runBackfill } from "./backfill.js";
 
 async function main(): Promise<void> {
-  const args = parseArgs(process.argv.slice(2));
-  const doRun = args.run === true || args.run === "true";
+  const args = parseArgs(
+    process.argv.slice(2),
+    { boolean: ["run"], positiveNumber: ["max-usd"] },
+    "ca:backfill",
+  );
+  // `run` is declared boolean, so the parser yields only `true` or `undefined`
+  // — the old `|| args.run === "true"` branch is now dead. `--run true` is
+  // rejected loudly as a stray positional, which is the safe outcome.
+  const doRun = args.run === true;
 
   const plan = await planBackfill();
 

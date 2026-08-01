@@ -26,6 +26,7 @@ import {
   type Locale,
   type RubricDimensionKey,
 } from "@neev/shared";
+import { parseArgs } from "../src/ingest/_shared.js";
 import { supabase } from "../src/lib/supabase.js";
 import { createSubmission, runEvaluation, type EvalEmit } from "../src/services/evaluation/evaluate.js";
 
@@ -127,18 +128,31 @@ function makeCapture(): { emit: EvalEmit; captured: Captured } {
   return { emit, captured };
 }
 
-function parseArgs(argv: string[]): { runs: number; keep: boolean; lang: Locale; email: string | undefined } {
-  let runs = 2;
-  let keep = false;
-  let lang: Locale = "en";
-  let email = process.env.EVAL_USER_EMAIL;
-  for (let i = 0; i < argv.length; i++) {
-    if (argv[i] === "--runs") runs = Math.max(1, Number(argv[++i]) || 2);
-    else if (argv[i] === "--keep") keep = true;
-    else if (argv[i] === "--lang") lang = argv[++i] === "hi" ? "hi" : "en";
-    else if (argv[i] === "--email") email = argv[++i];
-  }
-  return { runs, keep, lang, email };
+/**
+ * Every flag this CLI reads, surveyed from the actual reads in `main()` — see
+ * the usage line in the header comment.
+ *
+ * `--runs` is a positiveInt because it drives real, BILLED sonnet calls: a NaN
+ * or 0 here is falsy and would silently turn a repeatability check into a no-op
+ * run. `--lang` stays a plain `value` (it is normalised to "hi"/"en" below, not
+ * a number), and `--keep` must be a boolean so it never swallows the next token.
+ */
+const EVAL_HARNESS_FLAGS = {
+  value: ["lang", "email"],
+  boolean: ["keep"],
+  positiveInt: ["runs"],
+} as const;
+
+function parseCliArgs(argv: string[]): { runs: number; keep: boolean; lang: Locale; email: string | undefined } {
+  const args = parseArgs(argv, EVAL_HARNESS_FLAGS, "eval:answers");
+  return {
+    runs: typeof args.runs === "string" ? Number(args.runs) : 2,
+    keep: !!args.keep,
+    lang: args.lang === "hi" ? "hi" : "en",
+    // --email overrides the EVAL_USER_EMAIL env fallback; neither means
+    // "the first user in the project" (see resolveUserId).
+    email: typeof args.email === "string" ? args.email : process.env.EVAL_USER_EMAIL,
+  };
 }
 
 /**
@@ -170,7 +184,7 @@ function fmt(n: number | null, dp = 2): string {
 }
 
 async function main(): Promise<void> {
-  const { runs, keep, lang, email } = parseArgs(process.argv.slice(2));
+  const { runs, keep, lang, email } = parseCliArgs(process.argv.slice(2));
   const userId = await resolveUserId(email);
   const createdIds: string[] = [];
 
