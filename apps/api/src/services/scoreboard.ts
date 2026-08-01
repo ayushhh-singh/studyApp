@@ -37,7 +37,7 @@ import { supabase } from "../lib/supabase.js";
 import { currentUserIsAnonymous } from "../lib/user-context.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
-import { PRELIMS_CSAT_PAPER_CODE } from "../lib/exam-papers.js";
+import { variantForPaper } from "../daily/config.js";
 import { getUserExam } from "../lib/exams.js";
 import { RUBRIC_DIMENSION_KEYS } from "./evaluation/rubric.js";
 
@@ -156,19 +156,31 @@ export async function recordDailyQuizResult(
 
   const { data: test, error } = await supabase()
     .from("tests")
-    .select("kind, scheduled_date, paper_code")
+    .select("kind, scheduled_date, paper_code, exam_code")
     .eq("id", attempt.test_id)
     .maybeSingle();
   if (error) throw new HttpError(500, `test lookup failed: ${error.message}`);
   if (!test || test.kind !== "daily_quiz") return;
-  // The competitive daily board tracks the GS quiz ONLY. CSAT is qualifying-only
-  // in the real exam (not merit-ranked), and summing GS+CSAT would unfairly rank
-  // a user who did both above one who did only GS — so a CSAT attempt is scored
-  // and saved like any attempt, just never placed on the daily board. Legacy
-  // pre-split blended quizzes (paper_code NULL) keep recording, as they always
-  // were the "daily quiz". unique(user_id, quiz_date) stays valid because at
-  // most one of {legacy, GS} exists per date.
-  if (test.paper_code === PRELIMS_CSAT_PAPER_CODE) return;
+  // The competitive daily board tracks ONE variant per exam — the GS quiz. CSAT
+  // is qualifying-only in the real exam (not merit-ranked), and summing GS+CSAT
+  // would unfairly rank a user who did both above one who did only GS, so a CSAT
+  // attempt is scored and saved like any attempt, just never placed on the board.
+  //
+  // Which variant that is now comes from the variant table's own `board` flag,
+  // not from a `paper_code === 'PRE_CSAT'` literal. The literal was a ONE-ELEMENT
+  // DENYLIST implementing what the config declares as an allowlist, so it
+  // inverted the moment a second exam appeared: `UPSC_PRE_CSAT` does not equal
+  // `PRE_CSAT`, so a UPSC CSAT attempt would have been recorded — and because
+  // the upsert below is unique(user_id, quiz_date) with ignoreDuplicates,
+  // whichever of that user's GS/CSAT attempts landed first would win and the
+  // other would be silently dropped.
+  //
+  // A row with no matching variant still records: that is the legacy pre-split
+  // blended quiz (paper_code NULL), which always WAS "the daily quiz". Behaviour
+  // for uppsc is therefore unchanged in all three cases — PRE_GS1 records
+  // (board: true), PRE_CSAT skips (board: false), legacy NULL records.
+  const variant = variantForPaper(test.exam_code as string, test.paper_code as string);
+  if (variant && !variant.board) return;
 
   const quizDate = (test.scheduled_date as string | null) ?? istDateString(Date.parse(attempt.submitted_at));
   const attempted = gradedAnswers.length;

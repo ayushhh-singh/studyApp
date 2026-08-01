@@ -12,7 +12,7 @@
  */
 import cron from "node-cron";
 import { logger } from "../lib/logger.js";
-import { runDailyBuild } from "./run.js";
+import { resolveDailyBuildExams, runDailyBuild } from "./run.js";
 import { runStreakNightly } from "./streak.js";
 import { generateForUser } from "../services/notifications.js";
 import { runPushSender } from "../push/sender.js";
@@ -33,7 +33,13 @@ export function startDailyScheduler(): void {
     DAILY_BUILD_CRON,
     () => {
       logger.info("daily: 5:00 AM IST build starting");
-      runDailyBuild()
+      // The scheduled build covers every LIVE exam and nothing else — passing
+      // `undefined` takes `resolveDailyBuildExams`' default. A reference exam
+      // (is_live = false) is deliberately excluded: nobody can select it, so
+      // building it here would write real tests rows for an unreachable quiz.
+      // It is still buildable on demand via `pnpm daily:build --exam <code>`.
+      resolveDailyBuildExams(undefined, (m) => logger.info(`daily: ${m}`))
+        .then((examCodes) => runDailyBuild({ examCodes }))
         .then(() => logger.info("daily: scheduled build finished"))
         .catch((err) => logger.error({ err }, "daily: scheduled build failed"));
     },

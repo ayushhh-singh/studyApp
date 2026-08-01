@@ -19,7 +19,7 @@ import { getUserExam } from "../lib/exams.js";
 import { upcomingExamsQuery, pickNextExam } from "../lib/exam-calendar.js";
 import { HttpError } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
-import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
+import { variantsForExam, type DailyQuizPaper } from "../daily/config.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { getBestScoresByTest } from "./tests.js";
@@ -242,7 +242,12 @@ async function getTodayPlanTasks(userId: string, today: string): Promise<TodayPl
   }
 }
 
-async function getToday(userId: string, today: string, progress: DailyProgress): Promise<DashboardToday> {
+async function getToday(
+  userId: string,
+  today: string,
+  progress: DailyProgress,
+  examCode: string,
+): Promise<DashboardToday> {
   const srsDue = progress.srs_due;
 
   const { count: caToday, error: caError } = await supabase()
@@ -252,20 +257,26 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
     .eq("date", today);
   if (caError) throw new HttpError(500, `current affairs today count failed: ${caError.message}`);
 
-  // Today's two daily quizzes — GS (primary) + CSAT (secondary), paper-scoped.
-  // Legacy pre-split blended rows (paper_code NULL) are ignored. At most one row
-  // per variant, so no order/limit dance is needed — but note the guarantee moved
-  // in 0106: the unique index is now (exam_code, scheduled_date, paper_code), so
-  // "one row per variant" holds for a SINGLE exam. It relies on paper codes being
-  // globally unique across exams (see 0106's header); add an exam_code filter here
-  // when a second exam starts building daily quizzes.
+  // Today's two daily quizzes — GS (primary) + CSAT (secondary) — for the
+  // VIEWER'S OWN exam. Legacy pre-split blended rows (paper_code NULL) are
+  // ignored. At most one row per variant, so no order/limit dance is needed:
+  // 0106 made the unique index (exam_code, scheduled_date, paper_code), and the
+  // exam_code filter below is what makes that guarantee bite here.
+  //
+  // The paper codes come from the variant table rather than a hardcoded pair, so
+  // this is no longer a third, independent definition of "which papers have a
+  // daily quiz" that has to be kept in step with daily/config.ts by hand. An
+  // exam with no variants yields an empty list, and the `.in()` on it returns
+  // nothing — the honest empty state, never another exam's quiz.
+  const variants = variantsForExam(examCode);
   const { data: quizzes, error: quizError } = await supabase()
     .from("tests")
     .select("id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, test_questions(count)")
     .eq("kind", "daily_quiz")
+    .eq("exam_code", examCode)
     .eq("is_published", true)
     .eq("scheduled_date", today)
-    .in("paper_code", [PRELIMS_GS1_PAPER_CODE, PRELIMS_CSAT_PAPER_CODE]);
+    .in("paper_code", variants.map((v) => v.paperCode));
   if (quizError) throw new HttpError(500, `daily quiz lookup failed: ${quizError.message}`);
   const quizRows = (quizzes ?? []) as {
     id: string;
@@ -299,12 +310,17 @@ async function getToday(userId: string, today: string, progress: DailyProgress):
 
   const checklist = buildChecklist(progress);
   const planTasks = await getTodayPlanTasks(userId, today);
+  // Resolved through the variant table so each response field is filled by the
+  // paper THIS exam uses for that variant, not by a fixed paper code.
+  const paperFor = (key: DailyQuizPaper) => variants.find((v) => v.key === key)?.paperCode ?? null;
+  const gsPaper = paperFor("gs");
+  const csatPaper = paperFor("csat");
 
   return {
     srs_due_count: srsDue,
     current_affairs_today_count: caToday ?? 0,
-    daily_quiz_gs: toSummary(PRELIMS_GS1_PAPER_CODE),
-    daily_quiz_csat: toSummary(PRELIMS_CSAT_PAPER_CODE),
+    daily_quiz_gs: gsPaper ? toSummary(gsPaper) : null,
+    daily_quiz_csat: csatPaper ? toSummary(csatPaper) : null,
     checklist: checklist.items,
     checklist_completed: checklist.completed,
     checklist_total: checklist.total,
@@ -517,7 +533,7 @@ export async function getDashboardSummary(userId: string): Promise<DashboardSumm
   const [greeting, continueItem, todayCard, performanceAndWeakness, answerSpotlight] = await Promise.all([
     getGreeting(userId, today, streak, examCode),
     getContinue(userId, examCode),
-    getToday(userId, today, progress),
+    getToday(userId, today, progress, examCode),
     getPerformanceAndWeakness(userId, examCode),
     getAnswerSpotlight(userId, examCode),
   ]);

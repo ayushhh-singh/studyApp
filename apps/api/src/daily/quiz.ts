@@ -38,10 +38,10 @@ import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { DEFAULT_MCQ_MARKS, roundMarks } from "../lib/marks.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import {
-  DAILY_QUIZ_VARIANTS,
   SLICE_FILL_ORDER,
   clampSize,
   sliceTargets,
+  variantsForExam,
   type DailyQuizPaper,
   type DailyQuizVariant,
   type QuizSlice,
@@ -81,6 +81,18 @@ function shuffle<T>(items: T[]): T[] {
 const MCQ_COLUMNS = "id, marks";
 
 /**
+ * Every syllabus node id belonging to one exam. Paged — the tree is ~500 rows
+ * across two exams today and grows with every syllabus ingest, and a truncated
+ * read here would silently drop weak topics from the ranking rather than error.
+ */
+async function examSyllabusNodeIds(examCode: string): Promise<Set<string>> {
+  const rows = await selectAll<{ id: string }>(() =>
+    supabase().from("syllabus_nodes").select("id").eq("exam_code", examCode).order("id", { ascending: true }),
+  );
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
  * Leaf topics the platform as a whole answers below `threshold` accuracy on,
  * returned in PRIORITY order — aggregated across every user's graded attempts,
  * not any one individual's (see the module doc comment: this is a shared quiz).
@@ -97,21 +109,38 @@ const MCQ_COLUMNS = "id, marks";
  * Paginated (selectAll) since attempt_answers is unbounded and PostgREST caps
  * a single select at 1000 rows.
  */
-async function globalWeakNodeIds(threshold: number): Promise<string[]> {
-  const [rows, weightage] = await Promise.all([
+async function globalWeakNodeIds(threshold: number, examCode: string): Promise<string[]> {
+  const [rows, weightage, examNodeIds] = await Promise.all([
     selectAll<{ is_correct: boolean | null; questions: { syllabus_node_id: string | null } | null }>(() =>
       supabase()
         .from("attempt_answers")
         .select("is_correct, questions!inner(syllabus_node_id)")
         .not("is_correct", "is", null),
     ),
+    // Deliberately UNSCOPED. `loadNodeWeightage(exam)` filters on
+    // `mv_node_weightage.exam_code`, which is PROVENANCE ("which exam asked
+    // this question"), not the node's own exam — so scoping it to 'uppsc' would
+    // DROP the up_ro_aro / upsssc_pet rows that legitimately belong to UPPSC's
+    // bank and silently change UPPSC's hotness, hence its weak-topic ordering.
+    // The map is keyed by node id and syllabus nodes are exam-exclusive
+    // (verified live: 0 of 1829 weightage rows sit on a node from a different
+    // exam), so an unscoped load already yields exactly this exam's rows for
+    // every node we look up.
     loadNodeWeightage(),
+    examSyllabusNodeIds(examCode),
   ]);
   const year = currentExamYear();
   const byNode = new Map<string, { correct: number; total: number }>();
   for (const row of rows) {
     const nodeId = row.questions?.syllabus_node_id;
     if (!nodeId) continue;
+    // Scope to THIS exam's syllabus. Without it the normalisation below is
+    // computed over every exam's weak topics at once, so `hot / maxHot` for a
+    // small/new exam is flattened by a larger exam's absolute question counts
+    // and the ranking degrades to weakness-only. (No-op for UPPSC today —
+    // measured: zero graded answers sit on a UPSC paper, so the ranked list is
+    // byte-identical either way.)
+    if (!examNodeIds.has(nodeId)) continue;
     const b = byNode.get(nodeId) ?? { correct: 0, total: 0 };
     b.total += 1;
     if (row.is_correct) b.correct += 1;
@@ -362,47 +391,93 @@ async function setMembership(testId: string, items: PoolItem[]): Promise<PoolIte
   return items;
 }
 
-export interface BuildDailyQuizOptions {
+/** Options for building ONE variant, whose exam is a property of the variant. */
+export interface BuildDailyQuizVariantOptions {
   date: string;
   size?: number;
   log?: Log;
 }
 
+export interface BuildDailyQuizOptions extends BuildDailyQuizVariantOptions {
+  /**
+   * Which exams to build for. REQUIRED — no default. A defaulted exam set is
+   * exactly how a scheduled job silently keeps building for one exam while
+   * looking parameterised (this repo's M24 lesson), and here the opposite
+   * mistake is worse still: defaulting to "every configured variant" would
+   * enrol a not-yet-live exam in the nightly cron and write real `tests` rows
+   * for it. The policy decision lives at the two call sites that own it —
+   * `daily/run.ts` (CLI + `--exam` override) and `daily/scheduler.ts`.
+   */
+  examCodes: string[];
+}
+
+/** One variant's build outcome, tagged with the exam it belongs to. */
+export interface DailyQuizBuildOutcome {
+  examCode: string;
+  variant: DailyQuizPaper;
+  /** null when that variant had genuinely no questions to build from. */
+  result: DailyQuizBuildResult | null;
+}
+
+/** What `selectDailyQuizItems` decided, before anything is persisted. */
+export interface DailyQuizSelection {
+  items: PoolItem[];
+  /** The clamped target size the selection aimed at (may exceed `items.length`). */
+  size: number;
+  breakdown: Record<QuizSlice, number>;
+  shortfalls: DailyQuizBuildResult["shortfalls"];
+  backfilled: number;
+  /** How many candidates each pool offered — diagnostics for a replay. */
+  poolSizes: Record<QuizSlice, number>;
+}
+
 /**
- * Build BOTH daily quizzes (GS + CSAT) for a date, each from its own paper's
- * pool. Returns one result per variant (keyed by paper), or null for a variant
- * that had genuinely no questions to build from. Variants are built
- * sequentially — the two quizzes are independent, but their per-paper pool
- * queries are heavy (full paginated MCQ scans), so running them back-to-back
- * keeps the DB load flat rather than doubling concurrent scans.
+ * Build the daily quizzes for every requested exam, each variant from its own
+ * paper's pool. Returns one entry per (exam, variant), with a null `result` for
+ * a variant that had genuinely no questions to build from. Variants are built
+ * sequentially — they are independent, but their per-paper pool queries are
+ * heavy (full paginated MCQ scans), so running them back-to-back keeps the DB
+ * load flat rather than multiplying concurrent scans.
  */
-export async function buildDailyQuizzes(
-  opts: BuildDailyQuizOptions,
-): Promise<Record<DailyQuizPaper, DailyQuizBuildResult | null>> {
-  const out = {} as Record<DailyQuizPaper, DailyQuizBuildResult | null>;
-  for (const variant of DAILY_QUIZ_VARIANTS) {
-    // `size` (a manual override) only applies to the GS quiz — CSAT keeps its
-    // own configured, smaller default. A blanket override would blow CSAT past
-    // its narrow pool.
-    out[variant.key] = await buildDailyQuizVariant(variant, {
-      ...opts,
-      size: variant.key === "gs" ? opts.size : undefined,
-    });
+export async function buildDailyQuizzes(opts: BuildDailyQuizOptions): Promise<DailyQuizBuildOutcome[]> {
+  const out: DailyQuizBuildOutcome[] = [];
+  for (const examCode of opts.examCodes) {
+    // An exam with no configured variants contributes nothing — the honest
+    // answer, and the same one `variantsForExam` gives every other caller.
+    for (const variant of variantsForExam(examCode)) {
+      // `size` (a manual override) only applies to the GS quiz — CSAT keeps its
+      // own configured, smaller default. A blanket override would blow CSAT past
+      // its narrow pool.
+      const result = await buildDailyQuizVariant(variant, {
+        ...opts,
+        size: variant.key === "gs" ? opts.size : undefined,
+      });
+      out.push({ examCode, variant: variant.key, result });
+    }
   }
   return out;
 }
 
-export async function buildDailyQuizVariant(
+/**
+ * Choose one variant's question set. PURE READ — no insert, no update, no
+ * upsert; every query below is a select. Split out of `buildDailyQuizVariant`
+ * (which persists what this returns) so the selection policy can be replayed
+ * and diffed against a live database without writing a single row, which is
+ * the only safe way to verify a change to it: this database is the same
+ * Supabase project for dev and production.
+ *
+ * Returns null when no pool yielded anything at all.
+ */
+export async function selectDailyQuizItems(
   variant: DailyQuizVariant,
-  opts: BuildDailyQuizOptions,
-): Promise<DailyQuizBuildResult | null> {
+  opts: { size?: number; log?: Log },
+): Promise<DailyQuizSelection | null> {
   const cfg = variant.config;
   const log = opts.log ?? (() => {});
   const size = clampSize(opts.size ?? cfg.defaultSize, cfg);
-  const { date } = opts;
   const { paperCode, examCode } = variant;
 
-  const weak = await globalWeakNodeIds(cfg.weakAccuracyThreshold);
+  const weak = await globalWeakNodeIds(cfg.weakAccuracyThreshold, examCode);
   // `recentlyUsedInDailyQuiz` returns every question (any slice) used in recent
   // daily quizzes OF THIS PAPER; the pyq and generated slices each skip that set
   // over their own window. Reuse the one query when the windows match (the
@@ -421,6 +496,12 @@ export async function buildDailyQuizVariant(
     randomPool(paperCode),
   ]);
   const pools: Record<QuizSlice, PoolItem[]> = { generated: gen, pyq, current_affairs: ca, random: rand };
+  const poolSizes: Record<QuizSlice, number> = {
+    generated: gen.length,
+    pyq: pyq.length,
+    current_affairs: ca.length,
+    random: rand.length,
+  };
   log(
     `pools: generated=${gen.length} pyq=${pyq.length} current_affairs=${ca.length} random=${rand.length} ` +
       `(weak topics=${weak.length}, recently-seen pyq=${seen.size} generated=${genSeen.size})`,
@@ -468,7 +549,22 @@ export async function buildDailyQuizVariant(
     log(`only ${chosen.size} questions available (min ${cfg.minSize}) — shipping a smaller quiz than intended`);
   }
 
-  const finalItems = shuffle([...chosen.values()]);
+  return { items: shuffle([...chosen.values()]), size, breakdown, shortfalls, backfilled, poolSizes };
+}
+
+export async function buildDailyQuizVariant(
+  variant: DailyQuizVariant,
+  opts: BuildDailyQuizVariantOptions,
+): Promise<DailyQuizBuildResult | null> {
+  const cfg = variant.config;
+  const log = opts.log ?? (() => {});
+  const { date } = opts;
+  const { paperCode, examCode } = variant;
+
+  const selection = await selectDailyQuizItems(variant, { size: opts.size, log });
+  if (!selection) return null;
+  const { items: finalItems, breakdown, shortfalls, backfilled } = selection;
+
   const totalMarks = roundMarks(finalItems.reduce((s, it) => s + (it.marks ?? 0), 0));
   const d = formatDateBilingual(date);
   // `tests.slug` is globally unique and is this build's idempotency key, so it

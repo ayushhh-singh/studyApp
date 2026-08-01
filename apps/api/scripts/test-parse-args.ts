@@ -409,9 +409,12 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     // raw key `user` would silently not become `userId` — fanning the build out
     // to every onboarded user. `--size` is positiveInt because `?? default` does
     // NOT catch NaN downstream.
+    // `--exam` is the multi-exam override (default = every live exam), modelled
+    // on qgen:topup's. A bare run is the 5:00 AM cron's own invocation and MUST
+    // keep parsing.
     script: "daily:build",
-    spec: { value: ["date", "user"], positiveInt: ["size"] },
-    documented: [[], ["--date", "2026-07-01"], ["--size", "25", "--user", "u"]],
+    spec: { value: ["date", "user", "exam"], positiveInt: ["size"] },
+    documented: [[], ["--date", "2026-07-01"], ["--size", "25", "--user", "u"], ["--exam", "upsc"]],
   },
   {
     // 7 flags, not the 4 its first-line usage suggests. `--max-usd` is a DOLLAR

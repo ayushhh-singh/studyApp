@@ -25,6 +25,8 @@
  * share, so most of each day's GS quiz comes from static syllabus topics.
  */
 import { DEFAULT_EXAM_CODE, type MarkingScheme } from "@neev/shared";
+import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE } from "../lib/exam-papers.js";
+import { UPSC_EXAM_CODE, UPSC_PRELIMS_CSAT_PAPER_CODE, UPSC_PRELIMS_GS1_PAPER_CODE } from "../lib/upsc-papers.js";
 
 /** The four slices of a daily quiz, in fill priority order. */
 export type QuizSlice = "generated" | "pyq" | "current_affairs" | "random";
@@ -66,6 +68,39 @@ export interface DailyQuizConfig {
 const UPPSC_PRELIMS_MARKING: MarkingScheme = {
   type: "uppsc_prelims",
   negative_marking: -0.33,
+  note: "one-third (1/3) negative marking",
+};
+
+/**
+ * UPSC Civil Services Prelims marking. Re-derived from THIS commission's own
+ * notified pattern, never adapted from UPPSC's value above.
+ *
+ * SOURCE: `exams.paper_structure` (migration 0106, verified against the UPSC
+ * notification PDF) records `negative_marking = {of: "question_marks",
+ * fraction: 0.3333}` for BOTH `UPSC_PRE_GS1` and `UPSC_PRE_CSAT`. Because the
+ * schema stores a FRACTION of the question's own marks — exactly the semantics
+ * `attempts.ts` applies (`awarded = negative_marking * marks`) — the one value
+ * is correct for both papers even though a UPSC GS question is worth 2 marks
+ * and a CSAT question 2.5: 0.3333 × 2 = 0.667 and 0.3333 × 2.5 = 0.833, each
+ * exactly one third. The per-question marks come from `questions.marks`, not
+ * from this scheme.
+ *
+ * ⚑ It is -0.3333 here and -0.33 in UPPSC's constant above, and that difference
+ * is deliberate, not a typo. The registry's fraction for uppsc is ALSO 0.3333,
+ * so UPPSC's -0.33 under-deducts by 1% — a pre-existing cosmetic rounding that
+ * is frozen because it is already stamped into every daily-quiz row ever built
+ * and correcting it would silently reprice the live exam's quizzes. A new exam
+ * has no such history, so it starts on the registry's own number.
+ *
+ * ⚑ KNOWN LIMITATION, inherited and stated rather than hidden: UPSC does not
+ * apply negative marking to CSAT *Decision Making* questions. A per-paper
+ * scalar cannot express a per-question carve-out (the same note appears on
+ * `lib/exam-papers.ts`'s PRELIMS_MARKING), so a decision-making item is
+ * penalised here where the real exam would not penalise it.
+ */
+const UPSC_PRELIMS_MARKING: MarkingScheme = {
+  type: "upsc_prelims",
+  negative_marking: -0.3333,
   note: "one-third (1/3) negative marking",
 };
 
@@ -149,11 +184,44 @@ export interface DailyQuizVariant {
   board: boolean;
 }
 
+/**
+ * UPSC's two prelims quizzes. The SLICE POLICY (sizes, ratios, recency windows,
+ * weak-topic threshold) is deliberately shared with UPPSC's configs above —
+ * those are product decisions about a daily study habit, not facts about a
+ * commission — while everything that IS a fact about the commission (paper
+ * codes, negative marking) is re-derived. Spread rather than re-declared so the
+ * two exams cannot silently drift apart on policy.
+ *
+ * The 25:20 GS:CSAT split happens to fit UPSC even better than UPPSC: UPSC's
+ * real papers are 100:80 questions = 1.25, exactly the 25:20 ratio (UPPSC's are
+ * 150:100 = 1.5). No re-tuning needed.
+ *
+ * ⚑ The `generated` slice will run SHORT for UPSC until `qgen:topup --exam upsc`
+ * has stocked a bank — there are zero generated MCQs on either UPSC paper today.
+ * That is handled, not broken: a short slice logs a shortfall and backfills from
+ * the paper's own other pools (see quiz.ts), so the quiz still ships full length,
+ * and the ratio becomes real the moment generation runs. Zeroing the ratio here
+ * would have to be undone later and would hide the gap in the meantime.
+ */
+const UPSC_GS_QUIZ_CONFIG: DailyQuizConfig = { ...GS_QUIZ_CONFIG, markingScheme: UPSC_PRELIMS_MARKING };
+const UPSC_CSAT_QUIZ_CONFIG: DailyQuizConfig = { ...CSAT_QUIZ_CONFIG, markingScheme: UPSC_PRELIMS_MARKING };
+
+/**
+ * Every exam's daily-quiz variants. NOT the build list — `buildDailyQuizzes`
+ * takes an explicit exam set and filters this through `variantsForExam`, so
+ * adding a non-live exam's variants here does NOT enrol it in the nightly cron
+ * (see quiz.ts / run.ts, and the `--exam` override modelled on qgen/cli.ts).
+ *
+ * The `key` values are reused across exams on purpose: `tests.slug` carries the
+ * exam separately for a non-default exam, `DailyQuizPaper` stays a closed
+ * two-member union, and `services/daily.ts`'s `{gs, csat}` response shape keeps
+ * working unchanged for every exam.
+ */
 export const DAILY_QUIZ_VARIANTS: DailyQuizVariant[] = [
   {
     key: "gs",
     examCode: DEFAULT_EXAM_CODE,
-    paperCode: "PRE_GS1",
+    paperCode: PRELIMS_GS1_PAPER_CODE,
     includeCurrentAffairs: true,
     labelI18n: { en: "GS", hi: "जीएस" },
     config: GS_QUIZ_CONFIG,
@@ -162,13 +230,40 @@ export const DAILY_QUIZ_VARIANTS: DailyQuizVariant[] = [
   {
     key: "csat",
     examCode: DEFAULT_EXAM_CODE,
-    paperCode: "PRE_CSAT",
+    paperCode: PRELIMS_CSAT_PAPER_CODE,
     includeCurrentAffairs: false,
     labelI18n: { en: "CSAT", hi: "सीसैट" },
     config: CSAT_QUIZ_CONFIG,
     board: false,
   },
+  {
+    key: "gs",
+    examCode: UPSC_EXAM_CODE,
+    paperCode: UPSC_PRELIMS_GS1_PAPER_CODE,
+    includeCurrentAffairs: true,
+    labelI18n: { en: "GS", hi: "जीएस" },
+    config: UPSC_GS_QUIZ_CONFIG,
+    board: true,
+  },
+  {
+    key: "csat",
+    examCode: UPSC_EXAM_CODE,
+    paperCode: UPSC_PRELIMS_CSAT_PAPER_CODE,
+    includeCurrentAffairs: false,
+    labelI18n: { en: "CSAT", hi: "सीसैट" },
+    config: UPSC_CSAT_QUIZ_CONFIG,
+    board: false,
+  },
 ];
+
+/**
+ * The variant one exam builds for one paper, or null. Used by the daily board
+ * to answer "is an attempt on THIS test board-eligible?" without re-encoding
+ * the answer as a paper-code literal.
+ */
+export function variantForPaper(examCode: string, paperCode: string): DailyQuizVariant | null {
+  return DAILY_QUIZ_VARIANTS.find((v) => v.examCode === examCode && v.paperCode === paperCode) ?? null;
+}
 
 /** Back-compat alias: the GS quiz is the direct descendant of the old single blended quiz. */
 export const DAILY_QUIZ_CONFIG = GS_QUIZ_CONFIG;
