@@ -38,6 +38,7 @@
     "ca:distribute-mcqs": "tsx --env-file-if-exists=.env scripts/ca-distribute-mcqs.ts",
     "ca:reclassify-mcq-nodes": "tsx --env-file-if-exists=.env scripts/ca-reclassify-mcq-nodes.ts",
     "ca:flag-mcqs": "tsx --env-file-if-exists=.env scripts/ca-flag-low-quality-mcqs.ts",
+    "ca:strip-foreign-nodes": "tsx --env-file-if-exists=.env scripts/ca-strip-foreign-exam-nodes.ts",
     "ca:compile": "tsx --env-file-if-exists=.env src/ca/compile.ts",
     "daily:build": "tsx --env-file-if-exists=.env src/daily/run.ts",
     "mocks:build": "tsx --env-file-if-exists=.env src/mocks/build.ts",

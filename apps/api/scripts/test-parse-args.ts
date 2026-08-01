@@ -508,6 +508,17 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
   // is what lets `pnpm check:cli-args` enforce a single parser repo-wide.
   { script: "ca:distribute-mcqs", spec: { boolean: ["apply"] }, documented: [[], ["--apply"]] },
   { script: "ca:flag-mcqs", spec: { boolean: ["apply"] }, documented: [[], ["--apply"]] },
+  {
+    // Written on the shared parser from the start, but locked here like every
+    // other CLI: `--snapshot` is a `value` flag on purpose, so a valueless
+    // `--snapshot` is REFUSED rather than collapsing to boolean `true` — which
+    // would make the tool skip its own pre-image write and then modify live
+    // production rows with no restore path (D12/§0d, the exact shape that
+    // caused the 2026-07-31 incident).
+    script: "ca:strip-foreign-nodes",
+    spec: { boolean: ["apply"], value: ["snapshot"] },
+    documented: [[], ["--apply", "--snapshot", "/tmp/pre.json"]],
+  },
   { script: "ca:reclassify-mcq-nodes", spec: { boolean: ["apply"] }, documented: [[], ["--apply"]] },
   { script: "ca:remap-prelims", spec: { boolean: ["apply"] }, documented: [[], ["--apply"]] },
   {
