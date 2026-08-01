@@ -65,6 +65,15 @@ function chunk<T>(arr: T[], size: number): T[][] {
 
 const TABLE = "ca_triage_batches";
 
+/** One live exam's triage request for this item — see `PendingTriagePayload.perExam`. */
+export interface PendingTriageExamRequest {
+  examCode: string;
+  /** This request's Anthropic `custom_id`, distinct from the ledger row's own. */
+  customId: string;
+  /** The syllabus candidate ids THIS exam's call was actually SHOWN (post pre-filter). */
+  candidateIds: string[];
+}
+
 export interface PendingTriagePayload {
   link: string;
   title: string;
@@ -73,8 +82,21 @@ export interface PendingTriagePayload {
   date: string;
   sourceId: string;
   sourceIsUp: boolean;
-  /** The syllabus candidate ids the model was actually SHOWN (post pre-filter). */
-  candidateIds: string[];
+  /**
+   * LEGACY (pre-2026-08-01, single-exam): the candidate ids the one triage call
+   * was shown. Kept — and still read — because a deploy can land while rows
+   * submitted by the previous build are still pending, and dropping this would
+   * strand every one of them (paid for, never collected). New rows write
+   * `perExam` instead; the collector prefers it and falls back to this.
+   */
+  candidateIds?: string[];
+  /**
+   * MULTI-EXAM: one request per live exam, in `liveExamCodes()` order. The
+   * ledger keeps ONE row per item (the in-flight lock is per `content_hash`, and
+   * an item is submitted or not as a unit), so the per-exam custom ids live here
+   * rather than as extra rows.
+   */
+  perExam?: PendingTriageExamRequest[];
 }
 
 export interface PendingTriageRow {

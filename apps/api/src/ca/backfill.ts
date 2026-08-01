@@ -28,7 +28,7 @@ import {
   type SyllabusCandidate,
   type TriageResult,
 } from "./prompts.js";
-import { RELEVANCE_GATE, caPromptExamCode } from "./pipeline.js";
+import { RELEVANCE_GATE, mergeExamTriages, type ExamTriage } from "./exam-fanout.js";
 import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import { liveExamCodes } from "../lib/exams.js";
 import { selectAll } from "../lib/paginate.js";
@@ -143,16 +143,25 @@ type Log = (msg: string) => void;
 
 export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<BackfillRunResult> {
   const log = opts.log ?? (() => {});
+  // ONE SCOPE PER LIVE EXAM, exactly as the live pipeline does: triage fans out
+  // (one call per exam, over that exam's OWN pool, in that exam's OWN framing)
+  // and the verdicts are merged by `mergeExamTriages`. Enrichment stays one call
+  // per item, framed by the exam that merge picks. With one live exam this
+  // collapses to the previous single pool / single call per item.
   const live = await liveExamCodes();
-  const candidates = await loadSyllabusCandidates({ examCodes: live });
-  const candidateById = new Map(candidates.map((c) => [c.id, c]));
-  // Same rule as the live pipeline (caPromptExamCode): triage is run-scoped
-  // (before any node is known), enrichment is item-scoped (the nodes triage
-  // actually chose).
-  const runExamCode = caPromptExamCode(live);
-  const prefilter = await CandidatePrefilter.create(candidates);
+  const scopes: { examCode: string; candidates: SyllabusCandidate[]; prefilter: CandidatePrefilter }[] = [];
+  for (const examCode of live) {
+    const candidates = await loadSyllabusCandidates({ examCodes: [examCode] });
+    scopes.push({ examCode, candidates, prefilter: await CandidatePrefilter.create(candidates) });
+  }
+  if (scopes.length === 0) throw new Error("ca:backfill: no live exams — nothing to triage against");
+  // Node ids are globally unique, so one merged map resolves any node's exam.
+  const candidateById = new Map(scopes.flatMap((s) => s.candidates).map((c) => [c.id, c]));
   const all = await loadItemsNeedingBackfill();
-  log(`items needing backfill: ${all.length}; budget cap: $${opts.maxUsd.toFixed(2)}`);
+  log(
+    `items needing backfill: ${all.length}; budget cap: $${opts.maxUsd.toFixed(2)}; ` +
+      `exams: ${live.join(", ")} (${scopes.length} triage call(s) per item)`,
+  );
 
   const result: BackfillRunResult = {
     processed: 0,
@@ -165,8 +174,14 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
   };
 
   // Rough per-chunk projection to decide whether we can afford the next chunk.
+  // Triage is multiplied by the number of live exams — it fans out, enrichment
+  // does not. Omitting that factor would under-project and overshoot --max-usd,
+  // the same class of error that had `EST.triageInput` set to 2300.
   const chunkProjection =
-    estimateCostUsd(MODELS.haiku, EST.triageInput, EST.triageOutput) * BATCH_DISCOUNT * CHUNK_SIZE +
+    estimateCostUsd(MODELS.haiku, EST.triageInput, EST.triageOutput) *
+      BATCH_DISCOUNT *
+      CHUNK_SIZE *
+      scopes.length +
     estimateCostUsd(MODELS.haiku, EST.enrichInput, EST.enrichOutput) * BATCH_DISCOUNT * CHUNK_SIZE * EST.survivalRate;
 
   for (let start = 0; start < all.length; start += CHUNK_SIZE) {
@@ -178,37 +193,68 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
     const chunk = all.slice(start, start + CHUNK_SIZE);
     log(`chunk ${start / CHUNK_SIZE + 1}: ${chunk.length} items (triage)...`);
 
-    // --- Phase 1: triage batch ---
+    // --- Phase 1: triage batch, fanned out per live exam ---
     // Same embedding pre-filter as the live pipeline, but batched: every item
-    // in the chunk is embedded in one call rather than one call per item.
-    // chunkCandidates[i] MUST be reused for normalizeTriage below — validating
-    // against the full list would accept ids the model was never shown.
-    const chunkCandidates = await prefilter.narrowMany(
-      chunk.map((it) => ({ title: it.title, snippet: it.snippet })),
-      (u) => (result.costUsd += u.costUsd),
+    // in the chunk is embedded in one call rather than one call per item, and
+    // once PER EXAM because the pre-filter (and its fixed K) is per exam.
+    // chunkCandidates[e][i] MUST be reused for normalizeTriage below —
+    // validating against the full list would accept ids the model was never
+    // shown, and across exams it would accept another exam's nodes outright.
+    const chunkCandidates: SyllabusCandidate[][][] = [];
+    for (const scope of scopes) {
+      chunkCandidates.push(
+        await scope.prefilter.narrowMany(
+          chunk.map((it) => ({ title: it.title, snippet: it.snippet })),
+          (u) => (result.costUsd += u.costUsd),
+        ),
+      );
+    }
+    const customIdFor = (itemIdx: number, examIdx: number) => `t_${itemIdx}_e${examIdx}`;
+    const triageReqs: BatchRequest[] = scopes.flatMap((scope, e) =>
+      chunk.map((it, i) => ({
+        customId: customIdFor(i, e),
+        params: structuredParams(
+          triageParams({
+            title: it.title,
+            snippet: it.snippet,
+            sourceIsUp: it.is_up_specific,
+            candidates: chunkCandidates[e][i],
+            examCode: scope.examCode,
+          }),
+        ),
+        purpose: "ca_triage" as const,
+      })),
     );
-    const triageReqs: BatchRequest[] = chunk.map((it, i) => ({
-      customId: `t_${i}`,
-      params: structuredParams(triageParams({ title: it.title, snippet: it.snippet, sourceIsUp: it.is_up_specific, candidates: chunkCandidates[i], examCode: runExamCode })),
-      purpose: "ca_triage",
-    }));
     const triageRes = await runBatch(triageReqs, { onUsage: (u) => (result.costUsd += u.costUsd) });
 
-    const triaged: (TriageResult | null)[] = chunk.map((it, i) => {
-      const r = triageRes.get(`t_${i}`);
-      if (!r?.ok) return null;
-      try {
-        return normalizeTriage(JSON.parse(r.text) as TriageResult, chunkCandidates[i], it.is_up_specific);
-      } catch {
-        return null;
-      }
+    // Per item: whichever exams came back usable. An item with none is left
+    // untouched and retried next run; PARTIAL results are kept (see the same
+    // reasoning in pipeline.ts's collectBatch) rather than discarding triage
+    // that has already been paid for.
+    const triaged: (ExamTriage[] | null)[] = chunk.map((it, i) => {
+      const perExam: ExamTriage[] = [];
+      scopes.forEach((scope, e) => {
+        const r = triageRes.get(customIdFor(i, e));
+        if (!r?.ok) return;
+        try {
+          perExam.push({
+            examCode: scope.examCode,
+            triage: normalizeTriage(JSON.parse(r.text) as TriageResult, chunkCandidates[e][i], it.is_up_specific),
+          });
+        } catch {
+          /* unusable (usually truncated) — that exam simply does not claim it */
+        }
+      });
+      return perExam.length > 0 ? perExam : null;
     });
 
     // Archive gated items immediately (checkpoint).
-    const survivors: { idx: number; triage: TriageResult }[] = [];
+    const survivors: { idx: number; merged: ReturnType<typeof mergeExamTriages> }[] = [];
     for (let i = 0; i < chunk.length; i++) {
-      const triage = triaged[i];
-      if (!triage) continue; // leave untouched → retried next run
+      const perExam = triaged[i];
+      if (!perExam) continue; // leave untouched → retried next run
+      const merged = mergeExamTriages(perExam, candidateById);
+      const triage = merged.triage;
       const best = Math.max(triage.prelims_relevance, triage.mains_relevance);
       if (best < RELEVANCE_GATE) {
         await supabase()
@@ -221,12 +267,17 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
             mains_relevance: triage.mains_relevance,
             gs_papers: triage.gs_papers,
             syllabus_node_ids: triage.syllabus_node_ids,
+            // Kept in step with syllabus_node_ids, which this same statement
+            // rewrites. Leaving the pre-existing exam_codes behind would make the
+            // row disagree with the nodes it now points at — and with the
+            // embedding `ca:embed` later stamps from that array.
+            exam_codes: merged.itemExamCodes,
           })
           .eq("id", chunk[i].id);
         result.archived++;
         result.processed++;
       } else {
-        survivors.push({ idx: i, triage });
+        survivors.push({ idx: i, merged });
       }
     }
 
@@ -234,25 +285,25 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
     if (survivors.length > 0) {
       log(`chunk ${start / CHUNK_SIZE + 1}: ${survivors.length} survivors (enrich)...`);
       const enrichReqs: BatchRequest[] = survivors.map((s, j) => {
-        const hasPrelims = s.triage.prelims_relevance >= RELEVANCE_GATE;
-        const hasMains = s.triage.mains_relevance >= RELEVANCE_GATE;
-        const linkedNodes = s.triage.syllabus_node_ids
+        const triage = s.merged.triage;
+        const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
+        const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
+        const linkedNodes = triage.syllabus_node_ids
           .map((id) => candidateById.get(id))
           .filter((n): n is SyllabusCandidate => !!n);
-        // The item's own exam(s), from the nodes triage chose — identical
-        // derivation to the live pipeline's itemExamCodes.
-        const itemExamCodes = [...new Set(linkedNodes.map((n) => n.examCode))];
         return {
           customId: `e_${j}`,
           params: structuredParams(
             enrichParams({
               title: chunk[s.idx].title,
               snippet: chunk[s.idx].snippet,
-              category: s.triage.category,
+              category: triage.category,
               hasPrelimsLife: hasPrelims,
               hasMainsLife: hasMains,
               linkedNodes,
-              examCode: itemExamCodes.length > 0 ? caPromptExamCode(itemExamCodes) : runExamCode,
+              // Chosen explicitly from the exams that cleared the gate — never a
+              // silent fallback to the default. See resolveItemFramingExam.
+              examCode: s.merged.framingExamCode,
             }),
           ),
           purpose: "ca_enrich",
@@ -270,8 +321,9 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
         } catch {
           continue;
         }
-        const hasPrelims = s.triage.prelims_relevance >= RELEVANCE_GATE;
-        const hasMains = s.triage.mains_relevance >= RELEVANCE_GATE;
+        const triage = s.merged.triage;
+        const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
+        const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
         const prelimsFacts: CurrentAffairsFact[] | null =
           hasPrelims && enrich.prelims_facts.length > 0 ? enrich.prelims_facts : null;
         const mainsBrief: CurrentAffairsMainsBrief | null =
@@ -282,11 +334,15 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
           .from("current_affairs_items")
           .update({
             status: republished ? "published" : "draft",
-            category: s.triage.category,
-            is_up_specific: s.triage.is_up_specific,
-            prelims_relevance: s.triage.prelims_relevance,
-            mains_relevance: s.triage.mains_relevance,
-            gs_papers: s.triage.gs_papers,
+            category: triage.category,
+            is_up_specific: triage.is_up_specific,
+            prelims_relevance: triage.prelims_relevance,
+            mains_relevance: triage.mains_relevance,
+            gs_papers: triage.gs_papers,
+            // Framing exam first — see mergeExamTriages. Written here for the
+            // same reason as on the archive path above: this statement rewrites
+            // syllabus_node_ids, so exam_codes must move with it.
+            exam_codes: s.merged.itemExamCodes,
             title_i18n: enrich.title_i18n,
             summary_i18n: enrich.summary_i18n,
             prelims_facts: prelimsFacts,
@@ -296,7 +352,7 @@ export async function runBackfill(opts: { maxUsd: number; log?: Log }): Promise<
               mains_i18n: hasMains ? enrich.possible_questions.mains_i18n : null,
             },
             node_significance: buildNodeSignificance(enrich, hasPrelims, hasMains),
-            syllabus_node_ids: s.triage.syllabus_node_ids,
+            syllabus_node_ids: triage.syllabus_node_ids,
           })
           .eq("id", chunk[s.idx].id);
         result.processed++;

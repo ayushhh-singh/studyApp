@@ -36,9 +36,17 @@
  *
  * Both modes share ONE downstream (`processTriagedItem`), so there is zero
  * behavioural drift between them: the only difference is where the TriageResult
- * came from. The prompt itself is identical — `triageParams` is called with
- * exactly the same arguments in both paths (see ca/prompts.ts's long note on
- * why that prompt's shape is load-bearing).
+ * came from. The prompt itself is identical — both plan their calls through
+ * `planTriageRequests` (see ca/prompts.ts's long note on why that prompt's shape
+ * is load-bearing).
+ *
+ * MULTI-EXAM (2026-08-01). Triage FANS OUT: one call per LIVE exam, each against
+ * that exam's OWN candidate pool with that exam's OWN authored framing, merged
+ * afterwards by `mergeExamTriages`. Prelims-MCQ and mains-question generation
+ * fan out the same way, because a CA question is OWNED by the exam it was
+ * generated for (`questionExamScopeFilter`'s second disjunct). Enrichment does
+ * NOT fan out — the item is one shared row by design. See ./exam-fanout.ts for
+ * the full reasoning, the N=1 invariant, and every merge rule.
  */
 import { createHash } from "node:crypto";
 import Parser from "rss-parser";
@@ -64,6 +72,15 @@ import { loadSyllabusCandidates } from "./syllabus-candidates.js";
 import { caEmbeddingExamCode } from "./embed-exam.js";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { liveExamCodes } from "../lib/exams.js";
+import {
+  RELEVANCE_GATE,
+  mergeExamTriages,
+  pickMainsNode,
+  pickPrelimsMcqNode,
+  planTriageRequests,
+  prelimsPaperCodeFor,
+  type ExamTriage,
+} from "./exam-fanout.js";
 import type {
   CurrentAffairsFact,
   CurrentAffairsMainsBrief,
@@ -79,7 +96,6 @@ import {
   generateMcqs,
   normalizeTriage,
   triageItem,
-  triageParams,
   type EnrichResult,
   type SyllabusCandidate,
   type TriageResult,
@@ -97,32 +113,19 @@ import {
   releaseClaims,
   reapStale,
   type ClaimInput,
+  type PendingTriageExamRequest,
   type PendingTriagePayload,
 } from "./triage-batch-store.js";
 
-/** Items scoring below this on BOTH lives are archived (the hard gate). */
-export const RELEVANCE_GATE = 2;
-
 /**
- * Which exam's framing a CA prompt should use.
+ * Items scoring below this on BOTH lives are archived (the hard gate).
  *
- * A current-affairs item is deliberately MULTI-EXAM (migration 0106 §11: one
- * national story maps into several exams' trees from ONE row, so it is never
- * duplicated or re-triaged per exam). A prompt, however, has to name exactly one
- * commission. THE RULE, used everywhere in this pipeline: if the relevant set
- * resolves to exactly ONE exam, use it; otherwise fall back to the default exam
- * rather than inventing a per-exam fan-out of the pipeline.
- *
- * Applied at two different scopes, both derived from real data:
- *  - TRIAGE runs BEFORE any node is chosen, so its scope is the run's own
- *    candidate pool: the single LIVE exam if only one is live, else the default.
- *  - Everything downstream of triage (enrich, MCQ + Mains generation) knows the
- *    nodes the item actually landed on, so its scope is `exam_codes` — the same
- *    set the item row and its embedding are stamped from.
+ * Re-exported from ./exam-fanout.ts, where the merge rules that reference it
+ * live. Every existing importer (`services/magazine.ts`,
+ * `services/current-affairs.ts`, `ca/deepdive.ts`, `ca/backfill.ts`) keeps
+ * importing it from here unchanged.
  */
-export function caPromptExamCode(examCodes: readonly string[]): string {
-  return examCodes.length === 1 ? examCodes[0] : DEFAULT_EXAM_CODE;
-}
+export { RELEVANCE_GATE } from "./exam-fanout.js";
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 function istDateString(d: Date): string {
@@ -229,17 +232,45 @@ interface EmbedTask {
 /** What happened to one triaged item downstream. `duplicate` and `archived` are expected, terminal, and NOT failures. */
 export type ProcessOutcome = "persisted" | "archived" | "duplicate" | "insert_failed";
 
+/**
+ * One live exam's slice of the run: the pool triage is shown, the pre-filter
+ * that narrows it, and the node-placement inputs its generated questions need.
+ * Built once per run, per exam.
+ */
+export interface ExamScope {
+  examCode: string;
+  /** Every depth-1/2 node of THIS exam — the pool this exam's triage call sees. */
+  candidates: SyllabusCandidate[];
+  /** Narrows `candidates` per item. One per exam: K is per-pool, not per-run. */
+  prefilter: CandidatePrefilter;
+  /**
+   * This exam's prelims-GS candidates only (never its CSAT paper), excluding its
+   * own pooled fallback node — the list `classifyPrelimsMcqNode` chooses from.
+   */
+  prelimsCandidates: SyllabusCandidate[];
+  /** This exam's pooled "Current Events" node, or null if it has none. */
+  pooledNodeId: string | null;
+}
+
 /** Everything `processTriagedItem` needs that isn't the item itself — identical in both modes. */
 interface ProcessCtx {
   result: PipelineResult;
   embedTasks: EmbedTask[];
+  /**
+   * Every live exam's candidates in ONE map. Node ids are globally unique, so a
+   * merged map resolves a node to its own exam's row with no ambiguity — it is
+   * only the PROMPT pools that must stay per-exam.
+   */
   candidateById: Map<string, SyllabusCandidate>;
-  /** PRE_GS1 candidates only (never PRE_CSAT), excluding the pooled fallback node — for classifyPrelimsMcqNode. */
-  prelimsCandidates: SyllabusCandidate[];
-  /** The run-scope exam for triage (see caPromptExamCode) — the same value in both modes. */
-  runExamCode: string;
+  /** One entry per live exam, in `liveExamCodes()` order. That order is the deterministic tie-break. */
+  scopes: ExamScope[];
   onUsage: (u: LlmUsage) => void;
   log: (msg: string) => void;
+}
+
+/** This run's per-exam scopes keyed by exam code. */
+function scopeFor(ctx: ProcessCtx, examCode: string): ExamScope | undefined {
+  return ctx.scopes.find((s) => s.examCode === examCode);
 }
 
 /** How often the optional `--wait` poll asks whether the just-submitted batch has ended. */
@@ -251,71 +282,14 @@ function sleep(ms: number): Promise<void> {
 
 /** One submitted-but-not-yet-created triage request, held until the claim/submit step. */
 interface PendingSubmission {
+  /** The LEDGER row's custom_id (one row per item). Not itself an Anthropic request id. */
   customId: string;
   contentHash: string;
   payload: PendingTriagePayload;
-  params: BatchRequest["params"];
+  /** One Anthropic request per live exam; ids match `payload.perExam[].customId`. */
+  requests: { customId: string; params: BatchRequest["params"] }[];
 }
 
-/**
- * First of `nodeIds` (triage's own classification, in the model's preference
- * order) whose paper matches `paperMatches` — shared by the prelims and
- * mains node pickers below, which differ only in which paper they require.
- */
-function pickNodeMatching(
-  nodeIds: string[],
-  candidateById: Map<string, SyllabusCandidate>,
-  paperMatches: (paperCode: string) => boolean,
-): string | null {
-  for (const id of nodeIds) {
-    const paperCode = candidateById.get(id)?.paperCode;
-    if (paperCode && paperMatches(paperCode)) return id;
-  }
-  return null;
-}
-
-/**
- * Picks a real PRELIMS-paper node out of triage's own `syllabus_node_ids`
- * classification, for placing a CA MCQ on its real topic instead of always
- * pooling it under one "Current Events" node. Triage's candidate pool spans
- * the WHOLE tree (see syllabus-candidates.ts), so it can and does classify a
- * factual item straight onto a prelims node when that's the closest topical
- * match — this just prefers that over the item's mains-paper match
- * (`syllabus_node_ids[0]`, used for the mains brief/question) when one
- * exists. Returns null if triage classified the item to mains-only topics,
- * so the caller can fall back (see classifyPrelimsMcqNode, then the pooled
- * node — pipeline.ts's MCQ-generation branch tries both in order).
- */
-function pickPrelimsMcqNode(
-  nodeIds: string[],
-  candidateById: Map<string, SyllabusCandidate>,
-): string | null {
-  // PRE_GS1 only, not PRE_CSAT — CSAT topics are aptitude/reasoning skills
-  // (comprehension, data interpretation, mental ability), never a real
-  // current-affairs GK subject, so a CSAT match here would be a genuine
-  // mis-mapping rather than a real topic fit. PRE_GS1 is also where the
-  // pooled "Current Events" fallback itself lives, so this stays within
-  // one paper either way.
-  return pickNodeMatching(nodeIds, candidateById, (p) => p === "PRE_GS1");
-}
-
-/**
- * Picks a real MAINS-paper node for the mains descriptive question — NOT a
- * blind `syllabus_node_ids[0]`, because triage's candidate pool spans every
- * paper (see syllabus-candidates.ts), so the model's first-choice id COULD
- * be a PRE_ node. That would silently orphan the question: every consumer
- * that reads it back (the paper tree, mastery/weightage rollups) filters by
- * `paper_code`, which stays `CURRENT_AFFAIRS` regardless of
- * `syllabus_node_id` — so a mains-stage row sitting under a PRE_GS1 node id
- * would never surface under EITHER paper's tree. Same class of
- * misattribution pickPrelimsMcqNode guards against for MCQs, checked here
- * too rather than assumed away. Returns null (unmapped, same as before this
- * guard existed) if none of triage's classified nodes belongs to a mains
- * paper.
- */
-function pickMainsNode(nodeIds: string[], candidateById: Map<string, SyllabusCandidate>): string | null {
-  return pickNodeMatching(nodeIds, candidateById, (p) => p.startsWith("MAINS_"));
-}
 
 /** Build the node_significance record, keeping only lines for the item's active lives. */
 function buildNodeSignificance(
@@ -356,7 +330,11 @@ async function insertMcqsForItem(opts: {
   syllabusNodeId: string | null;
   title: string;
   facts: string[];
-  /** The item's own exam (see caPromptExamCode) — whose prelims style to write in. */
+  /**
+   * The exam this MCQ is being GENERATED FOR — whose prelims style it is written
+   * in, whose syllabus node it is placed on, and what `questions.exam_code` is
+   * stamped with. One call per relevant exam; see processTriagedItem's step 5.
+   */
   examCode: string;
   onUsage: (u: LlmUsage) => void;
   log: (msg: string) => void;
@@ -392,6 +370,15 @@ async function insertMcqsForItem(opts: {
     type: "mcq" as const,
     stage: "prelims" as const,
     paper_code: CURRENT_AFFAIRS_PAPER_CODE,
+    // ⚑ MUST BE SET EXPLICITLY. `questions.exam_code` defaults to 'uppsc'
+    // (migration 0036) and nothing here used to override it, so EVERY CA MCQ was
+    // stamped uppsc regardless of which exam it was written for. That is not a
+    // cosmetic provenance slip: for a CURRENT_AFFAIRS row `exam_code` is the
+    // OWNER, because `questionExamScopeFilter`'s second disjunct is
+    // `and(paper_code.eq.CURRENT_AFFAIRS, exam_code.eq.<exam>)`. Left defaulted,
+    // a second exam's CA MCQ would be served to UPPSC users (contaminating the
+    // live exam) and hidden from the users it was generated for.
+    exam_code: opts.examCode,
     syllabus_node_id: opts.syllabusNodeId,
     year: null,
     source: "generated" as const,
@@ -423,7 +410,11 @@ async function insertMainsQuestionForItem(opts: {
   syllabusNodeId: string | null;
   title: string;
   brief: CurrentAffairsMainsBrief;
-  /** The item's own exam (see caPromptExamCode) — whose Mains norms to write to. */
+  /**
+   * The exam this question is being GENERATED FOR — whose Mains norms it is
+   * written to, whose node it sits on, and what `questions.exam_code` is stamped
+   * with (the OWNER for a CURRENT_AFFAIRS row — see insertMcqsForItem).
+   */
   examCode: string;
   onUsage: (u: LlmUsage) => void;
 }): Promise<string | null> {
@@ -441,8 +432,8 @@ async function insertMainsQuestionForItem(opts: {
         id: opts.syllabusNodeId ?? "",
         paperCode: CURRENT_AFFAIRS_PAPER_CODE,
         // Synthetic node stub for the critic prompt only — it is never used for
-        // retrieval. The exam is the item's own (caPromptExamCode), so the
-        // critic judges the question against the commission it was written for
+        // retrieval. The exam is the one this question is being generated FOR,
+        // so the critic judges it against the commission it was written for
         // rather than against whichever exam happens to be the default.
         examCode: opts.examCode,
         stage: "mains",
@@ -468,6 +459,10 @@ async function insertMainsQuestionForItem(opts: {
       type: "descriptive",
       stage: "mains",
       paper_code: CURRENT_AFFAIRS_PAPER_CODE,
+      // Same reasoning as insertMcqsForItem: for a CURRENT_AFFAIRS row this is
+      // the OWNING exam, not mere provenance, and it must never be left to the
+      // 'uppsc' column default.
+      exam_code: opts.examCode,
       syllabus_node_id: opts.syllabusNodeId,
       year: null,
       source: "generated",
@@ -551,86 +546,126 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
   });
 
   for (const row of rows) {
-    // The batch-triage cost for THIS row (r.usage from the succeeded batch
-    // entry, if any), billed AT MOST ONCE and only AFTER the row's ledger state
-    // has moved to terminal. Called from every terminal branch below (collected
-    // and failed) so it fires exactly once on the happy path, but never before
-    // the mark commits — billing in bulk at fetch time instead would re-charge
-    // every not-yet-settled row on a partial-collect retry, since
-    // batches.results() replays the whole batch each time. The residual: a
-    // crash in the narrow window BETWEEN a committed mark and this call leaves
-    // that one row settled-but-unbilled forever (loadPendingRows never re-sees
-    // a terminal row). That's a deliberate at-most-once bias — a sub-cent
-    // under-count on a rare crash is the right trade vs. any double-count.
+    // One triage request per LIVE EXAM was submitted for this item, all under
+    // the SAME ledger row (the in-flight lock is per content_hash, and an item
+    // is submitted or not as a unit). `perExam` carries their custom ids and the
+    // exact candidate list each was shown.
     //
-    // The cost is priced as haiku: rr.usage.model comes from
-    // fetchBatchResults' `info?.model ?? MODELS.haiku` fallback (info is empty
-    // here — record:false), and CA triage IS haiku by construction
-    // (triageParams). If triage's model ever changes, persist the model on the
-    // ledger row and read it back here, or this silently mis-prices.
+    // LEGACY ROWS: a deploy can land while rows submitted by the previous,
+    // single-exam build are still pending. Those carry only the flat
+    // `candidateIds` and the row's own custom_id, so rehydrate them as a
+    // one-exam fan-out attributed to the DEFAULT exam — which is exactly what
+    // the old `caPromptExamCode` returned for them. Without this they would be
+    // marked failed and re-fed from RSS, i.e. paid for twice.
+    const submitted: PendingTriageExamRequest[] = row.payload.perExam?.length
+      ? row.payload.perExam
+      : [
+          {
+            examCode: DEFAULT_EXAM_CODE,
+            customId: row.customId,
+            candidateIds: row.payload.candidateIds ?? [],
+          },
+        ];
+
+    // The batch-triage cost for THIS row — the sum over its per-exam requests —
+    // billed AT MOST ONCE and only AFTER the row's ledger state has moved to
+    // terminal. Called from every terminal branch below (collected and failed)
+    // so it fires exactly once on the happy path, but never before the mark
+    // commits — billing in bulk at fetch time instead would re-charge every
+    // not-yet-settled row on a partial-collect retry, since batches.results()
+    // replays the whole batch each time. The residual: a crash in the narrow
+    // window BETWEEN a committed mark and this call leaves that one row
+    // settled-but-unbilled forever (loadPendingRows never re-sees a terminal
+    // row). That's a deliberate at-most-once bias — a sub-cent under-count on a
+    // rare crash is the right trade vs. any double-count.
     //
-    // This is only the batch call's cost; a sync-fallback rescue bills its own
+    // The cost is priced as haiku: usage.model comes from fetchBatchResults'
+    // `info?.model ?? MODELS.haiku` fallback (info is empty here —
+    // record:false), and CA triage IS haiku by construction (triageParams). If
+    // triage's model ever changes, persist the model on the ledger row and read
+    // it back here, or this silently mis-prices.
+    //
+    // This is only the batch calls' cost; a sync-fallback rescue bills its own
     // (full-price) cost separately via triageItem's onUsage — both really ran.
-    const rr = results.get(row.customId);
     const billBatchUsage = async () => {
-      if (rr?.usage) {
-        ctx.onUsage(rr.usage);
-        await recordBatchLlmCall(rr.usage, "ca_triage");
+      for (const req of submitted) {
+        const usage = results.get(req.customId)?.usage;
+        if (!usage) continue;
+        ctx.onUsage(usage);
+        await recordBatchLlmCall(usage, "ca_triage");
       }
     };
 
-    // The candidate list the model was actually SHOWN, reconstructed from the
-    // row's stored candidateIds — validating against the full list would accept
-    // node ids the model never saw (backfill.ts makes the same point for its
-    // own chunked pre-filter). A node deleted since submission simply drops out.
-    // The sync fallback below deliberately reuses this SAME list, so a rescued
-    // item is triaged against exactly what the batch request offered it.
-    const shown = row.payload.candidateIds
-      .map((id) => candidateById.get(id))
-      .filter((c): c is SyllabusCandidate => !!c);
+    const perExam: ExamTriage[] = [];
+    const failures: string[] = [];
 
-    const r = rr;
-    let triage: TriageResult | null = null;
-    let reason = "";
-    if (!r) {
-      reason = "no result returned for custom_id";
-    } else if (!r.ok) {
-      reason = r.error ?? "batch request failed";
-    } else {
-      try {
-        triage = normalizeTriage(JSON.parse(r.text) as TriageResult, shown, row.payload.sourceIsUp);
-      } catch (err) {
-        // Almost always a response truncated at triageParams' 1200-token cap:
-        // JSON.parse on a cut-off fragment throws "Unterminated string", which
-        // gives no hint of the real cause (lib/anthropic.ts documents the same
-        // trap on the sync path).
-        reason = `unusable batch response, likely truncated at the 1200-token cap: ${err instanceof Error ? err.message : String(err)}`;
+    for (const req of submitted) {
+      // The candidate list THIS exam's call was actually SHOWN, reconstructed
+      // from its stored ids — validating against the full list would accept node
+      // ids the model never saw (backfill.ts makes the same point for its own
+      // chunked pre-filter), and with several exams live it would also accept
+      // another exam's nodes outright. A node deleted since submission simply
+      // drops out. The sync fallback below deliberately reuses this SAME list,
+      // so a rescued item is triaged against exactly what the request offered.
+      const shown = req.candidateIds
+        .map((id) => candidateById.get(id))
+        .filter((c): c is SyllabusCandidate => !!c);
+
+      const rr = results.get(req.customId);
+      let triage: TriageResult | null = null;
+      let reason = "";
+      if (!rr) {
+        reason = "no result returned for custom_id";
+      } else if (!rr.ok) {
+        reason = rr.error ?? "batch request failed";
+      } else {
+        try {
+          triage = normalizeTriage(JSON.parse(rr.text) as TriageResult, shown, row.payload.sourceIsUp);
+        } catch (err) {
+          // Almost always a response truncated at triageParams' 1200-token cap:
+          // JSON.parse on a cut-off fragment throws "Unterminated string", which
+          // gives no hint of the real cause (lib/anthropic.ts documents the same
+          // trap on the sync path).
+          reason = `unusable batch response, likely truncated at the 1200-token cap: ${err instanceof Error ? err.message : String(err)}`;
+        }
       }
+
+      // Rescue an unusable result with ONE full-price synchronous triage — this
+      // is what keeps batch mode from being strictly less robust than sync mode;
+      // see SYNC_FALLBACK_MAX_PER_BATCH for the full reasoning and the cap. The
+      // budget is per BATCH and counted per REQUEST, so a broken batch cannot be
+      // re-run at full price just because several exams are live.
+      if (!triage && fallbacksUsed < SYNC_FALLBACK_MAX_PER_BATCH) {
+        fallbacksUsed++;
+        try {
+          triage = await triageItem({
+            title: row.payload.title,
+            snippet: row.payload.snippet,
+            sourceIsUp: row.payload.sourceIsUp,
+            candidates: shown,
+            examCode: req.examCode,
+            onUsage: ctx.onUsage,
+          });
+          log(
+            `[${row.payload.sourceId}] COLLECT: rescued "${row.payload.title.slice(0, 56)}" (${req.examCode}) with a sync retry (${reason})`,
+          );
+        } catch (err) {
+          reason = `${reason}; sync retry also failed: ${err instanceof Error ? err.message : String(err)}`;
+        }
+      }
+
+      if (triage) perExam.push({ examCode: req.examCode, triage });
+      else failures.push(`${req.examCode}: ${reason}`);
     }
 
-    // Rescue an unusable result with ONE full-price synchronous triage — this
-    // is what keeps batch mode from being strictly less robust than sync mode;
-    // see SYNC_FALLBACK_MAX_PER_BATCH for the full reasoning and the cap.
-    if (!triage && fallbacksUsed < SYNC_FALLBACK_MAX_PER_BATCH) {
-      fallbacksUsed++;
-      try {
-        triage = await triageItem({
-          title: row.payload.title,
-          snippet: row.payload.snippet,
-          sourceIsUp: row.payload.sourceIsUp,
-          candidates: shown,
-          examCode: ctx.runExamCode,
-          onUsage: ctx.onUsage,
-        });
-        log(
-          `[${row.payload.sourceId}] COLLECT: rescued "${row.payload.title.slice(0, 56)}" with a sync retry (${reason})`,
-        );
-      } catch (err) {
-        reason = `${reason}; sync retry also failed: ${err instanceof Error ? err.message : String(err)}`;
-      }
-    }
-
-    if (!triage) {
+    // PARTIAL SUCCESS IS KEPT, NOT DISCARDED. With one exam live this is the
+    // same all-or-nothing behaviour as before. With several, failing the whole
+    // item because one exam's request truncated would throw away triage we have
+    // already paid for — and the item would come back through RSS and be paid
+    // for again, for every exam. The surviving exams' verdicts are applied and
+    // the missing one is logged; that exam simply does not claim the item.
+    if (perExam.length === 0) {
+      const reason = failures.join(" | ") || "no triage results";
       await markFailed(row.id, reason);
       await billBatchUsage(); // bill only after the row is terminal (see above)
       result.collectFailed++;
@@ -641,6 +676,13 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
             : ""),
       );
       continue;
+    }
+    if (failures.length > 0) {
+      log(
+        `[${row.payload.sourceId}] COLLECT PARTIAL for "${row.payload.title.slice(0, 56)}" — kept ${perExam
+          .map((e) => e.examCode)
+          .join("+")}, lost ${failures.join(" | ")}`,
+      );
     }
 
     try {
@@ -653,7 +695,7 @@ async function collectBatch(batchId: string, ctx: ProcessCtx): Promise<void> {
           sourceId: row.payload.sourceId,
           hash: row.contentHash,
         },
-        triage,
+        perExam,
         ctx,
       );
       if (outcome === "insert_failed") {
@@ -731,23 +773,58 @@ export async function runPipeline(
   };
   const onUsage = (u: LlmUsage) => (result.costUsd += u.costUsd);
 
-  // Loaded before anything else because BOTH phases need it: collect
-  // reconstructs each row's shown-candidate list from it, submit narrows
-  // against it.
+  // ONE SCOPE PER LIVE EXAM. Built before anything else because BOTH phases need
+  // them: collect reconstructs each row's shown-candidate list from the merged
+  // map, submit narrows against each exam's own pool.
+  //
+  // ⚑ THE POOLS ARE PER EXAM, NOT MERGED. A merged pool would keep the
+  // pre-filter's FIXED K (150/220) while doubling the tree, silently halving
+  // each exam's candidate coverage — measured at 52.8% -> 31.3% (see
+  // ./exam-fanout.ts). One pool per exam keeps K per-exam, so coverage is
+  // unchanged however many exams are live. With ONE live exam this is exactly
+  // the previous single pool, single pre-filter, single triage call.
   const live = await liveExamCodes();
-  const candidates = await loadSyllabusCandidates({ examCodes: live });
-  const candidateById = new Map(candidates.map((c) => [c.id, c]));
-  log(`syllabus candidates for mapping: ${candidates.length}`);
-
-  // Triage happens before any node is chosen, so its framing is run-scoped: the
-  // single live exam when only one is live, else the default (caPromptExamCode).
-  const runExamCode = caPromptExamCode(live);
-
-  const pooledNodeId = await getPrelimsCurrentAffairsNodeId();
-  const prelimsCandidates = candidates.filter((c) => c.paperCode === "PRE_GS1" && c.id !== pooledNodeId);
+  const scopes: ExamScope[] = [];
+  for (const examCode of live) {
+    const candidates = await loadSyllabusCandidates({ examCodes: [examCode] });
+    const prefilter = await CandidatePrefilter.create(candidates);
+    const pooledNodeId = await getPrelimsCurrentAffairsNodeId(examCode);
+    const prelimsPaper = prelimsPaperCodeFor(examCode);
+    scopes.push({
+      examCode,
+      candidates,
+      prefilter,
+      // This exam's prelims-GS candidates only (never its CSAT paper), minus its
+      // own pooled fallback node. Empty when the exam has no prelims paper yet,
+      // which short-circuits classifyPrelimsMcqNode rather than borrowing
+      // another exam's curriculum.
+      prelimsCandidates: prelimsPaper
+        ? candidates.filter((c) => c.paperCode === prelimsPaper && c.id !== pooledNodeId)
+        : [],
+      pooledNodeId,
+    });
+    log(
+      `[${examCode}] syllabus candidates for mapping: ${candidates.length}; ` +
+        `triage candidate pre-filter: ${
+          prefilter.enabled
+            ? `on (top ${PREFILTER_TOP_K}; ${PREFILTER_TOP_K_DEVANAGARI} for Devanagari items)`
+            : "OFF — using full list"
+        }`,
+    );
+  }
+  if (scopes.length === 0) throw new Error("ca:run: no live exams — nothing to triage against");
+  if (scopes.length > 1) {
+    log(
+      `MULTI-EXAM RUN: triage fans out to ${scopes.length} exams (${live.join(", ")}) — ` +
+        `${scopes.length} triage calls per item, one per exam, each against its own pool`,
+    );
+  }
+  // Node ids are globally unique, so ONE merged map resolves any node to its own
+  // exam's row. Only the prompt pools have to stay separate.
+  const candidateById = new Map(scopes.flatMap((s) => s.candidates).map((c) => [c.id, c]));
 
   const embedTasks: EmbedTask[] = [];
-  const ctx: ProcessCtx = { result, embedTasks, candidateById, prelimsCandidates, runExamCode, onUsage, log };
+  const ctx: ProcessCtx = { result, embedTasks, candidateById, scopes, onUsage, log };
 
   // -------------------------------------------------------------------------
   // REAP + COLLECT FIRST, in BOTH modes. The ordering is load-bearing:
@@ -776,16 +853,6 @@ export async function runPipeline(
     await collectPendingBatches(ctx);
   }
 
-  // Narrows each item's candidate list before triage (~37% less triage input).
-  // Fails open to the full list — see ./candidate-prefilter.ts.
-  const prefilter = await CandidatePrefilter.create(candidates);
-  log(
-    `triage candidate pre-filter: ${
-      prefilter.enabled
-        ? `on (top ${PREFILTER_TOP_K}; ${PREFILTER_TOP_K_DEVANAGARI} for Devanagari items)`
-        : "OFF — using full list"
-    }`,
-  );
   const seenHashes = await loadRecentHashes();
   log(`known items in the last 60 days: ${seenHashes.size}`);
   // THE IN-FLIGHT UNION is what stops an item that is sitting in an
@@ -868,6 +935,19 @@ export async function runPipeline(
       const snippet = (item.contentSnippet ?? item.content ?? "").slice(0, 1200);
       const dateStr = istDateString(pubDate);
 
+      // ONE PLAN PER LIVE EXAM, built the same way in both modes — the narrowing
+      // is per exam because the pre-filter is per exam. `prefilter.narrow` fails
+      // open internally and never throws.
+      const plans = planTriageRequests(
+        { title, snippet, sourceIsUp: source.isUpSource },
+        await Promise.all(
+          scopes.map(async (scope) => ({
+            examCode: scope.examCode,
+            candidates: await scope.prefilter.narrow(title, snippet, (u) => (result.costUsd += u.costUsd)),
+          })),
+        ),
+      );
+
       if (mode === "sync") {
         // The whole triage→enrich→persist sequence for ONE item is isolated
         // here: any failure (a truncated LLM response, a transient network
@@ -878,16 +958,31 @@ export async function runPipeline(
         // failure, so a failed item is naturally retried on the next run
         // rather than being silently dropped forever.
         try {
-          // --- 1. Triage ------------------------------------------------------
-          const itemCandidates = await prefilter.narrow(title, snippet, (u) => (result.costUsd += u.costUsd));
-          const triage = await triageItem({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, examCode: runExamCode, onUsage });
+          // --- 1. Triage, once per live exam ---------------------------------
+          // `triageItem` rebuilds the prompt from the same `triageParams` and the
+          // same arguments the plan carries, so this sends byte-identically what
+          // the batch path submits — they cannot drift.
+          const perExam: ExamTriage[] = [];
+          for (const plan of plans) {
+            perExam.push({
+              examCode: plan.examCode,
+              triage: await triageItem({
+                title,
+                snippet,
+                sourceIsUp: source.isUpSource,
+                candidates: plan.candidates,
+                examCode: plan.examCode,
+                onUsage,
+              }),
+            });
+          }
           seenHashes.add(hash); // never re-triage this link again, kept or archived
           takenFromSource++;
           // --- 2-5. Shared downstream (verbatim the same code the batch-collect
           // path runs — see processTriagedItem). ------------------------------
           await processTriagedItem(
             { link, title, snippet, date: dateStr, sourceId: source.id, hash },
-            triage,
+            perExam,
             ctx,
           );
         } catch (err) {
@@ -899,18 +994,19 @@ export async function runPipeline(
         continue;
       }
 
-      // --- Batch mode: build the triage request, spend NOTHING on the model
-      // here. `prefilter.narrow` still runs per item (it fails open internally
-      // and never throws) because the batch path must send the model EXACTLY
-      // what the sync path would have — same triageParams, same arguments.
-      // The narrowed ids are persisted with the row so the collector can
-      // reconstruct the list the model was actually shown.
-      const itemCandidates = await prefilter.narrow(title, snippet, (u) => (result.costUsd += u.costUsd));
+      // --- Batch mode: build the triage requests, spend NOTHING on the model
+      // here. One request per live exam, all under ONE ledger row (the in-flight
+      // lock is per content_hash and an item is submitted or not as a unit). The
+      // narrowed ids are persisted per exam so the collector can reconstruct the
+      // list each call was actually shown.
+      //
+      // custom_id must match Anthropic's ^[a-zA-Z0-9_-]{1,64}$ — a colon in one
+      // has produced a real 400 in this repo before (see the ingest:resolve note
+      // in CLAUDE.md). A positional id per batch is the safest form; the `_e<i>`
+      // suffix keeps the per-exam ids unique and still inside that character set.
+      const baseCustomId = `t_${submissions.length}`;
       submissions.push({
-        // custom_id must match Anthropic's ^[a-zA-Z0-9_-]{1,64}$ — a colon in
-        // one has produced a real 400 in this repo before (see the ingest:resolve
-        // note in CLAUDE.md). A positional id per batch is the safest form.
-        customId: `t_${submissions.length}`,
+        customId: baseCustomId,
         contentHash: hash,
         payload: {
           link,
@@ -919,11 +1015,16 @@ export async function runPipeline(
           date: dateStr,
           sourceId: source.id,
           sourceIsUp: source.isUpSource,
-          candidateIds: itemCandidates.map((c) => c.id),
+          perExam: plans.map((plan, i) => ({
+            examCode: plan.examCode,
+            customId: `${baseCustomId}_e${i}`,
+            candidateIds: plan.candidates.map((c) => c.id),
+          })),
         },
-        params: structuredParams(
-          triageParams({ title, snippet, sourceIsUp: source.isUpSource, candidates: itemCandidates, examCode: runExamCode }),
-        ),
+        requests: plans.map((plan, i) => ({
+          customId: `${baseCustomId}_e${i}`,
+          params: structuredParams(plan.params),
+        })),
       });
       // Mirrors the sync path exactly: the hash is banked so the same link is
       // never queued twice within a run, and the per-source cap advances.
@@ -957,12 +1058,17 @@ export async function runPipeline(
     if (claimed.length === 0) {
       log("nothing to submit — every candidate item is already in flight");
     } else {
-      const paramsByCustomId = new Map(submissions.map((s) => [s.customId, s.params]));
-      const requests: BatchRequest[] = claimed.map((c) => ({
-        customId: c.customId,
-        params: paramsByCustomId.get(c.customId)!,
-        purpose: "ca_triage",
-      }));
+      // One ledger row FANS OUT to one Anthropic request per live exam. Only the
+      // rows we actually claimed are submitted, so an item lost to the in-flight
+      // race contributes none of its per-exam requests.
+      const requestsByRowCustomId = new Map(submissions.map((s) => [s.customId, s.requests]));
+      const requests: BatchRequest[] = claimed.flatMap((c) =>
+        (requestsByRowCustomId.get(c.customId) ?? []).map((r) => ({
+          customId: r.customId,
+          params: r.params,
+          purpose: "ca_triage" as const,
+        })),
+      );
 
       let batchId: string | null = null;
       try {
@@ -992,7 +1098,10 @@ export async function runPipeline(
         //    nobody ever collects — never data loss.
         await markSubmitted(claimed.map((c) => c.rowId), id);
         result.submitted = claimed.length;
-        log(`submitted triage batch ${id} — ${claimed.length} item(s); collectable on a later run`);
+        log(
+          `submitted triage batch ${id} — ${claimed.length} item(s) as ${requests.length} request(s)` +
+            `${scopes.length > 1 ? ` (${scopes.length} exams)` : ""}; collectable on a later run`,
+        );
 
         // Optional same-run collection: a human running `pnpm ca:run --wait 20`
         // still sees items land in this run. Cron leaves this at 0 and exits.
@@ -1061,32 +1170,36 @@ export async function runPipeline(
  */
 export async function processTriagedItem(
   item: { link: string; title: string; snippet: string; date: string; sourceId: string; hash: string },
-  triage: TriageResult,
+  perExamTriage: readonly ExamTriage[],
   ctx: ProcessCtx,
 ): Promise<ProcessOutcome> {
-  const { result, embedTasks, candidateById, prelimsCandidates, onUsage, log } = ctx;
+  const { result, embedTasks, candidateById, onUsage, log } = ctx;
   const { link, title, snippet, date: dateStr, sourceId, hash } = item;
+
+  // Fold every live exam's verdict into the one TriageResult this function has
+  // always consumed, plus the exam bookkeeping. Every merge rule is the identity
+  // on a single input — see ./exam-fanout.ts.
+  const merged = mergeExamTriages(perExamTriage, candidateById);
+  const triage = merged.triage;
+  const { relevantExams, itemExamCodes } = merged;
 
   const bestScore = Math.max(triage.prelims_relevance, triage.mains_relevance);
   const hasPrelims = triage.prelims_relevance >= RELEVANCE_GATE;
   const hasMains = triage.mains_relevance >= RELEVANCE_GATE;
 
-  // Which exams this item actually landed in — derived from the nodes triage
-  // chose, NOT left to the `{uppsc}` column default. The default is a lie the
-  // moment a second exam's nodes are mappable, and the item's embedding row is
-  // stamped from this same set (see caEmbeddingExamCode below), so the row and
-  // its vector can never disagree. An item that mapped to no node keeps the
-  // default rather than being written as belonging to nothing.
-  // (Closes the second half of docs/OUTSTANDING.md §8b M8.)
-  const mappedExams = [
-    ...new Set(triage.syllabus_node_ids.map((id) => candidateById.get(id)?.examCode).filter((e): e is string => !!e)),
-  ];
-  const itemExamCodes = mappedExams.length > 0 ? mappedExams : [DEFAULT_EXAM_CODE];
-  // The ONE exam every downstream prompt for this item is framed against — the
-  // item's own single exam when it has one, else the default (caPromptExamCode).
-  // Derived from the same set the row and its embedding are stamped from, so the
-  // material can never be written for an exam the item is not filed under.
-  const itemExamCode = caPromptExamCode(itemExamCodes);
+  // The ONE exam the item-level prompt (enrichment) is framed against. Chosen
+  // EXPLICITLY from the exams that actually cleared the gate — never a silent
+  // fallback to the default, which could have framed an item in the voice of an
+  // exam it is not even filed under. Recorded on the row as `exam_codes[0]` and
+  // logged below, so a multi-exam item's authorship is auditable after the fact.
+  const itemExamCode = merged.framingExamCode;
+  if (perExamTriage.length > 1) {
+    log(
+      `[${sourceId}] FRAMING ${itemExamCode} (${merged.framingReason}) for "${title.slice(0, 48)}" — ` +
+        `relevant: ${relevantExams.join("+") || "none"}; scores ` +
+        perExamTriage.map((e) => `${e.examCode} P${e.triage.prelims_relevance}/M${e.triage.mains_relevance}`).join(", "),
+    );
+  }
 
   // --- 2. Hard gate -----------------------------------------------------
   if (bestScore < RELEVANCE_GATE) {
@@ -1213,82 +1326,119 @@ export async function processTriagedItem(
     embedTasks.push({ itemId, locale: "en", text: `${enrich.title_i18n.en}. ${enrich.summary_i18n.en}`, examCode: embedExam });
   }
 
-  // --- 5. Dual quiz generation ------------------------------------------
-  // Used only for the mains descriptive question below — pickMainsNode, not
-  // a blind [0], since triage's classification can include a PRE_ node too.
-  const nodeId = pickMainsNode(triage.syllabus_node_ids, candidateById);
+  // --- 5. Dual quiz generation, PER RELEVANT EXAM -----------------------------
+  // ⚑ QUESTIONS ARE EXAM-OWNED, WHICH IS WHY THIS FANS OUT WHERE ENRICHMENT DOES
+  // NOT. `questionExamScopeFilter` admits a CURRENT_AFFAIRS question for exactly
+  // ONE exam — `and(paper_code.eq.CURRENT_AFFAIRS, exam_code.eq.<exam>)` — so a
+  // single generated question can only ever reach one exam's users. Generating
+  // one set for a "primary" exam would therefore silently give the other exams'
+  // users nothing at all, while also placing the question on whichever exam's
+  // syllabus node happened to be picked. One set per relevant exam, each on that
+  // exam's own node, in that exam's own style, is the only shape that is correct
+  // for every exam the item is filed under.
+  //
+  // COST: with one live exam this is exactly one MCQ call and (for a mains-3
+  // item) one question + critic, as before. With N live exams relevant to the
+  // same item it is N of each — the deliberate, disclosed price of each exam
+  // getting real questions rather than none.
+  const mcqIds: string[] = [];
+  let mainsQCount = 0;
 
-  // Prelims MCQs — a real factual nugget (prelims_relevance >= 2), published.
-  if (hasPrelims && isPublished && prelimsFacts) {
-    try {
-      const factsEn = prelimsFacts.map((f) => f.fact_i18n.en);
-      // Two-tier node placement, cheapest-first:
-      // (1) triage's OWN classification incidentally includes a real PRE_GS1
-      //     topic (History/Polity/etc) — free, no extra call, but measured to
-      //     fire for only ~1-in-50 items (triage is framed around mains
-      //     themes, so it rarely reaches for a prelims-shaped node even
-      //     though its candidate pool spans every paper).
-      // (2) a dedicated, narrow classification asking the ONE question that
-      //     matters for MCQ placement — given the exact facts this MCQ was
-      //     written from, which PRE_GS1 topic (if any) fits — the same
-      //     prompt validated live against 585 historical items via
-      //     scripts/ca-reclassify-mcq-nodes.ts. This is what actually keeps
-      //     new MCQs distributed going forward, since (1) alone leaves most
-      //     items pooled purely by how rarely it fires, not by any flaw.
-      // Only items with no real prelims-topic fit under EITHER tier fall
-      // back to the pooled "Current Events" node — see ca/prelims-node.ts.
-      const prelimsNodeId =
-        pickPrelimsMcqNode(triage.syllabus_node_ids, candidateById) ??
-        (await classifyPrelimsMcqNode({
+  for (const examCode of relevantExams) {
+    const scope = scopeFor(ctx, examCode);
+    // A relevant exam always has a scope (relevantExams comes from this run's own
+    // scopes), but a defensive skip beats a crash mid-item.
+    if (!scope) continue;
+    const examNodeIds = perExamTriage.find((e) => e.examCode === examCode)?.triage.syllabus_node_ids ?? [];
+
+    // Prelims MCQs — a real factual nugget (prelims_relevance >= 2), published.
+    if (hasPrelims && isPublished && prelimsFacts) {
+      try {
+        const factsEn = prelimsFacts.map((f) => f.fact_i18n.en);
+        // Two-tier node placement, cheapest-first:
+        // (1) THIS EXAM'S triage classification incidentally includes a real
+        //     prelims-GS topic (History/Polity/etc) — free, no extra call, but
+        //     measured to fire for only ~1-in-50 items (triage is framed around
+        //     mains themes, so it rarely reaches for a prelims-shaped node even
+        //     though its candidate pool spans every paper).
+        // (2) a dedicated, narrow classification asking the ONE question that
+        //     matters for MCQ placement — given the exact facts this MCQ was
+        //     written from, which prelims topic (if any) fits — the same
+        //     prompt validated live against 585 historical items via
+        //     scripts/ca-reclassify-mcq-nodes.ts. This is what actually keeps
+        //     new MCQs distributed going forward, since (1) alone leaves most
+        //     items pooled purely by how rarely it fires, not by any flaw.
+        // Only items with no real prelims-topic fit under EITHER tier fall
+        // back to that exam's pooled "Current Events" node (ca/prelims-node.ts).
+        // Every tier is scoped to THIS exam, so an MCQ can never land on another
+        // exam's node.
+        const prelimsNodeId =
+          pickPrelimsMcqNode(examNodeIds, candidateById, examCode) ??
+          (await classifyPrelimsMcqNode({
+            title: enrich.title_i18n.en,
+            facts: factsEn,
+            prelimsCandidates: scope.prelimsCandidates,
+            // The exam that OWNS the candidate list — which is now, by
+            // construction, the same exam the MCQ is being written for.
+            examCode,
+            onUsage,
+          }));
+        const ids = await insertMcqsForItem({
+          syllabusNodeId: prelimsNodeId ?? scope.pooledNodeId,
           title: enrich.title_i18n.en,
           facts: factsEn,
-          prelimsCandidates,
-          // The exam that OWNS the candidate list, not the item's — the prompt
-          // names the curriculum the model must choose from, so it has to agree
-          // with the nodes actually shown. Falls back to the item's exam only
-          // when the list is empty (in which case the call short-circuits).
-          examCode: prelimsCandidates[0]?.examCode ?? itemExamCode,
+          examCode,
           onUsage,
-        }));
-      const mcqIds = await insertMcqsForItem({
-        syllabusNodeId: prelimsNodeId ?? (await getPrelimsCurrentAffairsNodeId()),
-        title: enrich.title_i18n.en,
-        facts: factsEn,
-        examCode: itemExamCode,
-        onUsage,
-        log,
-      });
-      if (mcqIds.length > 0) {
-        await supabase().from("current_affairs_items").update({ mcq_question_ids: mcqIds }).eq("id", itemId);
-        result.mcqsGenerated += mcqIds.length;
+          log,
+        });
+        mcqIds.push(...ids);
+        result.mcqsGenerated += ids.length;
+      } catch (err) {
+        log(
+          `[${sourceId}] MCQ generation failed (${examCode}) for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`,
+        );
       }
-    } catch (err) {
-      log(`[${sourceId}] MCQ generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
+    }
+
+    // Mains descriptive question — only the richest issues (mains_relevance === 3).
+    // Gated on THIS exam's own mains score, not the merged max: an exam that
+    // rated the item 2 should not get a question the merge only justified for a
+    // sibling exam. `pickMainsNode` uses that exam's own paper codes, so
+    // `UPSC_MAINS_GS1` is recognised where `startsWith("MAINS_")` failed it.
+    const examMains = perExamTriage.find((e) => e.examCode === examCode)?.triage.mains_relevance ?? 0;
+    if (examMains === 3 && isPublished && mainsBrief) {
+      try {
+        const mainsQId = await insertMainsQuestionForItem({
+          itemId,
+          syllabusNodeId: pickMainsNode(examNodeIds, candidateById, examCode),
+          title: enrich.title_i18n.en,
+          brief: mainsBrief,
+          examCode,
+          onUsage,
+        });
+        if (mainsQId) {
+          mainsQCount++;
+          result.mainsQuestionsGenerated++;
+        }
+      } catch (err) {
+        log(
+          `[${sourceId}] Mains question generation failed (${examCode}) for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`,
+        );
+      }
     }
   }
 
-  // Mains descriptive question — only the richest issues (mains_relevance === 3).
-  let mainsQId: string | null = null;
-  if (triage.mains_relevance === 3 && isPublished && mainsBrief) {
-    try {
-      mainsQId = await insertMainsQuestionForItem({
-        itemId,
-        syllabusNodeId: nodeId,
-        title: enrich.title_i18n.en,
-        brief: mainsBrief,
-        examCode: itemExamCode,
-        onUsage,
-      });
-      if (mainsQId) result.mainsQuestionsGenerated++;
-    } catch (err) {
-      log(`[${sourceId}] Mains question generation failed for "${title.slice(0, 60)}": ${err instanceof Error ? err.message : err}`);
-    }
+  if (mcqIds.length > 0) {
+    // ONE update with every exam's MCQ ids — `mcq_question_ids` is the item's
+    // full generated set across exams, matching `exam_codes` being an array.
+    await supabase().from("current_affairs_items").update({ mcq_question_ids: mcqIds }).eq("id", itemId);
   }
 
   log(
     `[${sourceId}] KEPT (P${triage.prelims_relevance}/M${triage.mains_relevance}) status=${status} ` +
+      `exams=${itemExamCodes.join("+")} ` +
       `lives=${[hasPrelims ? "prelims" : null, hasMains ? "mains" : null].filter(Boolean).join("+") || "none"} ` +
-      `mains_q=${mainsQId ? "yes" : "no"} "${enrich.title_i18n.en.slice(0, 56)}"`,
+      `mains_q=${mainsQCount > 0 ? mainsQCount : "no"} "${enrich.title_i18n.en.slice(0, 56)}"`,
   );
   return "persisted";
 }

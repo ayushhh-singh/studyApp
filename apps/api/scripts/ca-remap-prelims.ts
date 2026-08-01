@@ -15,6 +15,7 @@ import { supabase } from "../src/lib/supabase.js";
 import { selectAll } from "../src/lib/paginate.js";
 import { parseArgs } from "../src/ingest/_shared.js";
 import { getPrelimsCurrentAffairsNodeId } from "../src/ca/prelims-node.js";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 
 // Sole flag. `apply` is a BOOLEAN so it never consumes the next token and, when
 // absent, leaves APPLY false — this script stays dry-run by default.
@@ -22,7 +23,11 @@ const args = parseArgs(process.argv.slice(2), { boolean: ["apply"] }, "ca:remap-
 const APPLY = !!args.apply;
 
 async function main(): Promise<void> {
-  const target = await getPrelimsCurrentAffairsNodeId();
+  // UPPSC-era one-off maintenance script: every other predicate in it (the literal
+  // PRE_GS1 filters, the UPPSC-named prompt) is hardcoded to the default exam, so
+  // the exam is passed EXPLICITLY here rather than defaulted inside the lookup — a
+  // call site you can grep beats a signature default (M24).
+  const target = await getPrelimsCurrentAffairsNodeId(DEFAULT_EXAM_CODE);
   if (!target) throw new Error("prelims 'Current Events' node (PRE_GS1, depth 1) not found");
 
   const rows = await selectAll<{ id: string; syllabus_node_id: string | null }>(() =>
