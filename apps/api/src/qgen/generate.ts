@@ -28,6 +28,7 @@ import { retrieveGrounding, type GroundingResult } from "../services/evaluation/
 import { dedupCandidates, type DedupResult } from "./dedup.js";
 import {
   QGEN_PROMPT_VERSION,
+  csatQgenConfigFor,
   buildCriticParams,
   buildDescGenParams,
   buildMcqGenParams,
@@ -133,6 +134,23 @@ export async function loadNodeContext(nodeId: string): Promise<NodeContext> {
  * few-shot on its own output (circular, and the whole reason it drifts off UPPSC
  * style). The paper-level fallback already excludes CA (it filters
  * `paper_code = <a PRE_/MAINS_ paper>`, never CURRENT_AFFAIRS).
+ *
+ * ⚑ THE EXACT-NODE MATCH IS A REAL, GENERAL MISMATCH WITH THE PLANNER, and only
+ * part of it is fixed here. `topup.ts` always generates for DEPTH-1 nodes and
+ * counts coverage over the whole SUBTREE, but this function matches
+ * `syllabus_node_id` exactly — so a depth-1 node whose PYQs all sit on its
+ * children retrieves ZERO on-topic examples and silently falls through to the
+ * paper-wide pool. MEASURED 2026-08-01 on UPSC CSAT: "Decision Making and
+ * Problem Solving" has 0 own PYQs and 30 across its two children; "Basic
+ * Numeracy and Data Interpretation" has 0 own and 292 across its children. The
+ * fallback then served the first of those eight train-route, cube and percentage
+ * puzzles as style exemplars for a decision-making topic.
+ *
+ * The subtree lookup below is therefore scoped to exams that have authored a
+ * CSAT norm, NOT applied generally — the same mismatch exists for GS papers on
+ * the LIVE exam, where changing which real PYQs condition generation is an
+ * unvalidated change to UPPSC's output. Generalising it is a separate, validated
+ * change; it is written up in the commit rather than done silently here.
  */
 export async function loadFewShot(node: NodeContext, type: QuestionType): Promise<FewShotQuestion[]> {
   const cols = "stem_i18n, options_i18n, correct_option_key, year, difficulty";
@@ -144,16 +162,49 @@ export async function loadFewShot(node: NodeContext, type: QuestionType): Promis
       options_i18n: r.options_i18n,
       correct_option_key: r.correct_option_key,
     }));
+  const byNodeIds = async (ids: string[]) =>
+    ids.length === 0
+      ? []
+      : map(
+          (
+            await supabase()
+              .from("questions")
+              .select(cols)
+              .in("syllabus_node_id", ids)
+              .eq("type", type)
+              .eq("is_published", true)
+              .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+              .limit(8)
+          ).data ?? [],
+        );
 
-  const { data: nodeRows } = await supabase()
-    .from("questions")
-    .select(cols)
-    .eq("syllabus_node_id", node.id)
-    .eq("type", type)
-    .eq("is_published", true)
-    .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
-    .limit(8);
-  let examples = map(nodeRows ?? []);
+  const examples = await byNodeIds([node.id]);
+  const seen = new Set(examples.map((e) => e.stem_i18n.en));
+  const merge = (rows: FewShotQuestion[]) => {
+    for (const e of rows) {
+      if (examples.length >= 8) break;
+      if (!seen.has(e.stem_i18n.en)) {
+        seen.add(e.stem_i18n.en);
+        examples.push(e);
+      }
+    }
+  };
+
+  // An exam that has authored an aptitude-paper norm has declared its CSAT
+  // topics to be distinct SKILLS. Top such a node up from its OWN CHILDREN (the
+  // same skill, one level finer) and then STOP — a paper-wide filler on an
+  // aptitude paper is a different skill entirely, which is strictly worse than
+  // having fewer examples. The tree is at most two deep, so one query on
+  // `parent_id` reaches every descendant.
+  const csat = csatQgenConfigFor(node.examCode, node.paperCode);
+  if (csat) {
+    if (examples.length < 5) {
+      const { data: kids } = await supabase().from("syllabus_nodes").select("id").eq("parent_id", node.id);
+      merge(await byNodeIds((kids ?? []).map((k) => k.id as string)));
+    }
+    return examples.slice(0, 8);
+  }
+
   if (examples.length < 5) {
     const { data: paperRows } = await supabase()
       .from("questions")
@@ -163,14 +214,7 @@ export async function loadFewShot(node: NodeContext, type: QuestionType): Promis
       .eq("is_published", true)
       .limit(8);
     // Merge, de-dup by stem, cap at 8.
-    const seen = new Set(examples.map((e) => e.stem_i18n.en));
-    for (const e of map(paperRows ?? [])) {
-      if (examples.length >= 8) break;
-      if (!seen.has(e.stem_i18n.en)) {
-        seen.add(e.stem_i18n.en);
-        examples.push(e);
-      }
-    }
+    merge(map(paperRows ?? []));
   }
   return examples.slice(0, 8);
 }

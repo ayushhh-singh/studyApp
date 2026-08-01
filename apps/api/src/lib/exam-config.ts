@@ -352,6 +352,57 @@ export interface ExamEvaluationConfig {
   feedbackTranslateDomainHint: Authored<string>;
 }
 
+/**
+ * An exam's aptitude-paper (CSAT) question-setting norm, where it is
+ * structurally different from the same exam's General Studies Prelims paper.
+ *
+ * Present ⇒ `qgen` treats that paper as a paper in its own right:
+ *  1. `formatGuidance` below REPLACES `ExamQgenConfig.formatGuidance` in the MCQ
+ *     system prompt for nodes on `papers.prelimsCsat`;
+ *  1b. `toneCriterion` likewise replaces `ExamQgenConfig.toneCriterion` in the
+ *     Stage-B critic — the GATE, not just the generator, since a critic still
+ *     judging against General Studies formats would keep selecting for exactly
+ *     the questions (1) stops producing; and
+ *  2. `loadFewShot` stops topping a CSAT node's few-shot set up from the
+ *     paper-wide pool. That fallback is coherent for a knowledge paper (every
+ *     GS-I question is a GS-I-style question) and incoherent for an aptitude
+ *     paper, where the sibling topics are DIFFERENT SKILLS — measured, it served
+ *     the "Interpersonal Skills including Communication Skills" node four
+ *     train-route and percentage puzzles as style exemplars.
+ *
+ * Absent (`null`) ⇒ both behaviours stay exactly as they are for that exam.
+ */
+export interface ExamQgenCsatConfig {
+  /**
+   * Call site: `mcqSystem` for a node whose paper is `papers.prelimsCsat` —
+   * occupies the same slot as `ExamQgenConfig.formatGuidance` and must therefore
+   * read as a continuation of "The stem must be self-contained and answerable
+   * from the option set alone."
+   */
+  formatGuidance: string;
+  /**
+   * Call site: `criticSystem` for a node on `papers.prelimsCsat` — occupies the
+   * same slot as `ExamQgenConfig.toneCriterion`, i.e. the text after
+   * `` `- uppsc_tone: ` `` (the SCHEMA KEY is frozen and must never be renamed;
+   * only this human-readable criterion is configurable).
+   *
+   * ⚑ WHY THE CRITIC NEEDS ITS OWN CSAT SLOT AND NOT JUST THE GENERATOR.
+   * `criticSystem`'s verdict is a HARD GATE — `generate.ts` does
+   * `if (c.critic && !c.critic.approve) c.reject = "critic"`, and the critic is
+   * told to approve "ONLY if it is … on-tone". So the tone criterion does not
+   * merely describe the house style, it decides which candidates survive into
+   * the bank. Making only the generator aptitude-aware would have left the
+   * SELECTOR still asking "is this a General Studies-shaped question?": a real
+   * passage-comprehension item — the single largest genuine CSAT form, measured
+   * at 29.7% of the real paper — is neither "a statement-combination set" nor
+   * obviously "a direct single-item question" to a literal reader and could be
+   * rejected as off-tone, while a GS-shaped statement-combination recall item on
+   * a CSAT node passes that same test cleanly. That is the failure this whole
+   * change exists to remove, re-entering one stage later and selecting FOR it.
+   */
+  toneCriterion: string;
+}
+
 /** Question generation — `qgen/prompts.ts`. */
 export interface ExamQgenConfig {
   /** Call site: `MCQ_SYSTEM` — `` `You are ${prelimsSetterFraming}. You write original…` ``. */
@@ -385,8 +436,38 @@ export interface ExamQgenConfig {
    * Call site: `MCQ_SYSTEM` — the "Prefer <exam>'s real formats: …" sentence,
    * verbatim. Judgment: which question formats a specific commission actually
    * sets.
+   *
+   * ⚑ This is the GENERAL Prelims MCQ norm, and for an exam whose `qgen.csat` is
+   * null it is ALSO what a CSAT/aptitude node gets. See `csat` below.
    */
   formatGuidance: Authored<string>;
+  /**
+   * How this exam's aptitude paper (CSAT / Paper-II) differs from its General
+   * Studies Prelims paper, or `null` if this exam has no separately-authored
+   * aptitude norm.
+   *
+   * WHY THIS IS A SEPARATE SLOT RATHER THAN A CLAUSE IN `formatGuidance`.
+   * MEASURED 2026-08-01 over the real ingested bank (paged past the 1000-row
+   * cap): a blind 3-judge panel scored generated UPSC CSAT MCQs at 2.00/5 for
+   * likeness against 3.63 for real UPSC CSAT — 9.9x the 0.164 inter-judge noise
+   * floor. The cause was structural, not a missing sentence: `formatGuidance`
+   * is one string used for BOTH prelims papers, so a CSAT node received ~250
+   * words teaching the GS statement-set norm followed by one trailing sentence
+   * asking the model to disregard it. It did not. `statement_counting` — a
+   * GS-I closure that is 6.7% of real UPSC GS-I and 0.6% of real UPSC CSAT —
+   * came out at 17.2% of generated CSAT, while `passage_based`, the single
+   * largest real CSAT form at ~30%, came out at 3.4%. A trailing exception
+   * cannot outweigh the body of the prompt; the CSAT paper needs its own body.
+   *
+   * `null` for uppsc is a DELIBERATE NO-OP, not a finding: it preserves today's
+   * byte-identical UPPSC prompt (and today's UPPSC few-shot selection, see
+   * `qgen/generate.ts`'s `loadFewShot`). It is NOT a claim that UPPSC CSAT is
+   * stylistically interchangeable with UPPSC GS — measured, UPPSC's own CSAT is
+   * ~89% direct-single with a median stem of 87 characters, so it plainly has a
+   * norm of its own. Authoring it would change the LIVE exam's generated output
+   * and needs the 3-arm control validation this change was not scoped for.
+   */
+  csat: Authored<ExamQgenCsatConfig | null>;
   /**
    * Call site: `DESC_SYSTEM` — `` `Open with ${directiveVerbGuidance} and demand analysis, not mere recall.` ``
    * Also reused verbatim by `ca.mainsDirectiveVerbGuidance` (the CA Mains
@@ -1006,6 +1087,11 @@ const UPPSC: ExamConfig = {
     groundingFallbackLabel: UPPSC_SYLLABUS_LABEL,
     formatGuidance:
       "Prefer UPPSC's real formats: single statement, 'Consider the following statements', matching, assertion-reason, correctly-matched-pairs.",
+    // Deliberate no-op — see `ExamQgenConfig.csat`. NOT a claim that UPPSC's
+    // CSAT paper has no norm of its own (measured: ~89% direct-single, median
+    // stem 87 chars, ~4% passage-based against UPSC CSAT's ~30%). Authoring it
+    // changes the LIVE exam's generated questions and needs its own validation.
+    csat: null,
     directiveVerbGuidance: UPPSC_DIRECTIVE_VERBS,
     marksNormGuidance:
       "UPPSC Mains norms (typically 125 words / 7 marks, or 200 words / 10 marks; longer for higher marks)",
@@ -1478,17 +1564,123 @@ const UPSC: ExamConfig = {
       "counterpart, a 'Statement-I / Statement-II' pair closed by 'Which one of the following is correct in respect " +
       "of the above statements?' with the four-way code (both correct and II explains I / both correct but II does " +
       "not explain I / I correct, II incorrect / I incorrect, II correct). Keep matching-pairs, chronological " +
-      "ordering and negative 'which is NOT' framings rare — each is under 4% of real papers. For a CSAT topic drop " +
-      "the statement-set norm entirely: CSAT is passage comprehension, logical inference and quantitative aptitude, " +
-      "and is overwhelmingly direct single-item.",
+      "ordering and negative 'which is NOT' framings rare — each is under 4% of real papers.",
+    // ⚑ The sentence that USED to close the string above ("for a CSAT topic drop
+    // the statement-set norm entirely…") is gone, and no developer-facing
+    // replacement took its place: a draft of this change ended the prompt with
+    // "the CSAT aptitude paper has its own norm (`qgen.csat` below)", which is a
+    // note to whoever is reading THIS FILE, not an instruction to a model — the
+    // model has no "below" and no config tree, so it is pure token waste in a
+    // cached prefix and an invitation to look for a section that does not exist.
+    // The routing fact belongs here, in a comment: a node on
+    // `papers.prelimsCsat` never reaches this string at all, because
+    // `csatQgenConfigFor` substitutes `csat.formatGuidance` for it wholesale.
+    // ---------------------------------------------------------------------
+    // AUTHORED 2026-08-01 — the CSAT aptitude paper's own norm.
+    //
+    // This slot exists because the trailing "for a CSAT topic, drop the
+    // statement-set norm" sentence that used to close `formatGuidance` above
+    // did not work: measured over the 29 generated CSAT MCQs, the GS-I counting
+    // closure still came out at 17.2% against 0.6% in real CSAT, and the
+    // largest real CSAT form (passage-based, ~30%) at 3.4%. See the long note
+    // on `ExamQgenConfig.csat`.
+    //
+    // EVERY PROPORTION BELOW IS MEASURED, not estimated, over the real ingested
+    // UPSC_PRE_CSAT bank (909 rows, paged past the 1000-row cap; 860 are
+    // published and 841 of those are node-mapped — 841 is the denominator for
+    // the per-skill split), 2026-08-01, and INDEPENDENTLY RE-MEASURED the same
+    // day with a second classifier, which is why two figures below carry a
+    // range: form classification is a judgement call at the margin (does a long
+    // stem that asks for "the most logical inference" count as passage-based?),
+    // so the honest report is the band, not a false 3-significant-figure point.
+    //
+    //   FORM        passage-based 29.7-32.6% | direct single-item 59.3-61.7%
+    //               statement-combination 5.0% | Statement-I/II 2.5%
+    //               "How many of the above" 0.6% | matching-pairs 0.4% (4 rows)
+    //               Assertion-Reason 0.0%  (0 of 909 — as in GS-I: UPSC sets none)
+    //   SKILL       numeracy + data interpretation 292 (34.7%)
+    //               logical + analytical reasoning 258 (30.7%)
+    //               comprehension                  246 (29.2%)
+    //               decision-making + problem solving 30 (3.6%)
+    //               general mental ability 11 | interpersonal 4
+    //   STEM        median 226 chars, mean 278, max 1833 (a passage item carries
+    //               its passage INSIDE the stem, which is why CSAT stems run
+    //               2.6x the median length of UPPSC's CSAT stems).
+    //
+    // The decision-making closure quoted here ("most rational, practical and
+    // immediate action") is VERBATIM from a real 2023 CSAT stem, not invented —
+    // that family is posed as a situation, never as a definition, which is
+    // precisely the failure mode observed in the generated set.
+    // ---------------------------------------------------------------------
+    csat: {
+      formatGuidance:
+        "This is the CSAT aptitude paper (Prelims Paper-II), NOT a General Studies paper: it tests comprehension, " +
+        "reasoning, decision-making and basic numeracy as SKILLS, so treat the topic above as naming the skill the " +
+        "question must EXERCISE, never a body of theory to be recalled. Do NOT ask what a term means, what its " +
+        "components are, or which statements about it are correct — a real CSAT item is a self-contained exercise " +
+        "the candidate solves on the spot by reading, reasoning or calculating, needing no outside knowledge. Write " +
+        "in UPSC's real CSAT families in roughly their real proportions: about a third are reading-comprehension " +
+        "items whose stem CARRIES ITS OWN PASSAGE in full and then asks for the most logical or most rational " +
+        "inference, the main idea, the author's assumption, or which of several numbered assumptions/inferences are " +
+        "valid (these are the items that take combination options such as '1 only' / 'Both 1 and 2' / 'Neither 1 " +
+        "nor 2'); about a third are basic numeracy and data interpretation — number and letter series, " +
+        "time-speed-distance, work, ratio and partnership, percentages and averages, and small tables or charts; " +
+        "about a third are logical and analytical reasoning — seating and ranking arrangements, coding-decoding, " +
+        "blood relations, calendars and clocks, truth-teller deduction, cubes, and data-sufficiency pairs presented " +
+        "as 'Statement-I / Statement-II' and closed by whether either alone or both together suffice. " +
+        "Decision-making and interpersonal items are a small minority and are posed as a short administrative or " +
+        "workplace SITUATION closed by 'Which one of the following best reflects the most rational, practical and " +
+        "immediate action?', never as a definition. NEVER write an Assertion-Reason item — UPSC sets none. Do NOT " +
+        "use the 'How many of the above statements are correct?' counting closure and do NOT write a " +
+        "matching-pairs list: those are Paper-I General Studies forms and together account for under 1% of real " +
+        "CSAT papers. Keep standalone 'Consider the following statements' factual sets to about one item in twenty, " +
+        "and never let one become a recall test on the topic. Real CSAT stems are substantial — a median of about " +
+        "230 characters, and several hundred to well over a thousand for a passage item — and every stem must state " +
+        "its own complete set-up, never referring to a passage, table or arrangement given in another question.",
+      // The critic's own gate, re-stated for the aptitude paper. Deliberately
+      // asks whether the item can be SOLVED without outside knowledge rather
+      // than whether it matches a format list: "is this the right shape" is what
+      // the GS criterion asks, and on CSAT the shape is not the thing that went
+      // wrong — a theory-recall statement set about the node title is perfectly
+      // well-shaped and still not a CSAT question.
+      toneCriterion:
+        "this question is for the CSAT aptitude paper (Prelims Paper-II), so judge it as an aptitude item, NOT as a " +
+        "General Studies one: could a well-read candidate with NO subject knowledge of the topic solve it purely by " +
+        "reading, reasoning or calculating from what the stem itself supplies, and does it read like a real UPSC " +
+        "CSAT item in difficulty and phrasing? Answer false if it instead tests recall or theory about the topic " +
+        "(what a term means, what its components or principles are, or whether statements about it are correct), if " +
+        "it depends on facts not contained in the stem, if it uses the 'How many of the above statements are " +
+        "correct?' counting closure or a matching-pairs list, or if it is an Assertion-Reason item — UPSC sets none " +
+        "on either Prelims paper. A self-contained reading-comprehension item that carries its own passage, a " +
+        "numeracy or data-interpretation problem, a logical-reasoning arrangement or deduction, and a " +
+        "decision-making situation are all correct and expected CSAT forms; do not mark any of them off-tone for " +
+        "not being a statement-combination set.",
+    },
     // Shares ONE const with `ca.mainsDirectiveVerbGuidance` below, exactly as
     // uppsc does (M34, 2026-07-31). Still two separate FIELDS on purpose — see
     // the const's own note for why the fields are not merged.
     directiveVerbGuidance: UPSC_DIRECTIVE_VERBS,
+    // MARKS/WORD PAIRINGS RE-MEASURED 2026-08-01 over all 826 real ingested UPSC
+    // Mains rows (0 have a null marks or word_limit), because the generated set
+    // used two pairings the commission effectively does not set:
+    //   GS-I/II/III (200 each): 10/150 x90, 15/250 x90, 12.5/200 x20 (2016 only)
+    //   GS-IV (134):  20/250 x58, 20/150 x44  → 20 marks = 76.1% of the paper
+    //                 10/150 x21, 30/150 x7, 25/300 x2, 15/250 x2
+    //   ESSAY (92):   125/1200 x88, 125/1000 x4  → 1200 words = 95.7%
+    // The old text named no word limit for GS-IV at all, so the model invented
+    // 15/250 (2 of 134 real rows, 1.5%); and "125 marks / 1200 words" alone was
+    // not enough to stop 1000 words leaking in from those 4 real Essay rows. Both
+    // are now stated as an explicit closed set with the near-misses named. The
+    // brief that commissioned this fix called 15/250 "absent from all 131 real
+    // GS-IV PYQs" — it is rare (2 of 134), not absent, so it is ruled out here
+    // by frequency rather than by a false claim of non-existence.
     marksNormGuidance:
-      "real UPSC Mains norms (a GS-I to GS-III question is either 10 marks / 150 words or 15 marks / 250 words, in " +
-      "roughly equal measure; a GS-IV Ethics question is usually 20 marks and is often a case study; an Essay is " +
-      "125 marks / 1200 words)",
+      "real UPSC Mains norms, and use ONLY a pairing the commission actually sets: a GS-I to GS-III question is " +
+      "either 10 marks / 150 words or 15 marks / 250 words, in almost exactly equal measure, and no other pairing " +
+      "appears in current papers; a GS-IV Ethics question is 20 marks in about three-quarters of real papers, " +
+      "paired with EITHER 250 words or 150 words (a 20-mark GS-IV item is often a case study), and the only other " +
+      "common GS-IV pairing is 10 marks / 150 words — never 15 marks / 250 words, which is under 2% of real GS-IV " +
+      "questions; an Essay is ALWAYS 125 marks and 1200 words, never 1000",
     toneCriterion:
       "does it read like a real UPSC Civil Services question in difficulty, phrasing, and format — and, for a " +
       "Prelims MCQ, does it use a format UPSC actually sets (a statement-combination set or a direct single-item " +
@@ -2015,6 +2207,11 @@ const MPPSC: ExamConfig = {
     groundingStoreLabel: UNAUTHORED,
     groundingFallbackLabel: UNAUTHORED,
     formatGuidance: UNAUTHORED,
+    // UNAUTHORED, not `null`: `null` is the authored decision "this exam needs no
+    // separate aptitude norm", and nobody has looked at MPPSC's papers at all.
+    // (`papers.prelimsCsat` is also null here, so this slot is unreachable today
+    // — `formatGuidance` above throws first either way.)
+    csat: UNAUTHORED,
     directiveVerbGuidance: UNAUTHORED,
     marksNormGuidance: UNAUTHORED,
     toneCriterion: UNAUTHORED,

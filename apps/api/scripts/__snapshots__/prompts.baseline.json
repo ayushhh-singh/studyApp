@@ -4928,6 +4928,160 @@
       ]
     }
   },
+  "qgen/buildCriticParams:upsc-csat-mcq-grounded": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 1600,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are a strict UPSC Civil Services question-quality reviewer. You are given ONE candidate exam question (with its intended answer/marking scheme), the syllabus topic it targets, and REFERENCE PASSAGES retrieved for that topic. Judge it rigorously against the passages — do NOT rely on the question's own explanation for the facts. Return JSON:\n- single_correct_answer: for an MCQ, is there EXACTLY ONE defensibly-correct option and are the other three genuinely wrong? (for a descriptive question, is the task well-posed and answerable within its word limit?)\n- options_plausible: are the distractors plausible and non-trivial (not obviously absurd, not near-duplicates of the answer)? (descriptive: is the marking outline complete and on-point?)\n- uppsc_tone: this question is for the CSAT aptitude paper (Prelims Paper-II), so judge it as an aptitude item, NOT as a General Studies one: could a well-read candidate with NO subject knowledge of the topic solve it purely by reading, reasoning or calculating from what the stem itself supplies, and does it read like a real UPSC CSAT item in difficulty and phrasing? Answer false if it instead tests recall or theory about the topic (what a term means, what its components or principles are, or whether statements about it are correct), if it depends on facts not contained in the stem, if it uses the 'How many of the above statements are correct?' counting closure or a matching-pairs list, or if it is an Assertion-Reason item — UPSC sets none on either Prelims paper. A self-contained reading-comprehension item that carries its own passage, a numeracy or data-interpretation problem, a logical-reasoning arrangement or deduction, and a decision-making situation are all correct and expected CSAT forms; do not mark any of them off-tone for not being a statement-combination set.\n- out_of_syllabus: is any part outside the stated topic/paper syllabus?\n- decisive_facts: list EVERY proper noun, date, article/section number, statistic, or named person/scheme the answer turns on. For each, set status = 'grounded' if a reference passage supports it, 'well_established' if it is basic knowledge you are certain of, or 'unverifiable' if neither. Be honest — do not upgrade a fact you are only guessing at.\n- factual_red_flags: list any statement that is factually wrong (empty array if none).\n- notes: one or two sentences on the main issue, or praise if clean.\n- approve: true ONLY if it is single-correct (or well-posed), plausible, on-tone, in-syllabus, has NO factual red flags, and NO decisive fact is 'unverifiable'. We do not publish unverifiable trivia. Be conservative — reject anything you would not put in front of a real aspirant.\nReturn strict JSON only.",
+        "cache": true
+      }
+    ],
+    "content": "SYLLABUS TOPIC:\nTopic: Fixture Topic Title — Fixture topic description.\nPaper: UPSC_PRE_CSAT (prelims)\n\nREFERENCE PASSAGES (from the official UPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.\n\nCANDIDATE QUESTION:\nType: MCQ\nStem: Fixture generated stem.\nOptions:\n  A) Alpha\n  B) Beta\n  C) Gamma\n  D) Delta\nIntended correct answer: C\nExplanation given: Fixture explanation.\n\nReturn your JSON verdict.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "single_correct_answer": {
+          "type": "boolean"
+        },
+        "options_plausible": {
+          "type": "boolean"
+        },
+        "uppsc_tone": {
+          "type": "boolean"
+        },
+        "out_of_syllabus": {
+          "type": "boolean"
+        },
+        "decisive_facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fact": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "grounded",
+                  "well_established",
+                  "unverifiable"
+                ]
+              }
+            },
+            "required": [
+              "fact",
+              "status"
+            ]
+          }
+        },
+        "factual_red_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "single_correct_answer",
+        "options_plausible",
+        "uppsc_tone",
+        "out_of_syllabus",
+        "decisive_facts",
+        "factual_red_flags",
+        "notes",
+        "approve"
+      ]
+    }
+  },
+  "qgen/buildCriticParams:upsc-gs-mcq-grounded": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 1600,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are a strict UPSC Civil Services question-quality reviewer. You are given ONE candidate exam question (with its intended answer/marking scheme), the syllabus topic it targets, and REFERENCE PASSAGES retrieved for that topic. Judge it rigorously against the passages — do NOT rely on the question's own explanation for the facts. Return JSON:\n- single_correct_answer: for an MCQ, is there EXACTLY ONE defensibly-correct option and are the other three genuinely wrong? (for a descriptive question, is the task well-posed and answerable within its word limit?)\n- options_plausible: are the distractors plausible and non-trivial (not obviously absurd, not near-duplicates of the answer)? (descriptive: is the marking outline complete and on-point?)\n- uppsc_tone: does it read like a real UPSC Civil Services question in difficulty, phrasing, and format — and, for a Prelims MCQ, does it use a format UPSC actually sets (a statement-combination set or a direct single-item question), never Assertion-Reason?\n- out_of_syllabus: is any part outside the stated topic/paper syllabus?\n- decisive_facts: list EVERY proper noun, date, article/section number, statistic, or named person/scheme the answer turns on. For each, set status = 'grounded' if a reference passage supports it, 'well_established' if it is basic knowledge you are certain of, or 'unverifiable' if neither. Be honest — do not upgrade a fact you are only guessing at.\n- factual_red_flags: list any statement that is factually wrong (empty array if none).\n- notes: one or two sentences on the main issue, or praise if clean.\n- approve: true ONLY if it is single-correct (or well-posed), plausible, on-tone, in-syllabus, has NO factual red flags, and NO decisive fact is 'unverifiable'. We do not publish unverifiable trivia. Be conservative — reject anything you would not put in front of a real aspirant.\nReturn strict JSON only.",
+        "cache": true
+      }
+    ],
+    "content": "SYLLABUS TOPIC:\nTopic: Fixture Topic Title — Fixture topic description.\nPaper: UPSC_PRE_GS1 (prelims)\n\nREFERENCE PASSAGES (from the official UPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.\n\nCANDIDATE QUESTION:\nType: MCQ\nStem: Fixture generated stem.\nOptions:\n  A) Alpha\n  B) Beta\n  C) Gamma\n  D) Delta\nIntended correct answer: C\nExplanation given: Fixture explanation.\n\nReturn your JSON verdict.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "single_correct_answer": {
+          "type": "boolean"
+        },
+        "options_plausible": {
+          "type": "boolean"
+        },
+        "uppsc_tone": {
+          "type": "boolean"
+        },
+        "out_of_syllabus": {
+          "type": "boolean"
+        },
+        "decisive_facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fact": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "grounded",
+                  "well_established",
+                  "unverifiable"
+                ]
+              }
+            },
+            "required": [
+              "fact",
+              "status"
+            ]
+          }
+        },
+        "factual_red_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "single_correct_answer",
+        "options_plausible",
+        "uppsc_tone",
+        "out_of_syllabus",
+        "decisive_facts",
+        "factual_red_flags",
+        "notes",
+        "approve"
+      ]
+    }
+  },
   "qgen/buildDescGenParams:grounded-fewshot": {
     "model": "claude-sonnet-5",
     "effort": "medium",
@@ -5038,6 +5192,100 @@
       }
     ],
     "content": "Generate 3 distinct UPPSC-Mains descriptive questions on the topic above. Aim for a medium difficulty mix. Vary the sub-aspect tested. Vary the directive verb and the sub-theme across the set. Return JSON only.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stem_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "marks": {
+                "type": "integer"
+              },
+              "word_limit": {
+                "type": "integer"
+              },
+              "marking_points_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "en": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "difficulty": {
+                "type": "string",
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ]
+              }
+            },
+            "required": [
+              "stem_i18n",
+              "marks",
+              "word_limit",
+              "marking_points_i18n",
+              "difficulty"
+            ]
+          }
+        }
+      },
+      "required": [
+        "questions"
+      ]
+    }
+  },
+  "qgen/buildDescGenParams:upsc-mains": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 8000,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are an experienced UPSC Civil Services Mains paper setter. You write original, exam-standard DESCRIPTIVE (long-answer) questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n- Open with a real UPSC directive verb — Discuss most often, then Explain / Examine / Comment / Analyse / Elucidate ('Critically examine' is only about 2% of real stems, so never make it the default) — or, in roughly a third of questions as real UPSC papers do, with no directive verb at all (a bare What / How / Why interrogative, or a bare topic statement) and demand analysis, not mere recall.\n- Assign realistic marks and a word limit that match real UPSC Mains norms, and use ONLY a pairing the commission actually sets: a GS-I to GS-III question is either 10 marks / 150 words or 15 marks / 250 words, in almost exactly equal measure, and no other pairing appears in current papers; a GS-IV Ethics question is 20 marks in about three-quarters of real papers, paired with EITHER 250 words or 150 words (a 20-mark GS-IV item is often a case study), and the only other common GS-IV pairing is 10 marks / 150 words — never 15 marks / 250 words, which is under 2% of real GS-IV questions; an Essay is ALWAYS 125 marks and 1200 words, never 1000.\n- Provide a marking-points outline: 4-7 crisp points a strong answer must cover (used later to ground the AI evaluator). Give the outline in BOTH languages, same points in the same order.\n- Stay strictly within the given topic and paper's syllabus, and ground every factual expectation in the reference passages or well-established knowledge. Hindi and English must be faithful translations. Return strict JSON.",
+        "cache": false
+      },
+      {
+        "text": "Topic: Fixture Topic Title — Fixture topic description.\nPaper: UPSC_MAINS_GS1 (mains)\n\nREAL UPSC PAST-YEAR QUESTIONS FOR THIS TOPIC (match their stem length, option style, and trap patterns):\n\nExample 1 (UPSC 2019, difficulty medium):\n  Stem EN: Fixture stem one in English.\n  Stem HI: फिक्स्चर प्रश्न एक।\n  Options:\n    A) Option alpha  /  विकल्प अल्फा\n    B) Option beta  /  विकल्प बीटा\n  Correct: B\n\nExample 2 (UPSC, difficulty hard):\n  Stem EN: Fixture stem two in English.\n  Stem HI: फिक्स्चर प्रश्न दो।\n\n\nREFERENCE PASSAGES (from the official UPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.",
+        "cache": true
+      }
+    ],
+    "content": "Generate 3 distinct UPSC-Mains descriptive questions on the topic above. Aim for a medium difficulty mix. Vary the sub-aspect tested. Vary the directive verb and the sub-theme across the set. Return JSON only.",
     "schema": {
       "type": "object",
       "additionalProperties": false,
@@ -5261,6 +5509,264 @@
       }
     ],
     "content": "Generate 3 distinct UPPSC-Prelims MCQs on the topic above. Aim for a medium difficulty mix. Vary the sub-aspect tested. Make them genuinely different from one another in the sub-aspect they test. Return JSON only.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stem_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "A",
+                        "B",
+                        "C",
+                        "D"
+                      ]
+                    },
+                    "text_i18n": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "hi": {
+                          "type": "string"
+                        },
+                        "en": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "hi",
+                        "en"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "text_i18n"
+                  ]
+                }
+              },
+              "correct_option_key": {
+                "type": "string",
+                "enum": [
+                  "A",
+                  "B",
+                  "C",
+                  "D"
+                ]
+              },
+              "explanation_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "difficulty": {
+                "type": "string",
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ]
+              }
+            },
+            "required": [
+              "stem_i18n",
+              "options",
+              "correct_option_key",
+              "explanation_i18n",
+              "difficulty"
+            ]
+          }
+        }
+      },
+      "required": [
+        "questions"
+      ]
+    }
+  },
+  "qgen/buildMcqGenParams:upsc-csat-grounded": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 8000,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are an experienced UPSC (Union Public Service Commission) Civil Services Prelims question setter. You write original, exam-standard objective questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n- Exactly 4 options keyed A, B, C, D, with EXACTLY ONE unambiguously correct answer; the other three must be clearly wrong to a well-prepared aspirant, yet plausible enough to be real distractors (not jokes, not trivially absurd).\n- The stem must be self-contained and answerable from the option set alone. This is the CSAT aptitude paper (Prelims Paper-II), NOT a General Studies paper: it tests comprehension, reasoning, decision-making and basic numeracy as SKILLS, so treat the topic above as naming the skill the question must EXERCISE, never a body of theory to be recalled. Do NOT ask what a term means, what its components are, or which statements about it are correct — a real CSAT item is a self-contained exercise the candidate solves on the spot by reading, reasoning or calculating, needing no outside knowledge. Write in UPSC's real CSAT families in roughly their real proportions: about a third are reading-comprehension items whose stem CARRIES ITS OWN PASSAGE in full and then asks for the most logical or most rational inference, the main idea, the author's assumption, or which of several numbered assumptions/inferences are valid (these are the items that take combination options such as '1 only' / 'Both 1 and 2' / 'Neither 1 nor 2'); about a third are basic numeracy and data interpretation — number and letter series, time-speed-distance, work, ratio and partnership, percentages and averages, and small tables or charts; about a third are logical and analytical reasoning — seating and ranking arrangements, coding-decoding, blood relations, calendars and clocks, truth-teller deduction, cubes, and data-sufficiency pairs presented as 'Statement-I / Statement-II' and closed by whether either alone or both together suffice. Decision-making and interpersonal items are a small minority and are posed as a short administrative or workplace SITUATION closed by 'Which one of the following best reflects the most rational, practical and immediate action?', never as a definition. NEVER write an Assertion-Reason item — UPSC sets none. Do NOT use the 'How many of the above statements are correct?' counting closure and do NOT write a matching-pairs list: those are Paper-I General Studies forms and together account for under 1% of real CSAT papers. Keep standalone 'Consider the following statements' factual sets to about one item in twenty, and never let one become a recall test on the topic. Real CSAT stems are substantial — a median of about 230 characters, and several hundred to well over a thousand for a passage item — and every stem must state its own complete set-up, never referring to a passage, table or arrangement given in another question.\n- Base every factual claim on the reference passages provided or on well-established knowledge; NEVER invent a statistic, date, constitutional article, committee, or scheme detail. If you are not sure a fact is true, do not use it.\n- Hindi and English must be faithful translations of each other. The explanation states why the correct option is right and, briefly, why each other option is wrong. Plain text only — no markdown.\n- The topic names the SKILL to exercise, not the subject matter to be tested: any everyday, workplace or administrative context is fair game as the vehicle, provided solving the item requires that skill and no outside knowledge. Use the reference passages only as realistic background — never as the thing being recalled. Return strict JSON matching the schema.",
+        "cache": false
+      },
+      {
+        "text": "Topic: Fixture Topic Title — Fixture topic description.\nPaper: UPSC_PRE_CSAT (prelims)\n\nREAL UPSC PAST-YEAR QUESTIONS FOR THIS TOPIC (match their stem length, option style, and trap patterns):\n\nExample 1 (UPSC 2019, difficulty medium):\n  Stem EN: Fixture stem one in English.\n  Stem HI: फिक्स्चर प्रश्न एक।\n  Options:\n    A) Option alpha  /  विकल्प अल्फा\n    B) Option beta  /  विकल्प बीटा\n  Correct: B\n\nExample 2 (UPSC, difficulty hard):\n  Stem EN: Fixture stem two in English.\n  Stem HI: फिक्स्चर प्रश्न दो।\n\n\nREFERENCE PASSAGES (from the official UPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.",
+        "cache": true
+      }
+    ],
+    "content": "Generate 3 distinct UPSC-Prelims MCQs on the topic above. Aim for a medium difficulty mix. Vary the sub-aspect tested. Make them genuinely different from one another in the sub-aspect they test. Return JSON only.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stem_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "A",
+                        "B",
+                        "C",
+                        "D"
+                      ]
+                    },
+                    "text_i18n": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "hi": {
+                          "type": "string"
+                        },
+                        "en": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "hi",
+                        "en"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "text_i18n"
+                  ]
+                }
+              },
+              "correct_option_key": {
+                "type": "string",
+                "enum": [
+                  "A",
+                  "B",
+                  "C",
+                  "D"
+                ]
+              },
+              "explanation_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "difficulty": {
+                "type": "string",
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ]
+              }
+            },
+            "required": [
+              "stem_i18n",
+              "options",
+              "correct_option_key",
+              "explanation_i18n",
+              "difficulty"
+            ]
+          }
+        }
+      },
+      "required": [
+        "questions"
+      ]
+    }
+  },
+  "qgen/buildMcqGenParams:upsc-gs-grounded": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 8000,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are an experienced UPSC (Union Public Service Commission) Civil Services Prelims question setter. You write original, exam-standard objective questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n- Exactly 4 options keyed A, B, C, D, with EXACTLY ONE unambiguously correct answer; the other three must be clearly wrong to a well-prepared aspirant, yet plausible enough to be real distractors (not jokes, not trivially absurd).\n- The stem must be self-contained and answerable from the option set alone. Prefer UPSC's real formats: about two-thirds of Prelims GS-I stems are scaffolded, most often 'Consider the following statements' or 'With reference to X, consider the following' followed by THREE numbered statements (two or four are also common; never five or more), closed either by a combination option set ('1 and 2 only', '1, 2 and 3', 'None of the above') or by the modern counting form 'How many of the above statements are correct?' with options 'Only one / Only two / All three / None'. The remaining third are direct single-item questions answered by four substantive content options; do not default to the '1 only / 2 only / Both 1 and 2 / Neither 1 nor 2' quartet, which is only about one option set in eight. NEVER write an Assertion-Reason (A/R) question — UPSC does not set them; where a two-part logical pair is wanted, use UPSC's actual counterpart, a 'Statement-I / Statement-II' pair closed by 'Which one of the following is correct in respect of the above statements?' with the four-way code (both correct and II explains I / both correct but II does not explain I / I correct, II incorrect / I incorrect, II correct). Keep matching-pairs, chronological ordering and negative 'which is NOT' framings rare — each is under 4% of real papers.\n- Base every factual claim on the reference passages provided or on well-established knowledge; NEVER invent a statistic, date, constitutional article, committee, or scheme detail. If you are not sure a fact is true, do not use it.\n- Hindi and English must be faithful translations of each other. The explanation states why the correct option is right and, briefly, why each other option is wrong. Plain text only — no markdown.\n- Stay strictly within the given topic and paper's syllabus. Return strict JSON matching the schema.",
+        "cache": false
+      },
+      {
+        "text": "Topic: Fixture Topic Title — Fixture topic description.\nPaper: UPSC_PRE_GS1 (prelims)\n\nREAL UPSC PAST-YEAR QUESTIONS FOR THIS TOPIC (match their stem length, option style, and trap patterns):\n\nExample 1 (UPSC 2019, difficulty medium):\n  Stem EN: Fixture stem one in English.\n  Stem HI: फिक्स्चर प्रश्न एक।\n  Options:\n    A) Option alpha  /  विकल्प अल्फा\n    B) Option beta  /  विकल्प बीटा\n  Correct: B\n\nExample 2 (UPSC, difficulty hard):\n  Stem EN: Fixture stem two in English.\n  Stem HI: फिक्स्चर प्रश्न दो।\n\n\nREFERENCE PASSAGES (from the official UPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.",
+        "cache": true
+      }
+    ],
+    "content": "Generate 3 distinct UPSC-Prelims MCQs on the topic above. Aim for a medium difficulty mix. Vary the sub-aspect tested. Make them genuinely different from one another in the sub-aspect they test. Return JSON only.",
     "schema": {
       "type": "object",
       "additionalProperties": false,

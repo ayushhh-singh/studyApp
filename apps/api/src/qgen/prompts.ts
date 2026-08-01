@@ -15,7 +15,7 @@
  * generation_meta records which version produced a row.
  */
 import { MODELS, type StructuredParams } from "../lib/anthropic.js";
-import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { getExamConfig, isAuthored, requireAuthored, type ExamQgenCsatConfig } from "../lib/exam-config.js";
 import type { CriticVerdict, Difficulty, VerifyResult } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
@@ -41,6 +41,33 @@ import type { GroundingResult } from "../services/evaluation/grounding.js";
  */
 function qgenConfig(examCode: string) {
   return getExamConfig(examCode).qgen;
+}
+
+/**
+ * This exam's aptitude-paper (CSAT) question-setting norm IF the node sits on
+ * that paper AND the exam has authored one — otherwise `null`, meaning "treat
+ * this node exactly as a General Studies Prelims node", which is the behaviour
+ * every exam had before this slot existed.
+ *
+ * Keyed off `papers.prelimsCsat` rather than a `PRE_CSAT` substring: paper codes
+ * are exam-PREFIXED for every non-default exam (`UPSC_PRE_CSAT`), so a pattern
+ * match is both wrong and the exact shape (M23) that once let one exam's PYQs
+ * attach to another's syllabus tree. The registry already holds the answer.
+ *
+ * Exported because `qgen/generate.ts`'s `loadFewShot` gates on the same
+ * condition: an exam that has authored a distinct CSAT norm has also declared
+ * that its CSAT topics are separate SKILLS, which is what makes a paper-wide
+ * few-shot fallback wrong for them. One predicate, two consequences.
+ */
+export function csatQgenConfigFor(examCode: string, paperCode: string): ExamQgenCsatConfig | null {
+  const cfg = getExamConfig(examCode);
+  if (!cfg.papers.prelimsCsat || paperCode !== cfg.papers.prelimsCsat) return null;
+  const csat = cfg.qgen.csat;
+  // UNAUTHORED here is NOT a hard failure the way a missing persona is: the
+  // caller's fallback is this exam's own general prelims norm, not another
+  // exam's text, so nothing is borrowed across commissions. `formatGuidance`
+  // still throws for a wholly unauthored exam.
+  return isAuthored(csat) ? csat : null;
 }
 
 // qgen-v2 (question-bank trust hardening): the Stage-B critic now receives the
@@ -152,19 +179,65 @@ function memoisePerExam(build: (examCode: string) => string): (examCode: string)
   };
 }
 
-const mcqSystem = memoisePerExam((examCode) => {
+/**
+ * As `memoisePerExam`, but keyed by (exam, is-this-the-aptitude-paper) — the two
+ * inputs `mcqSystem` varies on. The CSAT config itself is not part of the key:
+ * it is derived from the exam, so `examCode + "|" + (csat ? "csat" : "gs")` is
+ * total. At most two entries per exam, one per paper kind.
+ */
+function memoisePerExamAndPaperKind(
+  build: (examCode: string, csat: ExamQgenCsatConfig | null) => string,
+): (examCode: string, csat: ExamQgenCsatConfig | null) => string {
+  const cache = new Map<string, string>();
+  return (examCode: string, csat: ExamQgenCsatConfig | null) => {
+    const key = `${examCode}|${csat ? "csat" : "gs"}`;
+    const hit = cache.get(key);
+    if (hit !== undefined) return hit;
+    const built = build(examCode, csat);
+    cache.set(key, built);
+    return built;
+  };
+}
+
+/**
+ * The MCQ persona, memoised per (exam, paper kind).
+ *
+ * TWO KEYS, not one: an exam's aptitude paper gets a different format clause
+ * from its General Studies paper (see `csatQgenConfigFor`). That still PARTITIONS
+ * the prompt cache rather than destroying it — the entry count goes from one per
+ * exam to at most two per exam, each a stable prefix. Only PER-REQUEST text in
+ * segment [0] would kill [1]'s entry; see the cache note at the top of this file.
+ *
+ * An exam with no authored CSAT norm resolves both keys to the identical string,
+ * so `uppsc` still builds exactly one prompt and one cache entry.
+ */
+const mcqSystem = memoisePerExamAndPaperKind((examCode, csat) => {
   const cfg = qgenConfig(examCode);
+  // A CSAT node substitutes the aptitude norm for the GS one IN THE SAME SLOT,
+  // rather than appending it: the failure this replaced was precisely a GS-shaped
+  // body followed by a one-sentence CSAT exception, which the model did not honour.
+  const formatClause = csat
+    ? csat.formatGuidance
+    : requireAuthored(cfg.formatGuidance, examCode, "qgen.formatGuidance");
   return (
   `You are ${requireAuthored(cfg.prelimsSetterFraming, examCode, "qgen.prelimsSetterFraming")}. You ` +
   "write original, exam-standard objective questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n" +
   "- Exactly 4 options keyed A, B, C, D, with EXACTLY ONE unambiguously correct answer; the other three must be " +
   "clearly wrong to a well-prepared aspirant, yet plausible enough to be real distractors (not jokes, not trivially absurd).\n" +
-  `- The stem must be self-contained and answerable from the option set alone. ${requireAuthored(cfg.formatGuidance, examCode, "qgen.formatGuidance")}\n` +
+  `- The stem must be self-contained and answerable from the option set alone. ${formatClause}\n` +
   "- Base every factual claim on the reference passages provided or on well-established knowledge; NEVER invent a " +
   "statistic, date, constitutional article, committee, or scheme detail. If you are not sure a fact is true, do not use it.\n" +
   "- Hindi and English must be faithful translations of each other. The explanation states why the correct option is " +
   "right and, briefly, why each other option is wrong. Plain text only — no markdown.\n" +
-  "- Stay strictly within the given topic and paper's syllabus. Return strict JSON matching the schema."
+  (csat
+    // Replaces the GS "stay within the topic's syllabus" close, which on an
+    // aptitude paper reads as an instruction to test the topic's CONTENT — the
+    // exact drift measured (theory-recall statement sets about the node title).
+    ? "- The topic names the SKILL to exercise, not the subject matter to be tested: any everyday, workplace or " +
+      "administrative context is fair game as the vehicle, provided solving the item requires that skill and no " +
+      "outside knowledge. Use the reference passages only as realistic background — never as the thing being " +
+      "recalled. Return strict JSON matching the schema."
+    : "- Stay strictly within the given topic and paper's syllabus. Return strict JSON matching the schema.")
   );
 });
 
@@ -222,7 +295,7 @@ export function buildMcqGenParams(opts: {
     system: [
       // [0] uncached-looking, but the cached PREFIX is [0]+[1] — see the cache
       // note at the top of this file. Per-exam text partitions; per-request kills.
-      { text: mcqSystem(opts.node.examCode) },
+      { text: mcqSystem(opts.node.examCode, csatQgenConfigFor(opts.node.examCode, opts.node.paperCode)) },
       { text: generationContextBlock(opts.node, opts.examples, opts.grounding), cache: true },
     ],
     // User content, so never inside a cached prefix. Deliberately reads qgen's OWN
@@ -329,8 +402,17 @@ export function parseDescGen(json: unknown): GeneratedDescriptive[] {
 // ---------------------------------------------------------------------------
 // Stage B — critic (claude-sonnet-5). One call per generated question.
 // ---------------------------------------------------------------------------
-const criticSystem = memoisePerExam((examCode) => {
+const criticSystem = memoisePerExamAndPaperKind((examCode, csat) => {
   const cfg = qgenConfig(examCode);
+  // Same substitution as `mcqSystem`: the aptitude paper's criterion REPLACES
+  // the General Studies one in the same slot. The critic is a hard gate
+  // (`generate.ts` rejects on `!approve`, and approval requires "on-tone"), so
+  // leaving the GS criterion here would keep SELECTING for the GS-shaped
+  // recall items this change exists to stop generating. See
+  // `ExamQgenCsatConfig.toneCriterion`.
+  const toneClause = csat
+    ? csat.toneCriterion
+    : requireAuthored(cfg.toneCriterion, examCode, "qgen.toneCriterion");
   return (
   `You are ${requireAuthored(cfg.criticFraming, examCode, "qgen.criticFraming")}. You are given ONE candidate exam question (with its intended ` +
   "answer/marking scheme), the syllabus topic it targets, and REFERENCE PASSAGES retrieved for that topic. Judge it " +
@@ -343,7 +425,7 @@ const criticSystem = memoisePerExam((examCode) => {
   // field of CriticVerdict in @neev/shared, and a key inside every persisted
   // questions.generation_meta row. NEVER rename it. Only the human-readable
   // criterion text after the colon is exam-configurable.
-  `- uppsc_tone: ${requireAuthored(cfg.toneCriterion, examCode, "qgen.toneCriterion")}\n` +
+  `- uppsc_tone: ${toneClause}\n` +
   "- out_of_syllabus: is any part outside the stated topic/paper syllabus?\n" +
   "- decisive_facts: list EVERY proper noun, date, article/section number, statistic, or named person/scheme the " +
   "answer turns on. For each, set status = 'grounded' if a reference passage supports it, 'well_established' if it is " +
@@ -422,7 +504,9 @@ export function buildCriticParams(opts: { node: NodeContext; rendered: string; g
     // simply no cache to partition. Left in place: harmless, and correct for
     // free if this prompt ever grows past 1024. See lib/anthropic.ts's
     // PromptSegment doc for why a below-minimum `cache: true` is silent.
-    system: [{ text: criticSystem(opts.node.examCode), cache: true }],
+    system: [
+      { text: criticSystem(opts.node.examCode, csatQgenConfigFor(opts.node.examCode, opts.node.paperCode)), cache: true },
+    ],
     content:
       `SYLLABUS TOPIC:\n${nodeLine(opts.node)}\n\n${groundingBlock(opts.grounding, opts.node.examCode)}\n\n` +
       `CANDIDATE QUESTION:\n${opts.rendered}\n\nReturn your JSON verdict.`,

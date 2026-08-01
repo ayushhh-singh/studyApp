@@ -73,6 +73,16 @@ import { join } from "node:path";
 // no connection and does no I/O at module scope (it is also what scripts/
 // test-parse-args.ts imports to run offline with no env).
 import { parseArgs } from "../src/ingest/_shared.js";
+// Pure constants module (a `TargetExamCode` type import and string literals —
+// no env read, no client, no I/O at module scope). Imported rather than retyped
+// so the UPSC fixtures below provably match the codes `EXAM_CONFIGS.upsc.papers`
+// is built from; see the fixture block's own note.
+import {
+  UPSC_EXAM_CODE,
+  UPSC_MAINS_GS_PAPER_CODES,
+  UPSC_PRELIMS_CSAT_PAPER_CODE,
+  UPSC_PRELIMS_GS1_PAPER_CODE,
+} from "../src/lib/upsc-papers.js";
 
 // Portable paths only — resolved from this module's own location, never a
 // hardcoded prefix or an assumed process.cwd() (see CLAUDE.md → Dev conventions).
@@ -232,6 +242,42 @@ const QGEN_NODE = {
   description_i18n: { en: "Fixture topic description.", hi: "फिक्स्चर विवरण।" },
 };
 const QGEN_NODE_NO_DESC = { ...QGEN_NODE, stage: "mains" as const, description_i18n: null };
+
+// ---------------------------------------------------------------------------
+// UPSC qgen fixtures.
+//
+// Every OTHER qgen fixture is pinned to `uppsc`, so a green "N byte-identical"
+// run says nothing about a second exam's prompts (M47). These three exist so the
+// UPSC personas are guarded too — in particular the aptitude-paper branch, whose
+// whole point is that it must NOT read like the General Studies one.
+//
+// ⚑ THE PAPER CODES ARE IMPORTED, NOT RETYPED. `csatQgenConfigFor` keys off the
+// registry's `papers.prelimsCsat` (an exact match, deliberately not a `PRE_CSAT`
+// substring — see its own note), so a fixture carrying a hand-typed code that
+// drifted from `lib/upsc-papers.ts` would silently take the GS branch and this
+// harness would keep passing while guarding nothing. Importing the same constant
+// the config is built from makes taking the branch structural rather than lucky.
+// (`lib/upsc-papers.ts` is a pure constants module — no env, no I/O, no client
+// construction at module scope — so a static import is safe for the determinism
+// contract above.)
+// ---------------------------------------------------------------------------
+const QGEN_NODE_UPSC_GS = {
+  ...QGEN_NODE,
+  id: "88888888-8888-4888-8888-888888888881",
+  examCode: UPSC_EXAM_CODE,
+  paperCode: UPSC_PRELIMS_GS1_PAPER_CODE,
+};
+const QGEN_NODE_UPSC_CSAT = {
+  ...QGEN_NODE_UPSC_GS,
+  id: "88888888-8888-4888-8888-888888888882",
+  paperCode: UPSC_PRELIMS_CSAT_PAPER_CODE,
+};
+const QGEN_NODE_UPSC_MAINS = {
+  ...QGEN_NODE_UPSC_GS,
+  id: "88888888-8888-4888-8888-888888888883",
+  paperCode: UPSC_MAINS_GS_PAPER_CODES[0],
+  stage: "mains" as const,
+};
 
 const CA_CANDIDATES = [
   { id: "44444444-4444-4444-8444-444444444444", title: "Fixture Node One", paperCode: "FIXTURE_PAPER", examCode: "fixture-exam" },
@@ -536,6 +582,26 @@ async function collectQgenPrompts(): Promise<void> {
     "qgen/buildMcqGenParams:ungrounded-noexamples-nodesc",
     paramsSnapshot(mod.buildMcqGenParams(genOpts({ node: QGEN_NODE_NO_DESC, examples: [], grounding: EMPTY_GROUNDING }))),
   );
+  // The MCQ persona now varies on (exam, is-this-the-aptitude-paper), so BOTH
+  // branches need a fixture or the CSAT one is unguarded — the reason the fixture
+  // paper code is a REAL one here (`UPSC_PRE_CSAT`) rather than FIXTURE_PAPER:
+  // `csatQgenConfigFor` keys off the registry's `papers.prelimsCsat`, so only the
+  // genuine code takes the branch. The uppsc fixtures above keep FIXTURE_PAPER
+  // and therefore keep taking the GS branch, byte-identically.
+  //
+  // ⚑ These are the first `upsc` keys in this harness's qgen section. Every other
+  // qgen fixture is pinned to `uppsc`, so "N byte-identical" says nothing about a
+  // second exam's prompts (M47) — a length-preserving reword of the UPSC CSAT
+  // norm would otherwise regress undetected.
+  put(
+    "qgen/buildMcqGenParams:upsc-gs-grounded",
+    paramsSnapshot(mod.buildMcqGenParams(genOpts({ node: QGEN_NODE_UPSC_GS }))),
+  );
+  put(
+    "qgen/buildMcqGenParams:upsc-csat-grounded",
+    paramsSnapshot(mod.buildMcqGenParams(genOpts({ node: QGEN_NODE_UPSC_CSAT }))),
+  );
+  put("qgen/buildDescGenParams:upsc-mains", paramsSnapshot(mod.buildDescGenParams(genOpts({ node: QGEN_NODE_UPSC_MAINS }))));
   put("qgen/buildDescGenParams:grounded-fewshot", paramsSnapshot(mod.buildDescGenParams(genOpts())));
   put(
     "qgen/buildDescGenParams:ungrounded-noexamples-nodesc",
@@ -581,6 +647,31 @@ async function collectQgenPrompts(): Promise<void> {
         node: QGEN_NODE_NO_DESC as never,
         rendered: mod.renderQuestionForCritic.descriptive(desc as never),
         grounding: EMPTY_GROUNDING as never,
+      }),
+    ),
+  );
+  // The critic's tone criterion now varies on the same (exam, paper kind) key as
+  // the generator's format clause — and it is the HARDER of the two to leave
+  // unguarded, because the critic is a gate: `generate.ts` rejects any candidate
+  // it does not approve, and approval requires "on-tone". A silent regression
+  // here does not merely change the questions written, it changes which survive.
+  put(
+    "qgen/buildCriticParams:upsc-gs-mcq-grounded",
+    paramsSnapshot(
+      mod.buildCriticParams({
+        node: QGEN_NODE_UPSC_GS as never,
+        rendered: mod.renderQuestionForCritic.mcq(mcq as never),
+        grounding: GROUNDING as never,
+      }),
+    ),
+  );
+  put(
+    "qgen/buildCriticParams:upsc-csat-mcq-grounded",
+    paramsSnapshot(
+      mod.buildCriticParams({
+        node: QGEN_NODE_UPSC_CSAT as never,
+        rendered: mod.renderQuestionForCritic.mcq(mcq as never),
+        grounding: GROUNDING as never,
       }),
     ),
   );
