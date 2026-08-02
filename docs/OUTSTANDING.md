@@ -445,3 +445,51 @@ Asked the sharpest question available after publishing 2,791 questions: **does a
 ## Keeping this current
 
 **Proposed workflow change (for my own future sessions):** at the end of every session, in addition to the `CLAUDE.md` session-log entry, **append any new follow-up / disclosed limitation / found-but-unfixed bug directly to this file** (right category table, with provenance + a severity guess), and **strike through / move to §0** any item this session actually closed. That keeps `OUTSTANDING.md` a live, deduplicated ledger so this full-history audit never has to be repeated — the session log stays the narrative record, this file stays the actionable index.
+
+---
+
+### 8k. U8 — activating the seven content pipelines for `upsc` *(2026-08-01/03)*
+
+**Founder signed off a projection of ~$1.36/night, ~$41/month recurring + ~$10 one-off**, built from 23,080 real `llm_calls` rows. **Actual attributable spend: $1.7362** (CA triage probe $0.1867 + qgen $1.5495). The gap is not an estimating error — the ~$8 CA history backfill was deliberately **not** run (see U8f), and chapters were authored by free coding subagents at $0 per the standing rule.
+
+`exams.upsc.is_live` was **false throughout and is still false.** Nothing in this work is user-visible.
+
+#### Landed
+
+| # | Item | Commit |
+|---|---|---|
+| U8a | Per-exam LLM cost visibility (`0114` = nullable `llm_calls.exam_code`) **and a fix for `cost:report` silently truncating at PostgREST's 1000-row cap** — it was rendering 4.3% of the data and understating 30-day spend **27×** ($12.41 vs the real $336.11). Every figure it printed since the call bank passed 1000 rows was wrong. | `5a38f93` |
+| U8b | CA triage **fans out per live exam** (own pool, own prefilter, own authored framing), replacing `caPromptExamCode`'s silent fallback to the default exam. N=1 collapses byte-identically to the pre-change path — proven, and re-proven by the regression suite. | `bb113e9` |
+| U8c | M20a: per-exam `gsPapers` enum + `GS_PAPER_ORDER`; the magazine's state-lead section and `UP_BOOST` now gate on the exam's own lens being state-specific, so a national exam cannot render a state section regardless of the flat `is_up_specific` bit. **No migration, no backfill.** | `314aa8a` |
+| U8d | qgen top-up multi-exam under **ONE shared budget cap**. Shared-vs-per-exam is indistinguishable on live data (uppsc shortfall is 0), so the trim was extracted as a pure function and shown on synthetic input to spend **2.0× the budget** if made per-exam. | `3a99d1a` |
+| U8e | `examCode` stamped on all 8 CA LLM purposes; qgen row provenance fixed. | `d87d29c`, `f5985ba` |
+| U8f | `ca:widen-exam` — additively maps a second exam onto the CA corpus. Forbidden columns are **structurally unwritable** (mapped type with `?: never` + a runtime key-set assertion + a single `.update(`), each negative-controlled. | `3033372` |
+| U8g | Daily quiz (GS+CSAT) and all 7 UPSC mock papers, every structural number sourced from `exams.paper_structure`. | `d98b2a3`, `c39bccd` |
+| U8h | Weekly CA sittings scoped per exam — **four independent defects**, incl. a slug collision on the idempotency key and `getWeeklyCaSets` 404-ing the whole endpoint for a non-default exam. | `adc2511` |
+| U8i | UPSC's CSAT paper gets its own qgen norm in **generator AND critic** — the critic was still GS-shaped and would have kept rejecting the passage-comprehension items the generator had just started writing. | `ac150dc` |
+| U8j | Chapters: foreign-PYQ ids now **hard-fail** assembly (M44 closed); `pnpm notes:coverage` + committed checklist. | `d1af52f`, `010ea3c`, `c666a46`, `119d11d` |
+
+#### Gates — two of three content-quality gates said NO
+
+| Pipeline | Gate | Result |
+|---|---|---|
+| 1 CA triage | blind panel vs live UPPSC control | ✅ **PASS — parity.** 2/48 vs 6/48 indefensible keeps, 10/48 vs 12/48 wrong-topic, 15/48 vs 15/48 over-mapped; every delta inside the inter-judge spread. |
+| 4 qgen | blind panel vs real UPSC PYQs | ❌ **NO-GO, twice.** Post-fix improved **+0.83 = 4.2× the 0.20 noise floor** (1.64 → 2.47) but still **1.02 below** real UPSC's 3.49. Panel powered (real UPSC vs real UPPSC = 2.49). All 72 generated rows remain `needs_review`, unpublished. |
+| 5 chapters | blind panel vs UPPSC chapters | ❌ **FAIL 8-1 overall, 8-0 on depth**, plus a hard content defect (U8m). |
+| 3, 6 | uppsc composition controls | ✅ unchanged |
+| UPPSC regression | 8 pipelines, two worktrees, byte-identical hashes | ✅ **8/8 PASS** |
+
+#### Open
+
+| # | Item | Severity | Notes |
+|---|---|---|---|
+| **U8k** | **⚑ `.github/workflows/*.yml` `schedule:` triggers run from the DEFAULT branch. `main` is `dd4bdeb` (2026-07-28).** Every fix here is on `feature/UPSC`, so **production still executes the contaminating build** and re-contaminates on every ~6h tick. Measured: **53 rows** repaired 08-01, **54 more** by 08-02 (clusters 08-01T19, 08-02T02/08/13), repaired again → 0 of 3,718. It will recur. | 🔴 | **Only a merge or disabling the schedule fixes this — an operator deploy decision, not a code change.** A commit-age guard shipped (`c7195c6`) but it lives on this branch, so it cannot bite until `main` moves. Stale-cron CA spend since 08-01T18:00Z alone: **$2.67 / 361 calls**, outside the projection. |
+| **U8l** | **`ca/pipeline.ts`'s published/draft insert never wrote `exam_codes`** — only the archive insert did, so every user-visible row silently took the `['uppsc']` default. Latent since introduction. **Fixed and the divergence made a compile error** (`58e270b`). ⚠️ It made `29e3a19`'s `--exam` override *dangerous*: `ca:run --exam upsc` would have published UPSC-voiced items straight into UPPSC's feed. | ✅ fixed | Corrects a CLAUDE.md claim that "M8 fell out of M3: pipeline.ts now writes `exam_codes`" — that was only ever true of archived items. |
+| **U8m** | **Two chapters salvaged from interrupted agents were TRUNCATED while passing every structural check.** "History of India and Indian National Movement" stopped at 1857, omitting the entire INM — half the node's title. Reverted to `needs_review` by explicit id. "Environmental Ecology, Bio-diversity and Climate Change" has **zero Climate Change**. | 🔴 | **The incremental-write rule that rescues work also preserves truncated work in a state that looks finished** (6 sections, valid fact audit). **Completeness must be judged against the node's declared syllabus scope, never against section/fact counts** — which is exactly the proxy I used when selecting salvage. |
+| **U8n** | **`prompt-snapshot`-style self-contaminated metric in `ac150dc`'s own commit message.** Its "0.6% statement-counting baseline" was computed over all 924 `UPSC_PRE_CSAT` rows — **including the 44 generated rows it was measuring**; all 5 hits were generated. True figure filtered to `source='pyq'`: **0/880**. | 🟡 | A baseline must exclude the population under test. |
+| **U8o** | **`qgen:topup` targets coverage gaps, so generated questions systematically land on the nodes with the LEAST real exemplar support.** "Decision Making and Problem Solving" has 0 real PYQs on the node itself; "Interpersonal Skills" has 4, all 2026, all `matching_pairs` — a form absent from every other year. | 🟠 | Structural, not incidental. Measured inversion: on that node real UPSC PYQs scored **1.00** while generated scored **2.50**. Any style gate must report per-node so "generation is at fault" is separable from "this node's benchmark is atypical". |
+| **U8p** | **`test-parse-args.ts` is a declared mirror, not bound to real call sites.** Drifting a shipped CLI's `--limit` from `positiveInt` to `value` left `test:args` passing 286/286. | 🟡 | The CI guard meant to regression-lock all 41 CLIs' specs cannot detect harness/call-site drift. |
+| **U8q** | **`apps/api/tsconfig.json` includes only `src`, so `scripts/**` (all 41 CLIs) is NOT covered by `pnpm --filter api typecheck`.** | 🟡 | Typecheck script files explicitly. |
+| **U8r** | Shared qgen budget means **the day `upsc` goes live, `uppsc`'s nightly top-up share drops.** | ⚪ | Intended by design; "uppsc unchanged" is conditional on `upsc` staying non-live. |
+| **U8s** | **M20b is genuinely required for a UPSC Mains magazine** (revising an earlier "defer as debt" call). M20a closes only the *state-specific* labels; the shared `GS1..GS4`/`ESSAY` namespace collides while the syllabi do not — UPPSC has 6 Mains GS papers to UPSC's 4. **2,478 placements would be inherited from UPPSC triage into a UPSC edition, against 70 structurally blocked.** | 🟠 | Not urgent: 0 rows currently carry >1 `exam_code`. Prelims keys off exam-neutral `category` and is already correct. |
+| **U8t** | Chapters: **8 of 195 authored, 7 published, 1 `needs_review`.** | 🟠 | `pnpm notes:coverage` + `docs/upsc-chapter-coverage.md` are the committed, resumable checklist. |
