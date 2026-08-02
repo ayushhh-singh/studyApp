@@ -22,6 +22,7 @@ import { embeddings } from "../lib/embeddings.js";
 import { DEFAULT_EXAM_CODE, hasChapter, type NoteBody, type StudyContent } from "@neev/shared";
 import { computeEmbedCoverage } from "../ingest/embed-coverage.js";
 import { parseArgs } from "../ingest/_shared.js";
+import { toVectorLiteral, upsertEmbeddingRows } from "../lib/embed-upsert.js";
 
 type Locale = "hi" | "en";
 const LOCALES: Locale[] = ["hi", "en"];
@@ -86,10 +87,6 @@ function chapterSectionTexts(sc: StudyContent, locale: Locale): string[] {
   return out;
 }
 
-function toVectorLiteral(vec: number[]): string {
-  return `[${vec.join(",")}]`;
-}
-
 interface NoteRow {
   id: string;
   content_i18n: { hi: NoteBody; en: NoteBody };
@@ -152,10 +149,20 @@ export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; li
   }
 
   const provider = embeddings();
-  const batchSize = 96;
+  // Two DIFFERENT batch sizes, deliberately — they were one `batchSize = 96`
+  // before, which conflated an embedding-provider concern with a DB one. 96 is
+  // fine for the OpenAI call; it is NOT fine for the pgvector write, because
+  // inserting into the HNSW-indexed `embeddings` table is index-maintenance-heavy
+  // and a 96-row statement reliably trips Postgres `statement_timeout` (observed
+  // live on this DB three times: 2026-07-23, Session 28.5, and again 2026-08-02).
+  // Each of those was worked around by retrying the whole note by hand; the fix
+  // is to use the shared helper every OTHER embed writer already uses, which
+  // re-batches at 12 with exponential backoff (CLAUDE.md Dev conventions:
+  // "Every embed writer shares one statement-timeout-hardened upsert").
+  const providerBatchSize = 96;
   let upserted = 0;
-  for (let i = 0; i < chunks.length; i += batchSize) {
-    const batch = chunks.slice(i, i + batchSize);
+  for (let i = 0; i < chunks.length; i += providerBatchSize) {
+    const batch = chunks.slice(i, i + providerBatchSize);
     const vectors = await provider.embed(batch.map((c) => c.chunk_text));
     const rows = batch.map((c, j) => ({
       source_type: "note",
@@ -166,10 +173,7 @@ export async function embedNotes(opts: { nodeId?: string; noteIds?: string[]; li
       embedding: toVectorLiteral(vectors[j]),
       exam_code: c.exam_code,
     }));
-    const { error: upErr } = await supabase()
-      .from("embeddings")
-      .upsert(rows, { onConflict: "source_type,source_id,locale,chunk_index" });
-    if (upErr) throw new Error(`upsert embeddings: ${upErr.message}`);
+    await upsertEmbeddingRows(rows, { onWarn: (m) => console.warn(`  (warn) ${m}`) });
     upserted += rows.length;
   }
   return { noteCount: notes.length, chapterCount, chunkCount: upserted };
