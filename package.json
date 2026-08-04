@@ -44,6 +44,7 @@
     "notes:chapter:context": "pnpm --filter api notes:chapter:context",
     "notes:chapter:assemble": "pnpm --filter api notes:chapter:assemble",
     "notes:embed": "pnpm --filter api notes:embed",
+    "notes:chapter:checkpoint": "pnpm --filter api notes:chapter:checkpoint",
     "notes:coverage": "pnpm --filter api notes:coverage",
     "migrate:dev-user": "pnpm --filter api migrate:dev-user",
     "push:send": "pnpm --filter api push:send",

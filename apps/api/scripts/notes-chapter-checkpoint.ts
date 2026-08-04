@@ -1,0 +1,228 @@
+/**
+ * `pnpm notes:chapter:checkpoint --stage <s> --exam <code> --nodes <id,id>` …
+ *
+ * The agent-authored-chapter pipeline's publish half, as a COMMITTED tool.
+ *
+ * ---------------------------------------------------------------------------
+ * WHY THIS EXISTS
+ * ---------------------------------------------------------------------------
+ * Chapters are authored by free coding subagents (docs/multi-exam.md §5; the
+ * paid `notes:chapter` path is reserved for prod/cron). Those agents are killed
+ * by harness session limits constantly — during the UPSC rollout, six died
+ * mid-run. Every recovery round then rebuilt the SAME throwaway assemble →
+ * resolve → publish → embed → verify script from scratch and lost it again.
+ *
+ * The lesson that made this a committed file rather than scratch: an authoring
+ * agent dying is normal and survivable, but only if the steps AFTER authoring
+ * are (a) deterministic, (b) runnable from the main loop without an agent, and
+ * (c) one command a future session can find. Publishing needs no judgement —
+ * so it must never be the thing an expiring agent is holding.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚑ `scope` IS THE STAGE THAT MATTERS. RUN IT FIRST, ALWAYS.
+ * ---------------------------------------------------------------------------
+ * Three chapters were published-then-reverted during the UPSC rollout for one
+ * reason: TRUNCATED CONTENT THAT PASSES EVERY STRUCTURAL CHECK.
+ *
+ *   - "History of India and Indian National Movement" shipped with 6 sections,
+ *     14 audited facts and valid structure — stopping at the Revolt of 1857 and
+ *     omitting the entire INM, i.e. half the node's own title.
+ *   - "Environmental Ecology, Bio-diversity and Climate Change" came back from
+ *     an agent dispatched SPECIFICALLY to add climate change, with 5 plausible
+ *     sections and still zero climate change.
+ *
+ * Section count and fact count are NOT evidence of completeness. They were the
+ * proxy used to select salvage, and they missed all three.
+ *
+ * Worse, a naive keyword grep also passes: searching the History file for
+ * "Quit India" / "Cabinet Mission" / "1947" returns YES for every one — because
+ * they appear in the OVERVIEW and FACT-AUDIT metadata while never appearing in
+ * a section body. The chapter advertises coverage it does not contain.
+ *
+ * So `--stage scope` reports, per term, whether it appears in written prose
+ * (`sections[].body_md_i18n`) versus only in metadata. A term that is
+ * METADATA-ONLY is the signature of a truncated chapter and is reported as a
+ * FAIL. Judgement about which terms a node requires stays with the operator —
+ * this stage makes the evidence mechanical, not the decision.
+ *
+ * ---------------------------------------------------------------------------
+ * STAGES
+ * ---------------------------------------------------------------------------
+ *   scope    : section headings + prose-vs-metadata term placement. NO writes.
+ *   assemble : validate + assembleChapter per node, then print the fact_audit
+ *              so flags can be judged INDIVIDUALLY.
+ *   resolve  : mark ONLY the fact ids named on --facts resolved, through the
+ *              real editNote() service fn. There is deliberately NO
+ *              "resolve all" — blanket-resolving to force a publish defeats
+ *              the gate. Judge each flag, then name it.
+ *   publish  : approveNote per node. Fails loudly while a flag is unresolved;
+ *              that gate is the point.
+ *   embed    : embedNotes({ nodeId }) IN PROCESS, scoped to these nodes only.
+ *              Never a bare embedNotes() (re-embeds the whole bank) and never
+ *              a shelled-out per-note CLI call — that silently swallowed
+ *              failures and left 90 of 128 chapters with zero embeddings.
+ *   verify   : per-note head count of embeddings — NOT a batched .in(), which
+ *              pools past PostgREST's 1000-row cap and reported 97 false
+ *              "missing embedding" gaps.
+ */
+import { readFileSync } from "node:fs";
+import { parseArgs } from "../src/ingest/_shared.js";
+import { chapterAssembleInputSchema, assembleChapter } from "../src/notes/chapter-assemble.js";
+import { embedNotes } from "../src/notes/embed.js";
+import { approveNote, editNote } from "../src/services/notes.js";
+import { supabase } from "../src/lib/supabase.js";
+
+const STAGES = ["scope", "assemble", "resolve", "publish", "embed", "verify"] as const;
+type Stage = (typeof STAGES)[number];
+
+const args = parseArgs(
+  process.argv.slice(2),
+  { value: ["stage", "exam", "dir", "nodes", "facts", "terms"] },
+  "notes:chapter:checkpoint",
+);
+
+const stage = String(args.stage ?? "") as Stage;
+if (!STAGES.includes(stage)) {
+  throw new Error(`--stage must be one of ${STAGES.join(" | ")} (got ${JSON.stringify(args.stage)})`);
+}
+const examCode = String(args.exam ?? "");
+if (!examCode) throw new Error("--exam <code> is required");
+const dir = typeof args.dir === "string" ? args.dir : "";
+const nodes = String(args.nodes ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+if (nodes.length === 0) throw new Error("--nodes <id,id,…> is required");
+
+const sb = supabase();
+
+interface NoteRow {
+  id: string;
+  status: string;
+  chapter_version: number | null;
+  fact_audit: {
+    facts?: { id: string; section_id: string; claim: string; status: string; evidence: string; resolved: boolean }[];
+  } | null;
+  study_content_i18n: {
+    sections?: { id: string; heading_i18n?: Record<string, string>; body_md_i18n?: Record<string, string> }[];
+  } | null;
+}
+
+async function noteFor(nodeId: string): Promise<NoteRow | null> {
+  const { data, error } = await sb
+    .from("notes")
+    .select("id, status, chapter_version, fact_audit, study_content_i18n")
+    .eq("syllabus_node_id", nodeId)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
+  return (data as NoteRow | null) ?? null;
+}
+
+/** Read a chapter either from disk (pre-assemble) or from the persisted note. */
+async function sectionsFor(nodeId: string) {
+  if (dir) {
+    const raw = JSON.parse(readFileSync(`${dir}/${nodeId}.json`, "utf8"));
+    return { sections: raw.sections ?? [], whole: raw };
+  }
+  const note = await noteFor(nodeId);
+  if (!note) throw new Error(`no note for ${nodeId} (and no --dir given)`);
+  return { sections: note.study_content_i18n?.sections ?? [], whole: note };
+}
+
+for (const nodeId of nodes) {
+  if (stage === "scope") {
+    const { sections, whole } = await sectionsFor(nodeId);
+    const bodies = JSON.stringify(sections.map((s: { body_md_i18n?: unknown }) => s.body_md_i18n ?? {})).toLowerCase();
+    const everything = JSON.stringify(whole).toLowerCase();
+    console.log(`\n=== ${nodeId} — ${sections.length} section(s)`);
+    for (const s of sections) {
+      console.log(`   - ${(s.heading_i18n?.en ?? "?").slice(0, 76)}`);
+    }
+    const terms = String(args.terms ?? "")
+      .split(",")
+      .map((t) => t.trim().toLowerCase())
+      .filter(Boolean);
+    if (terms.length === 0) {
+      console.log("   (pass --terms to test required sub-topic coverage)");
+      continue;
+    }
+    let failed = 0;
+    console.log("   term                           in PROSE | anywhere");
+    for (const t of terms) {
+      const inProse = bodies.includes(t);
+      const anywhere = everything.includes(t);
+      // METADATA-ONLY is the truncation signature: the chapter promises the
+      // topic in its overview/fact-audit but never actually writes it.
+      const verdict = inProse ? "ok" : anywhere ? "METADATA-ONLY ⚑" : "ABSENT ⚑";
+      if (!inProse) failed++;
+      console.log(`   ${t.padEnd(30)} ${String(inProse).padEnd(8)} | ${anywhere}   ${verdict}`);
+    }
+    console.log(failed === 0 ? "   SCOPE: PASS" : `   SCOPE: FAIL — ${failed} term(s) not in written prose`);
+  } else if (stage === "assemble") {
+    if (!dir) throw new Error("--dir <path> is required for --stage assemble");
+    const raw = JSON.parse(readFileSync(`${dir}/${nodeId}.json`, "utf8"));
+    const input = chapterAssembleInputSchema.parse(raw);
+    console.log(
+      `\n=== ${nodeId} — ${input.sections.length} sections, ${input.fact_audit_facts.length} facts, ${input.sources.length} sources`,
+    );
+    const res = await assembleChapter(input, (m) => console.log(m));
+    if (res.droppedMissing.length) console.log(`  DROPPED (nonexistent) pyq ids: ${res.droppedMissing.join(", ")}`);
+    const note = await noteFor(nodeId);
+    const facts = note?.fact_audit?.facts ?? [];
+    const bad = facts.filter((f) => f.status !== "verified" && !f.resolved);
+    console.log(
+      `  note ${note?.id} status=${note?.status} v=${note?.chapter_version} facts=${facts.length} unresolved_flags=${bad.length}`,
+    );
+    for (const f of bad) console.log(`    [${f.status}] ${f.id} (${f.section_id}): ${f.claim}\n        evidence: ${f.evidence}`);
+  } else if (stage === "resolve") {
+    const spec = String(args.facts ?? "");
+    const forNode = spec
+      .split(";")
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((s) => s.split(":"))
+      .find(([n]) => n === nodeId);
+    const wanted = new Set((forNode?.[1] ?? "").split(",").map((s) => s.trim()).filter(Boolean));
+    if (wanted.size === 0) {
+      console.log(`${nodeId}: no fact ids given — nothing resolved`);
+      continue;
+    }
+    const note = await noteFor(nodeId);
+    if (!note) throw new Error(`no note for ${nodeId}`);
+    const facts = note.fact_audit?.facts ?? [];
+    const unknown = [...wanted].filter((id) => !facts.some((f) => f.id === id));
+    if (unknown.length) throw new Error(`${nodeId}: unknown fact id(s) ${unknown.join(", ")}`);
+    const next = facts.map((f) => (wanted.has(f.id) ? { ...f, resolved: true } : f));
+    await editNote(note.id, { fact_audit: { ...(note.fact_audit ?? {}), facts: next } } as never);
+    const after = await noteFor(nodeId);
+    const still = (after?.fact_audit?.facts ?? []).filter((f) => f.status !== "verified" && !f.resolved);
+    console.log(`${nodeId}: resolved ${[...wanted].join(", ")} — ${still.length} unresolved flag(s) remain`);
+  } else if (stage === "publish") {
+    const note = await noteFor(nodeId);
+    if (!note) throw new Error(`no note for ${nodeId}`);
+    const r = await approveNote(note.id);
+    console.log(`published ${nodeId} note=${r.id} status=${r.status}`);
+  } else if (stage === "embed") {
+    const r = await embedNotes({ nodeId });
+    console.log(`embedded ${nodeId}:`, JSON.stringify(r));
+  } else {
+    const note = await noteFor(nodeId);
+    if (!note) throw new Error(`no note for ${nodeId}`);
+    const { count, error } = await sb
+      .from("embeddings")
+      .select("id", { count: "exact", head: true })
+      .eq("source_type", "note")
+      .eq("source_id", note.id);
+    if (error) throw new Error(error.message);
+    const { count: mismatch } = await sb
+      .from("embeddings")
+      .select("id", { count: "exact", head: true })
+      .eq("source_type", "note")
+      .eq("source_id", note.id)
+      .neq("exam_code", examCode);
+    console.log(
+      `${nodeId} note=${note.id} status=${note.status} v=${note.chapter_version} ` +
+        `sections=${note.study_content_i18n?.sections?.length ?? 0} chunks=${count} foreign_exam_chunks=${mismatch}`,
+    );
+  }
+}

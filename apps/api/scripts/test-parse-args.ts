@@ -439,6 +439,27 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     documented: [["--exam", "upsc"], ["--exam", "upsc", "--out", "docs/upsc-chapter-coverage.md"], ["--exam", "uppsc", "--json"]],
   },
   {
+    // Every flag is `value` and NONE has a default. `--stage` decides whether
+    // the run is read-only (`scope`, `verify`) or WRITES production rows
+    // (`assemble`, `resolve`, `publish`, `embed`), so a collapsed or valueless
+    // `--stage` must be refused rather than fall through to some default —
+    // the 2026-07-31 incident (§0d) was exactly a swallowed flag turning a
+    // dry run into a real one. `--nodes`/`--exam` are required in code for the
+    // same reason: a defaulted exam would embed-verify against the wrong one.
+    // `--facts` is deliberately per-node (`node:factId,factId;…`) because there
+    // is no resolve-all — blanket-resolving to force a publish defeats the gate.
+    script: "notes:chapter:checkpoint",
+    spec: { value: ["stage", "exam", "dir", "nodes", "facts", "terms"] },
+    documented: [
+      ["--stage", "scope", "--exam", "upsc", "--nodes", "abc", "--terms", "quit india,1947"],
+      ["--stage", "assemble", "--exam", "upsc", "--dir", "/tmp/out", "--nodes", "abc,def"],
+      ["--stage", "resolve", "--exam", "upsc", "--nodes", "abc", "--facts", "abc:f0,f1"],
+      ["--stage", "publish", "--exam", "upsc", "--nodes", "abc"],
+      ["--stage", "embed", "--exam", "upsc", "--nodes", "abc"],
+      ["--stage", "verify", "--exam", "upsc", "--nodes", "abc"],
+    ],
+  },
+  {
     // Its old call site SPREAD the parsed object into DailyBuildOptions, so the
     // raw key `user` would silently not become `userId` — fanning the build out
     // to every onboarded user. `--size` is positiveInt because `?? default` does
