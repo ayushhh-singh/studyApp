@@ -147,7 +147,18 @@ async function sectionsFor(nodeId: string) {
 for (const nodeId of nodes) {
   if (stage === "scope") {
     const { sections, whole } = await sectionsFor(nodeId);
-    const bodies = JSON.stringify(sections.map((s: { body_md_i18n?: unknown }) => s.body_md_i18n ?? {})).toLowerCase();
+    // PROSE = section HEADINGS + section BODIES. Headings are authored content
+    // and are frequently where a topic's name actually lives: the History
+    // chapter has a section titled "Quit India: the August Revolution of 1942"
+    // whose body says Wardha, Gowalia Tank, "Do or Die" and Aruna Asaf Ali but
+    // never repeats the literal phrase — because the heading already carries
+    // it. Checking bodies alone reported that as METADATA-ONLY, i.e. a false
+    // FAIL on a chapter that genuinely covers the topic. Including headings
+    // does NOT weaken the original catch: when that same chapter really was
+    // truncated, "Quit India" appeared in no heading and no body either.
+    const prose = JSON.stringify(
+      sections.map((s: { heading_i18n?: unknown; body_md_i18n?: unknown }) => [s.heading_i18n ?? {}, s.body_md_i18n ?? {}]),
+    ).toLowerCase();
     const everything = JSON.stringify(whole).toLowerCase();
     console.log(`\n=== ${nodeId} — ${sections.length} section(s)`);
     for (const s of sections) {
@@ -164,7 +175,7 @@ for (const nodeId of nodes) {
     let failed = 0;
     console.log("   term                           in PROSE | anywhere");
     for (const t of terms) {
-      const inProse = bodies.includes(t);
+      const inProse = prose.includes(t);
       const anywhere = everything.includes(t);
       // METADATA-ONLY is the truncation signature: the chapter promises the
       // topic in its overview/fact-audit but never actually writes it.

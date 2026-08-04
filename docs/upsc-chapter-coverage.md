@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-04** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**9 of 195 chapterable nodes have a published chapter (4.6%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**10 of 195 chapterable nodes have a published chapter (5.1%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 4 | 32 | 12.5% | 28 | 1846 |
+| `UPSC_PRE_GS1` | 5 | 32 | 15.6% | 27 | 1846 |
 | `UPSC_PRE_CSAT` | 5 | 12 | 41.7% | 7 | 1407 |
 | `UPSC_MAINS_GS2` | 0 | 30 | 0% | 30 | 398 |
 | `UPSC_MAINS_GS3` | 0 | 38 | 0% | 38 | 394 |
 | `UPSC_MAINS_GS1` | 0 | 44 | 0% | 44 | 384 |
 | `UPSC_MAINS_GS4` | 0 | 34 | 0% | 34 | 260 |
 | `UPSC_MAINS_ESSAY` | 0 | 5 | 0% | 5 | 80 |
-| **all** | **9** | **195** | **4.6%** | **186** | 4769 |
+| **all** | **10** | **195** | **5.1%** | **185** | 4769 |
 
 ## Every node, heaviest first
 
@@ -37,7 +37,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 4 | 246 | `UPSC_PRE_CSAT` | 1 | Comprehension | published · chapter v1 | `e61f39da-fcbb-4672-a9fd-ede60695a730` |
 | 5 | 203 | `UPSC_PRE_GS1` | 1 | Indian Polity and Governance | published · chapter v1 | `8fd021cb-5d14-42b1-b6fa-36a071fd49d6` |
 | 6 | 185 | `UPSC_PRE_GS1` | 1 | Economic and Social Development | published · chapter v1 | `16357fb4-037f-4fc9-b0e6-d8b2e94ef8fb` |
-| 7 | 175 | `UPSC_PRE_GS1` | 1 | History of India and Indian National Movement | needs_review · chapter v1 | `fc3c0ede-399f-4153-9036-48d2b557ce42` |
+| 7 | 175 | `UPSC_PRE_GS1` | 1 | History of India and Indian National Movement | published · chapter v2 | `fc3c0ede-399f-4153-9036-48d2b557ce42` |
 | 8 | 154 | `UPSC_PRE_CSAT` | 2 | Logical Reasoning | published · chapter v1 | `33fb1f9c-b3c1-489f-9c69-c3bcda923b56` |
 | 9 | 144 | `UPSC_PRE_GS1` | 1 | General Science | published · chapter v1 | `699d0aad-59ed-4beb-9c36-e66ae244a2f5` |
 | 10 | 132 | `UPSC_PRE_GS1` | 1 | Environmental Ecology, Bio-diversity and Climate Change | published · chapter v1 | `9387bf60-969e-4992-8e76-ebdb2e5d2cde` |
