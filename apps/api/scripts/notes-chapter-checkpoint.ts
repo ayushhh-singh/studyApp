@@ -45,6 +45,21 @@
  * FAIL. Judgement about which terms a node requires stays with the operator —
  * this stage makes the evidence mechanical, not the decision.
  *
+ * ⚑ AND IT IS STILL NOT SUFFICIENT ON ITS OWN. A third variant slipped past
+ * this very stage: the `Logical Reasoning` chapter reported SCOPE: PASS for
+ * "coding" and "cause and effect" because both appear in prose — inside the
+ * opening section that ENUMERATES the node's four declared techniques ("its
+ * own description narrows the parent's territory to exactly four: syllogisms,
+ * statement and assumption, cause and effect, and coding"). A scope-DECLARING
+ * sentence is not coverage; that chapter teaches two of the four and never
+ * returns to the others. So:
+ *   1. Derive terms from the node's OWN `description_i18n` / children in the
+ *      DB, never from what you remember the node to be about. That is how the
+ *      two missing techniques were found at all.
+ *   2. When a term's only hits are in an overview or a "what this covers"
+ *      section, treat it as ABSENT. Check WHICH section the hit is in — the
+ *      stage prints headings above the table precisely so you can.
+ *
  * ---------------------------------------------------------------------------
  * STAGES
  * ---------------------------------------------------------------------------
