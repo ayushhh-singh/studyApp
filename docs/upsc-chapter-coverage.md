@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-05** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**18 of 195 chapterable nodes have a published chapter (9.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**20 of 195 chapterable nodes have a published chapter (10.3%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 10 | 32 | 31.3% | 22 | 1846 |
+| `UPSC_PRE_GS1` | 11 | 32 | 34.4% | 21 | 1846 |
 | `UPSC_PRE_CSAT` | 6 | 12 | 50% | 6 | 1407 |
 | `UPSC_MAINS_GS2` | 1 | 30 | 3.3% | 29 | 398 |
 | `UPSC_MAINS_GS3` | 0 | 38 | 0% | 38 | 394 |
 | `UPSC_MAINS_GS1` | 1 | 44 | 2.3% | 43 | 384 |
 | `UPSC_MAINS_GS4` | 0 | 34 | 0% | 34 | 260 |
-| `UPSC_MAINS_ESSAY` | 0 | 5 | 0% | 5 | 80 |
-| **all** | **18** | **195** | **9.2%** | **177** | 4769 |
+| `UPSC_MAINS_ESSAY` | 1 | 5 | 20% | 4 | 80 |
+| **all** | **20** | **195** | **10.3%** | **175** | 4769 |
 
 ## Every node, heaviest first
 
@@ -49,8 +49,8 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 16 | 68 | `UPSC_PRE_GS1` | 2 | Ancient India | published · chapter v1 | `a7a37c7e-dde7-4f99-a7be-5634cb432e69` |
 | 17 | 65 | `UPSC_MAINS_GS1` | 1 | Indian Society | published · chapter v1 | `65e153a6-0b25-4904-94ba-9f2277795e02` |
 | 18 | 64 | `UPSC_PRE_GS1` | 2 | Biology | published · chapter v1 | `bb36c84f-75d7-499d-818a-4fca2a85f9e8` |
-| 19 | 54 | `UPSC_PRE_GS1` | 2 | Public Policy | — none | `decaece5-bf58-4434-863b-a1c08843e4ec` |
-| 20 | 50 | `UPSC_MAINS_ESSAY` | 1 | Essays on Multiple Topics | — none | `0cf7f2bb-6583-4e99-a92a-5d2881816712` |
+| 19 | 54 | `UPSC_PRE_GS1` | 2 | Public Policy | published · chapter v1 | `decaece5-bf58-4434-863b-a1c08843e4ec` |
+| 20 | 50 | `UPSC_MAINS_ESSAY` | 1 | Essays on Multiple Topics | published · chapter v1 | `0cf7f2bb-6583-4e99-a92a-5d2881816712` |
 | 21 | 46 | `UPSC_PRE_GS1` | 2 | Bio-diversity | — none | `d2c80e73-41a1-4f3b-8b18-8a5675a0cdc9` |
 | 22 | 45 | `UPSC_PRE_GS1` | 2 | Political System | — none | `3c726bd5-677c-492d-bb8d-912d05f4c383` |
 | 23 | 42 | `UPSC_MAINS_GS4` | 1 | Case Studies and Problem-Solving Approach | — none | `0eac697f-be19-4b56-99c3-094a0e5f8af0` |
