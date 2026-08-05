@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**29 of 195 chapterable nodes have a published chapter (14.9%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**32 of 195 chapterable nodes have a published chapter (16.4%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 16 | 32 | 50% | 16 | 1846 |
+| `UPSC_PRE_GS1` | 17 | 32 | 53.1% | 15 | 1846 |
 | `UPSC_PRE_CSAT` | 6 | 12 | 50% | 6 | 1407 |
-| `UPSC_MAINS_GS2` | 2 | 30 | 6.7% | 28 | 398 |
-| `UPSC_MAINS_GS3` | 2 | 38 | 5.3% | 36 | 394 |
+| `UPSC_MAINS_GS2` | 3 | 30 | 10% | 27 | 398 |
+| `UPSC_MAINS_GS3` | 3 | 38 | 7.9% | 35 | 394 |
 | `UPSC_MAINS_GS1` | 1 | 44 | 2.3% | 43 | 384 |
 | `UPSC_MAINS_GS4` | 1 | 34 | 2.9% | 33 | 260 |
 | `UPSC_MAINS_ESSAY` | 1 | 5 | 20% | 4 | 80 |
-| **all** | **29** | **195** | **14.9%** | **166** | 4769 |
+| **all** | **32** | **195** | **16.4%** | **163** | 4769 |
 
 ## Every node, heaviest first
 
@@ -61,10 +61,10 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 28 | 39 | `UPSC_PRE_GS1` | 2 | Modern India | published · chapter v1 | `ec19feac-5476-4c1d-bd3d-81a03e704870` |
 | 29 | 38 | `UPSC_MAINS_GS3` | 1 | Agriculture, Food Security and Land Reforms | published · chapter v1 | `2bf48454-967e-4059-9016-9b4d72eacc92` |
 | 30 | 37 | `UPSC_PRE_GS1` | 2 | Sustainable Development | — none | `034280e8-47a8-44e4-98bc-455060a2b3b5` |
-| 31 | 33 | `UPSC_MAINS_GS3` | 1 | Indian Economy, Planning and Investment | — none | `cab7e1de-abe2-460e-bea9-f1e0e1386ca6` |
-| 32 | 33 | `UPSC_PRE_GS1` | 2 | Environmental Ecology | — none | `6531ab4b-3707-4dff-af27-4dbe6f2880d6` |
+| 31 | 33 | `UPSC_MAINS_GS3` | 1 | Indian Economy, Planning and Investment | published · chapter v1 | `cab7e1de-abe2-460e-bea9-f1e0e1386ca6` |
+| 32 | 33 | `UPSC_PRE_GS1` | 2 | Environmental Ecology | published · chapter v1 | `6531ab4b-3707-4dff-af27-4dbe6f2880d6` |
 | 33 | 33 | `UPSC_PRE_GS1` | 2 | Indian National Movement | — none | `449d1034-2fe7-4a1f-9a0e-6dd8db47e686` |
-| 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | — none | `e18c8af8-b014-41e8-b683-0b55306f47df` |
+| 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | published · chapter v1 | `e18c8af8-b014-41e8-b683-0b55306f47df` |
 | 35 | 32 | `UPSC_MAINS_GS2` | 1 | Social Justice | — none | `e20280a3-87e3-41ac-b2d7-ac4ee5609f3e` |
 | 36 | 32 | `UPSC_PRE_GS1` | 2 | Medieval India | — none | `b1ebdbcd-71fe-4e53-a5a6-f6729f9cf7d0` |
 | 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | — none | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
