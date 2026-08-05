@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**35 of 195 chapterable nodes have a published chapter (17.9%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**38 of 195 chapterable nodes have a published chapter (19.5%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 19 | 32 | 59.4% | 13 | 1846 |
-| `UPSC_PRE_CSAT` | 6 | 12 | 50% | 6 | 1407 |
+| `UPSC_PRE_GS1` | 20 | 32 | 62.5% | 12 | 1846 |
+| `UPSC_PRE_CSAT` | 7 | 12 | 58.3% | 5 | 1407 |
 | `UPSC_MAINS_GS2` | 4 | 30 | 13.3% | 26 | 398 |
 | `UPSC_MAINS_GS3` | 3 | 38 | 7.9% | 35 | 394 |
 | `UPSC_MAINS_GS1` | 1 | 44 | 2.3% | 43 | 384 |
-| `UPSC_MAINS_GS4` | 1 | 34 | 2.9% | 33 | 260 |
+| `UPSC_MAINS_GS4` | 2 | 34 | 5.9% | 32 | 260 |
 | `UPSC_MAINS_ESSAY` | 1 | 5 | 20% | 4 | 80 |
-| **all** | **35** | **195** | **17.9%** | **160** | 4769 |
+| **all** | **38** | **195** | **19.5%** | **157** | 4769 |
 
 ## Every node, heaviest first
 
@@ -67,9 +67,9 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | published · chapter v1 | `e18c8af8-b014-41e8-b683-0b55306f47df` |
 | 35 | 32 | `UPSC_MAINS_GS2` | 1 | Social Justice | published · chapter v1 | `e20280a3-87e3-41ac-b2d7-ac4ee5609f3e` |
 | 36 | 32 | `UPSC_PRE_GS1` | 2 | Medieval India | published · chapter v1 | `b1ebdbcd-71fe-4e53-a5a6-f6729f9cf7d0` |
-| 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | — none | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
-| 38 | 31 | `UPSC_MAINS_GS4` | 2 | Attitude, Integrity and Problem-Solving Approach in Public Life | — none | `f92cd2e1-95db-4df6-9c0c-d9d590c00b4f` |
-| 39 | 30 | `UPSC_PRE_CSAT` | 1 | Decision Making and Problem Solving | — none | `739d1434-f1b9-4e60-a33b-b4322783db65` |
+| 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | published · chapter v1 | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
+| 38 | 31 | `UPSC_MAINS_GS4` | 2 | Attitude, Integrity and Problem-Solving Approach in Public Life | published · chapter v1 | `f92cd2e1-95db-4df6-9c0c-d9d590c00b4f` |
+| 39 | 30 | `UPSC_PRE_CSAT` | 1 | Decision Making and Problem Solving | published · chapter v1 | `739d1434-f1b9-4e60-a33b-b4322783db65` |
 | 40 | 29 | `UPSC_PRE_GS1` | 2 | Physics | — none | `55c52be0-c5fd-4353-901e-3ec9eacba746` |
 | 41 | 28 | `UPSC_MAINS_GS3` | 1 | Science and Technology | — none | `788bfc11-18a6-45da-8e4b-a2892898839a` |
 | 42 | 27 | `UPSC_PRE_GS1` | 2 | Physical Geography | — none | `3cd18fd8-284a-4291-b4c5-6bcda4280185` |
