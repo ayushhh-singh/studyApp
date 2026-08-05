@@ -6,9 +6,9 @@
 > pnpm notes:coverage --exam upsc --out docs/upsc-chapter-coverage.md
 > ```
 >
-> Read live from the database on **2026-08-04** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
+> Read live from the database on **2026-08-05** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**10 of 195 chapterable nodes have a published chapter (5.1%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**12 of 195 chapterable nodes have a published chapter (6.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 5 | 32 | 15.6% | 27 | 1846 |
+| `UPSC_PRE_GS1` | 7 | 32 | 21.9% | 25 | 1846 |
 | `UPSC_PRE_CSAT` | 5 | 12 | 41.7% | 7 | 1407 |
 | `UPSC_MAINS_GS2` | 0 | 30 | 0% | 30 | 398 |
 | `UPSC_MAINS_GS3` | 0 | 38 | 0% | 38 | 394 |
 | `UPSC_MAINS_GS1` | 0 | 44 | 0% | 44 | 384 |
 | `UPSC_MAINS_GS4` | 0 | 34 | 0% | 34 | 260 |
 | `UPSC_MAINS_ESSAY` | 0 | 5 | 0% | 5 | 80 |
-| **all** | **10** | **195** | **5.1%** | **185** | 4769 |
+| **all** | **12** | **195** | **6.2%** | **183** | 4769 |
 
 ## Every node, heaviest first
 
@@ -41,8 +41,8 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 8 | 154 | `UPSC_PRE_CSAT` | 2 | Logical Reasoning | published · chapter v1 | `33fb1f9c-b3c1-489f-9c69-c3bcda923b56` |
 | 9 | 144 | `UPSC_PRE_GS1` | 1 | General Science | published · chapter v1 | `699d0aad-59ed-4beb-9c36-e66ae244a2f5` |
 | 10 | 132 | `UPSC_PRE_GS1` | 1 | Environmental Ecology, Bio-diversity and Climate Change | published · chapter v1 | `9387bf60-969e-4992-8e76-ebdb2e5d2cde` |
-| 11 | 116 | `UPSC_PRE_GS1` | 1 | Current Events of National and International Importance | — none | `650d3c8d-37e8-4be0-a240-0f297fb52a1a` |
-| 12 | 102 | `UPSC_PRE_GS1` | 1 | Indian and World Geography | — none | `52dfb281-a98c-4741-8749-3872cf523ac9` |
+| 11 | 116 | `UPSC_PRE_GS1` | 1 | Current Events of National and International Importance | published · chapter v1 | `650d3c8d-37e8-4be0-a240-0f297fb52a1a` |
+| 12 | 102 | `UPSC_PRE_GS1` | 1 | Indian and World Geography | published · chapter v1 | `52dfb281-a98c-4741-8749-3872cf523ac9` |
 | 13 | 90 | `UPSC_PRE_CSAT` | 2 | Analytical Ability | — none | `a5296db4-7445-4edb-9b27-bf9029706fb3` |
 | 14 | 78 | `UPSC_PRE_GS1` | 2 | Constitution of India | — none | `7b761a98-aaae-4aaa-9b12-2f7e88de6a6b` |
 | 15 | 71 | `UPSC_MAINS_GS2` | 1 | Indian Polity | — none | `28b8c42f-01ed-4408-8b80-790dddde8103` |

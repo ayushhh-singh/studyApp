@@ -60,6 +60,13 @@
  *      section, treat it as ABSENT. Check WHICH section the hit is in — the
  *      stage prints headings above the table precisely so you can.
  *
+ * ⚑ A THIRD FAILURE MODE, but this one is in the OPERATOR's query, not the
+ * tool: "--terms world climatic types" reported FAIL on a chapter whose body
+ * genuinely said "the world's climatic types" — a plain substring match, so
+ * the possessive apostrophe-s broke it. Before trusting a FAIL, try the
+ * shorter, punctuation-free fragment of the term ("climatic types" instead of
+ * "world climatic types") before concluding the content is missing.
+ *
  * ---------------------------------------------------------------------------
  * STAGES
  * ---------------------------------------------------------------------------
