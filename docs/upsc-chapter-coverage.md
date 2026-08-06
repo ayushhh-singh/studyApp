@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**61 of 195 chapterable nodes have a published chapter (31.3%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**65 of 195 chapterable nodes have a published chapter (33.3%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 23 | 32 | 71.9% | 9 | 1846 |
+| `UPSC_PRE_GS1` | 24 | 32 | 75% | 8 | 1846 |
 | `UPSC_PRE_CSAT` | 9 | 12 | 75% | 3 | 1407 |
 | `UPSC_MAINS_GS2` | 7 | 30 | 23.3% | 23 | 398 |
 | `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
-| `UPSC_MAINS_GS1` | 9 | 44 | 20.5% | 35 | 384 |
+| `UPSC_MAINS_GS1` | 10 | 44 | 22.7% | 34 | 384 |
 | `UPSC_MAINS_GS4` | 4 | 34 | 11.8% | 30 | 260 |
-| `UPSC_MAINS_ESSAY` | 2 | 5 | 40% | 3 | 80 |
-| **all** | **61** | **195** | **31.3%** | **134** | 4769 |
+| `UPSC_MAINS_ESSAY` | 4 | 5 | 80% | 1 | 80 |
+| **all** | **65** | **195** | **33.3%** | **130** | 4769 |
 
 ## Every node, heaviest first
 
@@ -112,7 +112,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 79 | 11 | `UPSC_PRE_CSAT` | 1 | General Mental Ability | published · chapter v1 | `01763fc9-5cbd-4ced-8bb9-01a6ebdd9380` |
 | 80 | 11 | `UPSC_PRE_GS1` | 2 | Economic Geography | — none | `6fd44904-2dcd-4ca8-8fb8-87caa4349fdd` |
 | 81 | 10 | `UPSC_MAINS_GS1` | 2 | Distribution of Key Natural Resources Across the World | — none | `6a724f93-560d-491e-a1ed-4c5e025ab978` |
-| 82 | 10 | `UPSC_MAINS_GS1` | 2 | Earthquakes, Tsunami, Volcanic Activity and Cyclones | — none | `d5acab53-a65b-4d6d-98ef-6ad35171023f` |
+| 82 | 10 | `UPSC_MAINS_GS1` | 2 | Earthquakes, Tsunami, Volcanic Activity and Cyclones | published · chapter v1 | `d5acab53-a65b-4d6d-98ef-6ad35171023f` |
 | 83 | 10 | `UPSC_MAINS_GS1` | 2 | Effects of Globalization on Indian Society | — none | `e02d96c1-2586-4360-8c47-504e87ed1a00` |
 | 84 | 10 | `UPSC_MAINS_GS1` | 2 | Urbanization, its Problems and their Remedies | — none | `2e6380c8-2572-4e50-8c75-8233e55244bb` |
 | 85 | 10 | `UPSC_MAINS_GS2` | 2 | Devolution of Powers and Finances up to Local Levels | — none | `06017d34-5753-4197-a49d-0cc7cb39df2c` |
@@ -180,7 +180,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 147 | 4 | `UPSC_MAINS_GS4` | 2 | Work Culture, Service Delivery and Utilization of Public Funds | — none | `fa966fbd-ad0a-43e5-81b8-1371972b6c18` |
 | 148 | 4 | `UPSC_PRE_CSAT` | 1 | Interpersonal Skills including Communication Skills | published · chapter v1 | `3249ad2e-7bc8-45dd-83ce-8c2759a91d52` |
 | 149 | 4 | `UPSC_PRE_GS1` | 2 | Demographics | — none | `8ee20c84-a5bc-4379-a721-9b54c7aa2b84` |
-| 150 | 4 | `UPSC_PRE_GS1` | 2 | Panchayati Raj | — none | `32dc09ab-91c5-485b-ad74-cfba5145788a` |
+| 150 | 4 | `UPSC_PRE_GS1` | 2 | Panchayati Raj | published · chapter v1 | `32dc09ab-91c5-485b-ad74-cfba5145788a` |
 | 151 | 3 | `UPSC_MAINS_GS1` | 2 | Colonial Economy and Land Revenue Systems | — none | `7b24d819-f920-401a-a68d-6aac2bc8361e` |
 | 152 | 3 | `UPSC_MAINS_GS1` | 2 | Geographical Features and their Location | — none | `5a3471ed-975c-4099-a44e-7bc7cbdb6f33` |
 | 153 | 3 | `UPSC_MAINS_GS1` | 2 | Nation-Building and Internal Challenges | — none | `e527c923-48c6-4a02-b32a-819ac48d7769` |
@@ -196,7 +196,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 163 | 3 | `UPSC_MAINS_GS4` | 2 | Ethics in Private and Public Relationships | — none | `df17fc16-e539-4208-b355-008705035cf1` |
 | 164 | 3 | `UPSC_MAINS_GS4` | 2 | Influence and Relation with Thought and Behaviour | — none | `8dd091ef-7fce-4811-b153-d0df180e129e` |
 | 165 | 3 | `UPSC_MAINS_GS4` | 2 | Objectivity and Dedication to Public Service | — none | `a3a148de-0616-4a57-892f-775e38d76602` |
-| 166 | 2 | `UPSC_MAINS_ESSAY` | 1 | Keeping Closely to the Subject | — none | `3a26ca15-7176-4048-ba81-03f2b84f6997` |
+| 166 | 2 | `UPSC_MAINS_ESSAY` | 1 | Keeping Closely to the Subject | published · chapter v1 | `3a26ca15-7176-4048-ba81-03f2b84f6997` |
 | 167 | 2 | `UPSC_MAINS_GS1` | 2 | Changes in Critical Geographical Features | — none | `ba083834-26cf-4358-af69-0b7ea2200883` |
 | 168 | 2 | `UPSC_MAINS_GS1` | 2 | Colonization and Decolonization | — none | `bc683cb3-66bc-43ba-aaa0-346cd3a38041` |
 | 169 | 2 | `UPSC_MAINS_GS1` | 2 | Early Nationalist Phase | — none | `5e3858b7-8e06-49b7-98eb-0c163509f00a` |
@@ -214,7 +214,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 181 | 2 | `UPSC_MAINS_GS4` | 2 | Moral Thinkers and Philosophers from the World | — none | `44e01376-aec2-4f73-b63f-c0a4c12a4aa6` |
 | 182 | 2 | `UPSC_MAINS_GS4` | 2 | Status and Problems of Public Service Values | — none | `94a19b65-0a58-4278-b0d2-fcb29103f2fa` |
 | 183 | 1 | `UPSC_MAINS_ESSAY` | 1 | Concise Writing | — none | `9e26af0d-c4e3-4d1b-a14f-ff2a95021943` |
-| 184 | 1 | `UPSC_MAINS_ESSAY` | 1 | Orderly Arrangement of Ideas | — none | `f591e4a4-45a9-437e-b1de-4b4366cc64b3` |
+| 184 | 1 | `UPSC_MAINS_ESSAY` | 1 | Orderly Arrangement of Ideas | published · chapter v1 | `f591e4a4-45a9-437e-b1de-4b4366cc64b3` |
 | 185 | 1 | `UPSC_MAINS_GS1` | 2 | Contributors/Contributions from Different Parts of the Country | — none | `70bb7085-7a04-4eba-b0e3-871d265bd5f9` |
 | 186 | 1 | `UPSC_MAINS_GS1` | 2 | Integration of Princely States | — none | `e7f6f14c-88bb-48c4-a561-e624f3ca76b1` |
 | 187 | 1 | `UPSC_MAINS_GS1` | 2 | Peasant, Tribal and Labour Movements | — none | `057d511f-ca60-4831-959b-47f2e7c4ed29` |
