@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**55 of 195 chapterable nodes have a published chapter (28.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**57 of 195 chapterable nodes have a published chapter (29.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -17,13 +17,13 @@
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `UPSC_PRE_GS1` | 23 | 32 | 71.9% | 9 | 1846 |
-| `UPSC_PRE_CSAT` | 7 | 12 | 58.3% | 5 | 1407 |
+| `UPSC_PRE_CSAT` | 9 | 12 | 75% | 3 | 1407 |
 | `UPSC_MAINS_GS2` | 6 | 30 | 20% | 24 | 398 |
 | `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
 | `UPSC_MAINS_GS1` | 8 | 44 | 18.2% | 36 | 384 |
 | `UPSC_MAINS_GS4` | 2 | 34 | 5.9% | 32 | 260 |
 | `UPSC_MAINS_ESSAY` | 2 | 5 | 40% | 3 | 80 |
-| **all** | **55** | **195** | **28.2%** | **140** | 4769 |
+| **all** | **57** | **195** | **29.2%** | **138** | 4769 |
 
 ## Every node, heaviest first
 
@@ -109,7 +109,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 76 | 11 | `UPSC_MAINS_GS3` | 2 | Infrastructure: Energy, Ports, Roads, Airports, Railways | — none | `887865b0-3437-4ba0-8b4d-1ff8dee8464b` |
 | 77 | 11 | `UPSC_MAINS_GS3` | 2 | Major Crops and Cropping Patterns in Various Parts of the Country | — none | `2a514471-9973-4c0c-9279-affecd618234` |
 | 78 | 11 | `UPSC_MAINS_GS4` | 2 | Case Studies on the Above Issues | — none | `e3ce1142-d4d6-4166-aa88-1147c32e0167` |
-| 79 | 11 | `UPSC_PRE_CSAT` | 1 | General Mental Ability | — none | `01763fc9-5cbd-4ced-8bb9-01a6ebdd9380` |
+| 79 | 11 | `UPSC_PRE_CSAT` | 1 | General Mental Ability | published · chapter v1 | `01763fc9-5cbd-4ced-8bb9-01a6ebdd9380` |
 | 80 | 11 | `UPSC_PRE_GS1` | 2 | Economic Geography | — none | `6fd44904-2dcd-4ca8-8fb8-87caa4349fdd` |
 | 81 | 10 | `UPSC_MAINS_GS1` | 2 | Distribution of Key Natural Resources Across the World | — none | `6a724f93-560d-491e-a1ed-4c5e025ab978` |
 | 82 | 10 | `UPSC_MAINS_GS1` | 2 | Earthquakes, Tsunami, Volcanic Activity and Cyclones | — none | `d5acab53-a65b-4d6d-98ef-6ad35171023f` |
@@ -178,7 +178,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 145 | 4 | `UPSC_MAINS_GS4` | 2 | Information Sharing, Transparency and Right to Information | — none | `84ac2d46-0f14-4bf3-aafa-2d009fd10fcb` |
 | 146 | 4 | `UPSC_MAINS_GS4` | 2 | Laws, Rules, Regulations and Conscience as Ethical Guidance | — none | `86d97d3c-53bb-4dec-b4c2-e6f66b7d63e5` |
 | 147 | 4 | `UPSC_MAINS_GS4` | 2 | Work Culture, Service Delivery and Utilization of Public Funds | — none | `fa966fbd-ad0a-43e5-81b8-1371972b6c18` |
-| 148 | 4 | `UPSC_PRE_CSAT` | 1 | Interpersonal Skills including Communication Skills | — none | `3249ad2e-7bc8-45dd-83ce-8c2759a91d52` |
+| 148 | 4 | `UPSC_PRE_CSAT` | 1 | Interpersonal Skills including Communication Skills | published · chapter v1 | `3249ad2e-7bc8-45dd-83ce-8c2759a91d52` |
 | 149 | 4 | `UPSC_PRE_GS1` | 2 | Demographics | — none | `8ee20c84-a5bc-4379-a721-9b54c7aa2b84` |
 | 150 | 4 | `UPSC_PRE_GS1` | 2 | Panchayati Raj | — none | `32dc09ab-91c5-485b-ad74-cfba5145788a` |
 | 151 | 3 | `UPSC_MAINS_GS1` | 2 | Colonial Economy and Land Revenue Systems | — none | `7b24d819-f920-401a-a68d-6aac2bc8361e` |
