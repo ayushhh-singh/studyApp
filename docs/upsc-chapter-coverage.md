@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**41 of 195 chapterable nodes have a published chapter (21%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**44 of 195 chapterable nodes have a published chapter (22.6%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -19,11 +19,11 @@
 | `UPSC_PRE_GS1` | 20 | 32 | 62.5% | 12 | 1846 |
 | `UPSC_PRE_CSAT` | 7 | 12 | 58.3% | 5 | 1407 |
 | `UPSC_MAINS_GS2` | 4 | 30 | 13.3% | 26 | 398 |
-| `UPSC_MAINS_GS3` | 4 | 38 | 10.5% | 34 | 394 |
-| `UPSC_MAINS_GS1` | 3 | 44 | 6.8% | 41 | 384 |
+| `UPSC_MAINS_GS3` | 6 | 38 | 15.8% | 32 | 394 |
+| `UPSC_MAINS_GS1` | 4 | 44 | 9.1% | 40 | 384 |
 | `UPSC_MAINS_GS4` | 2 | 34 | 5.9% | 32 | 260 |
 | `UPSC_MAINS_ESSAY` | 1 | 5 | 20% | 4 | 80 |
-| **all** | **41** | **195** | **21%** | **154** | 4769 |
+| **all** | **44** | **195** | **22.6%** | **151** | 4769 |
 
 ## Every node, heaviest first
 
@@ -75,7 +75,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 42 | 27 | `UPSC_PRE_GS1` | 2 | Physical Geography | — none | `3cd18fd8-284a-4291-b4c5-6bcda4280185` |
 | 43 | 26 | `UPSC_MAINS_ESSAY` | 1 | Effective and Exact Expression | — none | `56d73d96-1f36-41a5-b683-d2c4e4825d5e` |
 | 44 | 26 | `UPSC_MAINS_GS1` | 1 | Natural Resources and Industrial Location | published · chapter v1 | `138d1bb8-e76d-4778-baf1-0f49e7baf2a0` |
-| 45 | 26 | `UPSC_MAINS_GS3` | 1 | Bio diversity, Environment and Conservation | — none | `4711c7dd-fc2c-4806-8e1e-d03176a5ed75` |
+| 45 | 26 | `UPSC_MAINS_GS3` | 1 | Bio diversity, Environment and Conservation | published · chapter v1 | `4711c7dd-fc2c-4806-8e1e-d03176a5ed75` |
 | 46 | 25 | `UPSC_MAINS_GS4` | 1 | Public/Civil Service Values and Ethics in Public Administration | — none | `0fb89e71-85c0-4ba5-a445-942c47105e68` |
 | 47 | 24 | `UPSC_MAINS_GS2` | 1 | Indian Constitution | — none | `9b09acc8-7cde-41c8-acc5-7d5a0fe0ef44` |
 | 48 | 23 | `UPSC_PRE_CSAT` | 2 | Data Interpretation | — none | `27ac070c-8dee-42c7-ba8a-6c90274a5ba3` |
@@ -84,10 +84,10 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 51 | 22 | `UPSC_MAINS_GS4` | 1 | Probity in Governance | — none | `52867960-8b6b-4d49-809d-320f47ac1bce` |
 | 52 | 22 | `UPSC_PRE_CSAT` | 2 | Problem Solving | — none | `f8c0a15c-477f-4c77-bf41-e7670fdf8ec1` |
 | 53 | 20 | `UPSC_MAINS_GS1` | 1 | Indian Heritage and Culture | published · chapter v1 | `c96118de-c365-4002-9301-d8cf3555f4ce` |
-| 54 | 20 | `UPSC_MAINS_GS3` | 1 | Industry, Food Processing and Infrastructure | — none | `a0d6f7fb-39ca-434e-922f-209f487324fb` |
+| 54 | 20 | `UPSC_MAINS_GS3` | 1 | Industry, Food Processing and Infrastructure | published · chapter v1 | `a0d6f7fb-39ca-434e-922f-209f487324fb` |
 | 55 | 20 | `UPSC_PRE_GS1` | 2 | Chemistry | — none | `210eca09-b59f-45fe-bc0d-e1972eb078f5` |
 | 56 | 20 | `UPSC_PRE_GS1` | 2 | Rights Issues | — none | `425aad5a-e56b-44c3-9f12-6bba1e16e392` |
-| 57 | 19 | `UPSC_MAINS_GS1` | 1 | Salient Features of World’s Physical Geography | — none | `2ac8068e-1c06-4f6e-9932-f53be93bd914` |
+| 57 | 19 | `UPSC_MAINS_GS1` | 1 | Salient Features of World’s Physical Geography | published · chapter v1 | `2ac8068e-1c06-4f6e-9932-f53be93bd914` |
 | 58 | 17 | `UPSC_MAINS_GS1` | 2 | Salient Features of Indian Society and Diversity of India | — none | `6ca8fe50-1e7b-4559-895f-2c6eaa2cf7f7` |
 | 59 | 15 | `UPSC_MAINS_GS1` | 1 | Modern Indian History | — none | `2e9e4c46-6165-402b-ba92-74b6ee8bfdc8` |
 | 60 | 15 | `UPSC_MAINS_GS2` | 2 | Significant Provisions, Amendments and Basic Structure | — none | `a4795faa-91be-45c7-8e85-e2e4bcddcfb3` |
