@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**57 of 195 chapterable nodes have a published chapter (29.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**61 of 195 chapterable nodes have a published chapter (31.3%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -18,12 +18,12 @@
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `UPSC_PRE_GS1` | 23 | 32 | 71.9% | 9 | 1846 |
 | `UPSC_PRE_CSAT` | 9 | 12 | 75% | 3 | 1407 |
-| `UPSC_MAINS_GS2` | 6 | 30 | 20% | 24 | 398 |
+| `UPSC_MAINS_GS2` | 7 | 30 | 23.3% | 23 | 398 |
 | `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
-| `UPSC_MAINS_GS1` | 8 | 44 | 18.2% | 36 | 384 |
-| `UPSC_MAINS_GS4` | 2 | 34 | 5.9% | 32 | 260 |
+| `UPSC_MAINS_GS1` | 9 | 44 | 20.5% | 35 | 384 |
+| `UPSC_MAINS_GS4` | 4 | 34 | 11.8% | 30 | 260 |
 | `UPSC_MAINS_ESSAY` | 2 | 5 | 40% | 3 | 80 |
-| **all** | **57** | **195** | **29.2%** | **138** | 4769 |
+| **all** | **61** | **195** | **31.3%** | **134** | 4769 |
 
 ## Every node, heaviest first
 
@@ -81,7 +81,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 48 | 23 | `UPSC_PRE_CSAT` | 2 | Data Interpretation | — none | `27ac070c-8dee-42c7-ba8a-6c90274a5ba3` |
 | 49 | 23 | `UPSC_PRE_GS1` | 2 | World Geography | — none | `d3d37036-9850-4f86-8def-3b532d15d241` |
 | 50 | 22 | `UPSC_MAINS_GS1` | 1 | Geophysical Phenomena and Geographical Features | — none | `741d1f11-8743-4fc8-bd70-b86c768b0a3d` |
-| 51 | 22 | `UPSC_MAINS_GS4` | 1 | Probity in Governance | — none | `52867960-8b6b-4d49-809d-320f47ac1bce` |
+| 51 | 22 | `UPSC_MAINS_GS4` | 1 | Probity in Governance | published · chapter v1 | `52867960-8b6b-4d49-809d-320f47ac1bce` |
 | 52 | 22 | `UPSC_PRE_CSAT` | 2 | Problem Solving | — none | `f8c0a15c-477f-4c77-bf41-e7670fdf8ec1` |
 | 53 | 20 | `UPSC_MAINS_GS1` | 1 | Indian Heritage and Culture | published · chapter v1 | `c96118de-c365-4002-9301-d8cf3555f4ce` |
 | 54 | 20 | `UPSC_MAINS_GS3` | 1 | Industry, Food Processing and Infrastructure | published · chapter v1 | `a0d6f7fb-39ca-434e-922f-209f487324fb` |
@@ -90,17 +90,17 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 57 | 19 | `UPSC_MAINS_GS1` | 1 | Salient Features of World’s Physical Geography | published · chapter v1 | `2ac8068e-1c06-4f6e-9932-f53be93bd914` |
 | 58 | 17 | `UPSC_MAINS_GS1` | 2 | Salient Features of Indian Society and Diversity of India | — none | `6ca8fe50-1e7b-4559-895f-2c6eaa2cf7f7` |
 | 59 | 15 | `UPSC_MAINS_GS1` | 1 | Modern Indian History | published · chapter v1 | `2e9e4c46-6165-402b-ba92-74b6ee8bfdc8` |
-| 60 | 15 | `UPSC_MAINS_GS2` | 2 | Significant Provisions, Amendments and Basic Structure | — none | `a4795faa-91be-45c7-8e85-e2e4bcddcfb3` |
+| 60 | 15 | `UPSC_MAINS_GS2` | 2 | Significant Provisions, Amendments and Basic Structure | published · chapter v1 | `a4795faa-91be-45c7-8e85-e2e4bcddcfb3` |
 | 61 | 15 | `UPSC_MAINS_GS3` | 2 | Environmental Pollution and Degradation | — none | `5b340e2f-23f3-4f10-b13e-1f3282045de8` |
 | 62 | 14 | `UPSC_MAINS_GS3` | 1 | Disaster and Disaster Management | published · chapter v1 | `a7331b44-0756-46f0-82ee-c6bcf3f0eb40` |
-| 63 | 14 | `UPSC_MAINS_GS4` | 1 | Ethics and Human Interface | — none | `d4464fa7-95c4-4216-8617-cb00336f8e94` |
+| 63 | 14 | `UPSC_MAINS_GS4` | 1 | Ethics and Human Interface | published · chapter v1 | `d4464fa7-95c4-4216-8617-cb00336f8e94` |
 | 64 | 13 | `UPSC_MAINS_GS2` | 2 | Social Sector/Services — Health, Education and Human Resources | — none | `4fc51bc3-cfad-4c0f-a8ee-ae7bbd36938d` |
 | 65 | 13 | `UPSC_MAINS_GS2` | 2 | Statutory, Regulatory and Quasi-Judicial Bodies | — none | `e1d10161-df07-45ce-a545-eb526e5fba90` |
 | 66 | 13 | `UPSC_MAINS_GS3` | 2 | Border Area Security and Linkages of Organized Crime with Terrorism | — none | `a8059332-59e6-4cbe-926a-ba279a36c556` |
 | 67 | 12 | `UPSC_MAINS_GS3` | 2 | Inclusive Growth and Issues Arising from It | — none | `82c02f3d-6af8-4dd4-ac4f-9c28459bf6ad` |
 | 68 | 12 | `UPSC_MAINS_GS4` | 1 | Contributions of Moral Thinkers and Philosophers | — none | `6583817f-6160-4954-8f82-c691506d301c` |
 | 69 | 12 | `UPSC_MAINS_GS4` | 2 | Ethical Concerns and Dilemmas in Government and Private Institutions | — none | `ae69e0b1-cb8d-49c5-86de-4fecf37e9ba5` |
-| 70 | 11 | `UPSC_MAINS_GS1` | 2 | Resources of South Asia and the Indian Sub-continent | — none | `0f2c8cbb-9420-4740-a764-0ce40b333f0c` |
+| 70 | 11 | `UPSC_MAINS_GS1` | 2 | Resources of South Asia and the Indian Sub-continent | published · chapter v2 | `0f2c8cbb-9420-4740-a764-0ce40b333f0c` |
 | 71 | 11 | `UPSC_MAINS_GS1` | 1 | The Freedom Struggle | published · chapter v1 | `547b0b28-58fa-483f-a461-7bec7ab96cec` |
 | 72 | 11 | `UPSC_MAINS_GS2` | 2 | Bilateral, Regional and Global Groupings and Agreements | — none | `66f467c2-262c-4073-b468-af527f094272` |
 | 73 | 11 | `UPSC_MAINS_GS2` | 2 | Parliament and State Legislatures | published · chapter v1 | `797f2822-827f-433e-bf98-d8bd297f1260` |
