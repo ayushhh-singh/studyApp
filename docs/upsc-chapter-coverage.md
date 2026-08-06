@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**76 of 195 chapterable nodes have a published chapter (39%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**78 of 195 chapterable nodes have a published chapter (40%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -21,9 +21,9 @@
 | `UPSC_MAINS_GS2` | 9 | 30 | 30% | 21 | 398 |
 | `UPSC_MAINS_GS3` | 9 | 38 | 23.7% | 29 | 394 |
 | `UPSC_MAINS_GS1` | 12 | 44 | 27.3% | 32 | 384 |
-| `UPSC_MAINS_GS4` | 8 | 34 | 23.5% | 26 | 260 |
+| `UPSC_MAINS_GS4` | 10 | 34 | 29.4% | 24 | 260 |
 | `UPSC_MAINS_ESSAY` | 5 | 5 | 100% | 0 | 80 |
-| **all** | **76** | **195** | **39%** | **119** | 4769 |
+| **all** | **78** | **195** | **40%** | **117** | 4769 |
 
 ## Every node, heaviest first
 
@@ -151,7 +151,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 118 | 6 | `UPSC_MAINS_GS1` | 2 | Salient Aspects of Indian literature | — none | `4df27ee5-b7b8-4f76-9837-a1a88213aa38` |
 | 119 | 6 | `UPSC_MAINS_GS2` | 2 | Comparison with the Constitutional Schemes of Other Countries | — none | `f79efd39-177b-4ba9-a1dd-1aacba87349a` |
 | 120 | 6 | `UPSC_MAINS_GS2` | 2 | Functions and Responsibilities of the Union and the States | — none | `3ad11630-629a-4f8f-b50c-3a26e30e4bae` |
-| 121 | 6 | `UPSC_MAINS_GS4` | 2 | Challenges of Corruption | — none | `c38491fa-4e11-443c-af8c-a8b0f975b73e` |
+| 121 | 6 | `UPSC_MAINS_GS4` | 2 | Challenges of Corruption | published · chapter v1 | `c38491fa-4e11-443c-af8c-a8b0f975b73e` |
 | 122 | 6 | `UPSC_MAINS_GS4` | 2 | Essence, Determinants and Consequences of Ethics in Human Actions | — none | `aacc2138-0405-4328-8805-ab7378c0c6a7` |
 | 123 | 5 | `UPSC_MAINS_GS1` | 2 | Location Factors for Primary, Secondary and Tertiary Industries | — none | `6c7ae638-3216-4635-9cef-7a00d6e4ab41` |
 | 124 | 5 | `UPSC_MAINS_GS1` | 2 | Oceans and Ocean Currents | — none | `a497600f-0a70-41dd-81db-54656b07d967` |
@@ -208,7 +208,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 175 | 2 | `UPSC_MAINS_GS3` | 2 | Communication Networks, Media and Social Networking Sites | — none | `5f7d3f5c-f3ec-41b9-99eb-b47cc9da8b54` |
 | 176 | 2 | `UPSC_MAINS_GS3` | 2 | Technology Missions and Economics of Animal-Rearing | — none | `8eb467ad-c211-46fe-8042-d664ce2ff3b4` |
 | 177 | 2 | `UPSC_MAINS_GS3` | 2 | Various Security Forces and Agencies and Their Mandate | — none | `0b5b9167-3387-49ee-a876-5e3610342d74` |
-| 178 | 2 | `UPSC_MAINS_GS4` | 2 | Accountability, Ethical Governance and Strengthening Moral Values | — none | `950630ef-0b76-45e7-a1ab-7a996aa3a1ba` |
+| 178 | 2 | `UPSC_MAINS_GS4` | 2 | Accountability, Ethical Governance and Strengthening Moral Values | published · chapter v1 | `950630ef-0b76-45e7-a1ab-7a996aa3a1ba` |
 | 179 | 2 | `UPSC_MAINS_GS4` | 2 | Human Values: Lessons from Great Leaders and Role of Institutions | — none | `71039c08-783c-47da-b91a-28cba6f44304` |
 | 180 | 2 | `UPSC_MAINS_GS4` | 2 | Integrity, Impartiality and Non-Partisanship | — none | `873e7330-afe4-4c47-8b7d-52913d7a3be1` |
 | 181 | 2 | `UPSC_MAINS_GS4` | 2 | Moral Thinkers and Philosophers from the World | — none | `44e01376-aec2-4f73-b63f-c0a4c12a4aa6` |
