@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**50 of 195 chapterable nodes have a published chapter (25.6%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**53 of 195 chapterable nodes have a published chapter (27.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -16,14 +16,14 @@
 
 | Paper | Chaptered | Nodes | % | Remaining | PYQ weight |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `UPSC_PRE_GS1` | 21 | 32 | 65.6% | 11 | 1846 |
+| `UPSC_PRE_GS1` | 23 | 32 | 71.9% | 9 | 1846 |
 | `UPSC_PRE_CSAT` | 7 | 12 | 58.3% | 5 | 1407 |
 | `UPSC_MAINS_GS2` | 6 | 30 | 20% | 24 | 398 |
 | `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
 | `UPSC_MAINS_GS1` | 6 | 44 | 13.6% | 38 | 384 |
 | `UPSC_MAINS_GS4` | 2 | 34 | 5.9% | 32 | 260 |
-| `UPSC_MAINS_ESSAY` | 1 | 5 | 20% | 4 | 80 |
-| **all** | **50** | **195** | **25.6%** | **145** | 4769 |
+| `UPSC_MAINS_ESSAY` | 2 | 5 | 40% | 3 | 80 |
+| **all** | **53** | **195** | **27.2%** | **142** | 4769 |
 
 ## Every node, heaviest first
 
@@ -60,7 +60,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 27 | 39 | `UPSC_PRE_GS1` | 2 | Climate Change | published · chapter v1 | `1803cd3f-cf00-4ae7-8127-4162a5c33aae` |
 | 28 | 39 | `UPSC_PRE_GS1` | 2 | Modern India | published · chapter v1 | `ec19feac-5476-4c1d-bd3d-81a03e704870` |
 | 29 | 38 | `UPSC_MAINS_GS3` | 1 | Agriculture, Food Security and Land Reforms | published · chapter v1 | `2bf48454-967e-4059-9016-9b4d72eacc92` |
-| 30 | 37 | `UPSC_PRE_GS1` | 2 | Sustainable Development | — none | `034280e8-47a8-44e4-98bc-455060a2b3b5` |
+| 30 | 37 | `UPSC_PRE_GS1` | 2 | Sustainable Development | published · chapter v1 | `034280e8-47a8-44e4-98bc-455060a2b3b5` |
 | 31 | 33 | `UPSC_MAINS_GS3` | 1 | Indian Economy, Planning and Investment | published · chapter v1 | `cab7e1de-abe2-460e-bea9-f1e0e1386ca6` |
 | 32 | 33 | `UPSC_PRE_GS1` | 2 | Environmental Ecology | published · chapter v1 | `6531ab4b-3707-4dff-af27-4dbe6f2880d6` |
 | 33 | 33 | `UPSC_PRE_GS1` | 2 | Indian National Movement | published · chapter v1 | `449d1034-2fe7-4a1f-9a0e-6dd8db47e686` |
@@ -70,10 +70,10 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | published · chapter v1 | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
 | 38 | 31 | `UPSC_MAINS_GS4` | 2 | Attitude, Integrity and Problem-Solving Approach in Public Life | published · chapter v1 | `f92cd2e1-95db-4df6-9c0c-d9d590c00b4f` |
 | 39 | 30 | `UPSC_PRE_CSAT` | 1 | Decision Making and Problem Solving | published · chapter v1 | `739d1434-f1b9-4e60-a33b-b4322783db65` |
-| 40 | 29 | `UPSC_PRE_GS1` | 2 | Physics | — none | `55c52be0-c5fd-4353-901e-3ec9eacba746` |
+| 40 | 29 | `UPSC_PRE_GS1` | 2 | Physics | published · chapter v1 | `55c52be0-c5fd-4353-901e-3ec9eacba746` |
 | 41 | 28 | `UPSC_MAINS_GS3` | 1 | Science and Technology | published · chapter v1 | `788bfc11-18a6-45da-8e4b-a2892898839a` |
 | 42 | 27 | `UPSC_PRE_GS1` | 2 | Physical Geography | — none | `3cd18fd8-284a-4291-b4c5-6bcda4280185` |
-| 43 | 26 | `UPSC_MAINS_ESSAY` | 1 | Effective and Exact Expression | — none | `56d73d96-1f36-41a5-b683-d2c4e4825d5e` |
+| 43 | 26 | `UPSC_MAINS_ESSAY` | 1 | Effective and Exact Expression | published · chapter v1 | `56d73d96-1f36-41a5-b683-d2c4e4825d5e` |
 | 44 | 26 | `UPSC_MAINS_GS1` | 1 | Natural Resources and Industrial Location | published · chapter v1 | `138d1bb8-e76d-4778-baf1-0f49e7baf2a0` |
 | 45 | 26 | `UPSC_MAINS_GS3` | 1 | Bio diversity, Environment and Conservation | published · chapter v1 | `4711c7dd-fc2c-4806-8e1e-d03176a5ed75` |
 | 46 | 25 | `UPSC_MAINS_GS4` | 1 | Public/Civil Service Values and Ethics in Public Administration | — none | `0fb89e71-85c0-4ba5-a445-942c47105e68` |
