@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**71 of 195 chapterable nodes have a published chapter (36.4%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**74 of 195 chapterable nodes have a published chapter (37.9%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -18,12 +18,12 @@
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `UPSC_PRE_GS1` | 24 | 32 | 75% | 8 | 1846 |
 | `UPSC_PRE_CSAT` | 9 | 12 | 75% | 3 | 1407 |
-| `UPSC_MAINS_GS2` | 7 | 30 | 23.3% | 23 | 398 |
-| `UPSC_MAINS_GS3` | 8 | 38 | 21.1% | 30 | 394 |
+| `UPSC_MAINS_GS2` | 9 | 30 | 30% | 21 | 398 |
+| `UPSC_MAINS_GS3` | 9 | 38 | 23.7% | 29 | 394 |
 | `UPSC_MAINS_GS1` | 11 | 44 | 25% | 33 | 384 |
 | `UPSC_MAINS_GS4` | 7 | 34 | 20.6% | 27 | 260 |
 | `UPSC_MAINS_ESSAY` | 5 | 5 | 100% | 0 | 80 |
-| **all** | **71** | **195** | **36.4%** | **124** | 4769 |
+| **all** | **74** | **195** | **37.9%** | **121** | 4769 |
 
 ## Every node, heaviest first
 
@@ -143,7 +143,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 110 | 7 | `UPSC_MAINS_GS2` | 2 | Effect of Policies and Politics of Developed and Developing Countries | — none | `2fbad363-5b0f-47de-926f-a4477f3df541` |
 | 111 | 7 | `UPSC_MAINS_GS2` | 2 | Pressure Groups and Formal/Informal Associations | — none | `1f1f3d2b-a367-4c7b-bd96-c125de25f40f` |
 | 112 | 7 | `UPSC_MAINS_GS2` | 2 | Salient Features of the Representation of People’s Act | — none | `6460500c-bd8c-4ebe-94ab-a698670c00b9` |
-| 113 | 7 | `UPSC_MAINS_GS3` | 2 | Awareness in IT, Space, Computers, Robotics and Nano-technology | — none | `2705ca94-c869-4577-be39-aa5b38bfa460` |
+| 113 | 7 | `UPSC_MAINS_GS3` | 2 | Awareness in IT, Space, Computers, Robotics and Nano-technology | published · chapter v1 | `2705ca94-c869-4577-be39-aa5b38bfa460` |
 | 114 | 7 | `UPSC_MAINS_GS3` | 2 | Government Budgeting | — none | `3770b332-1541-49c7-a92b-0eb39fa45ebf` |
 | 115 | 6 | `UPSC_MAINS_GS1` | 2 | Changes in Flora and Fauna and their Effects | published · chapter v1 | `a0dd11c5-7707-4255-9e94-ad3193212ef6` |
 | 116 | 6 | `UPSC_MAINS_GS1` | 2 | Expansion and Consolidation of British Rule | — none | `b0fbf2d5-ef93-4e7c-bc62-10f594348bd3` |
@@ -185,7 +185,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 152 | 3 | `UPSC_MAINS_GS1` | 2 | Geographical Features and their Location | — none | `5a3471ed-975c-4099-a44e-7bc7cbdb6f33` |
 | 153 | 3 | `UPSC_MAINS_GS1` | 2 | Nation-Building and Internal Challenges | — none | `e527c923-48c6-4a02-b32a-819ac48d7769` |
 | 154 | 3 | `UPSC_MAINS_GS1` | 2 | Reorganization of States | — none | `fce63b3d-34ba-4368-be0e-af337ba25df3` |
-| 155 | 3 | `UPSC_MAINS_GS2` | 2 | Historical Underpinnings, Evolution and Features | — none | `76e7da5c-d818-4bff-92d8-a5a90b7c152c` |
+| 155 | 3 | `UPSC_MAINS_GS2` | 2 | Historical Underpinnings, Evolution and Features | published · chapter v1 | `76e7da5c-d818-4bff-92d8-a5a90b7c152c` |
 | 156 | 3 | `UPSC_MAINS_GS2` | 2 | Indian Diaspora | — none | `83f981da-c606-48ee-a5be-582585d7f4e7` |
 | 157 | 3 | `UPSC_MAINS_GS3` | 2 | Environmental Impact Assessment | — none | `165722d1-5ed7-46ed-b8ff-b26f100f1b98` |
 | 158 | 3 | `UPSC_MAINS_GS3` | 2 | Investment Models | — none | `78a24fce-2bd6-40cd-8f48-8deca93adef8` |
@@ -203,7 +203,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 170 | 2 | `UPSC_MAINS_GS1` | 2 | Industrial Revolution | — none | `3feee3cb-f0c3-4dfb-a4a3-eb66a355e912` |
 | 171 | 2 | `UPSC_MAINS_GS1` | 2 | Political Philosophies — Communism, Capitalism and Socialism | — none | `5a134895-bb2a-4f68-9d9d-855208e19320` |
 | 172 | 2 | `UPSC_MAINS_GS1` | 2 | World Wars and the Redrawal of National Boundaries | — none | `905fa16a-4a71-4069-a810-96a13bb4e606` |
-| 173 | 2 | `UPSC_MAINS_GS2` | 2 | Appointment to Constitutional Posts and Constitutional Bodies | — none | `0d72f611-973f-441a-b8a3-8fff17176be4` |
+| 173 | 2 | `UPSC_MAINS_GS2` | 2 | Appointment to Constitutional Posts and Constitutional Bodies | published · chapter v1 | `0d72f611-973f-441a-b8a3-8fff17176be4` |
 | 174 | 2 | `UPSC_MAINS_GS3` | 2 | Achievements of Indians in Science and Technology | published · chapter v1 | `ac9492f6-3116-4511-8ec0-cd85c6dbea0a` |
 | 175 | 2 | `UPSC_MAINS_GS3` | 2 | Communication Networks, Media and Social Networking Sites | — none | `5f7d3f5c-f3ec-41b9-99eb-b47cc9da8b54` |
 | 176 | 2 | `UPSC_MAINS_GS3` | 2 | Technology Missions and Economics of Animal-Rearing | — none | `8eb467ad-c211-46fe-8042-d664ce2ff3b4` |
