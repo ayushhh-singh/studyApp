@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**53 of 195 chapterable nodes have a published chapter (27.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**55 of 195 chapterable nodes have a published chapter (28.2%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -20,10 +20,10 @@
 | `UPSC_PRE_CSAT` | 7 | 12 | 58.3% | 5 | 1407 |
 | `UPSC_MAINS_GS2` | 6 | 30 | 20% | 24 | 398 |
 | `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
-| `UPSC_MAINS_GS1` | 6 | 44 | 13.6% | 38 | 384 |
+| `UPSC_MAINS_GS1` | 8 | 44 | 18.2% | 36 | 384 |
 | `UPSC_MAINS_GS4` | 2 | 34 | 5.9% | 32 | 260 |
 | `UPSC_MAINS_ESSAY` | 2 | 5 | 40% | 3 | 80 |
-| **all** | **53** | **195** | **27.2%** | **142** | 4769 |
+| **all** | **55** | **195** | **28.2%** | **140** | 4769 |
 
 ## Every node, heaviest first
 
@@ -128,7 +128,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 95 | 9 | `UPSC_MAINS_GS3` | 2 | Growth, Development and Employment | — none | `c44de8cc-2308-4e78-9e4b-4a82f0b07827` |
 | 96 | 9 | `UPSC_MAINS_GS4` | 2 | Moral Thinkers and Philosophers from India | — none | `57203153-5897-470a-945d-2bdde10ead62` |
 | 97 | 8 | `UPSC_MAINS_GS1` | 2 | Climate and Atmospheric Processes | — none | `e659dfbd-6d75-4b32-b74f-78625132fda2` |
-| 98 | 8 | `UPSC_MAINS_GS1` | 1 | History of the World | — none | `3e0a87a1-5121-4a5f-9a0a-0094d0c9e0c6` |
+| 98 | 8 | `UPSC_MAINS_GS1` | 1 | History of the World | published · chapter v1 | `3e0a87a1-5121-4a5f-9a0a-0094d0c9e0c6` |
 | 99 | 8 | `UPSC_MAINS_GS1` | 2 | Population, Poverty and Developmental Issues | — none | `e63b0a55-ea7e-4958-936f-5315c9972da1` |
 | 100 | 8 | `UPSC_MAINS_GS1` | 2 | Salient Aspects of Indian Art Forms | — none | `1f2d51cf-2965-4a76-8297-a66e58e78b1b` |
 | 101 | 8 | `UPSC_MAINS_GS2` | 2 | Issues Relating to Poverty and Hunger | — none | `0080d33c-cde2-4264-8c77-f27a9e1a4398` |
@@ -138,7 +138,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 105 | 8 | `UPSC_MAINS_GS4` | 1 | Aptitude and Foundational Values for Civil Service | — none | `a2362f14-44c0-47b8-aacc-11116ba43736` |
 | 106 | 8 | `UPSC_PRE_CSAT` | 2 | Decision Making | — none | `a0814ab8-f868-4e35-91b6-8707a4b3b2f2` |
 | 107 | 7 | `UPSC_MAINS_GS1` | 2 | Gandhian Mass Movements | — none | `75719fe0-e0e6-427a-8228-3e9b54c577ae` |
-| 108 | 7 | `UPSC_MAINS_GS1` | 1 | Post-Independence Consolidation and Reorganization | — none | `d2b95a3c-c548-441b-9d1e-e3d9da73fe48` |
+| 108 | 7 | `UPSC_MAINS_GS1` | 1 | Post-Independence Consolidation and Reorganization | published · chapter v1 | `d2b95a3c-c548-441b-9d1e-e3d9da73fe48` |
 | 109 | 7 | `UPSC_MAINS_GS1` | 2 | Role of Women and Women’s Organization | — none | `86bcd476-d289-45a4-9054-a042678d50fb` |
 | 110 | 7 | `UPSC_MAINS_GS2` | 2 | Effect of Policies and Politics of Developed and Developing Countries | — none | `2fbad363-5b0f-47de-926f-a4477f3df541` |
 | 111 | 7 | `UPSC_MAINS_GS2` | 2 | Pressure Groups and Formal/Informal Associations | — none | `1f1f3d2b-a367-4c7b-bd96-c125de25f40f` |
