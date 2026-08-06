@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**74 of 195 chapterable nodes have a published chapter (37.9%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**76 of 195 chapterable nodes have a published chapter (39%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -20,10 +20,10 @@
 | `UPSC_PRE_CSAT` | 9 | 12 | 75% | 3 | 1407 |
 | `UPSC_MAINS_GS2` | 9 | 30 | 30% | 21 | 398 |
 | `UPSC_MAINS_GS3` | 9 | 38 | 23.7% | 29 | 394 |
-| `UPSC_MAINS_GS1` | 11 | 44 | 25% | 33 | 384 |
-| `UPSC_MAINS_GS4` | 7 | 34 | 20.6% | 27 | 260 |
+| `UPSC_MAINS_GS1` | 12 | 44 | 27.3% | 32 | 384 |
+| `UPSC_MAINS_GS4` | 8 | 34 | 23.5% | 26 | 260 |
 | `UPSC_MAINS_ESSAY` | 5 | 5 | 100% | 0 | 80 |
-| **all** | **74** | **195** | **37.9%** | **121** | 4769 |
+| **all** | **76** | **195** | **39%** | **119** | 4769 |
 
 ## Every node, heaviest first
 
@@ -80,7 +80,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 47 | 24 | `UPSC_MAINS_GS2` | 1 | Indian Constitution | published · chapter v1 | `9b09acc8-7cde-41c8-acc5-7d5a0fe0ef44` |
 | 48 | 23 | `UPSC_PRE_CSAT` | 2 | Data Interpretation | — none | `27ac070c-8dee-42c7-ba8a-6c90274a5ba3` |
 | 49 | 23 | `UPSC_PRE_GS1` | 2 | World Geography | — none | `d3d37036-9850-4f86-8def-3b532d15d241` |
-| 50 | 22 | `UPSC_MAINS_GS1` | 1 | Geophysical Phenomena and Geographical Features | — none | `741d1f11-8743-4fc8-bd70-b86c768b0a3d` |
+| 50 | 22 | `UPSC_MAINS_GS1` | 1 | Geophysical Phenomena and Geographical Features | published · chapter v1 | `741d1f11-8743-4fc8-bd70-b86c768b0a3d` |
 | 51 | 22 | `UPSC_MAINS_GS4` | 1 | Probity in Governance | published · chapter v1 | `52867960-8b6b-4d49-809d-320f47ac1bce` |
 | 52 | 22 | `UPSC_PRE_CSAT` | 2 | Problem Solving | — none | `f8c0a15c-477f-4c77-bf41-e7670fdf8ec1` |
 | 53 | 20 | `UPSC_MAINS_GS1` | 1 | Indian Heritage and Culture | published · chapter v1 | `c96118de-c365-4002-9301-d8cf3555f4ce` |
@@ -99,7 +99,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 66 | 13 | `UPSC_MAINS_GS3` | 2 | Border Area Security and Linkages of Organized Crime with Terrorism | — none | `a8059332-59e6-4cbe-926a-ba279a36c556` |
 | 67 | 12 | `UPSC_MAINS_GS3` | 2 | Inclusive Growth and Issues Arising from It | — none | `82c02f3d-6af8-4dd4-ac4f-9c28459bf6ad` |
 | 68 | 12 | `UPSC_MAINS_GS4` | 1 | Contributions of Moral Thinkers and Philosophers | — none | `6583817f-6160-4954-8f82-c691506d301c` |
-| 69 | 12 | `UPSC_MAINS_GS4` | 2 | Ethical Concerns and Dilemmas in Government and Private Institutions | — none | `ae69e0b1-cb8d-49c5-86de-4fecf37e9ba5` |
+| 69 | 12 | `UPSC_MAINS_GS4` | 2 | Ethical Concerns and Dilemmas in Government and Private Institutions | published · chapter v1 | `ae69e0b1-cb8d-49c5-86de-4fecf37e9ba5` |
 | 70 | 11 | `UPSC_MAINS_GS1` | 2 | Resources of South Asia and the Indian Sub-continent | published · chapter v2 | `0f2c8cbb-9420-4740-a764-0ce40b333f0c` |
 | 71 | 11 | `UPSC_MAINS_GS1` | 1 | The Freedom Struggle | published · chapter v1 | `547b0b28-58fa-483f-a461-7bec7ab96cec` |
 | 72 | 11 | `UPSC_MAINS_GS2` | 2 | Bilateral, Regional and Global Groupings and Agreements | — none | `66f467c2-262c-4073-b468-af527f094272` |
