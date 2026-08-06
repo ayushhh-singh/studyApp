@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**68 of 195 chapterable nodes have a published chapter (34.9%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**71 of 195 chapterable nodes have a published chapter (36.4%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -19,11 +19,11 @@
 | `UPSC_PRE_GS1` | 24 | 32 | 75% | 8 | 1846 |
 | `UPSC_PRE_CSAT` | 9 | 12 | 75% | 3 | 1407 |
 | `UPSC_MAINS_GS2` | 7 | 30 | 23.3% | 23 | 398 |
-| `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
-| `UPSC_MAINS_GS1` | 10 | 44 | 22.7% | 34 | 384 |
-| `UPSC_MAINS_GS4` | 6 | 34 | 17.6% | 28 | 260 |
+| `UPSC_MAINS_GS3` | 8 | 38 | 21.1% | 30 | 394 |
+| `UPSC_MAINS_GS1` | 11 | 44 | 25% | 33 | 384 |
+| `UPSC_MAINS_GS4` | 7 | 34 | 20.6% | 27 | 260 |
 | `UPSC_MAINS_ESSAY` | 5 | 5 | 100% | 0 | 80 |
-| **all** | **68** | **195** | **34.9%** | **127** | 4769 |
+| **all** | **71** | **195** | **36.4%** | **124** | 4769 |
 
 ## Every node, heaviest first
 
@@ -145,7 +145,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 112 | 7 | `UPSC_MAINS_GS2` | 2 | Salient Features of the Representation of People’s Act | — none | `6460500c-bd8c-4ebe-94ab-a698670c00b9` |
 | 113 | 7 | `UPSC_MAINS_GS3` | 2 | Awareness in IT, Space, Computers, Robotics and Nano-technology | — none | `2705ca94-c869-4577-be39-aa5b38bfa460` |
 | 114 | 7 | `UPSC_MAINS_GS3` | 2 | Government Budgeting | — none | `3770b332-1541-49c7-a92b-0eb39fa45ebf` |
-| 115 | 6 | `UPSC_MAINS_GS1` | 2 | Changes in Flora and Fauna and their Effects | — none | `a0dd11c5-7707-4255-9e94-ad3193212ef6` |
+| 115 | 6 | `UPSC_MAINS_GS1` | 2 | Changes in Flora and Fauna and their Effects | published · chapter v1 | `a0dd11c5-7707-4255-9e94-ad3193212ef6` |
 | 116 | 6 | `UPSC_MAINS_GS1` | 2 | Expansion and Consolidation of British Rule | — none | `b0fbf2d5-ef93-4e7c-bc62-10f594348bd3` |
 | 117 | 6 | `UPSC_MAINS_GS1` | 2 | Landforms and Geomorphology | — none | `09ffe9b5-6776-4beb-a11c-80969d318cc6` |
 | 118 | 6 | `UPSC_MAINS_GS1` | 2 | Salient Aspects of Indian literature | — none | `4df27ee5-b7b8-4f76-9837-a1a88213aa38` |
@@ -175,7 +175,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 142 | 4 | `UPSC_MAINS_GS3` | 2 | Land Reforms in India | — none | `48e7275f-08ba-40f6-ba6d-efae3b452eb1` |
 | 143 | 4 | `UPSC_MAINS_GS4` | 2 | Concept of Public Service and Philosophical Basis of Probity | — none | `556e54ea-bb2f-4d00-aaaa-6d571ad09343` |
 | 144 | 4 | `UPSC_MAINS_GS4` | 2 | Emotional Intelligence: Concepts and Utilities | — none | `abc8c4fc-dcd2-40dd-a3f8-2cd30e578059` |
-| 145 | 4 | `UPSC_MAINS_GS4` | 2 | Information Sharing, Transparency and Right to Information | — none | `84ac2d46-0f14-4bf3-aafa-2d009fd10fcb` |
+| 145 | 4 | `UPSC_MAINS_GS4` | 2 | Information Sharing, Transparency and Right to Information | published · chapter v1 | `84ac2d46-0f14-4bf3-aafa-2d009fd10fcb` |
 | 146 | 4 | `UPSC_MAINS_GS4` | 2 | Laws, Rules, Regulations and Conscience as Ethical Guidance | published · chapter v1 | `86d97d3c-53bb-4dec-b4c2-e6f66b7d63e5` |
 | 147 | 4 | `UPSC_MAINS_GS4` | 2 | Work Culture, Service Delivery and Utilization of Public Funds | — none | `fa966fbd-ad0a-43e5-81b8-1371972b6c18` |
 | 148 | 4 | `UPSC_PRE_CSAT` | 1 | Interpersonal Skills including Communication Skills | published · chapter v1 | `3249ad2e-7bc8-45dd-83ce-8c2759a91d52` |
@@ -204,7 +204,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 171 | 2 | `UPSC_MAINS_GS1` | 2 | Political Philosophies — Communism, Capitalism and Socialism | — none | `5a134895-bb2a-4f68-9d9d-855208e19320` |
 | 172 | 2 | `UPSC_MAINS_GS1` | 2 | World Wars and the Redrawal of National Boundaries | — none | `905fa16a-4a71-4069-a810-96a13bb4e606` |
 | 173 | 2 | `UPSC_MAINS_GS2` | 2 | Appointment to Constitutional Posts and Constitutional Bodies | — none | `0d72f611-973f-441a-b8a3-8fff17176be4` |
-| 174 | 2 | `UPSC_MAINS_GS3` | 2 | Achievements of Indians in Science and Technology | — none | `ac9492f6-3116-4511-8ec0-cd85c6dbea0a` |
+| 174 | 2 | `UPSC_MAINS_GS3` | 2 | Achievements of Indians in Science and Technology | published · chapter v1 | `ac9492f6-3116-4511-8ec0-cd85c6dbea0a` |
 | 175 | 2 | `UPSC_MAINS_GS3` | 2 | Communication Networks, Media and Social Networking Sites | — none | `5f7d3f5c-f3ec-41b9-99eb-b47cc9da8b54` |
 | 176 | 2 | `UPSC_MAINS_GS3` | 2 | Technology Missions and Economics of Animal-Rearing | — none | `8eb467ad-c211-46fe-8042-d664ce2ff3b4` |
 | 177 | 2 | `UPSC_MAINS_GS3` | 2 | Various Security Forces and Agencies and Their Mandate | — none | `0b5b9167-3387-49ee-a876-5e3610342d74` |
