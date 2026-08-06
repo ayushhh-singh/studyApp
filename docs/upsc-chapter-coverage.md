@@ -8,7 +8,7 @@
 >
 > Read live from the database on **2026-08-06** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
-**65 of 195 chapterable nodes have a published chapter (33.3%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
+**68 of 195 chapterable nodes have a published chapter (34.9%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
 "Covered" means a **published** chapter: a `notes` row whose `study_content_i18n.sections` is non-empty AND whose `status` is `published`. A legacy digest-only note, a draft, or a chapter still holding unresolved fact-audit flags is **not** coverage and is listed as such.
 
@@ -21,9 +21,9 @@
 | `UPSC_MAINS_GS2` | 7 | 30 | 23.3% | 23 | 398 |
 | `UPSC_MAINS_GS3` | 7 | 38 | 18.4% | 31 | 394 |
 | `UPSC_MAINS_GS1` | 10 | 44 | 22.7% | 34 | 384 |
-| `UPSC_MAINS_GS4` | 4 | 34 | 11.8% | 30 | 260 |
-| `UPSC_MAINS_ESSAY` | 4 | 5 | 80% | 1 | 80 |
-| **all** | **65** | **195** | **33.3%** | **130** | 4769 |
+| `UPSC_MAINS_GS4` | 6 | 34 | 17.6% | 28 | 260 |
+| `UPSC_MAINS_ESSAY` | 5 | 5 | 100% | 0 | 80 |
+| **all** | **68** | **195** | **34.9%** | **127** | 4769 |
 
 ## Every node, heaviest first
 
@@ -165,7 +165,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 132 | 5 | `UPSC_MAINS_GS3` | 2 | Public Distribution System, Buffer Stocks and Food Security | — none | `d2d937fd-b482-4a82-8f82-e3c8b340bc1a` |
 | 133 | 5 | `UPSC_MAINS_GS3` | 2 | Role of External State and Non-State Actors | — none | `306a4bcb-66bb-4018-9a48-cb25714da4cd` |
 | 134 | 5 | `UPSC_MAINS_GS4` | 1 | Emotional Intelligence | — none | `56fd791f-99d6-4763-bffb-2aaa7acb0db4` |
-| 135 | 5 | `UPSC_MAINS_GS4` | 2 | Ethical Issues in International Relations and Corporate Governance | — none | `5ea4f1e7-4afd-4163-86ec-d2dfe9033de9` |
+| 135 | 5 | `UPSC_MAINS_GS4` | 2 | Ethical Issues in International Relations and Corporate Governance | published · chapter v1 | `5ea4f1e7-4afd-4163-86ec-d2dfe9033de9` |
 | 136 | 5 | `UPSC_PRE_GS1` | 2 | Inclusion | — none | `5393fda3-ffe0-4db9-952a-6e14b98a7d29` |
 | 137 | 5 | `UPSC_PRE_GS1` | 2 | Poverty | — none | `4e7e228f-a33f-48a8-bcfb-06f6269fde08` |
 | 138 | 4 | `UPSC_MAINS_GS1` | 2 | Social Empowerment | — none | `3993e690-4da4-4264-aeb3-9912cd7afa81` |
@@ -176,7 +176,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 143 | 4 | `UPSC_MAINS_GS4` | 2 | Concept of Public Service and Philosophical Basis of Probity | — none | `556e54ea-bb2f-4d00-aaaa-6d571ad09343` |
 | 144 | 4 | `UPSC_MAINS_GS4` | 2 | Emotional Intelligence: Concepts and Utilities | — none | `abc8c4fc-dcd2-40dd-a3f8-2cd30e578059` |
 | 145 | 4 | `UPSC_MAINS_GS4` | 2 | Information Sharing, Transparency and Right to Information | — none | `84ac2d46-0f14-4bf3-aafa-2d009fd10fcb` |
-| 146 | 4 | `UPSC_MAINS_GS4` | 2 | Laws, Rules, Regulations and Conscience as Ethical Guidance | — none | `86d97d3c-53bb-4dec-b4c2-e6f66b7d63e5` |
+| 146 | 4 | `UPSC_MAINS_GS4` | 2 | Laws, Rules, Regulations and Conscience as Ethical Guidance | published · chapter v1 | `86d97d3c-53bb-4dec-b4c2-e6f66b7d63e5` |
 | 147 | 4 | `UPSC_MAINS_GS4` | 2 | Work Culture, Service Delivery and Utilization of Public Funds | — none | `fa966fbd-ad0a-43e5-81b8-1371972b6c18` |
 | 148 | 4 | `UPSC_PRE_CSAT` | 1 | Interpersonal Skills including Communication Skills | published · chapter v1 | `3249ad2e-7bc8-45dd-83ce-8c2759a91d52` |
 | 149 | 4 | `UPSC_PRE_GS1` | 2 | Demographics | — none | `8ee20c84-a5bc-4379-a721-9b54c7aa2b84` |
@@ -213,7 +213,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 180 | 2 | `UPSC_MAINS_GS4` | 2 | Integrity, Impartiality and Non-Partisanship | — none | `873e7330-afe4-4c47-8b7d-52913d7a3be1` |
 | 181 | 2 | `UPSC_MAINS_GS4` | 2 | Moral Thinkers and Philosophers from the World | — none | `44e01376-aec2-4f73-b63f-c0a4c12a4aa6` |
 | 182 | 2 | `UPSC_MAINS_GS4` | 2 | Status and Problems of Public Service Values | — none | `94a19b65-0a58-4278-b0d2-fcb29103f2fa` |
-| 183 | 1 | `UPSC_MAINS_ESSAY` | 1 | Concise Writing | — none | `9e26af0d-c4e3-4d1b-a14f-ff2a95021943` |
+| 183 | 1 | `UPSC_MAINS_ESSAY` | 1 | Concise Writing | published · chapter v1 | `9e26af0d-c4e3-4d1b-a14f-ff2a95021943` |
 | 184 | 1 | `UPSC_MAINS_ESSAY` | 1 | Orderly Arrangement of Ideas | published · chapter v1 | `f591e4a4-45a9-437e-b1de-4b4366cc64b3` |
 | 185 | 1 | `UPSC_MAINS_GS1` | 2 | Contributors/Contributions from Different Parts of the Country | — none | `70bb7085-7a04-4eba-b0e3-871d265bd5f9` |
 | 186 | 1 | `UPSC_MAINS_GS1` | 2 | Integration of Princely States | — none | `e7f6f14c-88bb-48c4-a561-e624f3ca76b1` |
