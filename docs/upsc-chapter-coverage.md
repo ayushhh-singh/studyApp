@@ -63,7 +63,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 30 | 37 | `UPSC_PRE_GS1` | 2 | Sustainable Development | published · chapter v1 | `034280e8-47a8-44e4-98bc-455060a2b3b5` |
 | 31 | 33 | `UPSC_MAINS_GS3` | 1 | Indian Economy, Planning and Investment | published · chapter v1 | `cab7e1de-abe2-460e-bea9-f1e0e1386ca6` |
 | 32 | 33 | `UPSC_PRE_GS1` | 2 | Environmental Ecology | published · chapter v1 | `6531ab4b-3707-4dff-af27-4dbe6f2880d6` |
-| 33 | 33 | `UPSC_PRE_GS1` | 2 | Indian National Movement | published · chapter v1 | `449d1034-2fe7-4a1f-9a0e-6dd8db47e686` |
+| 33 | 33 | `UPSC_PRE_GS1` | 2 | Indian National Movement | published · chapter v2 | `449d1034-2fe7-4a1f-9a0e-6dd8db47e686` |
 | 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | published · chapter v1 | `e18c8af8-b014-41e8-b683-0b55306f47df` |
 | 35 | 32 | `UPSC_MAINS_GS2` | 1 | Social Justice | published · chapter v1 | `e20280a3-87e3-41ac-b2d7-ac4ee5609f3e` |
 | 36 | 32 | `UPSC_PRE_GS1` | 2 | Medieval India | published · chapter v1 | `b1ebdbcd-71fe-4e53-a5a6-f6729f9cf7d0` |
