@@ -36,7 +36,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 3 | 258 | `UPSC_PRE_CSAT` | 1 | Logical Reasoning and Analytical Ability | published · chapter v1 | `bac0e217-1cfe-4f8d-8c7e-1db4e3f570c6` |
 | 4 | 246 | `UPSC_PRE_CSAT` | 1 | Comprehension | published · chapter v1 | `e61f39da-fcbb-4672-a9fd-ede60695a730` |
 | 5 | 203 | `UPSC_PRE_GS1` | 1 | Indian Polity and Governance | published · chapter v1 | `8fd021cb-5d14-42b1-b6fa-36a071fd49d6` |
-| 6 | 185 | `UPSC_PRE_GS1` | 1 | Economic and Social Development | published · chapter v2 | `16357fb4-037f-4fc9-b0e6-d8b2e94ef8fb` |
+| 6 | 185 | `UPSC_PRE_GS1` | 1 | Economic and Social Development | published · chapter v3 | `16357fb4-037f-4fc9-b0e6-d8b2e94ef8fb` |
 | 7 | 175 | `UPSC_PRE_GS1` | 1 | History of India and Indian National Movement | published · chapter v2 | `fc3c0ede-399f-4153-9036-48d2b557ce42` |
 | 8 | 154 | `UPSC_PRE_CSAT` | 2 | Logical Reasoning | published · chapter v1 | `33fb1f9c-b3c1-489f-9c69-c3bcda923b56` |
 | 9 | 144 | `UPSC_PRE_GS1` | 1 | General Science | published · chapter v1 | `699d0aad-59ed-4beb-9c36-e66ae244a2f5` |
@@ -128,7 +128,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 95 | 9 | `UPSC_MAINS_GS3` | 2 | Growth, Development and Employment | — none | `c44de8cc-2308-4e78-9e4b-4a82f0b07827` |
 | 96 | 9 | `UPSC_MAINS_GS4` | 2 | Moral Thinkers and Philosophers from India | — none | `57203153-5897-470a-945d-2bdde10ead62` |
 | 97 | 8 | `UPSC_MAINS_GS1` | 2 | Climate and Atmospheric Processes | — none | `e659dfbd-6d75-4b32-b74f-78625132fda2` |
-| 98 | 8 | `UPSC_MAINS_GS1` | 1 | History of the World | published · chapter v2 | `3e0a87a1-5121-4a5f-9a0a-0094d0c9e0c6` |
+| 98 | 8 | `UPSC_MAINS_GS1` | 1 | History of the World | published · chapter v3 | `3e0a87a1-5121-4a5f-9a0a-0094d0c9e0c6` |
 | 99 | 8 | `UPSC_MAINS_GS1` | 2 | Population, Poverty and Developmental Issues | — none | `e63b0a55-ea7e-4958-936f-5315c9972da1` |
 | 100 | 8 | `UPSC_MAINS_GS1` | 2 | Salient Aspects of Indian Art Forms | — none | `1f2d51cf-2965-4a76-8297-a66e58e78b1b` |
 | 101 | 8 | `UPSC_MAINS_GS2` | 2 | Issues Relating to Poverty and Hunger | — none | `0080d33c-cde2-4264-8c77-f27a9e1a4398` |

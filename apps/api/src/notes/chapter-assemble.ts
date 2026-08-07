@@ -77,6 +77,84 @@ export interface ForeignPyqRef {
 }
 
 /** Thrown by `assembleChapter` when a chapter references another exam's questions. */
+/**
+ * A `[S#]` citation in body/box text that does not resolve against `sources[]`.
+ *
+ * ⚑ WHY THIS IS A HARD REFUSAL AND NOT A WARNING. The reader
+ * (`apps/web/src/components/ui-x/chapter-markdown.tsx`) splits on the literal
+ * pattern `/\[S\d+\]/` — UPPERCASE ONLY — and then resolves with STRICT
+ * equality, `sources.find((s) => s.id === id)`. So there are two silent
+ * failure modes, and neither errors anywhere:
+ *   - a marker written `[s12]` is not recognised as a citation at all and
+ *     renders as literal text;
+ *   - a marker `[S12]` against a source stored as `s12` fails the `===` and
+ *     degrades to a plain superscript with no link — indistinguishable, to the
+ *     reader, from a source deliberately grounded in our own bank.
+ * Both are the "advertises something it does not deliver" class this codebase
+ * keeps having to repair after the fact.
+ *
+ * This was a real, live defect: History of the World shipped with 30 uppercase
+ * markers against lowercase `s1..s49` source ids, so every citation in its two
+ * new sections was dead. It was caught only by an after-the-fact audit, hence
+ * this gate. `uppsc` (1195 markers over 50 chapters) and `upsc` (454 over 19)
+ * both resolve 100% as of 2026-08-07, so this refusal cannot reject any
+ * existing content — it only stops the next one.
+ *
+ * ⚑ THE REFUSAL IS SCOPED TO UNRESOLVED MARKERS ONLY — deliberately. A first
+ * cut of this gate ALSO rejected any source id not matching `S<n>`, on the
+ * theory that a lowercase id is a latent trap. Measured against the live bank,
+ * that would have refused 16 already-published chapters on their next
+ * re-assemble (3 `uppsc`, 13 `upsc`) for two entirely legitimate shapes:
+ *   - `S11b` / `S7b` / `S2b` — a deliberate sub-source convention; and
+ *   - chapters whose ids are lowercase `s1..s4` but which contain NO `[S#]`
+ *     marker at all, so nothing is broken and nothing renders wrong.
+ * Blocking a future supersede of a healthy chapter is a worse defect than the
+ * latent risk it guards. Non-canonical ids are therefore a WARNING (and only
+ * when the chapter actually carries markers, where the mismatch could bite),
+ * never a refusal. Verified: with marker-resolution as the sole refusal
+ * criterion, all 284 published `uppsc` and 78 `upsc` chapters pass.
+ */
+export class UnresolvedCitationError extends Error {
+  constructor(
+    readonly nodeId: string,
+    readonly badMarkers: string[],
+  ) {
+    super(
+      `chapter ${nodeId} REFUSED: unresolved [S#] citation marker(s) ${badMarkers.join(", ")} ` +
+        `with no matching sources[] entry. The reader matches /\\[S\\d+\\]/ and resolves with ` +
+        `strict === , so these would render as dead superscripts with no link.`,
+    );
+    this.name = "UnresolvedCitationError";
+  }
+}
+
+/**
+ * Strict citation check, mirroring exactly what the reader does at render time.
+ * `badMarkers` is a refusal; `nonCanonicalIds` is advisory only, and is reported
+ * only when the chapter carries at least one marker (see UnresolvedCitationError).
+ */
+export function findCitationProblems(input: ChapterAssembleInput): {
+  badMarkers: string[];
+  nonCanonicalIds: string[];
+} {
+  const known = new Set(input.sources.map((s) => s.id));
+  const bad = new Set<string>();
+  let markerCount = 0;
+  for (const s of input.sections) {
+    for (const lang of ["en", "hi"] as const) {
+      const text = `${s.body_md_i18n[lang] ?? ""} ${s.boxes.map((b) => b.content_i18n[lang] ?? "").join(" ")}`;
+      for (const m of text.matchAll(/\[S\d+\]/g)) {
+        markerCount++;
+        const id = m[0].slice(1, -1);
+        if (!known.has(id)) bad.add(id);
+      }
+    }
+  }
+  const nonCanonicalIds =
+    markerCount > 0 ? input.sources.map((s) => s.id).filter((id) => !/^S\d+$/.test(id)) : [];
+  return { badMarkers: [...bad], nonCanonicalIds };
+}
+
 export class ForeignPyqIdsError extends Error {
   constructor(
     readonly nodeId: string,
@@ -214,6 +292,16 @@ export async function assembleChapter(
   input: ChapterAssembleInput,
   log: (m: string) => void = () => {},
 ): Promise<AssembleChapterResult> {
+  // Citation check first: it is pure (no DB round trip) and refusing here costs
+  // nothing. See UnresolvedCitationError for why a dead citation is a refusal.
+  const cite = findCitationProblems(input);
+  if (cite.badMarkers.length > 0) throw new UnresolvedCitationError(input.node_id, cite.badMarkers);
+  if (cite.nonCanonicalIds.length > 0) {
+    log(
+      `  (warn) non-canonical source id(s) alongside live [S#] markers: ${cite.nonCanonicalIds.join(", ")} — ` +
+        `the reader only matches uppercase S<n>, so a future hand-written citation to these would not resolve`,
+    );
+  }
   const { missing, foreign, examCode } = await validatePyqIds(input);
   // Refuse BEFORE any write, so a rejected chapter leaves no partial row behind.
   if (foreign.length > 0) throw new ForeignPyqIdsError(input.node_id, examCode, foreign);
