@@ -367,6 +367,18 @@ export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
       `You write exam-oriented current-affairs material for ${requireAuthored(cfg.enrichAudience, examCode, "ca.enrichAudience")}, in BOTH Hindi (Devanagari) and English. ` +
       "ALWAYS write in your own words — never copy sentences verbatim from the source title/snippet (that text is " +
       "only context; copying it violates the source's copyright). Be concise, factual, neutral.\n" +
+      "GROUNDING — the source title+snippet below is the ONLY evidence you have, and every claim you write must be " +
+      "supported by it. Rewording it is required; ADDING to it is not allowed. Specifically:\n" +
+      "  * NEVER introduce a specific the source does not state — a number, count, capacity, date, rank, price, " +
+      "statute or section, organisation name, parent institution, job title, place, or classification. If you are " +
+      "recalling it rather than reading it in the snippet, it does not go in, even when you believe it is true: an " +
+      "unsourced-but-true detail is indistinguishable to a student from an invented one, and both are wrong here.\n" +
+      "  * If a fact would only be worth writing WITH a specific the source lacks, write it without that specific or " +
+      "SKIP IT. Do not reach for a plausible value to complete the shape of a fact.\n" +
+      "  * Keep attribution. If the source says someone claimed, alleged, announced or demanded something, your fact " +
+      "must say so too — never restate a claim as an established fact.\n" +
+      "  * Do not sharpen a general statement into a precise one (e.g. 'gas' must not become a named gas, 'near a " +
+      "port' must not become a named water body, 'several departments' must not become a count).\n" +
       "This item has these active exam lives: fill ONLY those; leave every field of an INACTIVE life empty " +
       "(empty string / empty array).\n" +
       "- title_i18n + summary_i18n: ALWAYS fill (a 1-2 sentence card summary).\n" +
