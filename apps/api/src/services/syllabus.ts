@@ -400,7 +400,7 @@ export async function getNodeDetail(
 ): Promise<SyllabusNodeDetail> {
   const { data: node, error } = await supabase()
     .from("syllabus_nodes")
-    .select("id, exam_stage, paper_code, title_i18n, description_i18n, path")
+    .select("id, exam_stage, paper_code, title_i18n, description_i18n, path, covered_by_node_id")
     .eq("id", nodeId)
     .maybeSingle();
   if (error) throw new HttpError(500, `syllabus node lookup failed: ${error.message}`);
@@ -427,7 +427,7 @@ export async function getNodeDetail(
 
   // None of these depend on each other — only on nodeId/node.paper_code/
   // node.path (already in hand) and userId — so run them concurrently.
-  const [ancestorResult, pyqCountResult, graded, weightageMap, relatedCaResult] = await Promise.all([
+  const [ancestorResult, pyqCountResult, graded, weightageMap, relatedCaResult, coveredByResult] = await Promise.all([
     supabase()
       .from("syllabus_nodes")
       .select("id, title_i18n, path, depth")
@@ -445,11 +445,24 @@ export async function getNodeDetail(
       .overlaps("syllabus_node_ids", subtreeIds)
       .order("date", { ascending: false })
       .limit(10),
+    // Findability for a redundant-but-real node (0115): this node has no
+    // chapter of its own, but a sibling's chapter already teaches it. Only
+    // fires when the pointer is set — most nodes have none.
+    node.covered_by_node_id
+      ? supabase()
+          .from("syllabus_nodes")
+          .select("id, paper_code, title_i18n")
+          .eq("id", node.covered_by_node_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
   ]);
   if (ancestorResult.error) throw new HttpError(500, `breadcrumb lookup failed: ${ancestorResult.error.message}`);
   if (pyqCountResult.error) throw new HttpError(500, `node question count failed: ${pyqCountResult.error.message}`);
   if (relatedCaResult.error) {
     throw new HttpError(500, `related current affairs lookup failed: ${relatedCaResult.error.message}`);
+  }
+  if (coveredByResult.error) {
+    throw new HttpError(500, `covered-by node lookup failed: ${coveredByResult.error.message}`);
   }
 
   const breadcrumb = (
@@ -484,6 +497,8 @@ export async function getNodeDetail(
   const nodeWeightage: NodeWeightage | null =
     subtreeTotal > 0 ? toNodeWeightage(mergedByYear, cy, subtreeTotal, hotnessRaw(mergedByYear, cy)) : null;
 
+  const coveredByRow = coveredByResult.data as { id: string; paper_code: string; title_i18n: BilingualText } | null;
+
   return {
     id: node.id,
     exam_stage: node.exam_stage as ExamStage,
@@ -496,6 +511,9 @@ export async function getNodeDetail(
     answered_count: total,
     weightage: nodeWeightage,
     related_current_affairs: (relatedCa ?? []) as unknown as SyllabusNodeDetail["related_current_affairs"],
+    covered_by: coveredByRow
+      ? { node_id: coveredByRow.id, paper_code: coveredByRow.paper_code, title_i18n: coveredByRow.title_i18n }
+      : null,
   };
 }
 

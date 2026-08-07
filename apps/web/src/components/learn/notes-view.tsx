@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router";
-import { BookmarkPlus, BookOpen, Check, GraduationCap, Layers, ListTree, Lock, Zap } from "lucide-react";
-import type { Locale, NoteBody } from "@neev/shared";
+import { Link, useSearchParams } from "react-router";
+import { ArrowRight, BookmarkPlus, BookOpen, Check, GraduationCap, Layers, ListTree, Lock, Zap } from "lucide-react";
+import type { CoveredByNode, Locale, NoteBody } from "@neev/shared";
 import { hasChapter } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
@@ -68,7 +68,18 @@ const TAB_COPY = {
   hi: { study: "अध्ययन", quick: "त्वरित रिवीजन" },
 } as const;
 
-export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paperCode: string; locale: Locale }) {
+export function NotesView({
+  nodeId,
+  paperCode,
+  locale,
+  coveredBy,
+}: {
+  nodeId: string;
+  paperCode: string;
+  locale: Locale;
+  /** Set when this node has no chapter of its own but a sibling's chapter already teaches it (0115). */
+  coveredBy?: CoveredByNode | null;
+}) {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { data: note, isLoading, isError } = useNoteForNode(nodeId);
@@ -111,6 +122,25 @@ export function NotesView({ nodeId, paperCode, locale }: { nodeId: string; paper
   }
 
   if (isError || !note || !body) {
+    // This node has no chapter of its own, but a sibling's chapter already
+    // teaches it (0115) — link there instead of a bare "check back soon" dead
+    // end. Only for a genuine "no note" response, never an actual fetch error.
+    if (!isError && coveredBy) {
+      return (
+        <EmptyState
+          icon={BookOpen}
+          title={t("Notes.coveredByTitle")}
+          description={t("Notes.coveredByDescription", { chapterTitle: pick(locale, coveredBy.title_i18n) })}
+          action={
+            <Button asChild size="sm">
+              <Link to={`/${locale}/learn/${coveredBy.paper_code}/${coveredBy.node_id}`}>
+                {t("Notes.coveredByAction")} <ArrowRight className="size-4" aria-hidden />
+              </Link>
+            </Button>
+          }
+        />
+      );
+    }
     return (
       <EmptyState
         icon={BookOpen}

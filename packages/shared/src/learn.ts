@@ -89,6 +89,20 @@ export const syllabusBreadcrumbItemSchema = z.object({
 });
 export type SyllabusBreadcrumbItem = z.infer<typeof syllabusBreadcrumbItemSchema>;
 
+/**
+ * Set only when this node has no chapter of its own but a sibling's chapter
+ * already teaches its content (see supabase/migrations/0115_syllabus_covered_by.sql
+ * and docs/upsc-chapter-panel-verdict.md Part 3). `null` for every node that
+ * has, or will get, its own chapter — including every `uppsc` node today,
+ * whose rollout is chaptered 1:1.
+ */
+export const coveredByNodeSchema = z.object({
+  node_id: z.string().uuid(),
+  paper_code: z.string(),
+  title_i18n: bilingualTextSchema,
+});
+export type CoveredByNode = z.infer<typeof coveredByNodeSchema>;
+
 export const syllabusNodeDetailSchema = z.object({
   id: z.string().uuid(),
   exam_stage: examStageSchema,
@@ -101,6 +115,7 @@ export const syllabusNodeDetailSchema = z.object({
   answered_count: z.number().int(),
   weightage: nodeWeightageSchema.nullable(),
   related_current_affairs: z.array(currentAffairsItemSchema),
+  covered_by: coveredByNodeSchema.nullable(),
 });
 export type SyllabusNodeDetail = z.infer<typeof syllabusNodeDetailSchema>;
 

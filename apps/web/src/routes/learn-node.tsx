@@ -217,7 +217,7 @@ export function Component() {
         <TabsContent value="notes">
           <SectionCard>
             <UserNotesGroup nodeId={nodeId} />
-            <NotesView nodeId={nodeId} paperCode={paperCode} locale={locale} />
+            <NotesView nodeId={nodeId} paperCode={paperCode} locale={locale} coveredBy={node.covered_by} />
           </SectionCard>
         </TabsContent>
 
