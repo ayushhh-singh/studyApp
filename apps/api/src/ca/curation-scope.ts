@@ -51,6 +51,21 @@
  * The rule is deliberately STRICTER than necessary in one direction: it never
  * over-attributes. Over-attribution is the entire defect; under-attribution
  * costs at most a re-triage.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚑ AN ARCHIVED ROW'S `exam_codes` AND ITS MAP CAN LEGITIMATELY DISAGREE
+ * ---------------------------------------------------------------------------
+ * Do not re-flag this: measured 2026-08-08, 10 rows carry `exam_codes {uppsc}`
+ * while `gs_papers_by_exam` names only `upsc`. That is `mergeExamTriages`'
+ * documented archive path, not a defect — when NO exam clears the gate there is
+ * no relevant exam to stamp, so `itemExamCodes` falls back down its ladder to
+ * `DEFAULT_EXAM_CODE` as a placeholder, while the map faithfully records which
+ * exam actually triaged the item. **All 10 are `status='archived'`, and every
+ * read on every surface filters `status='published'`, so none is reachable.**
+ * Verified anyway: they resolve to `[]` and `false` for every exam, so even if
+ * one were published it could not inherit. The invariant worth asserting is the
+ * one that holds — every PUBLISHED row has a map entry for each of its
+ * `exam_codes` (42/42 at the time of writing).
  */
 import { DEFAULT_EXAM_CODE, type CurrentAffairsGsPaper } from "@neev/shared";
 import { stateLensFor } from "../lib/exam-config.js";

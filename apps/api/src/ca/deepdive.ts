@@ -21,6 +21,7 @@ import { MODELS, estimateCostUsd } from "../lib/models.js";
 import { BATCH_DISCOUNT, runBatch, structuredParams, type BatchRequest, type LlmUsage } from "../lib/anthropic.js";
 import { retrieveGrounding } from "../services/evaluation/grounding.js";
 import { examCodeForNode } from "../lib/exams.js";
+import { CA_CURATION_SCOPE_COLUMNS, gsPapersForExam, type CaCurationScopeRow } from "./curation-scope.js";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { loadNodeWeightage } from "../lib/weightage.js";
 import { monthBounds } from "../lib/month.js";
@@ -45,12 +46,11 @@ const bilingualList = {
   required: ["hi", "en"],
 };
 
-interface MainsItemRow {
+interface MainsItemRow extends CaCurationScopeRow {
   id: string;
   date: string;
   title_i18n: { hi: string; en: string };
   mains_relevance: number;
-  gs_papers: CurrentAffairsGsPaper[];
   syllabus_node_ids: string[];
   mains_brief: CurrentAffairsMainsBrief;
 }
@@ -61,7 +61,10 @@ async function loadMainsItems(month: string): Promise<MainsItemRow[]> {
   return (await selectAll<unknown>(() =>
     supabase()
       .from("current_affairs_items")
-      .select("id, date, title_i18n, mains_relevance, gs_papers, syllabus_node_ids, mains_brief")
+      // M20b: the curation scope columns, not the bare `gs_papers` — the paper
+      // set stamped on a deep dive must be the verdict of the exam the dive is
+      // WRITTEN FOR, resolved below, never the shared row's cross-exam union.
+      .select(`id, date, title_i18n, mains_relevance, syllabus_node_ids, mains_brief, ${CA_CURATION_SCOPE_COLUMNS}`)
       .eq("status", "published")
       .gte("mains_relevance", RELEVANCE_GATE)
       .not("mains_brief", "is", null)
@@ -337,7 +340,9 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
       log(`deep dive ${i + 1}/${requests.length} FAILED: unparseable JSON`);
       continue;
     }
-    const { issue, sources } = requests[i];
+    // NB: `r` above is the batch RESULT; the request (and its resolved exam)
+    // is `requests[i]`. Two different `r`s live in this function.
+    const { issue, sources, examCode: diveExamCode } = requests[i];
     const { error: insError } = await supabase().from("magazine_deep_dives").insert({
       month,
       rank: i + 1,
@@ -350,7 +355,14 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
       way_forward_i18n: parsed.way_forward_i18n,
       keywords_i18n: parsed.keywords_i18n,
       case_examples_i18n: parsed.case_examples_i18n,
-      gs_papers: issue.item.gs_papers,
+      // ⚑ M20b — RESOLVED for the exam this dive is written for (`diveExamCode`,
+      // derived from the issue's primary syllabus node above), never the shared
+      // row's cross-exam UNION. `magazine_deep_dives.gs_papers` is rendered as
+      // paper chips by the review panel and the Mains edition, so the union
+      // would tag a UPSC dive with UPPSC's papers — including, for a dive whose
+      // source item uppsc had flagged, the state-only GS5_UP/GS6_UP labels that
+      // UPSC does not set at all.
+      gs_papers: [...gsPapersForExam(issue.item, diveExamCode)],
       syllabus_node_ids: issue.item.syllabus_node_ids,
       source_item_ids: sources.map((s) => s.id),
       sources,

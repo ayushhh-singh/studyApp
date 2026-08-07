@@ -121,6 +121,15 @@ type ForbiddenStripColumn =
   | "category"
   | "gs_papers"
   | "is_up_specific"
+  // M20b (0116) — the per-exam companions to the two above. Listed for the same
+  // structural reason: this tool removes FOREIGN-exam node ids from a shared
+  // row, it does not re-triage, so it has no verdict to write for any exam. It
+  // deliberately does NOT prune an exam's entry from `gs_papers_by_exam` either
+  // — that entry records what that exam's triage actually said, which stays
+  // true whether or not its nodes were just stripped, and inventing a removal
+  // here would be the same over-reach the forbidden list exists to prevent.
+  | "gs_papers_by_exam"
+  | "state_focus"
   | "prelims_relevance"
   | "mains_relevance"
   | "title_i18n"

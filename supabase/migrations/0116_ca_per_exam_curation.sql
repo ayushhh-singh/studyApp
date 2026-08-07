@@ -93,22 +93,47 @@ comment on column public.current_affairs_items.state_focus is
   'A national exam has no state lens and therefore never matches, whatever this column says.';
 
 -- ---------------------------------------------------------------------------
--- Assert the "touches nothing" property rather than claiming it. Both columns
--- must be NULL on EVERY pre-existing row — if either is populated anywhere, this
--- file has been edited to backfill and the guarantee above no longer holds.
+-- Assert the "touches nothing" property rather than claiming it.
+--
+-- ⚑ THE ASSERTION IS ON THE SCHEMA, NOT ON THE DATA, AND THAT IS DELIBERATE.
+-- The first version of this block counted rows and demanded ZERO non-null ones.
+-- That was correct exactly once — at first apply — and made the file
+-- NON-REPLAYABLE from the moment the pipeline wrote its first row (verified:
+-- re-running it against the live DB failed with "74 row(s) are non-null"), which
+-- breaks the standard docs/OUTSTANDING.md M14 sets for every migration here.
+--
+-- What actually guarantees "no existing row was touched or reshaped" is that
+-- both columns are NULLABLE and carry NO DEFAULT: a `not null default '{}'`
+-- would have given every pre-existing row a value and destroyed the NULL
+-- sentinel the read path depends on, whereas a nullable, defaultless ADD COLUMN
+-- cannot change what any existing row means. That property is a fact about the
+-- schema, so it is true on the first apply AND on every replay.
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  touched bigint;
+  bad text;
 begin
-  select count(*) into touched
-  from public.current_affairs_items
-  where gs_papers_by_exam is not null or state_focus is not null;
+  select string_agg(
+           format('%s (nullable=%s, default=%s)', column_name, is_nullable, coalesce(column_default, 'none')),
+           '; ')
+    into bad
+  from information_schema.columns
+  where table_schema = 'public'
+    and table_name   = 'current_affairs_items'
+    and column_name in ('gs_papers_by_exam', 'state_focus')
+    and (is_nullable <> 'YES' or column_default is not null);
 
-  if touched <> 0 then
+  if bad is not null then
     raise exception
-      '0116 must not populate any existing row, but % row(s) are non-null. This migration is '
-      'additive-only by design: the legacy gs_papers / is_up_specific columns stay authoritative '
-      'for pre-0116 rows and NULL is what marks them as such.', touched;
+      '0116: % — both columns MUST stay nullable with no default. NULL is the sentinel meaning '
+      '"written before 0116, fall back to the legacy gs_papers / is_up_specific column for the '
+      'default exam only" (see apps/api/src/ca/curation-scope.ts). A default would make every '
+      'pre-0116 row read as a genuine "no paper / no state focus" and silently blank its curation.', bad;
+  end if;
+
+  if (select count(*) from information_schema.columns
+      where table_schema = 'public' and table_name = 'current_affairs_items'
+        and column_name in ('gs_papers_by_exam', 'state_focus')) <> 2 then
+    raise exception '0116: expected both gs_papers_by_exam and state_focus to exist after this migration';
   end if;
 end $$;
