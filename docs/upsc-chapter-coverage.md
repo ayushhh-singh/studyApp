@@ -83,7 +83,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 50 | 22 | `UPSC_MAINS_GS1` | 1 | Geophysical Phenomena and Geographical Features | published · chapter v1 | `741d1f11-8743-4fc8-bd70-b86c768b0a3d` |
 | 51 | 22 | `UPSC_MAINS_GS4` | 1 | Probity in Governance | published · chapter v1 | `52867960-8b6b-4d49-809d-320f47ac1bce` |
 | 52 | 22 | `UPSC_PRE_CSAT` | 2 | Problem Solving | — none | `f8c0a15c-477f-4c77-bf41-e7670fdf8ec1` |
-| 53 | 20 | `UPSC_MAINS_GS1` | 1 | Indian Heritage and Culture | published · chapter v1 | `c96118de-c365-4002-9301-d8cf3555f4ce` |
+| 53 | 20 | `UPSC_MAINS_GS1` | 1 | Indian Heritage and Culture | published · chapter v2 | `c96118de-c365-4002-9301-d8cf3555f4ce` |
 | 54 | 20 | `UPSC_MAINS_GS3` | 1 | Industry, Food Processing and Infrastructure | published · chapter v1 | `a0d6f7fb-39ca-434e-922f-209f487324fb` |
 | 55 | 20 | `UPSC_PRE_GS1` | 2 | Chemistry | published · chapter v1 | `210eca09-b59f-45fe-bc0d-e1972eb078f5` |
 | 56 | 20 | `UPSC_PRE_GS1` | 2 | Rights Issues | — none | `425aad5a-e56b-44c3-9f12-6bba1e16e392` |

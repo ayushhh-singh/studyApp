@@ -40,10 +40,17 @@
  * a section body. The chapter advertises coverage it does not contain.
  *
  * So `--stage scope` reports, per term, whether it appears in written prose
- * (`sections[].body_md_i18n`) versus only in metadata. A term that is
- * METADATA-ONLY is the signature of a truncated chapter and is reported as a
- * FAIL. Judgement about which terms a node requires stays with the operator —
- * this stage makes the evidence mechanical, not the decision.
+ * versus only in metadata. A term that is METADATA-ONLY is the signature of a
+ * truncated chapter and is reported as a FAIL. Judgement about which terms a
+ * node requires stays with the operator — this stage makes the evidence
+ * mechanical, not the decision.
+ *
+ * PROSE here means everything the reader actually reads: section HEADINGS,
+ * `body_md_i18n`, `boxes[].content_i18n`, and a `table`-kind diagram's
+ * `source_i18n` (which is a markdown table the reader renders). A `mermaid`
+ * diagram is reported as DIAGRAM-ONLY instead — a node label summarises
+ * something taught elsewhere rather than teaching it, so the operator judges.
+ * See the fourth failure mode below for why boxes and tables had to be added.
  *
  * ⚑ AND IT IS STILL NOT SUFFICIENT ON ITS OWN. A third variant slipped past
  * this very stage: the `Logical Reasoning` chapter reported SCOPE: PASS for
@@ -143,6 +150,15 @@ if (nodes.length === 0) throw new Error("--nodes <id,id,…> is required");
 
 const sb = supabase();
 
+/** The subset of a chapter section this stage reads. */
+interface ChapterSectionish {
+  id: string;
+  heading_i18n?: Record<string, string>;
+  body_md_i18n?: Record<string, string>;
+  boxes?: { content_i18n?: Record<string, string> }[];
+  diagram?: { kind: string; source_i18n?: Record<string, string> } | null;
+}
+
 interface NoteRow {
   id: string;
   status: string;
@@ -150,9 +166,7 @@ interface NoteRow {
   fact_audit: {
     facts?: { id: string; section_id: string; claim: string; status: string; evidence: string; resolved: boolean }[];
   } | null;
-  study_content_i18n: {
-    sections?: { id: string; heading_i18n?: Record<string, string>; body_md_i18n?: Record<string, string> }[];
-  } | null;
+  study_content_i18n: { sections?: ChapterSectionish[] } | null;
   content_i18n: Record<string, { overview?: string; quick_revision?: string[] }> | null;
   sources: unknown[] | null;
   meta: Record<string, unknown> | null;
@@ -240,8 +254,34 @@ for (const nodeId of nodes) {
     // FAIL on a chapter that genuinely covers the topic. Including headings
     // does NOT weaken the original catch: when that same chapter really was
     // truncated, "Quit India" appeared in no heading and no body either.
-    const prose = JSON.stringify(
-      sections.map((s: { heading_i18n?: unknown; body_md_i18n?: unknown }) => [s.heading_i18n ?? {}, s.body_md_i18n ?? {}]),
+    // ⚑ A FOURTH FAILURE MODE, and it is in THIS TOOL, not the operator or the
+    // chapter: PROSE originally meant headings + bodies ONLY. But a chapter also
+    // teaches in `boxes[].content_i18n` and in a `table`-kind diagram, whose
+    // `source_i18n` IS a markdown table the reader renders. Both were invisible
+    // here, so a genuinely-taught topic came back METADATA-ONLY — a FALSE FAIL,
+    // which is the dangerous direction: it invites someone to "fix" a chapter by
+    // duplicating content it already has, i.e. the exact overlap defect this
+    // pipeline keeps having to repair.
+    //
+    // Caught live on Indian Heritage: Yakshagana / Nautanki / Tamasha reported
+    // METADATA-ONLY while being taught in a Form|Region|What-distinguishes-it
+    // table, with the Hindi variant carrying the Devanagari names too. The blast
+    // radius was bank-wide — ALL 362 published chapters have boxes and 151 use a
+    // table diagram, so every scope run in this rollout was under-reading.
+    //
+    // A `mermaid` diagram is deliberately EXCLUDED from prose: a node label is a
+    // summary of something taught elsewhere, not teaching. It is reported on its
+    // own line instead, so the operator can see it and judge — the same
+    // "mechanical evidence, human decision" split as the rest of this stage.
+    const proseOf = (s: ChapterSectionish) => [
+      s.heading_i18n ?? {},
+      s.body_md_i18n ?? {},
+      (s.boxes ?? []).map((b) => b.content_i18n ?? {}),
+      s.diagram?.kind === "table" ? s.diagram.source_i18n ?? {} : {},
+    ];
+    const prose = JSON.stringify(sections.map(proseOf)).toLowerCase();
+    const mermaidOnly = JSON.stringify(
+      sections.map((s: ChapterSectionish) => (s.diagram?.kind === "mermaid" ? s.diagram.source_i18n ?? {} : {})),
     ).toLowerCase();
     const everything = JSON.stringify(whole).toLowerCase();
     console.log(`\n=== ${nodeId} — ${sections.length} section(s)`);
@@ -261,9 +301,12 @@ for (const nodeId of nodes) {
     for (const t of terms) {
       const inProse = prose.includes(t);
       const anywhere = everything.includes(t);
+      const inMermaid = mermaidOnly.includes(t);
       // METADATA-ONLY is the truncation signature: the chapter promises the
       // topic in its overview/fact-audit but never actually writes it.
-      const verdict = inProse ? "ok" : anywhere ? "METADATA-ONLY ⚑" : "ABSENT ⚑";
+      // DIAGRAM-ONLY is weaker evidence than prose but is NOT metadata — the
+      // operator decides whether a mermaid node label counts for this term.
+      const verdict = inProse ? "ok" : inMermaid ? "DIAGRAM-ONLY ⚑" : anywhere ? "METADATA-ONLY ⚑" : "ABSENT ⚑";
       if (!inProse) failed++;
       console.log(`   ${t.padEnd(30)} ${String(inProse).padEnd(8)} | ${anywhere}   ${verdict}`);
     }
