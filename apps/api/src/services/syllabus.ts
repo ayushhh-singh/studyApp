@@ -448,13 +448,23 @@ export async function getNodeDetail(
     // Findability for a redundant-but-real node (0115): this node has no
     // chapter of its own, but a sibling's chapter already teaches it. Only
     // fires when the pointer is set — most nodes have none.
+    //
+    // The pointer is a one-time backfill, not a live invariant (nothing
+    // clears it if the covering chapter is later unpublished/edited back to
+    // draft, and nothing clears it if THIS node grows its own chapter — the
+    // migration's own comment just asks a future rollout to remember). So
+    // both sides are checked live here rather than trusted from history:
+    // fetch both this node's own note AND the covering node's, in one round
+    // trip. If this node already has a real chapter, the pointer is stale —
+    // hide it (the caller has real content now, a redirect would be wrong).
+    // If the covering node's chapter is gone, the pointer would be a broken
+    // link — hide it rather than send a student to a dead end.
     node.covered_by_node_id
       ? supabase()
-          .from("syllabus_nodes")
-          .select("id, paper_code, title_i18n")
-          .eq("id", node.covered_by_node_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
+          .from("notes")
+          .select("syllabus_node_id, status, chapter_version, syllabus_nodes(id, paper_code, title_i18n)")
+          .in("syllabus_node_id", [node.id, node.covered_by_node_id])
+      : Promise.resolve({ data: [], error: null }),
   ]);
   if (ancestorResult.error) throw new HttpError(500, `breadcrumb lookup failed: ${ancestorResult.error.message}`);
   if (pyqCountResult.error) throw new HttpError(500, `node question count failed: ${pyqCountResult.error.message}`);
@@ -462,7 +472,7 @@ export async function getNodeDetail(
     throw new HttpError(500, `related current affairs lookup failed: ${relatedCaResult.error.message}`);
   }
   if (coveredByResult.error) {
-    throw new HttpError(500, `covered-by node lookup failed: ${coveredByResult.error.message}`);
+    throw new HttpError(500, `covered-by chapter check failed: ${coveredByResult.error.message}`);
   }
 
   const breadcrumb = (
@@ -497,7 +507,29 @@ export async function getNodeDetail(
   const nodeWeightage: NodeWeightage | null =
     subtreeTotal > 0 ? toNodeWeightage(mergedByYear, cy, subtreeTotal, hotnessRaw(mergedByYear, cy)) : null;
 
-  const coveredByRow = coveredByResult.data as { id: string; paper_code: string; title_i18n: BilingualText } | null;
+  const coveredByRows = (coveredByResult.data ?? []) as {
+    syllabus_node_id: string;
+    status: string;
+    chapter_version: number | null;
+    // PostgREST embeds a to-one join as an object OR a single-element array
+    // depending on how it infers the relationship — same defensive shape as
+    // getPaperSummaries above.
+    syllabus_nodes: { id: string; paper_code: string; title_i18n: BilingualText } | { id: string; paper_code: string; title_i18n: BilingualText }[] | null;
+  }[];
+  const isRealChapter = (r: { status: string; chapter_version: number | null }) =>
+    r.status === "published" && (r.chapter_version ?? 0) > 0;
+  // If this node already has its own real chapter, the pointer is stale —
+  // never redirect a student away from content that now genuinely exists here.
+  const hasOwnChapter = coveredByRows.some((r) => r.syllabus_node_id === node.id && isRealChapter(r));
+  const coveringRow = hasOwnChapter
+    ? undefined
+    : coveredByRows.find((r) => r.syllabus_node_id === node.covered_by_node_id && isRealChapter(r));
+  const coveredBy: SyllabusNodeDetail["covered_by"] = (() => {
+    if (!coveringRow) return null;
+    const sn = coveringRow.syllabus_nodes;
+    const row = Array.isArray(sn) ? sn[0] : sn;
+    return row ? { node_id: row.id, paper_code: row.paper_code, title_i18n: row.title_i18n } : null;
+  })();
 
   return {
     id: node.id,
@@ -511,9 +543,7 @@ export async function getNodeDetail(
     answered_count: total,
     weightage: nodeWeightage,
     related_current_affairs: (relatedCa ?? []) as unknown as SyllabusNodeDetail["related_current_affairs"],
-    covered_by: coveredByRow
-      ? { node_id: coveredByRow.id, paper_code: coveredByRow.paper_code, title_i18n: coveredByRow.title_i18n }
-      : null,
+    covered_by: coveredBy,
   };
 }
 
