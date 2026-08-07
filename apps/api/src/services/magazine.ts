@@ -26,7 +26,13 @@ import { monthBounds, monthLabel } from "../lib/month.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { examCodeForNode } from "../lib/exams.js";
-import { gsPapersFor, stateLensFor } from "../lib/exam-config.js";
+import { gsPapersFor } from "../lib/exam-config.js";
+import {
+  CA_CURATION_SCOPE_COLUMNS,
+  gsPapersForExam,
+  hasStateFocusForExam,
+  type CaCurationScopeRow,
+} from "../ca/curation-scope.js";
 import { loadNodeWeightage, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import {
   UP_SPECIAL_LIMIT,
@@ -88,33 +94,29 @@ const MODEL_QUESTIONS_LIMIT = 15;
 /** A non-UP item whose category is "up_special" (or outside the taxonomy) has no topic section to render in. */
 const RENDERABLE_TOPIC = new Set<CurrentAffairsCategory>(CATEGORY_ORDER.filter((c) => c !== "up_special"));
 
-const PRELIMS_SCORE_COLUMNS = "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids";
-const MAINS_SCORE_COLUMNS = "id, date, is_up_specific, gs_papers, mains_relevance, syllabus_node_ids";
+// ⚑ EVERY read below selects `CA_CURATION_SCOPE_COLUMNS` (M20b), not the flat
+// `is_up_specific` / `gs_papers` it used to. Those two columns are ONE
+// commission's verdict folded onto a row that is deliberately shared across
+// exams, so reading them directly renders the other exam's Mains placements
+// under this exam's paper headings. `ca/curation-scope.ts` resolves them; the
+// shared column-list constant means a read cannot select a partial set.
+const PRELIMS_SCORE_COLUMNS =
+  `id, date, category, prelims_relevance, syllabus_node_ids, ${CA_CURATION_SCOPE_COLUMNS}`;
+const MAINS_SCORE_COLUMNS =
+  `id, date, mains_relevance, syllabus_node_ids, ${CA_CURATION_SCOPE_COLUMNS}`;
 
-interface PrelimsScoreRow {
+interface PrelimsScoreRow extends CaCurationScopeRow {
   id: string;
   date: string;
   category: CurrentAffairsCategory | null;
-  is_up_specific: boolean;
   prelims_relevance: number | null;
   syllabus_node_ids: string[] | null;
 }
-interface MainsScoreRow {
+interface MainsScoreRow extends CaCurationScopeRow {
   id: string;
   date: string;
-  is_up_specific: boolean;
-  gs_papers: CurrentAffairsGsPaper[] | null;
   mains_relevance: number | null;
   syllabus_node_ids: string[] | null;
-}
-
-/**
- * Does THIS exam have a state lens at all? The one gate on every state-shaped
- * surface below — the lead section and the ranking boost. `examCode` is required
- * everywhere it is needed, so this is a total function on a read path.
- */
-function hasStateLens(examCode: string): boolean {
-  return stateLensFor(examCode) !== null;
 }
 
 function scorePrelims<T extends PrelimsScoreRow>(
@@ -128,12 +130,11 @@ function scorePrelims<T extends PrelimsScoreRow>(
     (i) => ({
       relevance: i.prelims_relevance ?? RELEVANCE_GATE,
       syllabus_node_ids: i.syllabus_node_ids ?? [],
-      is_up_specific: i.is_up_specific,
+      state_focus: hasStateFocusForExam(i, examCode),
       date: i.date,
     }),
     weightage,
     year,
-    hasStateLens(examCode),
   );
 }
 
@@ -148,12 +149,11 @@ function scoreMains<T extends MainsScoreRow>(
     (i) => ({
       relevance: i.mains_relevance ?? RELEVANCE_GATE,
       syllabus_node_ids: i.syllabus_node_ids ?? [],
-      is_up_specific: i.is_up_specific,
+      state_focus: hasStateFocusForExam(i, examCode),
       date: i.date,
     }),
     weightage,
     year,
-    hasStateLens(examCode),
   );
 }
 
@@ -161,13 +161,15 @@ function scoreMains<T extends MainsScoreRow>(
  * State lead + capped topic sections. The one selection both the Prelims edition
  * and its index count use.
  *
- * A NATIONALLY-SCOPED EXAM GETS NO LEAD SECTION AND LOSES NOTHING. `is_up_specific`
- * is a shared-row flag OR-ed across every exam that triaged the item (see
- * STATE_BOOST in magazine-curation.ts), so for such an exam it is not a signal —
- * it is another exam's. So the lead is empty AND the topic filter stops excluding
- * flagged rows: excluding them would silently drop a genuinely national story
- * from the edition entirely, just because uppsc also called it UP-specific. Under
- * a state lens the split is exactly as before (lead, then the rest).
+ * A NATIONALLY-SCOPED EXAM GETS NO LEAD SECTION AND LOSES NOTHING, and M20b is
+ * what makes that true of a SECOND STATE EXAM too. The lead now keys off
+ * `hasStateFocusForExam` — the reader's OWN state — rather than the flat
+ * `is_up_specific`, which is one commission's verdict OR-ed onto a shared row.
+ * A national exam still resolves to false unconditionally (so no lead section,
+ * and the topic filter stops excluding flagged rows — excluding them would
+ * silently drop a genuinely national story from the edition just because uppsc
+ * also called it UP-specific), and an MP aspirant no longer leads on UP stories.
+ * For uppsc the resolution is byte-identical to the old flag on every row.
  */
 function selectCuratedPrelims<T extends PrelimsScoreRow>(
   scored: Scored<T>[],
@@ -176,10 +178,10 @@ function selectCuratedPrelims<T extends PrelimsScoreRow>(
   upScored: Scored<T>[];
   topicMap: Map<CurrentAffairsCategory, Scored<T>[]>;
 } {
-  const stateLens = hasStateLens(examCode);
-  const upScored = stateLens ? scored.filter((s) => s.row.is_up_specific).slice(0, UP_SPECIAL_LIMIT) : [];
+  const inState = (s: Scored<T>) => hasStateFocusForExam(s.row, examCode);
+  const upScored = scored.filter(inState).slice(0, UP_SPECIAL_LIMIT);
   const nonUp = scored.filter(
-    (s) => (!stateLens || !s.row.is_up_specific) && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"),
+    (s) => !inState(s) && RENDERABLE_TOPIC.has(s.row.category ?? "polity_governance"),
   );
   const topicMap = curateTopicSections(
     nonUp,
@@ -190,14 +192,28 @@ function selectCuratedPrelims<T extends PrelimsScoreRow>(
   return { upScored, topicMap };
 }
 
-/** Top-N per GS paper, in THIS exam's paper order. The one selection both the Mains edition and its index count use. */
+/**
+ * Top-N per GS paper, in THIS exam's paper order. The one selection both the
+ * Mains edition and its index count use.
+ *
+ * ⚑ THIS IS WHERE M20b'S CROSS-EXAM INHERITANCE IS ACTUALLY STOPPED. The
+ * membership test reads THIS EXAM'S OWN placement (`gsPapersForExam`), never the
+ * flat `gs_papers` column — which is the cross-exam UNION and, because
+ * `GS1..GS4`/`ESSAY` is a shared namespace over syllabi that differ, means a
+ * different paper for a different commission. Measured on the live corpus
+ * (2026-08-08): the flat column carries 3,224 placements of which only 101 are
+ * state-labelled, so **3,123 would have been inherited wholesale** into a second
+ * exam's edition the moment one row carried two exam codes. `gsPapersFor` alone
+ * cannot prevent that — it constrains which HEADINGS render, not which items
+ * land under them.
+ */
 function selectCuratedMainsPerPaper<T extends MainsScoreRow>(
   scored: Scored<T>[],
   examCode: string,
 ): { paper: CurrentAffairsGsPaper; top: Scored<T>[] }[] {
   return gsPapersFor(examCode).map((paper) => ({
     paper,
-    top: scored.filter((s) => (s.row.gs_papers ?? []).includes(paper)).slice(0, GS_PER_PAPER_MAX),
+    top: scored.filter((s) => gsPapersForExam(s.row, examCode).includes(paper)).slice(0, GS_PER_PAPER_MAX),
   }));
 }
 
@@ -347,13 +363,7 @@ async function countPublishedDeepDives(month: string, examCode: string): Promise
 // Prelims Compendium
 // ---------------------------------------------------------------------------
 
-interface PrelimsItemRow {
-  id: string;
-  date: string;
-  category: CurrentAffairsCategory | null;
-  is_up_specific: boolean;
-  prelims_relevance: number | null;
-  syllabus_node_ids: string[] | null;
+interface PrelimsItemRow extends PrelimsScoreRow {
   title_i18n: { hi: string; en: string };
   summary_i18n: { hi: string; en: string } | null;
   possible_questions: CurrentAffairsPossibleQuestions | null;
@@ -427,9 +437,7 @@ export async function compilePrelimsEdition(month: string, examCode: string): Pr
     selectAll<PrelimsItemRow>(() =>
       supabase()
         .from("current_affairs_items")
-        .select(
-          "id, date, category, is_up_specific, prelims_relevance, syllabus_node_ids, title_i18n, summary_i18n, possible_questions, prelims_facts",
-        )
+        .select(`${PRELIMS_SCORE_COLUMNS}, title_i18n, summary_i18n, possible_questions, prelims_facts`)
         .eq("status", "published")
         .overlaps("exam_codes", [examCode])
         .gte("prelims_relevance", RELEVANCE_GATE)
@@ -492,17 +500,11 @@ export async function compilePrelimsEdition(month: string, examCode: string): Pr
 // Mains Analysis
 // ---------------------------------------------------------------------------
 
-interface MainsItemRow {
-  id: string;
-  date: string;
+interface MainsItemRow extends MainsScoreRow {
   category: CurrentAffairsCategory | null;
-  is_up_specific: boolean;
-  gs_papers: CurrentAffairsGsPaper[];
-  mains_relevance: number | null;
   title_i18n: { hi: string; en: string };
   mains_brief: CurrentAffairsMainsBrief;
   possible_questions: CurrentAffairsPossibleQuestions | null;
-  syllabus_node_ids: string[];
 }
 
 async function loadModelQuestions(month: string, examCode: string): Promise<MagazineModelQuestion[]> {
@@ -550,7 +552,7 @@ export async function compileMainsEdition(month: string, examCode: string): Prom
   const items = await selectAll<MainsItemRow>(() =>
     supabase()
       .from("current_affairs_items")
-      .select("id, date, category, is_up_specific, gs_papers, mains_relevance, title_i18n, mains_brief, possible_questions, syllabus_node_ids")
+      .select(`${MAINS_SCORE_COLUMNS}, category, title_i18n, mains_brief, possible_questions`)
       .eq("status", "published")
       .overlaps("exam_codes", [examCode])
       .gte("mains_relevance", RELEVANCE_GATE)
@@ -597,8 +599,14 @@ export async function compileMainsEdition(month: string, examCode: string): Prom
       title_i18n: item.title_i18n,
       date: item.date,
       category: item.category,
-      is_up_specific: item.is_up_specific,
-      gs_papers: item.gs_papers ?? [],
+      // Both RESOLVED for this reader (M20b), never the raw shared-row values:
+      // `gs_papers` here is this exam's own placement, so the brief's chips
+      // cannot advertise the other commission's papers, and `state_focus` is
+      // false for a national exam by construction — so the renderer needs no
+      // lens gate of its own (it used to carry one, as a workaround for exactly
+      // this).
+      state_focus: hasStateFocusForExam(item, examCode),
+      gs_papers: [...gsPapersForExam(item, examCode)],
       mains_relevance: item.mains_relevance,
       brief: item.mains_brief,
       possible_questions: item.possible_questions,

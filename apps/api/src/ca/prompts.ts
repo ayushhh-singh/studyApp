@@ -367,8 +367,12 @@ export function enrichParams(opts: EnrichParamsOpts): StructuredParams {
       `You write exam-oriented current-affairs material for ${requireAuthored(cfg.enrichAudience, examCode, "ca.enrichAudience")}, in BOTH Hindi (Devanagari) and English. ` +
       "ALWAYS write in your own words — never copy sentences verbatim from the source title/snippet (that text is " +
       "only context; copying it violates the source's copyright). Be concise, factual, neutral.\n" +
-      "GROUNDING — the source title+snippet below is the ONLY evidence you have, and every claim you write must be " +
-      "supported by it. Rewording it is required; ADDING to it is not allowed. Specifically:\n" +
+      "GROUNDING — the source title+snippet below is the ONLY evidence you have for WHAT HAPPENED, and every claim " +
+      "you make about this item must be supported by it. Rewording it is required; ADDING to it is not allowed. " +
+      "(This governs title/summary, every prelims fact, and mains_brief's why_in_news/background/significance/" +
+      "challenges/way_forward. It does NOT govern mains_brief's keywords_i18n and case_examples_i18n, which are " +
+      "deliberately value-addition material an answer cites — draw those from well-established general knowledge, " +
+      "and keep filling them.) Specifically:\n" +
       "  * NEVER introduce a specific the source does not state — a number, count, capacity, date, rank, price, " +
       "statute or section, organisation name, parent institution, job title, place, or classification. If you are " +
       "recalling it rather than reading it in the snippet, it does not go in, even when you believe it is true: an " +

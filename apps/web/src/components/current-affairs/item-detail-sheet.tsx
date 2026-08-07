@@ -162,7 +162,7 @@ export function CurrentAffairsDetailSheet({
                   mainsTitle: t("CurrentAffairs.mainsRelevanceTitle"),
                 }}
               />
-              {item.is_up_specific && (
+              {item.state_focus && (
                 <span className="rounded-full bg-tulsi/15 px-2 py-0.5 font-semibold text-tulsi-foreground">
                   {t("CurrentAffairs.upSpecific")}
                 </span>

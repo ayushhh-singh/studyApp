@@ -126,7 +126,14 @@ export const magazineIssueBriefSchema = z.object({
   title_i18n: bilingualTextSchema,
   date: z.string(),
   category: currentAffairsCategorySchema.nullable(),
-  is_up_specific: z.boolean(),
+  /**
+   * ⚑ RESOLVED FOR THE READING EXAM (M20b) — replaces `is_up_specific`. The
+   * server has already applied that exam's own state lens, so this is false for
+   * a nationally-scoped exam by construction and the renderer needs no gate of
+   * its own. See `apps/api/src/ca/curation-scope.ts`.
+   */
+  state_focus: z.boolean(),
+  /** RESOLVED for the reading exam (M20b) — this exam's OWN Mains placement, never the cross-exam union. */
   gs_papers: z.array(currentAffairsGsPaperSchema),
   mains_relevance: z.number().int().min(0).max(3).nullable(),
   brief: currentAffairsMainsBriefSchema,

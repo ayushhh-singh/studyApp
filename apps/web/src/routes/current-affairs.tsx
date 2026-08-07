@@ -21,11 +21,11 @@ export const handle = { titleKey: "Nav.currentAffairs" };
 
 /**
  * `up` is the STATE lens and is offered only to an exam that has one
- * (`exam.state_lens !== null`). It filters on `is_up_specific`, a flag on the
- * shared current-affairs row that is OR-ed across every exam which triaged the
- * item — so for a nationally-scoped exam the tab would be a filter built from
- * another commission's judgment. The server drops the filter for such an exam
- * too; this is the half that stops the tab existing at all.
+ * (`exam.state_lens !== null`). Server-side it now filters on `state_focus`
+ * — this exam's OWN state code (M20b) rather than the raw `is_up_specific`
+ * flag, which is whichever commission triaged the shared row. The server
+ * returns no such filter for a nationally-scoped exam; this is the half that
+ * stops the tab existing at all, so the user never sees an empty phantom tab.
  */
 const LENSES: CurrentAffairsLens[] = ["all", "prelims", "mains", "up"];
 const STATE_LENSES = new Set<CurrentAffairsLens>(["up"]);

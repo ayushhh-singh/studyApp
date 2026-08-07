@@ -44,9 +44,9 @@
  * `resolveItemFramingExam`, which makes that choice explicitly and reportably
  * instead of falling back to a default the item may not even be filed under.
  */
-import { DEFAULT_EXAM_CODE } from "@neev/shared";
+import { DEFAULT_EXAM_CODE, type CurrentAffairsGsPaper } from "@neev/shared";
 import type { StructuredParams } from "../lib/anthropic.js";
-import { getExamConfig } from "../lib/exam-config.js";
+import { getExamConfig, stateLensFor } from "../lib/exam-config.js";
 import { triageParams, type SyllabusCandidate, type TriageResult } from "./prompts.js";
 
 /**
@@ -87,6 +87,19 @@ export interface MergedTriage {
   /** The ONE exam whose framing the item-level prompts use. */
   framingExamCode: string;
   framingReason: FramingReason;
+  /**
+   * M20b — each triaging exam's OWN Mains placement, UNMERGED, keyed by exam
+   * code. This is the merge's two lossy folds (`gs_papers` UNION,
+   * `is_up_specific` OR) recorded losslessly ALONGSIDE them, not instead of
+   * them: `triage` keeps both legacy values byte-identically so the N=1
+   * invariant and every existing consumer are untouched.
+   *
+   * An exam that triaged the item and assigned no paper gets an explicit `[]`,
+   * which `gsPapersForExam` deliberately distinguishes from an absent key.
+   */
+  gsPapersByExam: Record<string, CurrentAffairsGsPaper[]>;
+  /** M20b — state codes any triaging STATE-scoped exam flagged. `[]` for a purely national item. */
+  stateFocus: string[];
 }
 
 const cleared = (t: TriageResult): boolean =>
@@ -146,12 +159,19 @@ export function resolveItemFramingExam(
  *  - reasons     → from whichever exam supplied that max (first, in exam order).
  *  - category    → the framing exam's. It is ONE fixed enum value; there is no
  *                  union that is still a legal value.
- *  - gs_papers   → union. It is already a set, and a nationally-scoped exam is
- *                  instructed never to emit the state-specific labels, so a
- *                  union cannot invent one. (Generalising `gs_papers` /
- *                  `is_up_specific` themselves is M20, deliberately deferred —
- *                  they are entangled with the magazine's section structure.)
- *  - is_up_spec. → OR. It is already an OR with the source hint upstream.
+ *  - gs_papers   → union, KEPT VERBATIM, and no longer the whole story. The
+ *                  union is lossy at N>1 in a way that is silently WRONG rather
+ *                  than merely coarse, because `GS1..GS4`/`ESSAY` is a shared
+ *                  NAMESPACE across commissions whose syllabi differ (UPPSC
+ *                  sets six Mains GS papers, UPSC four). So M20b records each
+ *                  exam's own verdict UNMERGED in `gsPapersByExam` beside it,
+ *                  and every curation read resolves through
+ *                  `ca/curation-scope.ts`. The union stays on the row because
+ *                  it is what pre-0116 rows have and what the legacy column
+ *                  keeps meaning; nothing about this rule changed.
+ *  - is_up_spec. → OR, KEPT VERBATIM, for the same reason and with the same
+ *                  companion: `stateFocus` records WHICH state(s), so a UP
+ *                  story cannot read as state-focused to an MP aspirant.
  *  - node ids    → union over the RELEVANT exams, in exam order, deduped. Each
  *                  exam's list is already capped at 3 by `normalizeTriage`, so
  *                  the cap generalises to "up to 3 per exam". When NOTHING
@@ -208,6 +228,25 @@ export function mergeExamTriages(
     ? [framing.examCode, ...base.filter((c) => c !== framing.examCode)]
     : base;
 
+  // M20b — the unmerged companions. Recorded for EVERY exam that triaged the
+  // item, including one whose verdict was `[]`: an explicit empty placement is a
+  // real answer that `gsPapersForExam` distinguishes from "never triaged", and
+  // it is what stops a post-0116 row ever falling back to the legacy union.
+  const gsPapersByExam: Record<string, CurrentAffairsGsPaper[]> = {};
+  for (const e of perExam) gsPapersByExam[e.examCode] = [...new Set(e.triage.gs_papers)];
+
+  // Only a STATE-scoped exam can contribute a state code; a national exam has no
+  // lens and its verdict cannot name a state. Deduped and in caller (registry)
+  // order, so the value is deterministic for a given input.
+  const stateFocus = [
+    ...new Set(
+      perExam
+        .filter((e) => e.triage.is_up_specific)
+        .map((e) => stateLensFor(e.examCode)?.code)
+        .filter((c): c is string => !!c),
+    ),
+  ];
+
   return {
     triage: {
       prelims_relevance: prelims,
@@ -223,6 +262,8 @@ export function mergeExamTriages(
     itemExamCodes,
     framingExamCode: framing.examCode,
     framingReason: framing.reason,
+    gsPapersByExam,
+    stateFocus,
   };
 }
 
@@ -363,7 +404,7 @@ export function planTriageRequests(
 // ---------------------------------------------------------------------------
 
 /**
- * The two columns that must always be written by the SAME statement.
+ * The columns that must always be written by the SAME statement.
  *
  * ⚑ WHY THIS EXISTS. Until 2026-08-01 the invariant "a statement that writes
  * `syllabus_node_ids` must also write `exam_codes`" was stated only in comments
@@ -378,14 +419,30 @@ export function planTriageRequests(
  * targeting an unlaunched exam would have published items authored in that
  * exam's voice, mapped to its syllabus nodes, straight into the DEFAULT exam's
  * live feed.
+ *
+ * ⚑ M20b EXTENDED THIS SET FROM TWO COLUMNS TO FOUR, and for exactly the same
+ * reason it was created. `gs_papers_by_exam` / `state_focus` (0116) are the
+ * per-exam companions to the merge's two lossy folds; a write path that set
+ * `gs_papers` but forgot them would leave the row's per-exam curation NULL,
+ * which resolves through the legacy fallback — i.e. it would silently re-create
+ * the cross-exam inheritance the whole change removes, on a row that looks
+ * perfectly well-formed. Making them un-omittable is the only way that cannot
+ * happen. "The pair" below is now four columns; the guarantee is unchanged.
  */
-export const EXAM_SCOPE_COLUMNS = ["syllabus_node_ids", "exam_codes"] as const;
+export const EXAM_SCOPE_COLUMNS = [
+  "syllabus_node_ids",
+  "exam_codes",
+  "gs_papers_by_exam",
+  "state_focus",
+] as const;
 export type ExamScopeColumn = (typeof EXAM_SCOPE_COLUMNS)[number];
 
-/** The pair itself, exactly as it goes onto the row. */
+/** The set itself, exactly as it goes onto the row. */
 export interface ExamScopeWrite {
   syllabus_node_ids: string[];
   exam_codes: string[];
+  gs_papers_by_exam: Record<string, CurrentAffairsGsPaper[]>;
+  state_focus: string[];
 }
 
 /**
@@ -413,12 +470,14 @@ export interface ExamScopeWrite {
  * merge object cannot happen because there is only ever one per item.
  */
 export function withExamScope<T extends Record<string, unknown>>(
-  merged: Pick<MergedTriage, "triage" | "itemExamCodes">,
+  merged: Pick<MergedTriage, "triage" | "itemExamCodes" | "gsPapersByExam" | "stateFocus">,
   rest: T & { [K in ExamScopeColumn]?: never },
 ): T & ExamScopeWrite {
   return {
     ...(rest as T),
     syllabus_node_ids: merged.triage.syllabus_node_ids,
     exam_codes: merged.itemExamCodes,
+    gs_papers_by_exam: merged.gsPapersByExam,
+    state_focus: merged.stateFocus,
   };
 }

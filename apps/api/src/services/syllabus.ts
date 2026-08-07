@@ -11,13 +11,14 @@ import type {
   SyllabusNodeWithStats,
   TrendNode,
 } from "@neev/shared";
+import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
-import { CURRENT_AFFAIRS_COLUMNS } from "./current-affairs.js";
+import { CURRENT_AFFAIRS_COLUMNS, toWireItem } from "./current-affairs.js";
 import {
   byYearRecord,
   currentExamYear,
@@ -400,7 +401,7 @@ export async function getNodeDetail(
 ): Promise<SyllabusNodeDetail> {
   const { data: node, error } = await supabase()
     .from("syllabus_nodes")
-    .select("id, exam_stage, paper_code, title_i18n, description_i18n, path, covered_by_node_id")
+    .select("id, exam_code, exam_stage, paper_code, title_i18n, description_i18n, path, covered_by_node_id")
     .eq("id", nodeId)
     .maybeSingle();
   if (error) throw new HttpError(500, `syllabus node lookup failed: ${error.message}`);
@@ -440,6 +441,8 @@ export async function getNodeDetail(
       .from("current_affairs_items")
       // Full column set — the client parses these as currentAffairsItemSchema,
       // which now requires status/relevance/prelims_facts/mains_brief/etc.
+      // Mapped through `toWireItem` below so the shared row's curation columns
+      // are resolved (M20b) rather than shipped raw.
       .select(CURRENT_AFFAIRS_COLUMNS)
       .eq("is_published", true)
       .overlaps("syllabus_node_ids", subtreeIds)
@@ -542,7 +545,14 @@ export async function getNodeDetail(
     accuracy_pct: total > 0 ? round2((correct / total) * 100) : null,
     answered_count: total,
     weightage: nodeWeightage,
-    related_current_affairs: (relatedCa ?? []) as unknown as SyllabusNodeDetail["related_current_affairs"],
+    // Resolved against THE NODE'S OWN exam (M20b), not the caller's provenance
+    // filter: every row here is linked to this node's subtree, so the node's
+    // exam is by construction the one whose curation verdict applies. Without
+    // this the shared row's raw UNION/OR verdict would reach the client, and
+    // the item card's state chip renders it ungated.
+    related_current_affairs: ((relatedCa ?? []) as unknown as Record<string, unknown>[]).map((r) =>
+      toWireItem(r, (node as { exam_code?: string }).exam_code ?? DEFAULT_EXAM_CODE),
+    ) as unknown as SyllabusNodeDetail["related_current_affairs"],
     covered_by: coveredBy,
   };
 }

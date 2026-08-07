@@ -98,6 +98,14 @@ function withoutSkillDimensionPapers(
   paperCodes: string[],
   log: (msg: string) => void,
 ): string[] {
+  // Nothing to filter means nothing to decide, so do not demand the decision.
+  // An exam with no ingested syllabus (mppsc) reaches here with an empty list and
+  // must keep falling through to the caller's "no paper codes registered" log —
+  // `--exam mppsc` is an allowed, notice-logged invocation (`resolveTargetExams`),
+  // and requiring authorship first turned that graceful skip into a crash. The U6
+  // gate still fires the moment such an exam actually HAS papers to plan for,
+  // which is the only point at which the answer matters.
+  if (paperCodes.length === 0) return paperCodes;
   const skill = new Set(
     requireAuthored(getExamConfig(examCode).qgen.skillDimensionPapers, examCode, "qgen.skillDimensionPapers"),
   );

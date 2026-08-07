@@ -113,6 +113,15 @@ export type ForbiddenWidenColumn =
   | "category"
   | "gs_papers"
   | "is_up_specific"
+  // M20b (0116). Widening does NOT re-triage, so it has no verdict for the exam
+  // it is adding — and that is exactly why these must stay unwritable. Leaving
+  // the new exam ABSENT from `gs_papers_by_exam` is the correct outcome:
+  // `gsPapersForExam` then resolves it to `[]`, so the widened row simply does
+  // not appear in that exam's Mains sections until its own triage runs. Writing
+  // anything here would be inventing the other commission's placement, which is
+  // the precise defect M20b removes. Same for `state_focus`.
+  | "gs_papers_by_exam"
+  | "state_focus"
   | "status"
   | "content_hash"
   | "mcq_question_ids"

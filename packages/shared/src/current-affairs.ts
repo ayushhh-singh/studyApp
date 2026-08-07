@@ -34,7 +34,20 @@ export const currentAffairsCategorySchema = z.enum([
 ]);
 export type CurrentAffairsCategory = z.infer<typeof currentAffairsCategorySchema>;
 
-/** Which Mains GS paper(s) an item feeds. GS5_UP/GS6_UP are the UP-specific papers. */
+/**
+ * Which Mains GS paper(s) an item feeds. GS5_UP/GS6_UP are the UP-specific papers.
+ *
+ * ⚑ THIS ENUM IS A SHARED NAMESPACE ACROSS COMMISSIONS, NOT A UNIVERSAL PAPER
+ * NUMBERING — UPPSC sets six Mains GS papers and UPSC four, and their contents
+ * differ (UPPSC GS2 carries UP-specific governance; UPSC GS1 carries World
+ * History). So a `GS2` written by one exam's triage does NOT mean the other
+ * exam's GS2. Which subset an exam may use is `lib/exam-config.ts`'s
+ * `ca.gsPapers`; WHICH of them a given shared item feeds FOR A GIVEN READER is
+ * `current_affairs_items.gs_papers_by_exam` (0116), resolved through
+ * `ca/curation-scope.ts`. Never read the flat `gs_papers` column on a curation
+ * path — it is the cross-exam UNION and re-inherits the other commission's
+ * placement.
+ */
 export const currentAffairsGsPaperSchema = z.enum([
   "GS1",
   "GS2",
@@ -138,9 +151,20 @@ export const currentAffairsItemSchema = z.object({
   date: z.string(),
   status: currentAffairsStatusSchema,
   category: currentAffairsCategorySchema.nullable(),
-  is_up_specific: z.boolean(),
+  /**
+   * ⚑ RESOLVED FOR THE READING EXAM, not the raw row flag (M20b). Replaces
+   * `is_up_specific`, which was one commission's verdict OR-ed onto a row that
+   * is deliberately SHARED across exams (0106 §11) — so a UP story read `true`
+   * to a UPSC aspirant too, and the feed's chip rendered it ungated.
+   *
+   * The server resolves it via `ca/curation-scope.ts` before sending, so it is
+   * always FALSE for a nationally-scoped exam and true only where the item
+   * carries the reader's OWN state's focus. The client needs no lens gate.
+   */
+  state_focus: z.boolean(),
   prelims_relevance: z.number().int().min(0).max(3).nullable(),
   mains_relevance: z.number().int().min(0).max(3).nullable(),
+  /** RESOLVED for the reading exam (M20b) — see `currentAffairsGsPaperSchema`, never the flat union. */
   gs_papers: z.array(currentAffairsGsPaperSchema).default([]),
   title_i18n: bilingualTextSchema,
   summary_i18n: bilingualTextSchema.nullable(),

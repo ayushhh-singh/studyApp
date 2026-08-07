@@ -1,7 +1,13 @@
 import type { CurrentAffairsItem, CurrentAffairsQuery } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
-import { stateLensFor } from "../lib/exam-config.js";
+import {
+  CA_CURATION_SCOPE_COLUMNS,
+  gsPapersForExam,
+  hasStateFocusForExam,
+  stateFocusFilterFor,
+  type CaCurationScopeRow,
+} from "../ca/curation-scope.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 
 export const CURRENT_AFFAIRS_PAGE_SIZE = 20;
@@ -15,9 +21,33 @@ export const CURRENT_AFFAIRS_PAGE_SIZE = 20;
  * services/syllabus.ts (related CA) so they can never drift from the schema.
  */
 export const CURRENT_AFFAIRS_COLUMNS =
-  "id, date, status, category, is_up_specific, prelims_relevance, mains_relevance, gs_papers, " +
+  "id, date, status, category, prelims_relevance, mains_relevance, " +
+  `${CA_CURATION_SCOPE_COLUMNS}, ` +
   "title_i18n, summary_i18n, prelims_facts, mains_brief, possible_questions, node_significance, " +
   "detail_i18n, source_urls, syllabus_node_ids, mcq_question_ids";
+
+/**
+ * A raw row as selected above → the wire `CurrentAffairsItem`, with the two
+ * shared-row curation columns RESOLVED against the reading exam (M20b).
+ *
+ * ⚑ THE RAW COLUMNS MUST NOT REACH THE CLIENT. `is_up_specific` / `gs_papers`
+ * are whichever commission(s) triaged the row, OR-ed and UNION-ed onto it by
+ * `mergeExamTriages`; `current_affairs_items` is one row across several exams by
+ * design (0106 §11). Sending them raw is how the feed card's "UP-specific" chip
+ * came to render UNGATED — a national-exam reader would see another
+ * commission's state verdict on any widened row. Resolving here means every
+ * consumer (card, detail sheet, related-CA on a syllabus node) is correct
+ * without each having to remember a lens gate.
+ */
+export function toWireItem(row: Record<string, unknown>, examCode: string): CurrentAffairsItem {
+  const scope = row as unknown as CaCurationScopeRow;
+  const { is_up_specific: _u, gs_papers_by_exam: _g, state_focus: _s, ...rest } = row as Record<string, unknown>;
+  return {
+    ...(rest as unknown as CurrentAffairsItem),
+    state_focus: hasStateFocusForExam(scope, examCode),
+    gs_papers: [...gsPapersForExam(scope, examCode)],
+  };
+}
 
 /**
  * `examCode` is REQUIRED, not optional-with-a-default: 0106 §11 added
@@ -56,7 +86,13 @@ export async function listCurrentAffairs(
   // is worse than serving it. The filter is DROPPED (never silently narrowed or
   // widened to some other lens), and the client normalises the param away so the
   // user sees the "All" tab actually selected rather than a phantom one.
-  const stateLensAvailable = stateLensFor(examCode) !== null;
+  // M20b: the SQL twin of `hasStateFocusForExam` — this exam's own state code,
+  // with the legacy `is_up_specific` disjunct emitted only for the default exam.
+  // Resolved in SQL rather than in JS because this endpoint paginates in the
+  // database, so a post-hoc filter would return short pages. Null ⇔ a
+  // nationally-scoped exam, i.e. there is no such tab; the filter is then
+  // DROPPED rather than narrowed, exactly as before.
+  const stateFilter = stateFocusFilterFor(examCode);
 
   // Exam-lens tabs. `up_only` (legacy query param) still works and is ANDed in.
   switch (filters.lens) {
@@ -67,12 +103,12 @@ export async function listCurrentAffairs(
       query = query.gte("mains_relevance", RELEVANCE_GATE);
       break;
     case "up":
-      if (stateLensAvailable) query = query.eq("is_up_specific", true);
+      if (stateFilter) query = query.or(stateFilter);
       break;
     default:
       break;
   }
-  if (filters.up_only && stateLensAvailable) query = query.eq("is_up_specific", true);
+  if (filters.up_only && stateFilter) query = query.or(stateFilter);
 
   const from = (filters.page - 1) * CURRENT_AFFAIRS_PAGE_SIZE;
   const to = from + CURRENT_AFFAIRS_PAGE_SIZE - 1;
@@ -83,7 +119,10 @@ export async function listCurrentAffairs(
 
   const { data, error, count } = await query;
   if (error) throw new HttpError(500, `current affairs query failed: ${error.message}`);
-  return { items: (data ?? []) as unknown as CurrentAffairsItem[], total: count ?? 0 };
+  return {
+    items: (data ?? []).map((r) => toWireItem(r as unknown as Record<string, unknown>, examCode)),
+    total: count ?? 0,
+  };
 }
 
 export async function getCurrentAffairsItemById(examCode: string, id: string): Promise<CurrentAffairsItem> {
@@ -96,5 +135,5 @@ export async function getCurrentAffairsItemById(examCode: string, id: string): P
     .maybeSingle();
   if (error) throw new HttpError(500, `current affairs item lookup failed: ${error.message}`);
   if (!data) throw notFound("Current affairs item not found");
-  return data as unknown as CurrentAffairsItem;
+  return toWireItem(data as unknown as Record<string, unknown>, examCode);
 }

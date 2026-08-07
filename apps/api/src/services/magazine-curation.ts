@@ -50,16 +50,23 @@ const REL_TIER = 1000;
  * State-specific prominence boost — a state-scoped exam's flagship focus. Kept
  * < REL_TIER so it never crosses a relevance tier.
  *
- * APPLIED ONLY UNDER A STATE LENS (`applyStateBoost`, threaded from
- * `stateLensFor(examCode)`), never off `is_up_specific` alone. That column is a
- * property of the ROW, not of the reader: `current_affairs_items` is deliberately
- * shared across exams (one national story, several `exam_codes` — 0106 §11) and
- * `mergeExamTriages` ORs the flag across every exam that triaged it, so a single
- * uppsc-driven `true` is visible to a nationally-scoped reader too. Ranking on it
- * unconditionally would push UP items up a UPSC aspirant's magazine. Gating on
- * the reader's own lens makes that impossible whatever the column says — which
- * is what makes deferring the `is_up_specific` → `state_focus` migration safe
- * rather than merely postponed.
+ * ⚑ APPLIED OFF `CurationInputs.state_focus`, WHICH IS ALREADY RESOLVED AGAINST
+ * THE READER'S OWN EXAM by `ca/curation-scope.ts` — this module never sees the
+ * raw row. That column (`is_up_specific`) is a property of the ROW, not of the
+ * reader: `current_affairs_items` is deliberately shared across exams (one
+ * national story, several `exam_codes` — 0106 §11) and `mergeExamTriages` ORs
+ * the flag across every exam that triaged it, so a single uppsc-driven `true`
+ * would otherwise be visible to a UPSC aspirant and push UP items up their
+ * magazine.
+ *
+ * This USED to be a separate `applyStateBoost` gate threaded from
+ * `stateLensFor(examCode)` alongside the raw flag. M20b removed it: resolution
+ * subsumes it (`hasStateFocusForExam` returns false for a nationally-scoped exam
+ * before it consults either column), and one resolved input cannot be got wrong
+ * the way two independent ones could — a caller passing the flag but forgetting
+ * the gate was a live footgun. It also does what the gate structurally could
+ * not: distinguish TWO state exams, so a UP story earns no boost for an MP
+ * aspirant.
  */
 const STATE_BOOST = 120;
 /** Ceiling on the syllabus-weightage contribution, so a many-node item can't cross a relevance tier either. */
@@ -82,7 +89,13 @@ export interface CurationInputs {
   /** prelims_relevance | mains_relevance (2..3). */
   relevance: number;
   syllabus_node_ids: string[];
-  is_up_specific: boolean;
+  /**
+   * Does this item carry THE READING EXAM'S OWN state focus? Already resolved
+   * by `ca/curation-scope.ts`'s `hasStateFocusForExam` — never the raw
+   * `is_up_specific` column, which belongs to whichever commission triaged the
+   * shared row. False for a nationally-scoped exam by construction.
+   */
+  state_focus: boolean;
   /** YYYY-MM-DD */
   date: string;
 }
@@ -99,14 +112,13 @@ function rawScore(
   inp: CurationInputs,
   weightage: Map<string, OwnWeightage>,
   year: number,
-  applyStateBoost: boolean,
 ): { score: number; hotness: number } {
   const hotness = inp.syllabus_node_ids.reduce(
     (s, id) => s + hotnessRaw(weightage.get(id)?.byYear ?? EMPTY_BY_YEAR, year),
     0,
   );
   const day = Number((inp.date ?? "").slice(8, 10)) || 1;
-  const stateBoost = applyStateBoost && inp.is_up_specific ? STATE_BOOST : 0;
+  const stateBoost = inp.state_focus ? STATE_BOOST : 0;
   const score =
     inp.relevance * REL_TIER + Math.min(hotness, WEIGHT_CAP) + stateBoost + (day / 31) * RECENCY_MAX;
   return { score, hotness };
@@ -117,20 +129,18 @@ function rawScore(
  * against the busiest item in THIS set, so it reads as "high/low for this
  * month" rather than an absolute the reader can't calibrate.
  *
- * `applyStateBoost` is REQUIRED, not defaulted — see STATE_BOOST. A default of
- * `true` would silently keep every future caller on the old, reader-blind
- * ranking; a default of `false` would silently drop the live exam's flagship
- * boost. Neither is a decision this function may make for its caller.
+ * The state boost rides entirely on `CurationInputs.state_focus`, which the
+ * caller must have resolved against the reading exam (see STATE_BOOST). There is
+ * deliberately no separate lens gate to pass or forget.
  */
 export function scoreRows<T>(
   rows: T[],
   toInputs: (r: T) => CurationInputs,
   weightage: Map<string, OwnWeightage>,
   year: number,
-  applyStateBoost: boolean,
 ): Scored<T>[] {
   const withHot = rows.map((r) => {
-    const { score, hotness } = rawScore(toInputs(r), weightage, year, applyStateBoost);
+    const { score, hotness } = rawScore(toInputs(r), weightage, year);
     return { r, score, hotness };
   });
   // reduce, not Math.max(1, ...spread) — a huge month would blow the call-stack arg limit.
