@@ -68,8 +68,32 @@
  * "world climatic types") before concluding the content is missing.
  *
  * ---------------------------------------------------------------------------
+ * ⚑ SUPERSEDING AN ALREADY-PUBLISHED CHAPTER — USE `dump`, NEVER RE-AUTHOR
+ * ---------------------------------------------------------------------------
+ * A chapter found TRUNCATED or THIN after publication is fixed by ADDING to it,
+ * not by writing a new one: `persistChapter` upserts on `syllabus_node_id` and
+ * bumps `chapter_version`, so the richer version replaces the poorer one in
+ * place (the rollout's established richer-supersedes move). But the assemble
+ * input is the WHOLE chapter, so a supersede pass needs the current sections
+ * back in editable form first — otherwise an agent re-authors prose that was
+ * already correct, and the "fix" silently rewrites content nobody reviewed.
+ *
+ * `--stage dump --dir <d>` writes each node's persisted chapter back out as a
+ * `chapterAssembleInput` JSON. It is LOSSLESS by construction: the file it
+ * writes re-assembles to byte-identical `sections` / `fact_audit_facts` /
+ * `sources`, so an untouched dump→assemble round trip changes nothing but
+ * `chapter_version`. Edit the file, then run assemble → resolve → publish →
+ * embed → verify exactly as for a fresh chapter.
+ *
+ * ⚑ THE CHAPTER GOES OFF THE LIVE SITE BETWEEN `assemble` AND `publish`.
+ * `persistChapter` resets status to `needs_review` and DELETES the note's
+ * embeddings, so retrieval loses it too. Finish the cycle per chapter; do not
+ * assemble a batch and leave it parked.
+ *
+ * ---------------------------------------------------------------------------
  * STAGES
  * ---------------------------------------------------------------------------
+ *   dump     : persisted chapter → editable assemble-input JSON. NO writes.
  *   scope    : section headings + prose-vs-metadata term placement. NO writes.
  *   assemble : validate + assembleChapter per node, then print the fact_audit
  *              so flags can be judged INDIVIDUALLY.
@@ -87,14 +111,15 @@
  *              pools past PostgREST's 1000-row cap and reported 97 false
  *              "missing embedding" gaps.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import { parseArgs } from "../src/ingest/_shared.js";
 import { chapterAssembleInputSchema, assembleChapter } from "../src/notes/chapter-assemble.js";
 import { embedNotes } from "../src/notes/embed.js";
 import { approveNote, editNote } from "../src/services/notes.js";
 import { supabase } from "../src/lib/supabase.js";
 
-const STAGES = ["scope", "assemble", "resolve", "publish", "embed", "verify"] as const;
+const STAGES = ["dump", "scope", "assemble", "resolve", "publish", "embed", "verify"] as const;
 type Stage = (typeof STAGES)[number];
 
 const args = parseArgs(
@@ -128,12 +153,18 @@ interface NoteRow {
   study_content_i18n: {
     sections?: { id: string; heading_i18n?: Record<string, string>; body_md_i18n?: Record<string, string> }[];
   } | null;
+  content_i18n: Record<string, { overview?: string; quick_revision?: string[] }> | null;
+  sources: unknown[] | null;
+  meta: Record<string, unknown> | null;
 }
+
+const NOTE_COLUMNS =
+  "id, status, chapter_version, fact_audit, study_content_i18n, content_i18n, sources, meta";
 
 async function noteFor(nodeId: string): Promise<NoteRow | null> {
   const { data, error } = await sb
     .from("notes")
-    .select("id, status, chapter_version, fact_audit, study_content_i18n")
+    .select(NOTE_COLUMNS)
     .eq("syllabus_node_id", nodeId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -152,7 +183,53 @@ async function sectionsFor(nodeId: string) {
 }
 
 for (const nodeId of nodes) {
-  if (stage === "scope") {
+  if (stage === "dump") {
+    if (!dir) throw new Error("--dir <path> is required for --stage dump");
+    const note = await noteFor(nodeId);
+    if (!note) throw new Error(`no note for ${nodeId} — nothing to supersede`);
+    const sections = note.study_content_i18n?.sections ?? [];
+    if (sections.length === 0) {
+      throw new Error(`${nodeId} has a note but no chapter sections — author it fresh, don't dump`);
+    }
+    // The digest (content_i18n) is the Quick Revision layer and persistChapter
+    // PRESERVES it whenever its overview is bilingual-complete — so these two
+    // fields are round-tripped for schema completeness, not because a reload
+    // rewrites them. `meta` carries section_plan / web_search_used /
+    // machine_translated from the authoring pass; preserve them so a supersede
+    // does not silently reset a chapter's recorded provenance.
+    const out = {
+      node_id: nodeId,
+      overview_i18n: {
+        hi: note.content_i18n?.hi?.overview ?? "",
+        en: note.content_i18n?.en?.overview ?? "",
+      },
+      quick_revision_i18n: {
+        hi: note.content_i18n?.hi?.quick_revision ?? [],
+        en: note.content_i18n?.en?.quick_revision ?? [],
+      },
+      sections,
+      fact_audit_facts: note.fact_audit?.facts ?? [],
+      sources: note.sources ?? [],
+      section_plan: (note.meta?.section_plan as unknown[]) ?? [],
+      web_search_used: note.meta?.web_search_used === true,
+      // A supersede pass derives its NEW Hindi by translating the English it
+      // just wrote, which is exactly what this flag records (see
+      // chapter-generate.ts, which hardcodes true for that reason). Default to
+      // the stored value here; the editing pass must set it to true once it has
+      // added translated prose.
+      machine_translated: note.meta?.machine_translated !== false,
+    };
+    // Parse before writing: a dump that cannot be re-assembled is worse than no
+    // dump, because the failure would surface only after an agent had edited it.
+    chapterAssembleInputSchema.parse(out);
+    mkdirSync(dir, { recursive: true });
+    const path = join(dir, `${nodeId}.json`);
+    writeFileSync(path, `${JSON.stringify(out, null, 2)}\n`);
+    console.log(
+      `dumped ${nodeId} → ${path} (v${note.chapter_version}, ${sections.length} sections, ` +
+        `${out.fact_audit_facts.length} facts, ${out.sources.length} sources, status=${note.status})`,
+    );
+  } else if (stage === "scope") {
     const { sections, whole } = await sectionsFor(nodeId);
     // PROSE = section HEADINGS + section BODIES. Headings are authored content
     // and are frequently where a topic's name actually lives: the History
