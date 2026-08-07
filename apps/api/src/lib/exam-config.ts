@@ -496,6 +496,34 @@ export interface ExamQgenConfig {
    * ${descOutputLabel} on the topic above. …` ``.
    */
   descOutputLabel: Authored<string>;
+  /**
+   * TARGETING, not prompt copy. Paper codes whose syllabus nodes are ASSESSMENT
+   * DIMENSIONS rather than TOPICS — `qgen/topup.ts` skips them entirely when
+   * planning coverage shortfalls.
+   *
+   * ⚑ WHY THIS EXISTS. `computeNodeTargets` asks "does this node have enough
+   * published questions?" and `mcqSystem`/`criticSystem` both ask "is this
+   * question ON THE TOPIC of its node?". Both questions presuppose the node IS a
+   * topic. For a paper whose syllabus names only the criteria an answer is
+   * MARKED on, neither presupposition holds: there is no such thing as a
+   * question that is "about" Concise Writing, so the floor measures nothing and
+   * the critic's in-syllabus check cannot fail. Measured on upsc — 21 of the 28
+   * generated descriptive questions targeted such nodes, and every one was an
+   * essay topic whose relationship to its node was arbitrary ("Brevity is the
+   * soul of wit" filed under *Keeping Closely to the Subject*).
+   *
+   * NOT a claim that the paper needs no generated content — only that a
+   * PER-NODE coverage floor is the wrong instrument for it. Generating topics
+   * for such a paper needs a paper-level target, which is a separate feature.
+   *
+   * `[]` for uppsc is a DELIBERATE NO-OP that keeps the live exam's planning
+   * byte-identical, and it is a real finding rather than a default: UPPSC's own
+   * `MAINS_ESSAY` nodes are genuine TOPIC buckets (Section A–D → "Indian
+   * Culture, Heritage and Traditions", "Philosophical and Abstract Themes", …),
+   * so its floor is measuring something real. The two exams' Essay papers differ
+   * in kind here, not in degree.
+   */
+  skillDimensionPapers: Authored<readonly string[]>;
 }
 
 /**
@@ -1098,6 +1126,12 @@ const UPPSC: ExamConfig = {
     toneCriterion: "does it read like a real UPPSC question in difficulty, phrasing, and format?",
     mcqOutputLabel: "UPPSC-Prelims MCQs",
     descOutputLabel: "UPPSC-Mains descriptive questions",
+    // Empty by MEASUREMENT, not by default: every UPPSC MAINS_ESSAY depth-1 node
+    // is a TOPIC bucket (Section A–D → "Indian Culture, Heritage and Traditions",
+    // "Philosophical and Abstract Themes", "Social Issues and Human Values", …),
+    // so a per-node coverage floor is measuring something real there. Keeping it
+    // empty also keeps the LIVE exam's nightly planning byte-identical.
+    skillDimensionPapers: [],
   },
 
   mentor: {
@@ -1687,6 +1721,15 @@ const UPSC: ExamConfig = {
       "question), never Assertion-Reason?",
     mcqOutputLabel: "UPSC-Prelims MCQs",
     descOutputLabel: "UPSC-Mains descriptive questions",
+    // UPSC publishes NO essay topics in its syllabus — the Essay paper is one
+    // instruction paragraph, so all five depth-1 nodes of UPSC_MAINS_ESSAY are
+    // the criteria an essay is MARKED on ("Keeping Closely to the Subject",
+    // "Orderly Arrangement of Ideas", "Concise Writing", "Effective and Exact
+    // Expression", "Essays on Multiple Topics"), authored that way deliberately
+    // (docs/OUTSTANDING.md §8g). Real PYQs land on them near-arbitrarily —
+    // measured 50/26/2/1/1 across the five for 80 topics — which is the tell
+    // that "coverage of this node" is not a quantity that exists.
+    skillDimensionPapers: [UPSC_ESSAY_PAPER_CODE],
   },
 
   // ---------------------------------------------------------------------------
@@ -2217,6 +2260,10 @@ const MPPSC: ExamConfig = {
     toneCriterion: UNAUTHORED,
     mcqOutputLabel: UNAUTHORED,
     descOutputLabel: UNAUTHORED,
+    // UNAUTHORED, not `[]`. The empty array is a real claim ("every node in every
+    // paper is a topic") and it happens to be false for one of the two exams
+    // already looked at, so it must not be the default nobody decided.
+    skillDimensionPapers: UNAUTHORED,
   },
 
   mentor: {

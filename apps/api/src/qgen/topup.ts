@@ -26,7 +26,7 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { estimateCostUsd, MODELS } from "../lib/models.js";
 import { BATCH_DISCOUNT } from "../lib/anthropic.js";
-import { getExamConfig } from "../lib/exam-config.js";
+import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
 import { mainsPaperCodesFor } from "../ca/exam-fanout.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { loadNodeContext, generateBatch, type GeneratePlan, type NodeGenerationResult } from "./generate.js";
@@ -77,6 +77,40 @@ export function paperCodesForStage(examCode: string, stage: TopupStage): string[
   if (stage === "mains") return [...mainsPaperCodesFor(examCode)];
   const { prelimsGs, prelimsCsat } = getExamConfig(examCode).papers;
   return [prelimsGs, prelimsCsat].filter((c): c is string => !!c);
+}
+
+/**
+ * Drop papers whose syllabus nodes are ASSESSMENT DIMENSIONS rather than topics.
+ *
+ * A per-node coverage floor asks "does this node have enough questions?", which
+ * presupposes the node is a topic. On a paper whose syllabus names only the
+ * criteria an answer is marked on, that quantity does not exist — so the floor
+ * fires on an arbitrary number and the critic's in-syllabus check cannot fail.
+ * See `ExamQgenConfig.skillDimensionPapers` for the measured case that produced
+ * this (21 of 28 generated upsc descriptive rows).
+ *
+ * Never silent: an excluded paper is LOGGED, because "excluded by policy" and
+ * "above floor" are indistinguishable in the output otherwise — the same
+ * confusion `paperCodesForStage`'s own empty-list log exists to prevent.
+ */
+function withoutSkillDimensionPapers(
+  examCode: string,
+  paperCodes: string[],
+  log: (msg: string) => void,
+): string[] {
+  const skill = new Set(
+    requireAuthored(getExamConfig(examCode).qgen.skillDimensionPapers, examCode, "qgen.skillDimensionPapers"),
+  );
+  if (skill.size === 0) return paperCodes;
+  const kept = paperCodes.filter((c) => !skill.has(c));
+  const dropped = paperCodes.filter((c) => skill.has(c));
+  if (dropped.length > 0) {
+    log(
+      `${examCode}: skipping ${dropped.join(", ")} — its syllabus nodes are assessment dimensions, ` +
+        `not topics, so a per-node coverage floor does not apply (qgen.skillDimensionPapers).`,
+    );
+  }
+  return kept;
 }
 
 /**
@@ -144,7 +178,7 @@ async function computeNodeTargets(opts: {
   log: (msg: string) => void;
 }): Promise<NodeTarget[]> {
   const { examCode, stage, kind, band, demand, log } = opts;
-  const paperCodes = paperCodesForStage(examCode, stage);
+  const paperCodes = withoutSkillDimensionPapers(examCode, paperCodesForStage(examCode, stage), log);
   if (paperCodes.length === 0) {
     // An exam with no ingested syllabus for this stage. Say so — an empty plan
     // and "everything is above floor" are indistinguishable in the output
