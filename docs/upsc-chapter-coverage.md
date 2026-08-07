@@ -109,7 +109,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 76 | 11 | `UPSC_MAINS_GS3` | 2 | Infrastructure: Energy, Ports, Roads, Airports, Railways | — none | `887865b0-3437-4ba0-8b4d-1ff8dee8464b` |
 | 77 | 11 | `UPSC_MAINS_GS3` | 2 | Major Crops and Cropping Patterns in Various Parts of the Country | — none | `2a514471-9973-4c0c-9279-affecd618234` |
 | 78 | 11 | `UPSC_MAINS_GS4` | 2 | Case Studies on the Above Issues | — none | `e3ce1142-d4d6-4166-aa88-1147c32e0167` |
-| 79 | 11 | `UPSC_PRE_CSAT` | 1 | General Mental Ability | published · chapter v1 | `01763fc9-5cbd-4ced-8bb9-01a6ebdd9380` |
+| 79 | 11 | `UPSC_PRE_CSAT` | 1 | General Mental Ability | published · chapter v2 | `01763fc9-5cbd-4ced-8bb9-01a6ebdd9380` |
 | 80 | 11 | `UPSC_PRE_GS1` | 2 | Economic Geography | — none | `6fd44904-2dcd-4ca8-8fb8-87caa4349fdd` |
 | 81 | 10 | `UPSC_MAINS_GS1` | 2 | Distribution of Key Natural Resources Across the World | — none | `6a724f93-560d-491e-a1ed-4c5e025ab978` |
 | 82 | 10 | `UPSC_MAINS_GS1` | 2 | Earthquakes, Tsunami, Volcanic Activity and Cyclones | published · chapter v1 | `d5acab53-a65b-4d6d-98ef-6ad35171023f` |
