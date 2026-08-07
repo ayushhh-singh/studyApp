@@ -338,6 +338,37 @@ const NO_MARKDOWN =
   "Output plain text rendered verbatim (no markdown renderer): no #, no **bold**, no italic or " +
   "bullet asterisks, no dashes as bullets.";
 
+/**
+ * Shared by ALL THREE model-answer shapes (gs / ethics / essay), because the
+ * defect it addresses is not shape-specific.
+ *
+ * ⚑ WHY THIS EXISTS. A blind 3-judge panel found this pipeline's errors sit
+ * almost entirely in PRECISE ATTRIBUTIONS AND FIGURES, never in argument or
+ * structure (accuracy 4.40/5 against coverage 4.85 and structure 4.79): a
+ * Supreme Court judgment invented for a year in which the real event was a
+ * Bill; a treaty status stated as "signed but not ratified" for a country that
+ * never signed; a correct percentage attached to the wrong denominator; a
+ * correct statistic labelled with the wrong base year. Every one is the same
+ * move — the prompt DEMANDS substantiation ("constitutional articles,
+ * committees, schemes"), so an uncertain model supplies a plausible-looking
+ * specific rather than dropping it. Telling it to use "real, correct facts"
+ * does not help, because it believes they are; it needs a rule for what to do
+ * when it is NOT sure, and a licence to be less specific.
+ *
+ * This is presented to the candidate as the near-full-marks answer AND cached
+ * in `question_model_answers` for replay to every future student on that
+ * question, so a wrong specific is both authoritative and durable.
+ */
+const FACTUAL_PRECISION =
+  "PRECISION OVER SPECIFICITY. Never invent an attribution to make a point land: if you are not " +
+  "certain that a named court, committee, report or scheme said a particular thing in a " +
+  "particular year, state the principle WITHOUT naming a source rather than guessing a name, a " +
+  "year or a case. Never attribute a Bill, a policy or an administrative recommendation to a " +
+  "court. Attach every figure to the denominator it actually belongs to (a share of electricity " +
+  "generation is not a share of primary energy), and label a statistic with the year that " +
+  "statistic is from. Where you are unsure, a slightly less specific true statement always beats " +
+  "a precise false one.";
+
 export function buildStrengthsSystem(examCode: string, language: Locale): string {
   const framing = requireAuthored(
     evalConfig(examCode).strengthsMentorFraming,
@@ -466,7 +497,7 @@ export function buildModelAnswerSystem(ctx: EvalContext): string {
       `(social, economic, political, technological, environmental, ethical as relevant) with a ` +
       `balanced view and real substantiation — facts, examples, case studies, apt quotations, and ` +
       `${evidence} — and a forward-looking conclusion. Prefer paragraphs over ` +
-      `bullet points; a rare sub-heading is acceptable. ${NO_MARKDOWN}`
+      `bullet points; a rare sub-heading is acceptable. ${FACTUAL_PRECISION} ${NO_MARKDOWN}`
     );
   }
   const gsFraming = requireAuthored(
@@ -505,7 +536,7 @@ export function buildModelAnswerSystem(ctx: EvalContext): string {
       `ethical and administrative vocabulary (integrity, probity, objectivity, conflict of ` +
       `interest, accountability) precisely, and only where it does real work. Keep the tone ` +
       `balanced and professionally detached: reason, do not sermonise. Cover the key points the ` +
-      `candidate omitted. ${NO_MARKDOWN} A short heading on its own line and numbered points are ` +
+      `candidate omitted. ${FACTUAL_PRECISION} ${NO_MARKDOWN} A short heading on its own line and numbered points are ` +
       `fine; markdown symbols are not.`
     );
   }
@@ -521,7 +552,7 @@ export function buildModelAnswerSystem(ctx: EvalContext): string {
     `introduction, a structured body (short thematic headings and crisp points are welcome), and ` +
     `a forward-looking conclusion. Substantiate with real, correct facts — constitutional ` +
     `articles, committees, schemes, and ${gsEvidence} where relevant — and cover the key ` +
-    `points the candidate omitted. ${NO_MARKDOWN} A short heading on its own line and numbered ` +
+    `points the candidate omitted. ${FACTUAL_PRECISION} ${NO_MARKDOWN} A short heading on its own line and numbered ` +
     `points are fine; markdown symbols are not.`
   );
 }
