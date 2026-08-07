@@ -185,7 +185,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 152 | 3 | `UPSC_MAINS_GS1` | 2 | Geographical Features and their Location | — none | `5a3471ed-975c-4099-a44e-7bc7cbdb6f33` |
 | 153 | 3 | `UPSC_MAINS_GS1` | 2 | Nation-Building and Internal Challenges | — none | `e527c923-48c6-4a02-b32a-819ac48d7769` |
 | 154 | 3 | `UPSC_MAINS_GS1` | 2 | Reorganization of States | — none | `fce63b3d-34ba-4368-be0e-af337ba25df3` |
-| 155 | 3 | `UPSC_MAINS_GS2` | 2 | Historical Underpinnings, Evolution and Features | published · chapter v1 | `76e7da5c-d818-4bff-92d8-a5a90b7c152c` |
+| 155 | 3 | `UPSC_MAINS_GS2` | 2 | Historical Underpinnings, Evolution and Features | published · chapter v2 | `76e7da5c-d818-4bff-92d8-a5a90b7c152c` |
 | 156 | 3 | `UPSC_MAINS_GS2` | 2 | Indian Diaspora | — none | `83f981da-c606-48ee-a5be-582585d7f4e7` |
 | 157 | 3 | `UPSC_MAINS_GS3` | 2 | Environmental Impact Assessment | — none | `165722d1-5ed7-46ed-b8ff-b26f100f1b98` |
 | 158 | 3 | `UPSC_MAINS_GS3` | 2 | Investment Models | — none | `78a24fce-2bd6-40cd-8f48-8deca93adef8` |
