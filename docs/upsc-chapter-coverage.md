@@ -203,7 +203,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 170 | 2 | `UPSC_MAINS_GS1` | 2 | Industrial Revolution | — none | `3feee3cb-f0c3-4dfb-a4a3-eb66a355e912` |
 | 171 | 2 | `UPSC_MAINS_GS1` | 2 | Political Philosophies — Communism, Capitalism and Socialism | — none | `5a134895-bb2a-4f68-9d9d-855208e19320` |
 | 172 | 2 | `UPSC_MAINS_GS1` | 2 | World Wars and the Redrawal of National Boundaries | — none | `905fa16a-4a71-4069-a810-96a13bb4e606` |
-| 173 | 2 | `UPSC_MAINS_GS2` | 2 | Appointment to Constitutional Posts and Constitutional Bodies | published · chapter v1 | `0d72f611-973f-441a-b8a3-8fff17176be4` |
+| 173 | 2 | `UPSC_MAINS_GS2` | 2 | Appointment to Constitutional Posts and Constitutional Bodies | published · chapter v3 | `0d72f611-973f-441a-b8a3-8fff17176be4` |
 | 174 | 2 | `UPSC_MAINS_GS3` | 2 | Achievements of Indians in Science and Technology | published · chapter v1 | `ac9492f6-3116-4511-8ec0-cd85c6dbea0a` |
 | 175 | 2 | `UPSC_MAINS_GS3` | 2 | Communication Networks, Media and Social Networking Sites | — none | `5f7d3f5c-f3ec-41b9-99eb-b47cc9da8b54` |
 | 176 | 2 | `UPSC_MAINS_GS3` | 2 | Technology Missions and Economics of Animal-Rearing | — none | `8eb467ad-c211-46fe-8042-d664ce2ff3b4` |
