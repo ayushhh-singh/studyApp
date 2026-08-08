@@ -3,6 +3,7 @@ import {
   currentAffairsItemResponseSchema,
   currentAffairsQuerySchema,
   currentAffairsQuizBodySchema,
+  currentAffairsDailySetsResponseSchema,
   currentAffairsQuizResponseSchema,
   currentAffairsResponseSchema,
   currentAffairsWeeklySetsResponseSchema,
@@ -18,7 +19,7 @@ import {
   getCurrentAffairsItemById,
   listCurrentAffairs,
 } from "../services/current-affairs.js";
-import { getWeeklyCaSets } from "../ca/assemble.js";
+import { getDailyCaSets, getWeeklyCaSets } from "../ca/assemble.js";
 import { createCustomTestFromCurrentAffairs } from "../services/tests.js";
 
 export const currentAffairsRouter = Router();
@@ -61,6 +62,17 @@ currentAffairsRouter.get(
   asyncHandler(async (_req, res) => {
     const sets = await getWeeklyCaSets(await getUserExam(currentUserId()));
     res.json(currentAffairsWeeklySetsResponseSchema.parse({ data: sets, error: null }));
+  }),
+);
+
+// Registered BEFORE `/current-affairs/:id` — that catch-all would otherwise
+// match "daily-sets" as an item id and 404 (the same ordering the weekly route
+// above already depends on).
+currentAffairsRouter.get(
+  "/current-affairs/daily-sets",
+  asyncHandler(async (_req, res) => {
+    const sets = await getDailyCaSets(await getUserExam(currentUserId()));
+    res.json(currentAffairsDailySetsResponseSchema.parse({ data: sets, error: null }));
   }),
 );
 

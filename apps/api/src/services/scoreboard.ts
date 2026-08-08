@@ -36,7 +36,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { currentUserIsAnonymous } from "../lib/user-context.js";
 import { HttpError, notFound } from "../lib/http-error.js";
-import { istDateString, istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
+import { istDateString, istDayRangeUtc, istToday, istWeekStart, shiftDate } from "../lib/ist.js";
 import { variantForPaper } from "../daily/config.js";
 import { getUserExam } from "../lib/exams.js";
 import { RUBRIC_DIMENSION_KEYS } from "./evaluation/rubric.js";
@@ -89,14 +89,6 @@ async function getOptedInUserIds(userIds: string[]): Promise<Set<string>> {
     .eq("show_on_mains_board", true);
   if (error) throw new HttpError(500, `opt-in lookup failed: ${error.message}`);
   return new Set((data ?? []).map((r) => r.id as string));
-}
-
-function istWeekStart(dateStr: string): string {
-  const d = new Date(`${dateStr}T00:00:00Z`);
-  const day = d.getUTCDay(); // 0=Sun..6=Sat
-  const isoDay = day === 0 ? 7 : day; // 1=Mon..7=Sun
-  const monday = new Date(d.getTime() - (isoDay - 1) * 24 * 3600 * 1000);
-  return monday.toISOString().slice(0, 10);
 }
 
 function buildRows(

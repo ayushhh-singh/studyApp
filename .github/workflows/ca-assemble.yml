@@ -19,6 +19,14 @@ on:
   schedule:
     # Monday 00:30 UTC = Monday 06:00 IST — after the weekend's items are
     # triaged and (ideally) reviewed, matching the dev scheduler's cadence.
+    #
+    # THE DAY IS LOAD-BEARING: the week these sets are keyed to is Monday-
+    # anchored (lib/ist.ts `istWeekStart`), so a Monday build is reachable for
+    # the whole week it is labelled for. It previously was NOT — the week was
+    # derived from the 1970-01-01 epoch, a THURSDAY, so the set built here went
+    # unreachable every Thursday and the Current Affairs page showed "No prelims
+    # quiz yet this week" for four days out of seven. If this cron day ever
+    # moves, move the anchor with it.
     - cron: "30 0 * * 1"
   workflow_dispatch: {}
 

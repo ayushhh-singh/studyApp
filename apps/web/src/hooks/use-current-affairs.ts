@@ -3,6 +3,7 @@ import {
   currentAffairsItemResponseSchema,
   currentAffairsQuizResponseSchema,
   currentAffairsResponseSchema,
+  currentAffairsDailySetsResponseSchema,
   currentAffairsWeeklySetsResponseSchema,
   type CurrentAffairsCategory,
   type CurrentAffairsLens,
@@ -31,11 +32,23 @@ export function useCurrentAffairsItem(id: string | undefined) {
   });
 }
 
-/** The two ready-to-run weekly assemblies (CA Prelims Quiz + CA Mains Set). */
+/** The week's curated sitting (up to 20 CA MCQs + 5 descriptive), built Monday. */
 export function useWeeklyCaSets() {
   return useQuery({
     queryKey: queryKeys.currentAffairsWeeklySets(),
     queryFn: () => api.get("/api/v1/current-affairs/weekly-sets", currentAffairsWeeklySetsResponseSchema),
+  });
+}
+
+/**
+ * Today's quick sitting (up to 5 CA MCQs + 2 descriptive) over what was approved
+ * since yesterday. Separate from the weekly query because the two are built by
+ * different crons — either can be present while the other is null.
+ */
+export function useDailyCaSets() {
+  return useQuery({
+    queryKey: queryKeys.currentAffairsDailySets(),
+    queryFn: () => api.get("/api/v1/current-affairs/daily-sets", currentAffairsDailySetsResponseSchema),
   });
 }
 

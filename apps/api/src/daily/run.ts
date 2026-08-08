@@ -1,10 +1,11 @@
 /**
  * `pnpm daily:build [--date YYYY-MM-DD] [--size N] [--user <uuid>] [--exam <code>]`
  *
- * Assembles the day's engagement content: the daily quiz today (the daily
- * answer set is added by its own builder). Invoked by the 5:00 AM IST scheduler
- * (daily/scheduler.ts) and runnable by hand for a specific date. Idempotent —
- * re-running a date rebuilds that day's content in place.
+ * Assembles the day's engagement content: the GS/CSAT daily quizzes and the
+ * daily current-affairs sets (the daily answer set is computed on demand by its
+ * own builder — the check below is diagnostic). Invoked by the 5:00 AM IST
+ * scheduler (daily/scheduler.ts) and runnable by hand for a specific date.
+ * Idempotent — re-running a date rebuilds/returns that day's content in place.
  */
 import { parseArgs } from "../ingest/_shared.js";
 import { istToday } from "../lib/ist.js";
@@ -13,6 +14,7 @@ import { listAllUserIds } from "../lib/users.js";
 import { listExams } from "../lib/exams.js";
 import { buildDailyQuizzes } from "./quiz.js";
 import { variantsForExam } from "./config.js";
+import { assembleDailyCaSets, assembleWeeklySets } from "../ca/assemble.js";
 import { getDailyAnswerSet } from "../services/answer-set.js";
 
 export interface DailyBuildOptions {
@@ -92,6 +94,36 @@ export async function runDailyBuild(opts: DailyBuildOptions): Promise<void> {
   const quizzes = await buildDailyQuizzes({ date, size: opts.size, examCodes: opts.examCodes, log });
   for (const q of quizzes) {
     if (!q.result) log(`daily quiz [${q.examCode}:${q.variant}]: skipped (no questions available)`);
+  }
+
+  // The daily current-affairs sets, built HERE rather than on their own cron so
+  // both daily cadences resolve "today" and "which exams" once, from the same
+  // options. Deliberately NOT wrapped in try/catch: it is pure DB work over
+  // already-approved questions, so a failure is a real fault the operator must
+  // see as a red run — and the only step below it is the diagnostic answer-set
+  // check, which stores nothing.
+  const caRun = await assembleDailyCaSets({ date, examCodes: opts.examCodes });
+  for (const r of caRun.results) {
+    log(
+      `daily CA sets [${r.examCode}]: prelims ${r.prelimsTestId ?? "— (nothing new approved)"}, ` +
+        `mains ${r.mainsTestId ?? "— (nothing new approved)"}`,
+    );
+  }
+
+  // Gap-filler for the WEEKLY sets. Their own cron (Monday, ca-assemble.yml)
+  // remains the generator; this only ensures the week's set EXISTS, because a
+  // single missed Monday would otherwise leave the Current Affairs page empty
+  // for a full week with nothing to notice it.
+  //
+  // Safe to run any day precisely BECAUSE the weekly pool is week-anchored
+  // (ca/assemble.ts `dayWindow(weekStart, …)`): a Tuesday heal produces the
+  // same set Monday would have, so "generated on a fixed day" still holds — the
+  // set's CONTENT depends on which week it is, not on when the build ran. The
+  // builder short-circuits on a slug hit, so the normal case is two cheap reads.
+  const weeklyRun = await assembleWeeklySets({ examCodes: opts.examCodes });
+  for (const r of weeklyRun.results) {
+    const built = [r.prelimsTestId, r.mainsTestId].filter(Boolean).length;
+    log(`weekly CA sets [${r.examCode}] week of ${r.weekStart}: ${built}/2 present`);
   }
 
   const userIds = opts.userId ? [opts.userId] : await listAllUserIds();

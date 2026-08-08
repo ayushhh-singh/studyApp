@@ -1,8 +1,12 @@
 /**
  * `pnpm ca:assemble [--days N] [--exam <code>]` — build (or return) this IST
  * week's two current-affairs sittings: the CA Prelims Quiz + the CA Mains Set.
- * Idempotent per (week, exam). What the weekly production cron invokes; also a
- * manual ops entry.
+ * Idempotent per (week, exam). What the weekly production cron invokes every
+ * MONDAY (.github/workflows/ca-assemble.yml); also a manual ops entry.
+ *
+ * The week is Monday-anchored (`istWeekStart`), so a Monday build is live for
+ * the whole week it is labelled for — see ca/assemble.ts's header for the
+ * four-days-of-seven bug that alignment fixes.
  *
  * With no `--exam` this builds for every LIVE exam, which is what the cron does.
  * `--exam <code>` may name a NON-live exam on purpose — stocking an unlaunched
@@ -32,7 +36,7 @@ async function main(): Promise<void> {
   );
   const run = await assembleWeeklySets({ days, examCodes });
 
-  report.ok(`IST week #${run.week}`);
+  report.ok(`IST week starting Monday ${run.weekStart}`);
   let assembledAny = false;
   for (const r of run.results) {
     report.ok(`[${r.examCode}] CA Prelims Quiz: ${r.prelimsTestId ?? "— (no approved CA MCQs yet)"}`);

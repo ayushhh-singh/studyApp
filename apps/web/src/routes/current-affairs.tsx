@@ -10,7 +10,7 @@ import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { CurrentAffairsItemCard } from "@/components/current-affairs/item-card";
 import { CurrentAffairsDetailSheet } from "@/components/current-affairs/item-detail-sheet";
-import { CurrentAffairsWeeklyQuizButtons } from "@/components/current-affairs/quiz-button";
+import { CurrentAffairsQuizSets } from "@/components/current-affairs/quiz-button";
 import { QuickScanFeed } from "@/components/current-affairs/quick-scan-feed";
 import { useCurrentAffairs } from "@/hooks/use-current-affairs";
 import { useCurrentExam } from "@/hooks/use-current-exam";
@@ -137,8 +137,8 @@ export function Component() {
         }
       />
 
-      <SectionCard title={t("CurrentAffairs.weeklySetsTitle")}>
-        <CurrentAffairsWeeklyQuizButtons />
+      <SectionCard title={t("CurrentAffairs.practiceSetsTitle")}>
+        <CurrentAffairsQuizSets />
       </SectionCard>
 
       <SectionCard title={t("CurrentAffairs.latest")}>

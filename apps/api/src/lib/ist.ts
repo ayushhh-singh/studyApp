@@ -25,6 +25,25 @@ export function shiftDate(dateStr: string, days: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
+/**
+ * The MONDAY of the ISO week containing `dateStr`, as `YYYY-MM-DD` — this
+ * codebase's ONE definition of "which week is it".
+ *
+ * Lives here, rather than beside any one caller, because a second copy is how
+ * two features silently end up on different week boundaries. That is not
+ * hypothetical: the current-affairs weekly assembly used to derive its week as
+ * `floor(daysBetween("1970-01-01", date) / 7)`, and since the epoch was a
+ * THURSDAY that rolled over mid-week while its cron built on Monday — so the
+ * weekly CA quiz vanished from the page for four days out of every seven.
+ * Anything weekly must anchor here.
+ */
+export function istWeekStart(dateStr: string): string {
+  const d = new Date(`${dateStr}T00:00:00Z`);
+  const day = d.getUTCDay(); // 0=Sun..6=Sat
+  const isoDay = day === 0 ? 7 : day; // 1=Mon..7=Sun
+  return shiftDate(dateStr, -(isoDay - 1));
+}
+
 /** Whole days from `fromDateStr` to `toDateStr` (both `YYYY-MM-DD`); negative if `to` precedes `from`. */
 export function daysBetween(fromDateStr: string, toDateStr: string): number {
   const from = Date.parse(`${fromDateStr}T00:00:00Z`);

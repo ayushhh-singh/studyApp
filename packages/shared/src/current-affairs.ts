@@ -222,16 +222,39 @@ export const currentAffairsQuizResponseSchema = apiEnvelopeSchema(testDetailSche
 export type CurrentAffairsQuizResponse = z.infer<typeof currentAffairsQuizResponseSchema>;
 
 /**
- * GET /current-affairs/weekly-sets — the two ready-to-run weekly assemblies:
- * a Prelims MCQ quiz and a Mains descriptive practice set. Either can be null
- * before the week's first assembly cron has run (or if there's no approved
- * supply yet).
+ * One cadence's pair of ready-to-run assemblies: a Prelims MCQ quiz and a Mains
+ * descriptive practice set. Either side can be null when that cadence's cron
+ * hasn't run yet, or when there is no approved supply for the period.
  */
-export const currentAffairsWeeklySetsSchema = z.object({
+export const currentAffairsSetPairSchema = z.object({
   prelims: testSummarySchema.nullable(),
   mains: testSummarySchema.nullable(),
 });
+export type CurrentAffairsSetPair = z.infer<typeof currentAffairsSetPairSchema>;
+
+/**
+ * GET /current-affairs/weekly-sets — the week's curated sitting (up to 20 MCQs /
+ * 5 descriptive), assembled Monday by `ca:assemble`.
+ */
+export const currentAffairsWeeklySetsSchema = currentAffairsSetPairSchema;
 export type CurrentAffairsWeeklySets = z.infer<typeof currentAffairsWeeklySetsSchema>;
 
 export const currentAffairsWeeklySetsResponseSchema = apiEnvelopeSchema(currentAffairsWeeklySetsSchema);
 export type CurrentAffairsWeeklySetsResponse = z.infer<typeof currentAffairsWeeklySetsResponseSchema>;
+
+/**
+ * GET /current-affairs/daily-sets — today's quick sitting (up to 5 MCQs / 2
+ * descriptive) over what was approved since yesterday, assembled by
+ * `daily:build` alongside the GS/CSAT daily quizzes.
+ *
+ * A SEPARATE endpoint rather than a field folded into weekly-sets: the two are
+ * built by different crons on different cadences, so either can be present
+ * while the other is null, and keeping them apart leaves the weekly contract
+ * byte-identical for its existing consumers. Both are cheap DB reads and the
+ * client fetches them in parallel.
+ */
+export const currentAffairsDailySetsSchema = currentAffairsSetPairSchema;
+export type CurrentAffairsDailySets = z.infer<typeof currentAffairsDailySetsSchema>;
+
+export const currentAffairsDailySetsResponseSchema = apiEnvelopeSchema(currentAffairsDailySetsSchema);
+export type CurrentAffairsDailySetsResponse = z.infer<typeof currentAffairsDailySetsResponseSchema>;

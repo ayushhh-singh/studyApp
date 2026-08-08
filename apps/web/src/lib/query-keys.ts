@@ -35,6 +35,7 @@ export const queryKeys = {
     ] as const,
   currentAffairsItem: (id: string) => ["current-affairs", "detail", id] as const,
   currentAffairsWeeklySets: () => ["current-affairs", "weekly-sets"] as const,
+  currentAffairsDailySets: () => ["current-affairs", "daily-sets"] as const,
   questions: (filters?: {
     type?: QuestionType;
     paper?: string;
