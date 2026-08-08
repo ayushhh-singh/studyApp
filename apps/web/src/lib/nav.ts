@@ -9,6 +9,7 @@ import {
   ShieldCheck,
   Trophy,
   User,
+  Users,
   MessagesSquare,
   StickyNote,
   Compass,
@@ -48,6 +49,7 @@ export const NAV_ITEMS: NavItem[] = [
   // (not buried in Settings) so it's trivially findable on demand at any time.
   { id: "explore", to: "explore", labelKey: "Nav.explore", icon: Compass },
   { id: "review", to: "review", labelKey: "Nav.review", icon: ShieldCheck, adminOnly: true },
+  { id: "admin-users", to: "admin-users", labelKey: "Nav.adminUsers", icon: Users, adminOnly: true },
   { id: "profile", to: "profile", labelKey: "Nav.profile", icon: User },
 ];
 

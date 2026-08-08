@@ -2,6 +2,10 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   adminStatusResponseSchema,
+  adminGrantLogResponseSchema,
+  adminUserActionResponseSchema,
+  adminUserSearchQuerySchema,
+  adminUserSearchResponseSchema,
   caBulkApproveHighConfidenceBodySchema,
   caHighConfidenceCountResponseSchema,
   caHighConfidenceQuerySchema,
@@ -70,6 +74,14 @@ import {
   MAGAZINE_REVIEW_PAGE_SIZE,
   rejectMagazineDeepDive,
 } from "../services/magazine.js";
+import {
+  findUserByEmail,
+  getGrantLog,
+  grantAdmin,
+  grantPro,
+  revokeAdmin,
+  revokePro,
+} from "../services/admin-users.js";
 
 export const adminRouter = Router();
 
@@ -101,6 +113,9 @@ adminRouter.use("/admin/notes", requireAdmin, rateLimit({ windowMs: 60_000, max:
 adminRouter.use("/admin/community", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/question-reports", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/magazine", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
+// Tighter than the review-queue surfaces above: this gates real financial
+// (Pro plan) and privilege (is_admin) changes, not content review.
+adminRouter.use("/admin/users", requireAdmin, rateLimit({ windowMs: 60_000, max: 60 }));
 
 adminRouter.get(
   "/admin/review",
@@ -368,5 +383,59 @@ adminRouter.patch(
     const { id } = parse(idParams, req.params);
     const body = parse(reviewMagazineEditBodySchema, req.body);
     res.json(reviewMagazineActionResponseSchema.parse({ data: await editMagazineDeepDive(id, body), error: null }));
+  }),
+);
+
+// ---------------------------------------------------------------------------
+// Admin "Users" — search a specific account by email, grant/revoke Pro access
+// or admin privilege. Every mutating action is logged to `admin_grants`
+// (migration 0117); see services/admin-users.ts for the full design notes
+// (why a grant is indefinite, why self-revoke-admin is blocked).
+// ---------------------------------------------------------------------------
+adminRouter.get(
+  "/admin/users/search",
+  asyncHandler(async (req, res) => {
+    const { email } = parse(adminUserSearchQuerySchema, req.query);
+    res.json(adminUserSearchResponseSchema.parse({ data: await findUserByEmail(email), error: null }));
+  }),
+);
+
+adminRouter.get(
+  "/admin/users/:id/grants",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminGrantLogResponseSchema.parse({ data: await getGrantLog(id), error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/users/:id/grant-pro",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminUserActionResponseSchema.parse({ data: await grantPro(currentUserId(), id), error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/users/:id/revoke-pro",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminUserActionResponseSchema.parse({ data: await revokePro(currentUserId(), id), error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/users/:id/grant-admin",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminUserActionResponseSchema.parse({ data: await grantAdmin(currentUserId(), id), error: null }));
+  }),
+);
+
+adminRouter.post(
+  "/admin/users/:id/revoke-admin",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminUserActionResponseSchema.parse({ data: await revokeAdmin(currentUserId(), id), error: null }));
   }),
 );

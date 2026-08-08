@@ -104,6 +104,7 @@ export const router = createBrowserRouter([
               { path: "community/shared-answers/:id", lazy: () => import("@/routes/community-shared-answer") },
               { path: "community/thread/:threadId", lazy: () => import("@/routes/community-thread") },
               { path: "review", lazy: () => import("@/routes/review") },
+              { path: "admin-users", lazy: () => import("@/routes/admin-users") },
               // Built but hidden: reachable by URL, not linked in nav (see leaderboard.tsx).
               { path: "leaderboard", lazy: () => import("@/routes/leaderboard") },
               { path: "profile", lazy: () => import("@/routes/profile") },
