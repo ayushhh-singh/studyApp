@@ -17,7 +17,7 @@ import { useInstallPrompt } from "@/hooks/use-install-prompt";
  */
 export function PwaInstallBanner() {
   const { t } = useTranslation();
-  const { canInstall, promptInstall, dismissed, dismiss } = useInstallPrompt();
+  const { canInstall, promptInstall, isPrompting, dismissed, dismiss } = useInstallPrompt();
 
   if (!canInstall || dismissed) return null;
 
@@ -30,7 +30,13 @@ export function PwaInstallBanner() {
         <span className="text-sm font-semibold">{t("Pwa.installTitle")}</span>
         <span className="text-xs text-muted-foreground">{t("Pwa.installDescription")}</span>
       </div>
-      <Button type="button" size="sm" className="shrink-0" onClick={() => void promptInstall()}>
+      <Button
+        type="button"
+        size="sm"
+        className="shrink-0"
+        onClick={() => void promptInstall()}
+        disabled={isPrompting}
+      >
         {t("Pwa.installCta")}
       </Button>
       <button

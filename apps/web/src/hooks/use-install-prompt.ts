@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const DISMISSED_KEY = "neev-pwa-install-dismissed";
 
@@ -39,6 +39,21 @@ function readDismissed(): boolean {
 export function useInstallPrompt() {
   const [deferredEvent, setDeferredEvent] = useState<BeforeInstallPromptEvent | null>(null);
   const [dismissed, setDismissed] = useState<boolean>(readDismissed);
+  // Tracks the `appinstalled` event specifically — distinct from checking
+  // `display-mode: standalone` (the more common "already installed" check),
+  // because the CURRENT tab doesn't switch into standalone display just by
+  // installing; that only happens on a fresh launch from the installed
+  // icon. Without this, a persistent "Install" entry point (unlike the
+  // one-shot banner, which simply disappears once `canInstall` goes false)
+  // would fall through to "here's how to install manually" immediately
+  // after the user successfully installed via that exact entry point.
+  const [installed, setInstalled] = useState(false);
+  // Reentrancy guard for promptInstall — a ref, not state, because the
+  // callback below is memoized on [deferredEvent, dismiss] and would
+  // otherwise close over a stale value of an `isPrompting` state flag
+  // across renders where those deps haven't changed.
+  const promptingRef = useRef(false);
+  const [isPrompting, setIsPrompting] = useState(false);
 
   useEffect(() => {
     function handleBeforeInstallPrompt(event: Event) {
@@ -49,6 +64,7 @@ export function useInstallPrompt() {
       // Already installed (via this prompt or the browser's own menu) —
       // nothing left to offer, regardless of prior dismissal state.
       setDeferredEvent(null);
+      setInstalled(true);
     }
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
     window.addEventListener("appinstalled", handleAppInstalled);
@@ -69,22 +85,35 @@ export function useInstallPrompt() {
   }, []);
 
   const promptInstall = useCallback(async () => {
-    if (!deferredEvent) return;
-    await deferredEvent.prompt();
-    const choice = await deferredEvent.userChoice;
-    // Chrome only allows calling prompt() once per captured event, so it's
-    // spent either way — clear it, and if the user explicitly declined the
-    // native dialog, treat that the same as dismissing our own banner.
-    setDeferredEvent(null);
-    if (choice.outcome === "dismissed") {
-      dismiss();
+    // Guards against a double-click (or any re-entrant call) firing
+    // `.prompt()` again on an event that's already mid-flight — Chromium
+    // only allows one live prompt() per captured event, and nothing else
+    // here prevented a second call before the first's userChoice resolves.
+    if (!deferredEvent || promptingRef.current) return;
+    promptingRef.current = true;
+    setIsPrompting(true);
+    try {
+      await deferredEvent.prompt();
+      const choice = await deferredEvent.userChoice;
+      // Chrome only allows calling prompt() once per captured event, so it's
+      // spent either way — clear it, and if the user explicitly declined the
+      // native dialog, treat that the same as dismissing our own banner.
+      setDeferredEvent(null);
+      if (choice.outcome === "dismissed") {
+        dismiss();
+      }
+    } finally {
+      promptingRef.current = false;
+      setIsPrompting(false);
     }
   }, [deferredEvent, dismiss]);
 
   return {
     canInstall: deferredEvent !== null,
     promptInstall,
+    isPrompting,
     dismissed,
     dismiss,
+    installed,
   };
 }

@@ -15,9 +15,13 @@ import { isIosDevice, isStandaloneDisplay } from "@/lib/pwa-platform";
  */
 export function InstallAppCard() {
   const { t } = useTranslation();
-  const { canInstall, promptInstall } = useInstallPrompt();
+  const { canInstall, promptInstall, isPrompting, installed } = useInstallPrompt();
 
-  if (isStandaloneDisplay()) {
+  // `installed` (the `appinstalled` event) covers "just installed via the
+  // button below, still viewing it in this same browser tab" — a state
+  // `isStandaloneDisplay()` alone can't see, since the tab doesn't become
+  // standalone until relaunched from the installed icon.
+  if (isStandaloneDisplay() || installed) {
     return (
       <SectionCard title={t("Pwa.installSectionTitle")}>
         <p className="flex items-center gap-2 text-sm text-tulsi-foreground">
@@ -31,7 +35,12 @@ export function InstallAppCard() {
   return (
     <SectionCard title={t("Pwa.installSectionTitle")} description={t("Pwa.installDescription")}>
       {canInstall ? (
-        <Button type="button" className="w-fit gap-2" onClick={() => void promptInstall()}>
+        <Button
+          type="button"
+          className="w-fit gap-2"
+          onClick={() => void promptInstall()}
+          disabled={isPrompting}
+        >
           <Download className="size-4" aria-hidden />
           {t("Pwa.installCta")}
         </Button>
