@@ -39,7 +39,21 @@ export function PaperSegmentTabs({
   includeAll = false,
   allLabel,
 }: {
-  /** Paper codes to offer, in any order — sorted here by the catalog's own comparator. */
+  /**
+   * Paper codes to offer, in any order — sorted here by the catalog's own
+   * comparator.
+   *
+   * ── KNOWN LIMITATION, deliberate: every current caller derives these from
+   * the FIRST PAGE of its own list, so a paper that appears only deeper in the
+   * history gets no tab. "All" still reaches it, so nothing is unreachable —
+   * the filter set is merely incomplete.
+   *
+   * The alternative was worse: offering every paper in the exam's catalog
+   * renders tabs that yield an empty list (up to ten of them for UPPSC), which
+   * is more misleading than a short list, not less. Deriving a complete-and-
+   * non-empty set needs a distinct-papers aggregate the API does not expose;
+   * add one before "fixing" this by widening the source, or the cure is worse.
+   */
   codes: string[];
   value: string;
   onValueChange: (next: string) => void;

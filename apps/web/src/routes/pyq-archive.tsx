@@ -201,7 +201,12 @@ export function Component() {
   const selectedYear = Number.isFinite(parsedYear) ? parsedYear : undefined;
 
   const page = Number(searchParams.get("page") ?? "1") || 1;
-  const expanded = useArchiveExpanded(ARCHIVE_PARAM);
+  // A bare `?year=2019` ALSO means the archive view. That is the shape of every
+  // link bookmarked or shared before this toggle existed: without this clause
+  // such a URL would silently render the latest year instead, ignoring the year
+  // it explicitly asks for AND hiding the picker that would reveal the
+  // mismatch — a regression visible only to someone holding an old link.
+  const archiveRequested = useArchiveExpanded(ARCHIVE_PARAM) || selectedYear != null;
 
   // Hooks are called unconditionally (Rules of Hooks) even while the paper
   // catalog is still loading and `selectedPaperCode` is undefined — both
@@ -215,6 +220,14 @@ export function Component() {
   const yearsDescending = [...(trendsQuery.data?.years ?? [])].sort((a, b) => b - a);
   const latestYear = yearsDescending[0];
   const oldestYear = yearsDescending[yearsDescending.length - 1];
+
+  // A paper with one year (or none — a failed trends fetch lands here too) has
+  // nothing to browse INTO. Gating the VIEW on this, not just the toggle, is
+  // what stops the dead end the first cut had: hiding the toggle while still
+  // honouring `?view=all` left the archive showing with no way back to recent
+  // short of hand-editing the URL.
+  const canExpand = yearsDescending.length > 1;
+  const expanded = archiveRequested && canExpand;
 
   // Collapsed: pinned to the newest year. Expanded: whatever the year picker
   // says, `undefined` meaning every year.
@@ -411,7 +424,7 @@ export function Component() {
             to the latest year already shows all of it, so a "Browse all years"
             leading to the same list would be a lie — the same reason History
             hides "See all" when page 1 is the whole history. */}
-        {yearsDescending.length <= 1 ? (
+        {!canExpand ? (
           questionList
         ) : (
           /* Both views render the SAME list — deliberately. Unlike the other
@@ -422,6 +435,10 @@ export function Component() {
              Practice → Daily and → History rather than being a bespoke button. */
           <RecentThenArchive
             param={ARCHIVE_PARAM}
+            // Not the param alone: a bare `?year=` counts as expanded here, so
+            // the button must read "Back to <year>" rather than offering to
+            // expand a view that is already expanded.
+            expanded={expanded}
             expandLabel={t("PyqArchive.browseAllYearsRange", { from: oldestYear, to: latestYear })}
             collapseLabel={t("PyqArchive.backToLatest", { year: latestYear })}
             recent={questionList}

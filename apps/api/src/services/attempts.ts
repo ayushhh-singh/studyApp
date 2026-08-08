@@ -130,7 +130,25 @@ export async function listAttempts(
   const { data, error, count } = await query
     .order("submitted_at", { ascending: false })
     .range(from, to);
-  if (error) throw new HttpError(500, `attempts query failed: ${error.message}`);
+  if (error) {
+    // PGRST103 = the requested page starts past the end of the data. Not a
+    // server fault: narrowing by paper shrinks the list under a page number the
+    // client already holds. Same fix as listQuestions/listReviewQueue — re-count
+    // with the identical filters (PostgREST leaves `count` null on this error)
+    // and return an empty page rather than 500ing the whole history.
+    if (error.code === "PGRST103") {
+      let countQuery = supabase()
+        .from("attempts")
+        .select("id, tests!inner(exam_code, paper_code)", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("tests.exam_code", examCode)
+        .not("submitted_at", "is", null);
+      if (paperCode) countQuery = countQuery.eq("tests.paper_code", paperCode);
+      const { count: total } = await countQuery;
+      return { items: [], total: total ?? 0 };
+    }
+    throw new HttpError(500, `attempts query failed: ${error.message}`);
+  }
 
   const items = ((data ?? []) as unknown as AttemptListRow[]).map((row) => ({
     id: row.id,

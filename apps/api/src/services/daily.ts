@@ -75,7 +75,26 @@ export async function listDailyQuizzes(
   const { data, error, count } = await query
     .order("scheduled_date", { ascending: false })
     .range(from, to);
-  if (error) throw new HttpError(500, `daily quiz archive query failed: ${error.message}`);
+  if (error) {
+    // PGRST103 = the requested page starts past the end of the data. Not a
+    // server fault: narrowing by paper shrinks the list under a page number the
+    // client already holds. Same fix as listQuestions/listReviewQueue — re-count
+    // with the identical filters (PostgREST leaves `count` null on this error)
+    // and return an empty page rather than 500ing the whole archive.
+    if (error.code === "PGRST103") {
+      let countQuery = supabase()
+        .from("tests")
+        .select("id", { count: "exact", head: true })
+        .eq("kind", "daily_quiz")
+        .eq("exam_code", examCode)
+        .eq("is_published", true)
+        .not("scheduled_date", "is", null);
+      if (paperCode) countQuery = countQuery.eq("paper_code", paperCode);
+      const { count: total } = await countQuery;
+      return { items: [], total: total ?? 0 };
+    }
+    throw new HttpError(500, `daily quiz archive query failed: ${error.message}`);
+  }
 
   const rows = (data ?? []) as unknown as DailyQuizRow[];
   const best = await getBestScoresByTest(rows.map((r) => r.id));

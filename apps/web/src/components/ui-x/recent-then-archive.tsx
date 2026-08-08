@@ -36,6 +36,7 @@ export function RecentThenArchive({
   archive,
   expandLabel,
   collapseLabel,
+  expanded: expandedOverride,
 }: {
   /**
    * Search-param name owned by this surface, e.g. `view`. Set to `all` while
@@ -48,10 +49,23 @@ export function RecentThenArchive({
   /** Caller-owned so it can be specific ("See all 1,203 questions") — falls back to generic copy. */
   expandLabel?: string;
   collapseLabel?: string;
+  /**
+   * Overrides the param read, for a surface whose view state is not the param
+   * ALONE. The PYQ archive is one: a bare `?year=2019` — the shape of every
+   * link bookmarked before this toggle existed — means "archive", so the param
+   * is not the whole story there and the button would otherwise offer to expand
+   * a view that is already expanded.
+   *
+   * Writing still goes through the param either way, so a collapse from an
+   * overridden-expanded state clears the params that made it expanded and the
+   * two agree again on the next render.
+   */
+  expanded?: boolean;
 }) {
   const { t } = useTranslation();
   const [, setSearchParams] = useSearchParams();
-  const expanded = useArchiveExpanded(param);
+  const paramExpanded = useArchiveExpanded(param);
+  const expanded = expandedOverride ?? paramExpanded;
 
   function toggle(next: boolean) {
     setSearchParams(

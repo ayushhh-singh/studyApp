@@ -98,9 +98,10 @@ function RecentDays({ items }: { items: DailyQuizArchiveItem[] }) {
   const { latinLabel, compare } = usePaperCatalog();
 
   const cutoff = istDate(-(RECENT_DAYS - 1));
-  const recent = items.filter((item) => item.scheduled_date >= cutoff);
-
-  const columns = useMemo(() => {
+  // Inside the memo, not above it: computed outside, the filtered array is a
+  // fresh reference on every render and the memo below never hits.
+  const { recent, columns } = useMemo(() => {
+    const recent = items.filter((item) => item.scheduled_date >= cutoff);
     const byPaper = new Map<string, DailyQuizArchiveItem[]>();
     for (const item of recent) {
       // A legacy pre-split blended quiz has no paper_code; it gets its own
@@ -110,8 +111,8 @@ function RecentDays({ items }: { items: DailyQuizArchiveItem[] }) {
       if (bucket) bucket.push(item);
       else byPaper.set(key, [item]);
     }
-    return [...byPaper.entries()].sort(([a], [b]) => compare(a || null, b || null));
-  }, [recent, compare]);
+    return { recent, columns: [...byPaper.entries()].sort(([a], [b]) => compare(a || null, b || null)) };
+  }, [items, cutoff, compare]);
 
   if (recent.length === 0) {
     return (
