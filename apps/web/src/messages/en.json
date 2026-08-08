@@ -375,7 +375,10 @@
     "emptyTitle": "No PYQs yet for this paper",
     "emptyDescription": "Previous-year questions for this paper will appear here once they're published.",
     "noPapersTitle": "No papers yet",
-    "noPapersDescription": "This exam's paper list hasn't been added yet — check back soon."
+    "noPapersDescription": "This exam's paper list hasn't been added yet — check back soon.",
+    "latestYearDescription": "The most recent sitting — {{year}}.",
+    "browseAllYearsRange": "Browse all years ({{from}}–{{to}})",
+    "backToLatest": "Back to {{year}}"
   },
   "Answers": {
     "title": "Answer Writing",

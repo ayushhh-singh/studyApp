@@ -18,10 +18,19 @@ export function useQuestions(filters?: {
   page?: number;
   /** Fetch exactly these question ids (unpaginated) instead of a filtered/paged list. */
   ids?: string[];
+  /**
+   * Hold the request until the caller's own filters are resolved. Needed when a
+   * filter is DERIVED from another query: without it, the first render fires an
+   * unfiltered "everything" request that is then immediately superseded — a
+   * wasted round trip whose result can also paint before the real one lands.
+   * ANDed with the internal ids guard, never replacing it.
+   */
+  enabled?: boolean;
 }) {
   const idsParam = filters?.ids?.length ? filters.ids.join(",") : undefined;
+  const { enabled: callerEnabled, ...queryFilters } = filters ?? {};
   return useQuery({
-    queryKey: queryKeys.questions({ ...filters, ids: idsParam }),
+    queryKey: queryKeys.questions({ ...queryFilters, ids: idsParam }),
     queryFn: () =>
       api.get("/api/v1/questions", questionsResponseSchema, {
         type: filters?.type,
@@ -34,7 +43,7 @@ export function useQuestions(filters?: {
       }),
     // When `ids` is passed but empty, there's nothing to fetch — don't fall
     // through to an unfiltered "everything" query.
-    enabled: !filters?.ids || filters.ids.length > 0,
+    enabled: (!filters?.ids || filters.ids.length > 0) && callerEnabled !== false,
     staleTime: 5 * 60_000,
   });
 }

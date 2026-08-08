@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
 import { Archive, ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { applyArchiveExpanded, useArchiveExpanded } from "@/lib/archive-view";
 
 /**
  * The "short recent list, then the full archive" shell shared by the three
@@ -49,25 +50,12 @@ export function RecentThenArchive({
   collapseLabel?: string;
 }) {
   const { t } = useTranslation();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const expanded = searchParams.get(param) === "all";
+  const [, setSearchParams] = useSearchParams();
+  const expanded = useArchiveExpanded(param);
 
   function toggle(next: boolean) {
     setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        if (next) params.set(param, "all");
-        else {
-          params.delete(param);
-          // The archive's own filters/page are meaningless in the recent view
-          // and would silently re-apply on the next expand, so collapsing
-          // clears them. `page` is shared with the archive by every current
-          // caller; `year` is the PYQ archive's own filter.
-          params.delete("page");
-          params.delete("year");
-        }
-        return params;
-      },
+      (prev) => applyArchiveExpanded(prev, param, next),
       // replace: paging between recent and archive is a view toggle, not a
       // navigation step — stacking it would make Back walk through toggles
       // instead of leaving the page.

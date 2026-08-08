@@ -10,6 +10,7 @@ import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
 import { PaginationControls } from "@/components/ui-x/pagination-controls";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
+import { RecentThenArchive } from "@/components/ui-x/recent-then-archive";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { useCurrentExam } from "@/hooks/use-current-exam";
@@ -18,12 +19,16 @@ import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { usePaperTrends } from "@/hooks/use-paper-tree";
 import { useQuestions } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
+import { useArchiveExpanded } from "@/lib/archive-view";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { groupByYearDescending } from "@/lib/group-by-year";
 import { isAwaitingData } from "@/lib/query-state";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "PyqArchive.title" };
+
+/** Search param owned by this page's recent/archive toggle. */
+const ARCHIVE_PARAM = "view";
 
 /**
  * Answer-key honesty badge — NEW to this page, deliberately separate from
@@ -196,17 +201,41 @@ export function Component() {
   const selectedYear = Number.isFinite(parsedYear) ? parsedYear : undefined;
 
   const page = Number(searchParams.get("page") ?? "1") || 1;
+  const expanded = useArchiveExpanded(ARCHIVE_PARAM);
 
   // Hooks are called unconditionally (Rules of Hooks) even while the paper
   // catalog is still loading and `selectedPaperCode` is undefined — both
   // hooks already gate on `!!paperCode` internally (usePaperTree.ts), so this
   // mirrors learn-trends.tsx's own pattern rather than reinventing it.
   const trendsQuery = usePaperTrends(selectedPaperCode, examCode as ExamCode);
+
+  // "Recent" for a PYQ bank is the newest EXAM YEAR, not a row count: past
+  // papers arrive one sitting at a time, so the unit a student thinks in is
+  // "what did they ask last year", never "the last 5 questions".
+  const yearsDescending = [...(trendsQuery.data?.years ?? [])].sort((a, b) => b - a);
+  const latestYear = yearsDescending[0];
+  const oldestYear = yearsDescending[yearsDescending.length - 1];
+
+  // Collapsed: pinned to the newest year. Expanded: whatever the year picker
+  // says, `undefined` meaning every year.
+  const effectiveYear = expanded ? selectedYear : latestYear;
   const questionsQuery = useQuestions({
     paper: selectedPaperCode,
-    year: selectedYear,
+    year: effectiveYear,
     exam: examCode as ExamCode,
     page,
+    // The collapsed view's year is DERIVED from the trends query. Without this
+    // gate the first render would fire an all-years request that is thrown away
+    // the moment trends resolves — a wasted round trip that can also paint
+    // before the real one lands, briefly showing years the heading denies.
+    //
+    // Gated on trends no longer PENDING rather than on `latestYear != null`:
+    // a paper whose trends resolve with no years at all would leave the latter
+    // permanently false, and a permanently-disabled query reports
+    // `isLoading: false` with no data — the stranded-skeleton bug documented in
+    // lib/query-state.ts. This way that paper falls through to a real
+    // (all-years, and therefore empty) request and an honest empty state.
+    enabled: expanded || !trendsQuery.isPending,
   });
 
   function setPaper(next: string) {
@@ -292,9 +321,43 @@ export function Component() {
 
   // From here on `selectedPaperCode` is narrowed to `string` by the guard above.
   const awaitingBody = isAwaitingData(trendsQuery, questionsQuery);
-  const years = trendsQuery.data?.years ?? [];
-  const yearsDescending = [...years].sort((a, b) => b - a);
   const groups = questionsQuery.data ? groupByYearDescending(questionsQuery.data.items) : [];
+
+  const questionList = awaitingBody ? (
+    <div className="flex flex-col gap-2">
+      <ListRowSkeleton />
+      <ListRowSkeleton />
+    </div>
+  ) : questionsQuery.isError ? (
+    <QueryErrorState onRetry={() => questionsQuery.refetch()} />
+  ) : !questionsQuery.data || questionsQuery.data.items.length === 0 ? (
+    <EmptyState icon={FileQuestion} title={t("PyqArchive.emptyTitle")} description={t("PyqArchive.emptyDescription")} />
+  ) : (
+    <div className="flex flex-col gap-4">
+      {groups.map(([year, questions]) => (
+        <div key={year} className="flex flex-col gap-2">
+          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+            {year === "unknown" ? t("Learn.yearUnknown") : year}
+          </h3>
+          <ul className="flex flex-col gap-2">
+            {questions.map((question) => (
+              <ArchiveQuestionCard key={question.id} question={question} locale={locale} />
+            ))}
+          </ul>
+        </div>
+      ))}
+      <PaginationControls
+        page={page}
+        totalPages={questionsQuery.data.pagination.total_pages}
+        onPageChange={setPage}
+        labels={{
+          previous: t("Learn.prevPage"),
+          next: t("Learn.nextPage"),
+          pageOf: t("Learn.pageOf", { page, total: questionsQuery.data.pagination.total_pages }),
+        }}
+      />
+    </div>
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -312,65 +375,58 @@ export function Component() {
 
       <SectionCard
         title={t("PyqArchive.questionsTitle")}
+        description={
+          // The recent view is scoped to one year and says so in words; without
+          // this, a paper's newest year silently reads as its whole bank.
+          expanded || latestYear == null ? undefined : t("PyqArchive.latestYearDescription", { year: latestYear })
+        }
         action={
-          <div className="flex items-center gap-2">
-            <label htmlFor="pyq-archive-year" className="text-xs font-medium text-muted-foreground">
-              {t("PyqArchive.yearFilterLabel")}
-            </label>
-            <select
-              id="pyq-archive-year"
-              className="min-h-9 max-w-[10rem] rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              value={selectedYear ?? ""}
-              onChange={(e) => setYear(e.target.value ? Number(e.target.value) : undefined)}
-            >
-              <option value="">{t("PyqArchive.allYears")}</option>
-              {yearsDescending.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
+          // The year picker belongs to the ARCHIVE view only — offering it
+          // beside a list that is pinned to the latest year would let a student
+          // pick 2019 and see nothing change, or silently turn the "recent"
+          // view into something that is not recent.
+          expanded ? (
+            <div className="flex items-center gap-2">
+              <label htmlFor="pyq-archive-year" className="text-xs font-medium text-muted-foreground">
+                {t("PyqArchive.yearFilterLabel")}
+              </label>
+              <select
+                id="pyq-archive-year"
+                className="min-h-11 max-w-[10rem] rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                value={selectedYear ?? ""}
+                onChange={(e) => setYear(e.target.value ? Number(e.target.value) : undefined)}
+              >
+                <option value="">{t("PyqArchive.allYears")}</option>
+                {yearsDescending.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : undefined
         }
       >
-        {awaitingBody ? (
-          <div className="flex flex-col gap-2">
-            <ListRowSkeleton />
-            <ListRowSkeleton />
-          </div>
-        ) : questionsQuery.isError ? (
-          <QueryErrorState onRetry={() => questionsQuery.refetch()} />
-        ) : !questionsQuery.data || questionsQuery.data.items.length === 0 ? (
-          <EmptyState
-            icon={FileQuestion}
-            title={t("PyqArchive.emptyTitle")}
-            description={t("PyqArchive.emptyDescription")}
-          />
+        {/* A paper with one year (or none) has nothing to browse INTO: pinning
+            to the latest year already shows all of it, so a "Browse all years"
+            leading to the same list would be a lie — the same reason History
+            hides "See all" when page 1 is the whole history. */}
+        {yearsDescending.length <= 1 ? (
+          questionList
         ) : (
-          <div className="flex flex-col gap-4">
-            {groups.map(([year, questions]) => (
-              <div key={year} className="flex flex-col gap-2">
-                <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-                  {year === "unknown" ? t("Learn.yearUnknown") : year}
-                </h3>
-                <ul className="flex flex-col gap-2">
-                  {questions.map((question) => (
-                    <ArchiveQuestionCard key={question.id} question={question} locale={locale} />
-                  ))}
-                </ul>
-              </div>
-            ))}
-            <PaginationControls
-              page={page}
-              totalPages={questionsQuery.data.pagination.total_pages}
-              onPageChange={setPage}
-              labels={{
-                previous: t("Learn.prevPage"),
-                next: t("Learn.nextPage"),
-                pageOf: t("Learn.pageOf", { page, total: questionsQuery.data.pagination.total_pages }),
-              }}
-            />
-          </div>
+          /* Both views render the SAME list — deliberately. Unlike the other
+             two surfaces, what changes here is not the markup but the query
+             behind it (pinned to the latest year vs. the year picker's choice)
+             and whether that picker is offered at all. It still goes through
+             RecentThenArchive so the toggle, its URL state and its shape match
+             Practice → Daily and → History rather than being a bespoke button. */
+          <RecentThenArchive
+            param={ARCHIVE_PARAM}
+            expandLabel={t("PyqArchive.browseAllYearsRange", { from: oldestYear, to: latestYear })}
+            collapseLabel={t("PyqArchive.backToLatest", { year: latestYear })}
+            recent={questionList}
+            archive={questionList}
+          />
         )}
       </SectionCard>
 

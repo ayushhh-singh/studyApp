@@ -375,7 +375,10 @@
     "emptyTitle": "इस पेपर के लिए अभी कोई PYQ नहीं",
     "emptyDescription": "प्रकाशित होते ही इस पेपर के पिछले वर्षों के प्रश्न यहाँ दिखेंगे।",
     "noPapersTitle": "अभी कोई पेपर नहीं",
-    "noPapersDescription": "इस परीक्षा की पेपर सूची अभी नहीं जोड़ी गई है — जल्द ही देखें।"
+    "noPapersDescription": "इस परीक्षा की पेपर सूची अभी नहीं जोड़ी गई है — जल्द ही देखें।",
+    "latestYearDescription": "सबसे हालिया परीक्षा — {{year}}।",
+    "browseAllYearsRange": "सभी वर्ष देखें ({{from}}–{{to}})",
+    "backToLatest": "{{year}} पर लौटें"
   },
   "Answers": {
     "title": "उत्तर लेखन",
