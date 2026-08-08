@@ -3,7 +3,7 @@ import { CheckCircle2, Download } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
 import { useInstallPrompt } from "@/stores/install-prompt-store";
-import { isIosDevice, isStandaloneDisplay } from "@/lib/pwa-platform";
+import { isFirefoxDesktop, isIosDevice, isMacSafari, isStandaloneDisplay } from "@/lib/pwa-platform";
 
 /**
  * The full-picture Settings entry point for installing the PWA — pairs
@@ -34,6 +34,23 @@ export function InstallAppCard() {
     );
   }
 
+  // beforeinstallprompt is Chromium-only — Safari and Firefox never fire
+  // it even when the app is genuinely installable, so `!canInstall` isn't
+  // an error state, just "no one-tap path on this browser". The generic
+  // fallback stays correct for a Chromium browser that simply hasn't been
+  // offered the prompt YET (Chrome gates it on its own engagement
+  // heuristic, unrelated to anything here) — isFirefoxDesktop()/
+  // isMacSafari() both already exclude every Chromium-family browser, so
+  // a Chrome/Edge-on-Mac user mid-heuristic still correctly falls through
+  // to the generic branch rather than being told "Firefox can't do this".
+  const manualInstructionsKey = isIosDevice()
+    ? "Pwa.installIosInstructions"
+    : isFirefoxDesktop()
+      ? "Pwa.installFirefoxDesktopInstructions"
+      : isMacSafari()
+        ? "Pwa.installMacSafariInstructions"
+        : "Pwa.installManualInstructions";
+
   return (
     <SectionCard title={t("Pwa.installSectionTitle")} description={t("Pwa.installDescription")}>
       {canInstall ? (
@@ -47,11 +64,8 @@ export function InstallAppCard() {
           {t("Pwa.installCta")}
         </Button>
       ) : (
-        // beforeinstallprompt is Chromium-only — Safari and Firefox never
-        // fire it even when the app is genuinely installable, so this isn't
-        // an error state. Show the manual path instead of hiding the card.
         <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
-          {isIosDevice() ? t("Pwa.installIosInstructions") : t("Pwa.installManualInstructions")}
+          {t(manualInstructionsKey)}
         </p>
       )}
     </SectionCard>
