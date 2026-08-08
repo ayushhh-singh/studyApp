@@ -41,6 +41,26 @@ export function previousIstMonth(): string {
   return previousMonth(currentIstMonth());
 }
 
+/**
+ * Is `month` a PUBLISHED magazine issue — i.e. has that IST calendar month
+ * fully elapsed?
+ *
+ * A magazine is a monthly issue, not a live feed: August's issue publishes on
+ * 1 September, once August is complete and its deep dives can be generated over
+ * the whole month. Before this gate existed, both editions were computed purely
+ * on demand with no completeness check, so the CURRENT month was already served
+ * as a finished magazine mid-month — on 8 August the index listed a "August
+ * 2026" issue whose contents silently grew every 6h as ca:run published more
+ * items, and which necessarily had 0 deep dives (nothing ranks a month that has
+ * not ended).
+ *
+ * Strictly `<` the current month, so a future month is excluded too — the month
+ * comes from a URL param and `"2027-01"` is a well-formed value.
+ */
+export function isMonthPublished(month: string): boolean {
+  return month < currentIstMonth();
+}
+
 export function monthLabel(month: string): { hi: string; en: string } {
   const [y, m] = month.split("-").map(Number);
   const idx = Math.max(0, Math.min(11, (m || 1) - 1));

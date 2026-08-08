@@ -22,7 +22,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
-import { monthBounds, monthLabel } from "../lib/month.js";
+import { monthBounds, monthLabel, isMonthPublished } from "../lib/month.js";
 import { istClockUtc } from "../lib/ist.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
@@ -267,7 +267,10 @@ export async function listMagazineMonths(examCode: string): Promise<MagazineMont
   const months = new Set<string>();
   for (const r of dateRows) {
     const month = (r.date ?? "").slice(0, 7);
-    if (/^\d{4}-\d{2}$/.test(month)) months.add(month);
+    // Only FULLY ELAPSED months are published issues — see isMonthPublished.
+    // Without this the still-running month is listed as a finished magazine
+    // whose contents grow every 6h and which has 0 deep dives by construction.
+    if (/^\d{4}-\d{2}$/.test(month) && isMonthPublished(month)) months.add(month);
   }
   const sorted = [...months].sort((a, b) => (a < b ? 1 : -1));
   if (sorted.length === 0) return [];
@@ -453,6 +456,13 @@ async function loadWorkbook(month: string, examCode: string): Promise<MagazineMc
 }
 
 export async function compilePrelimsEdition(month: string, examCode: string): Promise<MagazinePrelims | null> {
+  // An issue publishes only once its month has fully elapsed. Gated HERE and not
+  // just in listMagazineMonths: `month` is a URL param, so the index filter alone
+  // would be bypassed by anyone typing /magazine/<current-month>/prelims. `null`
+  // is the function's existing "nothing to show" return (the response schema is
+  // .nullable() and the web already renders EmptyState for it), so this needs no
+  // new error path or UI state.
+  if (!isMonthPublished(month)) return null;
   const { start, end } = monthBounds(month);
   // Paged (date,id) — a busy month's prelims-life pool can approach/exceed PostgREST's 1000-row cap;
   // unpaged it would silently truncate and rank the caps over a partial month.
@@ -571,6 +581,8 @@ async function loadModelQuestions(month: string, examCode: string): Promise<Maga
 }
 
 export async function compileMainsEdition(month: string, examCode: string): Promise<MagazineMains | null> {
+  // See compilePrelimsEdition — same URL-param bypass, same `null` return.
+  if (!isMonthPublished(month)) return null;
   const { start, end } = monthBounds(month);
   // Paged (date,id) — mains-life already runs ~836 rows (~84% of PostgREST's 1000-row cap) and grows;
   // unpaged it would silently truncate and rank the per-paper caps over a partial month.
