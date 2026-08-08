@@ -1,15 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { StudyPlan } from "@neev/shared";
-import { streamEvents } from "@/lib/sse";
+import { SseError, streamEvents } from "@/lib/sse";
 import { queryKeys } from "@/lib/query-keys";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
+
+// Fallback when a 429 carries no (or a malformed) Retry-After header — should
+// only happen for a rate-limit source other than lib/rate-limit.ts's
+// rateLimit(), which always sets one. Matches this endpoint's rate-limit window.
+const DEFAULT_COOLDOWN_SECONDS = 60;
 
 export interface StudyPlanStreamState {
   stage: string | null;
   plan: StudyPlan | null;
   error: string | null;
+  /** Set only when the pre-flight was rejected with a 429 — the card renders
+   * a friendly countdown from this instead of the generic `error` message. */
+  cooldownSeconds: number | null;
   isStreaming: boolean;
 }
 
@@ -17,6 +25,7 @@ const INITIAL_STATE: StudyPlanStreamState = {
   stage: null,
   plan: null,
   error: null,
+  cooldownSeconds: null,
   isStreaming: false,
 };
 
@@ -57,10 +66,15 @@ export function useStudyPlanStream() {
           });
         },
         onError: (err) => {
+          const rateLimited = err instanceof SseError && err.status === 429;
           setState((prev) => ({
             ...prev,
             isStreaming: false,
-            error: prev.error ?? (err instanceof Error ? err.message : "Study plan generation failed"),
+            cooldownSeconds: rateLimited ? (err.retryAfterSeconds ?? DEFAULT_COOLDOWN_SECONDS) : null,
+            // A rate-limit hit is shown via cooldownSeconds instead, not as a
+            // generic error — keep whatever pipeline-level `error` (from the
+            // "error" SSE event above) was already set, same as before.
+            error: rateLimited ? prev.error : (prev.error ?? (err instanceof Error ? err.message : "Study plan generation failed")),
           }));
         },
       });

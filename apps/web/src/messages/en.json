@@ -1216,6 +1216,7 @@
     "regenerate": "Regenerate plan",
     "generating": "Generating…",
     "regenerateCooldown": "You can regenerate your plan again tomorrow.",
+    "rateLimited": "You've regenerated a few times — try again in about {{seconds}}s.",
     "statusGenerating": "Building your week… ({{stage}})",
     "emptyTitle": "No plan yet",
     "emptyDescription": "Tell us how many hours a day you can study and we'll build a 7-day plan around your exam date.",
@@ -1451,6 +1452,8 @@
     "installSectionTitle": "Install app",
     "installAlready": "Neev is already installed on this device.",
     "installIosInstructions": "Tap the Share icon in Safari's toolbar, then choose \"Add to Home Screen.\"",
+    "installFirefoxDesktopInstructions": "Desktop Firefox doesn't currently support installing web apps — that's a Firefox limitation, not something we can add. Try Chrome, Edge, or Safari (on Mac) instead, or open this page on your phone.",
+    "installMacSafariInstructions": "Open the File menu and choose \"Add to Dock\" — or tap the Share button in Safari's toolbar and choose \"Add to Dock.\"",
     "installManualInstructions": "Open your browser's menu and look for \"Install app\" or \"Add to Home Screen.\""
   },
   "MyNotes": {

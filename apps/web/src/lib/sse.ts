@@ -12,6 +12,24 @@ export interface StreamOptions {
 }
 
 /**
+ * Thrown from onopen (see below) when the pre-flight HTTP response itself
+ * failed — before any SSE stream was ever opened (e.g. a 429 from the
+ * rateLimit() middleware, a 402/404 from a pre-flight check). Carries the
+ * real status and, when the server sent one, the parsed `error` message from
+ * the {data,error} envelope, plus the Retry-After seconds on a 429 so a
+ * caller can render an actual countdown instead of a generic message.
+ */
+export class SseError extends Error {
+  status: number;
+  retryAfterSeconds?: number;
+  constructor(status: number, message: string, retryAfterSeconds?: number) {
+    super(message);
+    this.status = status;
+    this.retryAfterSeconds = retryAfterSeconds;
+  }
+}
+
+/**
  * Opens an SSE connection to an /api/v1/stream/* endpoint. Returns an
  * AbortController the caller uses to cancel the stream. `onerror` throws to
  * stop @microsoft/fetch-event-source's built-in retry — each of our stream
@@ -40,7 +58,23 @@ export function streamEvents(opts: StreamOptions): AbortController {
       openWhenHidden: true,
       async onopen(response) {
         if (!response.ok) {
-          throw new Error(`SSE connection failed (HTTP ${response.status})`);
+          // Nothing else consumes the body in this path (we throw before any
+          // streaming starts), so it's safe to read it here for a real
+          // message instead of a bare status code.
+          let message = `SSE connection failed (HTTP ${response.status})`;
+          try {
+            const envelope = (await response.json()) as { error?: string };
+            if (typeof envelope.error === "string" && envelope.error) message = envelope.error;
+          } catch {
+            // Non-JSON body (e.g. a proxy error page) — keep the generic message.
+          }
+          const retryAfterHeader = response.headers.get("Retry-After");
+          const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
+          throw new SseError(
+            response.status,
+            message,
+            retryAfterSeconds !== undefined && Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
+          );
         }
       },
       onmessage(msg: EventSourceMessage) {

@@ -340,6 +340,11 @@ export function StudyPlanCard() {
               {t("StudyPlan.statusGenerating", { stage: stream.stage ?? "" })}
             </p>
           )}
+          {stream.cooldownSeconds !== null && (
+            <p className="text-sm text-muted-foreground">
+              {t("StudyPlan.rateLimited", { seconds: stream.cooldownSeconds })}
+            </p>
+          )}
           {stream.error && <p className="text-sm text-destructive">{stream.error}</p>}
 
           {!plan && !stream.isStreaming ? (

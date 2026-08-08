@@ -341,7 +341,12 @@ streamRouter.get(
  */
 streamRouter.post(
   "/stream/study-plan/generate",
-  rateLimit({ windowMs: 60_000, max: 10 }),
+  // Loosened from 10/60s: that cap was tight for legitimate exploratory use
+  // (regenerating with a different hours_per_day before settling on one) and
+  // was tripping during normal use, not abuse — the real once-a-day business
+  // limit is the 409 in planGenerate() below, which this is not a substitute
+  // for. 20/5min is generous for exploration while still bounding spend.
+  rateLimit({ windowMs: 300_000, max: 20 }),
   asyncHandler(async (req, res) => {
     const body = parse(generatePlanBodySchema, req.body);
 

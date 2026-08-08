@@ -23,7 +23,7 @@ interface Bucket {
  */
 export function rateLimit(opts: { windowMs: number; max: number }): RequestHandler {
   const buckets = new Map<string, Bucket>();
-  return (req, _res, next) => {
+  return (req, res, next) => {
     let key: string;
     try {
       key = `u:${currentUserId()}`;
@@ -39,6 +39,10 @@ export function rateLimit(opts: { windowMs: number; max: number }): RequestHandl
     }
     bucket.count += 1;
     if (bucket.count > opts.max) {
+      // Standard Retry-After (seconds until the bucket resets) so a caller can
+      // show a real countdown instead of a generic "try again later" — see
+      // apps/web/src/lib/sse.ts's onopen, which reads this header on a 429.
+      res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
       next(new HttpError(429, "Too many requests — slow down."));
       return;
     }
