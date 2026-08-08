@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, ShieldOff, Sparkles, Lock, UserRound } from "lucide-react";
+import type { AdminUserSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -56,8 +57,6 @@ export function Component() {
   const items = list.data?.items ?? [];
   const totalPages = list.data?.pagination.total_pages ?? 1;
   const selectedUser = items.find((u) => u.id === selectedUserId) ?? null;
-
-  const grants = useAdminUserGrants(selectedUser?.id);
 
   const grantPro = useGrantPro();
   const revokePro = useRevokePro();
@@ -155,6 +154,7 @@ export function Component() {
                     <button
                       type="button"
                       aria-pressed={active}
+                      aria-expanded={active}
                       onClick={() => setSelectedUserId(active ? null : u.id)}
                       className={cn(
                         "flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
@@ -186,6 +186,16 @@ export function Component() {
                         )}
                       </div>
                     </button>
+                    {/* Opens directly below the clicked row (accordion-style),
+                        not in a separate section after the whole list. */}
+                    {active && (
+                      <UserManagePanel
+                        user={u}
+                        pending={pending}
+                        onTogglePro={onTogglePro}
+                        onToggleAdmin={onToggleAdmin}
+                      />
+                    )}
                   </li>
                 );
               })}
@@ -210,97 +220,90 @@ export function Component() {
           </>
         )}
       </SectionCard>
+    </div>
+  );
+}
 
-      {selectedUser && (
-        <SectionCard className="flex flex-col gap-5">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-lg font-semibold">{selectedUser.display_name || selectedUser.email || selectedUser.id}</p>
-              <p className="text-sm text-muted-foreground">{selectedUser.email ?? t("AdminUsers.noEmail")}</p>
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("AdminUsers.joined", { date: new Date(selectedUser.created_at).toLocaleDateString() })}
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <span
-                className={cn(
-                  "rounded-full px-2.5 py-1 text-xs font-semibold",
-                  selectedUser.plan === "pro" ? "bg-tulsi/15 text-tulsi-foreground" : "bg-muted text-muted-foreground",
-                )}
-              >
-                {selectedUser.plan === "pro" ? t("AdminUsers.planPro") : t("AdminUsers.planFree")}
-              </span>
-              {selectedUser.is_admin && (
-                <span className="rounded-full bg-marigold/15 px-2.5 py-1 text-xs font-semibold text-marigold-foreground">
-                  {t("AdminUsers.adminBadge")}
-                </span>
-              )}
-            </div>
-          </div>
+/**
+ * The "manage this user" panel — badges, details, grant/revoke actions, and
+ * the audit trail. Rendered inline directly below its row in the list
+ * (accordion-style), never as a separate section after the whole list, so
+ * clicking a name opens its controls right where you clicked.
+ */
+function UserManagePanel({
+  user,
+  pending,
+  onTogglePro,
+  onToggleAdmin,
+}: {
+  user: AdminUserSummary;
+  pending: boolean;
+  onTogglePro: () => void;
+  onToggleAdmin: () => void;
+}) {
+  const { t } = useTranslation();
+  const grants = useAdminUserGrants(user.id);
 
-          <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
-            <div>
-              <dt className="text-muted-foreground">{t("AdminUsers.planExpiry")}</dt>
-              <dd>
-                {selectedUser.plan_expires_at
-                  ? new Date(selectedUser.plan_expires_at).toLocaleString()
-                  : t("AdminUsers.noExpiry")}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t("AdminUsers.hasUsedTrial")}</dt>
-              <dd>{selectedUser.has_used_trial ? t("AdminUsers.yes") : t("AdminUsers.no")}</dd>
-            </div>
-            <div>
-              <dt className="text-muted-foreground">{t("AdminUsers.targetExam")}</dt>
-              <dd className="uppercase">{selectedUser.target_exam}</dd>
-            </div>
-          </dl>
+  return (
+    <div className="flex flex-col gap-5 border-t border-border bg-muted/30 px-4 py-5">
+      {/* Deliberately does NOT repeat the name/email — the row directly above
+          (this panel opens right below it, accordion-style) already shows
+          both, and re-printing them here read as a confusing second row. */}
+      <p className="text-xs text-muted-foreground">
+        {t("AdminUsers.joined", { date: new Date(user.created_at).toLocaleDateString() })}
+      </p>
 
-          <div className="flex flex-wrap gap-2 border-t border-border pt-4">
-            <Button
-              type="button"
-              onClick={onTogglePro}
-              disabled={pending}
-              variant={selectedUser.plan === "pro" ? "destructive" : "default"}
-              className={selectedUser.plan === "pro" ? undefined : "bg-tulsi text-white hover:bg-tulsi/90"}
-            >
-              <Sparkles className="size-4" />{" "}
-              {selectedUser.plan === "pro" ? t("AdminUsers.revokePro") : t("AdminUsers.grantPro")}
-            </Button>
-            <Button
-              type="button"
-              onClick={onToggleAdmin}
-              disabled={pending}
-              variant={selectedUser.is_admin ? "destructive" : "outline"}
-            >
-              {selectedUser.is_admin ? <ShieldOff className="size-4" /> : <ShieldCheck className="size-4" />}
-              {selectedUser.is_admin ? t("AdminUsers.revokeAdmin") : t("AdminUsers.grantAdmin")}
-            </Button>
-          </div>
+      <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
+        <div>
+          <dt className="text-muted-foreground">{t("AdminUsers.planExpiry")}</dt>
+          <dd>{user.plan_expires_at ? new Date(user.plan_expires_at).toLocaleString() : t("AdminUsers.noExpiry")}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">{t("AdminUsers.hasUsedTrial")}</dt>
+          <dd>{user.has_used_trial ? t("AdminUsers.yes") : t("AdminUsers.no")}</dd>
+        </div>
+        <div>
+          <dt className="text-muted-foreground">{t("AdminUsers.targetExam")}</dt>
+          <dd className="uppercase">{user.target_exam}</dd>
+        </div>
+      </dl>
 
-          <div className="border-t border-border pt-4">
-            <p className="mb-2 text-sm font-semibold">{t("AdminUsers.auditTitle")}</p>
-            {grants.isLoading ? (
-              <Skeleton className="h-16 w-full" />
-            ) : grants.isError ? (
-              <QueryErrorState onRetry={() => grants.refetch()} />
-            ) : !grants.data || grants.data.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("AdminUsers.auditEmpty")}</p>
-            ) : (
-              <ul className="flex flex-col gap-1.5 text-sm">
-                {grants.data.map((g) => (
-                  <li key={g.id} className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
-                    <span className="font-medium text-foreground">{t(`AdminUsers.action.${g.action}`)}</span>
-                    <span>{t("AdminUsers.auditBy", { admin: g.admin_email ?? t("AdminUsers.unknownAdmin") })}</span>
-                    <span>· {new Date(g.created_at).toLocaleString()}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </SectionCard>
-      )}
+      <div className="flex flex-wrap gap-2 border-t border-border pt-4">
+        <Button
+          type="button"
+          onClick={onTogglePro}
+          disabled={pending}
+          variant={user.plan === "pro" ? "destructive" : "default"}
+          className={user.plan === "pro" ? undefined : "bg-tulsi text-white hover:bg-tulsi/90"}
+        >
+          <Sparkles className="size-4" /> {user.plan === "pro" ? t("AdminUsers.revokePro") : t("AdminUsers.grantPro")}
+        </Button>
+        <Button type="button" onClick={onToggleAdmin} disabled={pending} variant={user.is_admin ? "destructive" : "outline"}>
+          {user.is_admin ? <ShieldOff className="size-4" /> : <ShieldCheck className="size-4" />}
+          {user.is_admin ? t("AdminUsers.revokeAdmin") : t("AdminUsers.grantAdmin")}
+        </Button>
+      </div>
+
+      <div className="border-t border-border pt-4">
+        <p className="mb-2 text-sm font-semibold">{t("AdminUsers.auditTitle")}</p>
+        {grants.isLoading ? (
+          <Skeleton className="h-16 w-full" />
+        ) : grants.isError ? (
+          <QueryErrorState onRetry={() => grants.refetch()} />
+        ) : !grants.data || grants.data.length === 0 ? (
+          <p className="text-sm text-muted-foreground">{t("AdminUsers.auditEmpty")}</p>
+        ) : (
+          <ul className="flex flex-col gap-1.5 text-sm">
+            {grants.data.map((g) => (
+              <li key={g.id} className="flex flex-wrap items-center gap-1.5 text-muted-foreground">
+                <span className="font-medium text-foreground">{t(`AdminUsers.action.${g.action}`)}</span>
+                <span>{t("AdminUsers.auditBy", { admin: g.admin_email ?? t("AdminUsers.unknownAdmin") })}</span>
+                <span>· {new Date(g.created_at).toLocaleString()}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
     </div>
   );
 }
