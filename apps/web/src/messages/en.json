@@ -549,7 +549,7 @@
     "lensAll": "All",
     "lensPrelims": "Prelims",
     "lensMains": "Mains",
-    "lensUp": "{{state}} Special",
+    "lensUp": "{{code}} Special",
     "prelimsShort": "P",
     "mainsShort": "M",
     "prelimsRelevanceTitle": "Prelims relevance",

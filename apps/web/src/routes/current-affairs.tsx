@@ -15,7 +15,7 @@ import { QuickScanFeed } from "@/components/current-affairs/quick-scan-feed";
 import { useCurrentAffairs } from "@/hooks/use-current-affairs";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
-import { stateFocusName, stateFocusCode } from "@/lib/exam-label";
+import { stateFocusCode } from "@/lib/exam-label";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Nav.currentAffairs" };
@@ -81,9 +81,12 @@ export function Component() {
   const hasStateLens = examLoading || exam === null || exam.state_lens !== null;
   const lenses = LENSES.filter((l) => hasStateLens || !STATE_LENSES.has(l));
   const categories = CATEGORIES.filter((c) => hasStateLens || !STATE_CATEGORIES.has(c));
-  // Only ever actually rendered (via the "up" lens tab) when hasStateLens is
-  // true, so this resolves to a real state by the time it's on screen.
-  const stateName = stateFocusName(exam, locale, examCode) ?? "";
+  // Short code ("UP"), not the full state name — this must read the same as
+  // the "up_special" category chip right below it (both hardcoded "UP
+  // Special" pre-fix; using the full name here alone would visibly disagree
+  // with that chip on the same page). Only ever actually rendered (via the
+  // "up" lens tab) when hasStateLens is true, so this resolves to a real
+  // value by the time it's on screen.
   const stateCode = stateFocusCode(exam, examCode);
 
   const rawLens = (searchParams.get("lens") as CurrentAffairsLens | null) ?? "all";
@@ -160,7 +163,7 @@ export function Component() {
                 lens === l ? "bg-background text-foreground shadow-xs" : "text-muted-foreground",
               )}
             >
-              {t(LENS_LABEL[l], { state: stateName })}
+              {t(LENS_LABEL[l], { code: stateCode ?? "" })}
             </button>
           ))}
         </div>

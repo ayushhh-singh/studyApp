@@ -58,11 +58,20 @@ export function shortExamName(exam: Exam | null | undefined, locale: Locale, fal
  * code — same rationale as {@link PROVENANCE_EXAM_LABEL}: `exam.state_lens` (see
  * `examStateLensSchema`) is the source of truth, server-derived from
  * `apps/api/src/lib/exam-config.ts`'s `relevanceLens`; this only covers the
- * split second before `GET /exams` resolves. Only exams known (today) to be
- * state-scoped need an entry — a nationally-scoped exam correctly has none.
+ * split second before `GET /exams` resolves.
+ *
+ * mppsc is listed even though it isn't `is_live` yet: its state block is a
+ * STRUCTURAL fact (`lib/exam-config.ts`'s `stateLensFor` — "mppsc's lens prose
+ * is UNAUTHORED but its state block is stated as fact"), so `GET /exams`
+ * already returns it. Omitting it here would leave the one-render pre-load
+ * window rendering an empty `{{state}}`/`{{code}}` (a bare "Special"/" ")
+ * rather than degrading to the wrong-but-non-blank string a fully-hardcoded
+ * label used to show. A genuinely nationally-scoped exam (upsc) correctly has
+ * no entry — there's nothing to pre-load.
  */
 const STATE_LENS_FALLBACK: Partial<Record<ExamCode, { name: BilingualText; code: string }>> = {
   uppsc: { name: { en: "Uttar Pradesh", hi: "उत्तर प्रदेश" }, code: "UP" },
+  mppsc: { name: { en: "Madhya Pradesh", hi: "मध्य प्रदेश" }, code: "MP" },
 };
 
 /**
