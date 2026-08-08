@@ -43,15 +43,20 @@ const REVIEW_COLUMNS =
  *    human-verified. These are already approved+published (visible); this tab is
  *    an AUDIT surface — approving stamps meta.human_verified so it leaves the tab.
  *
- * `examCode` is REQUIRED (never defaulted — see reviewQueueQuerySchema's own
- * doc comment): every branch ANDs in `questionExamScopeFilter(examCode)` (a
- * second `.or()` call, verified elsewhere in this codebase to AND with an
- * existing `.or()`/`.eq()` chain rather than replace it), so a reviewer looking
- * at one exam's tab can never see — or act on — another exam's rows.
+ * `examScope` (from `questionExamScopeFilter(examCode)`) is a pre-resolved
+ * string, and this function is DELIBERATELY SYNCHRONOUS: a Postgrest filter
+ * builder is itself "thenable" (it implements `.then()`), so an `async`
+ * function that `return`s one gets its return value silently auto-awaited —
+ * the caller receives the ALREADY-EXECUTED `{data, error, count}` result
+ * instead of a chainable builder, and a later `.order(...)` call on it throws
+ * "scoped.order is not a function". Confirmed live against the running API.
+ * Every branch ANDs in `examScope` (a second `.or()` call, verified elsewhere
+ * in this codebase to AND with an existing `.or()`/`.eq()` chain rather than
+ * replace it), so a reviewer looking at one exam's tab can never see — or act
+ * on — another exam's rows.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function applyTab(query: any, tab: ReviewTab, examCode: string): Promise<any> {
-  const examScope = await questionExamScopeFilter(examCode);
+function applyTab(query: any, tab: ReviewTab, examScope: string): any {
   switch (tab) {
     case "generated_mcq":
       return query
@@ -176,11 +181,11 @@ export async function listReviewQueue(
 ): Promise<{ items: ReviewQuestion[]; total: number }> {
   // Notes/magazine/reports have their own list endpoints — never a questions query.
   if (tab === "notes" || tab === "magazine" || tab === "reports" || tab === "question_reports") return { items: [], total: 0 };
+  const examScope = await questionExamScopeFilter(examCode);
   const from = (page - 1) * REVIEW_PAGE_SIZE;
   const to = from + REVIEW_PAGE_SIZE - 1;
   const base = supabase().from("questions").select(REVIEW_COLUMNS, { count: "exact" });
-  const scoped = await applyTab(base, tab, examCode);
-  const { data, error, count } = await scoped
+  const { data, error, count } = await applyTab(base, tab, examScope)
     // re_review-flagged rows first (the retroactive CA sweep's live-content
     // second-pass batch — otherwise their OLD created_at buries them behind
     // fresh needs_review output). A no-op for every other tab, where no row
@@ -197,12 +202,11 @@ export async function listReviewQueue(
     // with the current total (PostgREST leaves count null on this error, so
     // re-count) instead of 500ing the whole queue.
     if (error.code === "PGRST103") {
-      const countScoped = await applyTab(
+      const { count: total, error: countError } = await applyTab(
         supabase().from("questions").select("id", { count: "exact", head: true }),
         tab,
-        examCode,
+        examScope,
       );
-      const { count: total, error: countError } = await countScoped;
       // If even the re-count fails, that's a genuine DB fault (not a benign
       // over-range) — surface it as a 500 rather than masking it as total:0,
       // which would make the UI show an empty queue when there is really data.
@@ -224,12 +228,16 @@ export async function listReviewQueue(
  * app hides the exam selector on those tabs rather than imply it narrows them.
  */
 export async function reviewCounts(examCode: string): Promise<ReviewCounts> {
+  const examScope = await questionExamScopeFilter(examCode);
   const tabs: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs"];
   const [questionEntries, notes, reports, questionReports, magazine] = await Promise.all([
     Promise.all(
       tabs.map(async (tab) => {
-        const scoped = await applyTab(supabase().from("questions").select("id", { count: "exact", head: true }), tab, examCode);
-        const { count, error } = await scoped;
+        const { count, error } = await applyTab(
+          supabase().from("questions").select("id", { count: "exact", head: true }),
+          tab,
+          examScope,
+        );
         if (error) throw new HttpError(500, `review count (${tab}) failed: ${error.message}`);
         return [tab, count ?? 0] as const;
       }),

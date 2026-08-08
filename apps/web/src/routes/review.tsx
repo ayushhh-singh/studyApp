@@ -404,6 +404,12 @@ export function Component() {
         <MagazineReviewPanel />
       ) : queue.isLoading ? (
         <Skeleton className="h-72 w-full" />
+      ) : queue.isError ? (
+        // A genuinely FAILED fetch must never render as "queue is clear" —
+        // that's precisely the bug that hid a real 500 behind an empty-looking
+        // queue while the counts/bulk-approve badges (separate queries) still
+        // showed real non-zero numbers, live-reproduced against this exact tab.
+        <QueryErrorState onRetry={() => queue.refetch()} />
       ) : items.length === 0 ? (
         <EmptyState icon={Inbox} title={t("Review.emptyTitle")} description={t("Review.emptyDescription")} />
       ) : current ? (
