@@ -123,9 +123,40 @@ adminRouter.use("/admin/notes", requireAdmin, rateLimit({ windowMs: 60_000, max:
 adminRouter.use("/admin/community", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/question-reports", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
 adminRouter.use("/admin/magazine", requireAdmin, rateLimit({ windowMs: 60_000, max: 300 }));
-// Tighter than the review-queue surfaces above: this gates real financial
-// (Pro plan) and privilege (is_admin) changes, not content review.
-adminRouter.use("/admin/users", requireAdmin, rateLimit({ windowMs: 60_000, max: 60 }));
+// Split by METHOD, because the two halves of this surface carry very different
+// risk. The WRITES (grant/revoke Pro + admin) keep the original tight 60/min:
+// they are the reason this prefix was capped harder than the review-queue
+// surfaces above, and that reasoning is unchanged — they alter real financial
+// (Pro plan) and privilege (is_admin) state.
+//
+// The READS are just admin analytics and now cost FOUR requests per drill-down
+// (stats + cost + attempts + grants) where the page previously issued one, so
+// the shared 60/min allowed only ~15 user expansions per minute. Reads get the
+// SAME 300/min every other admin read surface in this file already uses;
+// nothing about the mutating endpoints' protection changes.
+//
+// ⚑ THIS SPLIT IS CURRENTLY INERT, and that is a PRE-EXISTING app-wide bug, not
+// a mistake in the numbers above. Every `/admin/*` surface is really capped at
+// 30/min, no matter what is written here. Mechanism: ~27 routers call
+// `router.use(rateLimit(...))` with NO path, and index.ts mounts them all at
+// `/api/v1`, so each one's limiter counts every request that reaches it.
+// `adminRouter` is mounted LAST (index.ts:170), so every one of those buckets
+// fills on admin traffic, and the tightest wins — `pushRouter`'s 30/min
+// (index.ts:168). MEASURED: both `/admin/users` and the untouched
+// `/admin/review/counts` stop at exactly 30 consecutive 200s, while `/profile`
+// (mounted at :149, ahead of push) reaches 50+. So the "300/min" on the five
+// lines above has never been the real limit either.
+//
+// Deliberately NOT fixed here: the real repair is scoping each router's limiter
+// to its own prefix (e.g. `pushRouter.use("/push", …)`) across ~27 files, which
+// is an app-wide change to a security control and belongs in its own reviewed
+// commit — not a drive-by. Kept as written because it is correct in intent and
+// becomes effective the moment that ceiling is lifted.
+const adminUsersRead = rateLimit({ windowMs: 60_000, max: 300 });
+const adminUsersWrite = rateLimit({ windowMs: 60_000, max: 60 });
+adminRouter.use("/admin/users", requireAdmin, (req, res, next) =>
+  (req.method === "GET" ? adminUsersRead : adminUsersWrite)(req, res, next),
+);
 
 adminRouter.get(
   "/admin/review",

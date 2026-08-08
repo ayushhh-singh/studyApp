@@ -98,7 +98,13 @@ export const ADMIN_USER_LIST_PAGE_SIZE = 20;
 function buildSummary(authUser: AuthUserLike, profile: ProfileRow | undefined): AdminUserSummary {
   return {
     id: authUser.id,
-    email: authUser.email ?? null,
+    // `|| null`, NOT `?? null`: GoTrue returns an EMPTY STRING (not null) for an
+    // anonymous user's email — measured, 21 of 97 accounts here. `??` only
+    // catches null/undefined, so "" survived to the UI and rendered as a blank
+    // line where the row's `email ?? t("noEmail")` fallback should have said
+    // "No email". Normalised here rather than at the render site so every
+    // consumer of AdminUserSummary gets a real null.
+    email: authUser.email || null,
     is_anonymous: authUser.is_anonymous === true,
     display_name: profile?.display_name ?? null,
     plan: profile?.plan ?? "free",
@@ -261,11 +267,17 @@ export async function getUserStats(userId: string): Promise<AdminUserStats> {
  * `getUserExam(userId)`, so an admin sees the history scoped exactly as the
  * student would see it, not as the admin's own exam.
  *
- * Ranks are attached from `admin_user_test_ranks` (0121), which mirrors
- * `getTestBoard` so the number matches the student's scoreboard. Most rows have
- * NO rank — see the shared schema's note. The RPC is fetched once for the whole
- * user, not per row: it is set-based and small (one entry per ranked test), and a
- * per-row lookup would be a query per attempt.
+ * Ranks are attached from `admin_user_test_ranks` (0121, corrected by 0122),
+ * which mirrors `getTestBoard` so the number matches the student's scoreboard.
+ * Most rows have NO rank — see the shared schema's note. The RPC is fetched once
+ * for the whole user, not per row: it is set-based and small (one entry per
+ * ranked attempt), and a per-row lookup would be a query per attempt.
+ *
+ * ⚑ KEYED BY attempt_id, NOT test_id. `mv_test_leaderboard` ranks only each
+ * user's FIRST non-ghost attempt per test, so a test_id key would attach that
+ * rank to every LATER attempt on the same test too — showing a re-attempt a
+ * standing it never earned, and defeating the first-attempt-only rule 0067
+ * exists to enforce. Every unranked attempt correctly resolves to null.
  */
 export async function listUserAttempts(
   userId: string,
@@ -278,14 +290,14 @@ export async function listUserAttempts(
     supabase().rpc("admin_user_test_ranks", { p_user_id: userId }),
   ]);
   if (ranks.error) throw new HttpError(500, `rank lookup failed: ${ranks.error.message}`);
-  const rankByTest = new Map<string, { user_rank: number; cohort_size: number }>();
-  for (const row of (ranks.data ?? []) as { test_id: string; user_rank: number; cohort_size: number }[]) {
-    rankByTest.set(row.test_id, { user_rank: row.user_rank, cohort_size: row.cohort_size });
+  const rankByAttempt = new Map<string, { user_rank: number; cohort_size: number }>();
+  for (const row of (ranks.data ?? []) as { attempt_id: string; user_rank: number; cohort_size: number }[]) {
+    rankByAttempt.set(row.attempt_id, { user_rank: row.user_rank, cohort_size: row.cohort_size });
   }
 
   return {
     items: items.map((a) => {
-      const rank = a.test_id ? rankByTest.get(a.test_id) : undefined;
+      const rank = rankByAttempt.get(a.id);
       return { ...a, user_rank: rank?.user_rank ?? null, cohort_size: rank?.cohort_size ?? null };
     }),
     total,
@@ -305,6 +317,18 @@ export async function listUserAttempts(
  * bill — the failure mode this repo has hit repeatedly, and the worst possible
  * one for a cost figure, since a truncated total looks entirely plausible.
  *
+ * ⚑ ORDERED BY (created_at, id), NOT created_at ALONE. `selectAll` pages with
+ * `.range()`, which is only correct over a TOTAL order: with a non-unique sort
+ * key Postgres may order tied rows differently between page requests, so a row
+ * can be skipped or counted twice across the boundary — silently wrong, in
+ * either direction, on a money figure. `created_at` is not unique in principle
+ * (nothing stops two calls sharing a timestamp, and batch paths insert together),
+ * so `id` (the primary key) is appended as the tiebreaker to make the order
+ * total. Measured today: all 282 attributable rows have distinct timestamps and
+ * the heaviest single user has 34 calls, so paging never even engages — this is
+ * a latent correctness fix, not a live one. The ASC order also makes
+ * `rows[0]`/`rows[last]` the true first/last call by time.
+ *
  * The `(user_id, created_at desc)` index from 0021 covers this filter.
  */
 export async function getUserCost(userId: string): Promise<AdminUserCost> {
@@ -315,7 +339,8 @@ export async function getUserCost(userId: string): Promise<AdminUserCost> {
       .from("llm_calls")
       .select("purpose, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta, created_at")
       .eq("user_id", userId)
-      .order("created_at", { ascending: true }),
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true }),
   );
 
   const byPurpose = new Map<string, AdminUserCostPurpose>();
