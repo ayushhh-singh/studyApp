@@ -26,10 +26,11 @@ export function Sidebar() {
       <div className="flex items-center gap-2 px-2 py-3">
         {/* BrandMark always renders "Neev" in Latin — matches landing/auth/
             onboarding/pricing, unlike the old hardcoded Devanagari literal that
-            ignored the active locale. Wrapped in a Link to dashboard (this
-            sidebar's own "home") — same pattern as marketing-header/footer,
-            which already link the mark to the locale root. */}
-        <Link to={`/${locale}/dashboard`} aria-label={t("Landing.brand")} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+            ignored the active locale. Wrapped in a Link to the public landing
+            page (the bare locale root) — same destination marketing-header/
+            footer already use for their own BrandMark, even from inside the
+            authenticated app shell. */}
+        <Link to={`/${locale}`} aria-label={t("Landing.brand")} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
           <BrandMark />
         </Link>
       </div>
