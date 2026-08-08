@@ -82,6 +82,19 @@ moment `is_live` flips `true` **with no write to the row**, and reverts to
 TTL cache means a single long-lived process can lag up to 60s behind a flip,
 which is an accepted, documented tradeoff, not a bug).
 
+**⚑ A residual gap, found and reproduced live by a same-day edge-case pass over
+this fix, recorded but deliberately not closed:** `getUserExam()` protects
+every content-serving path, but `GET /profile` itself still returns
+`target_exam` **raw** (not gated), and the web app's `useCurrentExam()` —
+which drives the PYQ picker, mocks tabs, scoreboard and papers grid — reads
+that raw value. So a row parked on a non-live exam would show that exam's
+papers/labels in the UI while the actual dashboard/evaluation/mentor content
+silently stays on the default exam underneath — a display mismatch, not a
+cost or content-exposure issue (nothing here drives spend). Currently
+unreachable (0 profiles are in that state) and left for an explicit product
+decision if it ever needs closing — see `docs/OUTSTANDING.md`'s **U7-residual**
+for the two live options and why neither was picked unilaterally.
+
 ---
 
 ## 1. Summary — what needs action before flipping `is_live`
