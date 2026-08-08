@@ -8,6 +8,7 @@ import {
   DEFAULT_EXAM_CODE,
   isHighConfidenceQuestion,
   reviewTabSchema,
+  targetExamCodeSchema,
   type ReviewEditBody,
   type ReviewTab,
   type TargetExamCode,
@@ -123,15 +124,24 @@ export function Component() {
   // Which exam's backlog to review — defaults to the admin's own target exam
   // once it resolves, but stops auto-following the instant they pick one
   // explicitly (a reviewer switching exams must never get silently reset).
+  // A picked exam is persisted in the URL (?exam=), same as ?tab= — without
+  // this, reloading or sharing the URL mid-review silently reverted to the
+  // admin's own target exam instead of the one they were actually reviewing.
+  const examParam = searchParams.get("exam");
+  const examFromUrl = targetExamCodeSchema.safeParse(examParam).success ? (examParam as TargetExamCode) : null;
   const { examCode: myExamCode } = useCurrentExam();
-  const [examCode, setExamCode] = useState<TargetExamCode>(DEFAULT_EXAM_CODE);
-  const userPickedExam = useRef(false);
+  const [examCode, setExamCode] = useState<TargetExamCode>(examFromUrl ?? DEFAULT_EXAM_CODE);
+  const userPickedExam = useRef(examFromUrl !== null);
   useEffect(() => {
     if (!userPickedExam.current) setExamCode(myExamCode as TargetExamCode);
   }, [myExamCode]);
   function selectExam(next: TargetExamCode) {
     userPickedExam.current = true;
     setExamCode(next);
+    setSearchParams((p) => {
+      p.set("exam", next);
+      return p;
+    });
     setPage(1);
     setIndex(0);
     setEditing(false);
