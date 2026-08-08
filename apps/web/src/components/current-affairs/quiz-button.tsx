@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useLocation } from "react-router";
-import { CalendarRange, ListChecks, PenLine, Sunrise } from "lucide-react";
+import { AlertTriangle, CalendarRange, ListChecks, PenLine, Sunrise } from "lucide-react";
 import type { TestSummary } from "@neev/shared";
 import { useDailyCaSets, useWeeklyCaSets } from "@/hooks/use-current-affairs";
 import { useLocale } from "@/hooks/use-locale";
@@ -39,6 +39,16 @@ interface Cadence {
   prelims: TestSummary | null | undefined;
   mains: TestSummary | null | undefined;
   isLoading: boolean;
+  /**
+   * A FAILED fetch, which must never render as an empty set. `data` is
+   * undefined in both states, so without this a rate limit or a 5xx tells the
+   * student "nothing new today" — see ui-x/query-error-state.tsx, whose own
+   * docstring records this exact bug shipping twice before, once on this very
+   * page. Observed live here too: a 429 during verification rendered the weekly
+   * panel as empty.
+   */
+  isError: boolean;
+  retry: () => void;
   emptyPrelims: string;
   emptyMains: string;
   /** Shown INSTEAD of two placeholder slots when neither set exists. */
@@ -132,6 +142,23 @@ function CadencePanel({ cadence }: { cadence: Cadence }) {
             <span className="h-11 flex-1 animate-pulse rounded-[10px] bg-muted" aria-hidden />
             <span className="sr-only">{t("CurrentAffairs.weeklyLoading")}</span>
           </>
+        ) : cadence.isError ? (
+          // Compact rather than the full-page QueryErrorState (px-6 py-12,
+          // centred): this replaces a two-button row inside a half-width panel,
+          // and that component's block would dwarf its sibling. It keeps the
+          // parts that matter — coral so it does not read as an empty state,
+          // role="alert", and a retry — and reuses the shared copy.
+          <div role="alert" className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[10px] border border-coral/30 bg-coral/5 px-3 py-2">
+            <AlertTriangle className="size-4 shrink-0 text-coral" aria-hidden />
+            <span className="text-sm leading-[1.75] text-foreground">{t("Common.loadErrorTitle")}</span>
+            <button
+              type="button"
+              onClick={cadence.retry}
+              className="rounded-md text-sm font-semibold text-coral underline underline-offset-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("Common.retry")}
+            </button>
+          </div>
         ) : bothEmpty ? (
           <p className="text-sm leading-[1.75] text-muted-foreground">{cadence.emptyBoth}</p>
         ) : (
@@ -164,7 +191,9 @@ function CadencePanel({ cadence }: { cadence: Cadence }) {
 
       {/* The refresh promise. Load-bearing in the empty state: without it a
           missing set reads as "broken" rather than "not yet". */}
-      {!cadence.isLoading && (
+      {/* Suppressed on error: "the next one lands X" is derived from whether
+          THIS week's set exists, which a failed fetch cannot tell us. */}
+      {!cadence.isLoading && !cadence.isError && (
         <p className="text-[11px] leading-[1.75] text-muted-foreground">{cadence.refresh}</p>
       )}
     </div>
@@ -207,6 +236,8 @@ export function CurrentAffairsQuizSets() {
       prelims: daily.data?.prelims,
       mains: daily.data?.mains,
       isLoading: daily.isLoading,
+      isError: daily.isError,
+      retry: () => void daily.refetch(),
       emptyPrelims: t("CurrentAffairs.dailyEmptyPrelims"),
       emptyMains: t("CurrentAffairs.dailyEmptyMains"),
       emptyBoth: t("CurrentAffairs.dailyEmptyBoth"),
@@ -221,6 +252,8 @@ export function CurrentAffairsQuizSets() {
       prelims: weekly.data?.prelims,
       mains: weekly.data?.mains,
       isLoading: weekly.isLoading,
+      isError: weekly.isError,
+      retry: () => void weekly.refetch(),
       emptyPrelims: t("CurrentAffairs.weeklyEmptyPrelims"),
       emptyMains: t("CurrentAffairs.weeklyEmptyMains"),
       emptyBoth: t("CurrentAffairs.weeklyEmptyBoth"),
