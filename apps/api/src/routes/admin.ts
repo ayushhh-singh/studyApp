@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   adminStatusResponseSchema,
   adminGrantLogResponseSchema,
+  adminGrantProBodySchema,
   adminUserActionResponseSchema,
   adminUserListQuerySchema,
   adminUserListResponseSchema,
@@ -427,7 +428,8 @@ adminRouter.post(
   "/admin/users/:id/grant-pro",
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
-    res.json(adminUserActionResponseSchema.parse({ data: await grantPro(currentUserId(), id), error: null }));
+    const { days } = parse(adminGrantProBodySchema, req.body ?? {});
+    res.json(adminUserActionResponseSchema.parse({ data: await grantPro(currentUserId(), id, days ?? null), error: null }));
   }),
 );
 

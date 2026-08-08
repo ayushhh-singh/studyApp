@@ -155,33 +155,49 @@ async function logGrant(
   if (error) throw new HttpError(500, `audit log write failed: ${error.message}`);
 }
 
-/** Grant indefinite Pro access (see the module doc comment for why no expiry). */
-export async function grantPro(adminUserId: string, targetUserId: string): Promise<AdminUserSummary> {
+/**
+ * Apply a `users_profile` patch and 404 if it touched ZERO rows.
+ *
+ * `requireUserSummary`'s upfront check only confirms the AUTH user exists —
+ * `handle_new_user()` guarantees every real signup gets a profile row too,
+ * but an orphaned/corrupted profile (deleted out-of-band, or a mid-signup
+ * race) would otherwise let `.update(...).eq("id", targetUserId)` silently
+ * affect 0 rows: Supabase does not error on a no-match update, so the caller
+ * would see a 200 "success" while nothing actually changed, and the returned
+ * summary would keep showing the OLD (default) values forever. Selecting the
+ * updated row back turns that silent no-op into an honest 404.
+ */
+async function updateProfileOrNotFound(targetUserId: string, patch: Record<string, unknown>, action: string): Promise<void> {
+  const { data, error } = await supabase().from("users_profile").update(patch).eq("id", targetUserId).select("id");
+  if (error) throw new HttpError(500, `${action} failed: ${error.message}`);
+  if (!data || data.length === 0) throw notFound("User not found");
+}
+
+/**
+ * Grant Pro access. `days` is optional — omit/null for the original
+ * indefinite grant (see the module doc comment for why that is the only
+ * option that can NEVER be misread as the 7-day signup trial); when set, the
+ * grant expires that many days from now. Never touches `has_used_trial`
+ * either way, matching the module's core invariant.
+ */
+export async function grantPro(adminUserId: string, targetUserId: string, days: number | null = null): Promise<AdminUserSummary> {
   const before = await requireUserSummary(targetUserId);
-  const { error } = await supabase()
-    .from("users_profile")
-    .update({ plan: "pro", plan_expires_at: null })
-    .eq("id", targetUserId);
-  if (error) throw new HttpError(500, `grant pro failed: ${error.message}`);
-  await logGrant(adminUserId, targetUserId, "grant_pro", { previous_plan: before.plan });
+  const planExpiresAt = days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
+  await updateProfileOrNotFound(targetUserId, { plan: "pro", plan_expires_at: planExpiresAt }, "grant pro");
+  await logGrant(adminUserId, targetUserId, "grant_pro", { previous_plan: before.plan, days, expires_at: planExpiresAt });
   return requireUserSummary(targetUserId);
 }
 
 export async function revokePro(adminUserId: string, targetUserId: string): Promise<AdminUserSummary> {
   const before = await requireUserSummary(targetUserId);
-  const { error } = await supabase()
-    .from("users_profile")
-    .update({ plan: "free", plan_expires_at: null })
-    .eq("id", targetUserId);
-  if (error) throw new HttpError(500, `revoke pro failed: ${error.message}`);
+  await updateProfileOrNotFound(targetUserId, { plan: "free", plan_expires_at: null }, "revoke pro");
   await logGrant(adminUserId, targetUserId, "revoke_pro", { previous_plan: before.plan });
   return requireUserSummary(targetUserId);
 }
 
 export async function grantAdmin(adminUserId: string, targetUserId: string): Promise<AdminUserSummary> {
   await requireUserSummary(targetUserId);
-  const { error } = await supabase().from("users_profile").update({ is_admin: true }).eq("id", targetUserId);
-  if (error) throw new HttpError(500, `grant admin failed: ${error.message}`);
+  await updateProfileOrNotFound(targetUserId, { is_admin: true }, "grant admin");
   await logGrant(adminUserId, targetUserId, "grant_admin");
   return requireUserSummary(targetUserId);
 }
@@ -197,8 +213,7 @@ export async function revokeAdmin(adminUserId: string, targetUserId: string): Pr
     throw badRequest("You can't revoke your own admin access here — ask another admin to do it.");
   }
   await requireUserSummary(targetUserId);
-  const { error } = await supabase().from("users_profile").update({ is_admin: false }).eq("id", targetUserId);
-  if (error) throw new HttpError(500, `revoke admin failed: ${error.message}`);
+  await updateProfileOrNotFound(targetUserId, { is_admin: false }, "revoke admin");
   await logGrant(adminUserId, targetUserId, "revoke_admin");
   return requireUserSummary(targetUserId);
 }

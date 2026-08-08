@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ShieldCheck, ShieldOff, Sparkles, Lock, UserRound } from "lucide-react";
+import { ShieldCheck, ShieldOff, Sparkles, Lock, TriangleAlert, UserRound } from "lucide-react";
 import type { AdminUserSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -58,6 +58,17 @@ export function Component() {
   const totalPages = list.data?.pagination.total_pages ?? 1;
   const selectedUser = items.find((u) => u.id === selectedUserId) ?? null;
 
+  // The list is fetched with `placeholderData: prev => prev`, so the pager
+  // (and its `totalPages`) can briefly show a STALE, larger value from a
+  // previous filter/page while a fresh result is in flight. Clicking "Next"
+  // against that stale value — or the underlying user set simply shrinking —
+  // can land on a page beyond the real result, which returns an empty page
+  // with the pager itself hidden (it's only rendered in the non-empty
+  // branch), stranding the admin with no visible way back to page 1.
+  useEffect(() => {
+    if (list.data && page > list.data.pagination.total_pages) setPage(list.data.pagination.total_pages);
+  }, [list.data, page]);
+
   const grantPro = useGrantPro();
   const revokePro = useRevokePro();
   const grantAdmin = useGrantAdmin();
@@ -65,15 +76,22 @@ export function Component() {
   const pending = grantPro.isPending || revokePro.isPending || grantAdmin.isPending || revokeAdmin.isPending;
   const actionError = (grantPro.error || revokePro.error || grantAdmin.error || revokeAdmin.error) as Error | null;
 
-  function onTogglePro() {
+  function onTogglePro(days: number | null) {
     if (!selectedUser || pending) return;
     const email = selectedUser.email ?? selectedUser.id;
     if (selectedUser.plan === "pro") {
       if (!window.confirm(t("AdminUsers.confirmRevokePro", { email }))) return;
       revokePro.mutate(selectedUser.id);
     } else {
-      if (!window.confirm(t("AdminUsers.confirmGrantPro", { email }))) return;
-      grantPro.mutate(selectedUser.id);
+      const message = days
+        ? t("AdminUsers.confirmGrantProDays", {
+            email,
+            days,
+            date: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString(),
+          })
+        : t("AdminUsers.confirmGrantPro", { email });
+      if (!window.confirm(message)) return;
+      grantPro.mutate({ userId: selectedUser.id, days });
     }
   }
 
@@ -230,6 +248,15 @@ export function Component() {
  * (accordion-style), never as a separate section after the whole list, so
  * clicking a name opens its controls right where you clicked.
  */
+/** value="" means indefinite (the only option that can never be misread as the 7-day signup trial). */
+const PRO_GRANT_DURATIONS = [
+  { value: "", labelKey: "AdminUsers.durationIndefinite" },
+  { value: "7", labelKey: "AdminUsers.duration7" },
+  { value: "30", labelKey: "AdminUsers.duration30" },
+  { value: "90", labelKey: "AdminUsers.duration90" },
+  { value: "365", labelKey: "AdminUsers.duration365" },
+] as const;
+
 function UserManagePanel({
   user,
   pending,
@@ -238,11 +265,18 @@ function UserManagePanel({
 }: {
   user: AdminUserSummary;
   pending: boolean;
-  onTogglePro: () => void;
+  onTogglePro: (days: number | null) => void;
   onToggleAdmin: () => void;
 }) {
   const { t } = useTranslation();
   const grants = useAdminUserGrants(user.id);
+  const [durationValue, setDurationValue] = useState("");
+  const selectedDays = durationValue ? Number(durationValue) : null;
+  // See adminGrantProBodySchema's doc comment: a time-limited grant to an
+  // account that already used its real trial reads as trial-tier limits, not
+  // full Pro — surfaced here rather than silently under-serving the admin's
+  // intent.
+  const showTrialWarning = user.plan !== "pro" && user.has_used_trial && selectedDays !== null;
 
   return (
     <div className="flex flex-col gap-5 border-t border-border bg-muted/30 px-4 py-5">
@@ -268,10 +302,36 @@ function UserManagePanel({
         </div>
       </dl>
 
+      {user.plan !== "pro" && (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor={`pro-duration-${user.id}`} className="text-xs font-medium text-muted-foreground">
+            {t("AdminUsers.durationLabel")}
+          </label>
+          <select
+            id={`pro-duration-${user.id}`}
+            value={durationValue}
+            onChange={(e) => setDurationValue(e.target.value)}
+            className="h-9 w-fit rounded-lg border border-input bg-background px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          >
+            {PRO_GRANT_DURATIONS.map((d) => (
+              <option key={d.value} value={d.value}>
+                {t(d.labelKey)}
+              </option>
+            ))}
+          </select>
+          {showTrialWarning && (
+            <p className="flex items-start gap-1.5 text-xs text-marigold-foreground">
+              <TriangleAlert className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+              {t("AdminUsers.trialWarning")}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         <Button
           type="button"
-          onClick={onTogglePro}
+          onClick={() => onTogglePro(user.plan === "pro" ? null : selectedDays)}
           disabled={pending}
           variant={user.plan === "pro" ? "destructive" : "default"}
           className={user.plan === "pro" ? undefined : "bg-tulsi text-white hover:bg-tulsi/90"}

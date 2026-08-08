@@ -47,6 +47,27 @@ export type AdminUserListResponse = z.infer<typeof adminUserListResponseSchema>;
 export const adminUserActionResponseSchema = apiEnvelopeSchema(adminUserSummarySchema);
 export type AdminUserActionResponse = z.infer<typeof adminUserActionResponseSchema>;
 
+/**
+ * `days` is OPTIONAL — omit (or null) for the original indefinite grant.
+ * When set, the Pro grant expires `days` days from now instead of never.
+ *
+ * ⚑ CAVEAT surfaced in the UI, not hidden: `getTrialContext`'s `isOnTrial`
+ * (services/entitlements.ts) reads plan='pro' + an EXPIRY + has_used_trial
+ * together as "this is the 7-day signup trial". A time-limited grant to an
+ * account that already burned its real trial (`has_used_trial=true`) will
+ * therefore be read as trial-tier limits (2 evals/day), not full Pro
+ * (60/month) — the same fields, read the same way, regardless of who set
+ * them. An INDEFINITE grant never has this ambiguity (no expiry → never
+ * looks like a trial). This is a property of the existing, twice-audited
+ * trial-detection logic, not something this endpoint can silently avoid
+ * without touching that logic — so the admin-users UI shows a warning at the
+ * moment it applies rather than letting a time-boxed grant silently under-serve.
+ */
+export const adminGrantProBodySchema = z.object({
+  days: z.number().int().positive().max(3650).nullable().optional(),
+});
+export type AdminGrantProBody = z.infer<typeof adminGrantProBodySchema>;
+
 /** One row of the audit trail, with the acting admin's email resolved for display. */
 export const adminGrantLogEntrySchema = z.object({
   id: z.string().uuid(),
