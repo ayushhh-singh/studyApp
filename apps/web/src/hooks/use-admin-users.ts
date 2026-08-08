@@ -2,18 +2,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   adminGrantLogResponseSchema,
   adminUserActionResponseSchema,
-  adminUserSearchResponseSchema,
+  adminUserListResponseSchema,
 } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-/** Search for one account by exact email. Disabled until a non-empty email is given. */
-export function useAdminUserSearch(email: string) {
-  const trimmed = email.trim();
+/** Every account, newest first, optionally narrowed by a query (email/display-name substring). */
+export function useAdminUserList(page: number, query: string) {
+  const trimmed = query.trim();
   return useQuery({
-    queryKey: queryKeys.adminUserSearch(trimmed),
-    queryFn: () => api.get("/api/v1/admin/users/search", adminUserSearchResponseSchema, { email: trimmed }),
-    enabled: trimmed.length > 0,
+    queryKey: queryKeys.adminUserList(page, trimmed),
+    queryFn: () => api.get("/api/v1/admin/users", adminUserListResponseSchema, { page, query: trimmed || undefined }),
+    placeholderData: (prev) => prev,
   });
 }
 
@@ -32,10 +32,10 @@ function useAdminUserAction(action: "grant-pro" | "revoke-pro" | "grant-admin" |
     mutationFn: (userId: string) =>
       api.post(`/api/v1/admin/users/${userId}/${action}`, adminUserActionResponseSchema),
     onSuccess: (_data, userId) => {
-      // The mutation response already carries the fresh summary, but a caller
-      // may still be showing a search-result view keyed by email — invalidate
-      // both that and this user's grant log so neither goes stale.
-      queryClient.invalidateQueries({ queryKey: ["admin", "users", "search"] });
+      // The mutation response already carries the fresh summary, but the list
+      // view (any page/query) may still show this user's stale plan/admin
+      // badge — invalidate every cached list page plus this user's grant log.
+      queryClient.invalidateQueries({ queryKey: ["admin", "users", "list"] });
       queryClient.invalidateQueries({ queryKey: queryKeys.adminUserGrants(userId) });
     },
   });

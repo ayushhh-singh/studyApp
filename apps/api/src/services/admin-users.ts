@@ -46,6 +46,24 @@ interface ProfileRow {
 
 const PROFILE_COLUMNS = "display_name, plan, plan_expires_at, has_used_trial, is_admin, target_exam, created_at";
 
+/** Page size for the "all users" list — mirrors REVIEW_PAGE_SIZE's convention. */
+export const ADMIN_USER_LIST_PAGE_SIZE = 20;
+
+function buildSummary(authUser: AuthUserLike, profile: ProfileRow | undefined): AdminUserSummary {
+  return {
+    id: authUser.id,
+    email: authUser.email ?? null,
+    is_anonymous: authUser.is_anonymous === true,
+    display_name: profile?.display_name ?? null,
+    plan: profile?.plan ?? "free",
+    plan_expires_at: profile?.plan_expires_at ?? null,
+    has_used_trial: profile?.has_used_trial ?? false,
+    is_admin: profile?.is_admin ?? false,
+    target_exam: (profile?.target_exam as TargetExamCode | undefined) ?? DEFAULT_EXAM_CODE,
+    created_at: profile?.created_at ?? authUser.created_at ?? new Date(0).toISOString(),
+  };
+}
+
 async function toSummary(authUser: AuthUserLike): Promise<AdminUserSummary> {
   const { data, error } = await supabase()
     .from("users_profile")
@@ -53,42 +71,70 @@ async function toSummary(authUser: AuthUserLike): Promise<AdminUserSummary> {
     .eq("id", authUser.id)
     .maybeSingle();
   if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
-  const p = (data ?? null) as ProfileRow | null;
-  return {
-    id: authUser.id,
-    email: authUser.email ?? null,
-    is_anonymous: authUser.is_anonymous === true,
-    display_name: p?.display_name ?? null,
-    plan: p?.plan ?? "free",
-    plan_expires_at: p?.plan_expires_at ?? null,
-    has_used_trial: p?.has_used_trial ?? false,
-    is_admin: p?.is_admin ?? false,
-    target_exam: (p?.target_exam as TargetExamCode | undefined) ?? DEFAULT_EXAM_CODE,
-    created_at: p?.created_at ?? authUser.created_at ?? new Date(0).toISOString(),
-  };
+  return buildSummary(authUser, (data ?? undefined) as ProfileRow | undefined);
 }
 
 /**
- * Find one account by EXACT email (case-insensitive) — never a substring
- * search, so this can't be used to browse/enumerate the user base. Pages
- * through the Admin Auth API (no server-side email filter exists on
- * `listUsers`, matching the established pattern in guest-cleanup.ts) and
- * stops at the first match. Returns null for "no such account", a real and
- * expected outcome, not an error.
+ * Every auth user, across all pages of the Admin Auth API (no server-side
+ * email/name filter exists on `listUsers`, so browsing/filtering happens in
+ * memory here — matching the established pattern in guest-cleanup.ts). Fine
+ * for an admin-only, rate-limited, infrequent endpoint at this app's real
+ * user count; would need a real cursor/index if that ever reaches the tens
+ * of thousands.
  */
-export async function findUserByEmail(email: string): Promise<AdminUserSummary | null> {
-  const needle = email.trim().toLowerCase();
-  if (!needle) return null;
+async function listAllAuthUsers(): Promise<AuthUserLike[]> {
   const perPage = 1000;
+  const all: AuthUserLike[] = [];
   for (let page = 1; ; page++) {
     const { data, error } = await supabase().auth.admin.listUsers({ page, perPage });
-    if (error) throw new HttpError(500, `user search failed: ${error.message}`);
+    if (error) throw new HttpError(500, `user list failed: ${error.message}`);
     const users = data.users ?? [];
-    const hit = users.find((u) => (u.email ?? "").toLowerCase() === needle);
-    if (hit) return toSummary(hit);
+    all.push(...users);
     if (users.length < perPage) break;
   }
-  return null;
+  return all;
+}
+
+/** Batch-load profile rows for a set of ids — one query per 100 ids (the established `.in()` chunk-size convention), never one query per user. */
+async function loadProfilesByIds(ids: string[]): Promise<Map<string, ProfileRow>> {
+  const map = new Map<string, ProfileRow>();
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data, error } = await supabase()
+      .from("users_profile")
+      .select(`id, ${PROFILE_COLUMNS}`)
+      .in("id", chunk);
+    if (error) throw new HttpError(500, `profile lookup failed: ${error.message}`);
+    for (const row of (data ?? []) as (ProfileRow & { id: string })[]) map.set(row.id, row);
+  }
+  return map;
+}
+
+/**
+ * Every account, newest first, optionally narrowed by `query` (a
+ * case-insensitive substring match against email OR display name — never an
+ * exact-only match, so an admin can browse without knowing a full address).
+ * Paginated server-side so the response stays small regardless of the
+ * underlying user count.
+ */
+export async function listUsers(opts: { page: number; query?: string }): Promise<{ items: AdminUserSummary[]; total: number }> {
+  const authUsers = await listAllAuthUsers();
+  const profilesById = await loadProfilesByIds(authUsers.map((u) => u.id));
+  let summaries = authUsers.map((u) => buildSummary(u, profilesById.get(u.id)));
+
+  const needle = opts.query?.trim().toLowerCase();
+  if (needle) {
+    summaries = summaries.filter(
+      (s) => (s.email ?? "").toLowerCase().includes(needle) || (s.display_name ?? "").toLowerCase().includes(needle),
+    );
+  }
+
+  summaries.sort((a, b) => (a.created_at < b.created_at ? 1 : a.created_at > b.created_at ? -1 : 0));
+
+  const total = summaries.length;
+  const from = (opts.page - 1) * ADMIN_USER_LIST_PAGE_SIZE;
+  const items = summaries.slice(from, from + ADMIN_USER_LIST_PAGE_SIZE);
+  return { items, total };
 }
 
 async function requireUserSummary(userId: string): Promise<AdminUserSummary> {

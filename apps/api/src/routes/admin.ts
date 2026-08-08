@@ -4,8 +4,8 @@ import {
   adminStatusResponseSchema,
   adminGrantLogResponseSchema,
   adminUserActionResponseSchema,
-  adminUserSearchQuerySchema,
-  adminUserSearchResponseSchema,
+  adminUserListQuerySchema,
+  adminUserListResponseSchema,
   caBulkApproveHighConfidenceBodySchema,
   caHighConfidenceCountResponseSchema,
   caHighConfidenceQuerySchema,
@@ -75,10 +75,11 @@ import {
   rejectMagazineDeepDive,
 } from "../services/magazine.js";
 import {
-  findUserByEmail,
+  ADMIN_USER_LIST_PAGE_SIZE,
   getGrantLog,
   grantAdmin,
   grantPro,
+  listUsers,
   revokeAdmin,
   revokePro,
 } from "../services/admin-users.js";
@@ -393,10 +394,24 @@ adminRouter.patch(
 // (why a grant is indefinite, why self-revoke-admin is blocked).
 // ---------------------------------------------------------------------------
 adminRouter.get(
-  "/admin/users/search",
+  "/admin/users",
   asyncHandler(async (req, res) => {
-    const { email } = parse(adminUserSearchQuerySchema, req.query);
-    res.json(adminUserSearchResponseSchema.parse({ data: await findUserByEmail(email), error: null }));
+    const { page, query } = parse(adminUserListQuerySchema, req.query);
+    const { items, total } = await listUsers({ page, query });
+    res.json(
+      adminUserListResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: ADMIN_USER_LIST_PAGE_SIZE,
+            total,
+            total_pages: Math.max(1, Math.ceil(total / ADMIN_USER_LIST_PAGE_SIZE)),
+          },
+        },
+        error: null,
+      }),
+    );
   }),
 );
 

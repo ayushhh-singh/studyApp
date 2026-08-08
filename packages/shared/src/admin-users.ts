@@ -1,13 +1,14 @@
 import { z } from "zod";
-import { apiEnvelopeSchema } from "./types";
+import { apiEnvelopeSchema, paginatedSchema } from "./types";
 import { userPlanSchema } from "./profile";
 import { targetExamCodeSchema } from "./exams";
 
 /**
- * The admin "Users" surface — search a specific account by email and
- * grant/revoke Pro access or admin privilege, with every action logged to
- * `admin_grants` (migration 0117) for auditability. This does NOT introduce a
- * parallel access-control field: Pro access is still `users_profile.plan` +
+ * The admin "Users" surface — browse every account (paginated, newest first),
+ * optionally narrowed by an email/display-name filter, then grant/revoke Pro
+ * access or admin privilege. Every action is logged to `admin_grants`
+ * (migration 0117) for auditability. This does NOT introduce a parallel
+ * access-control field: Pro access is still `users_profile.plan` +
  * `plan_expires_at` (the same field `services/entitlements.ts::getPlanFor`
  * reads for every metered endpoint), and admin access is still
  * `users_profile.is_admin` (`lib/admin.ts::requireAdmin`). This module only
@@ -33,14 +34,15 @@ export const adminUserSummarySchema = z.object({
 });
 export type AdminUserSummary = z.infer<typeof adminUserSummarySchema>;
 
-export const adminUserSearchQuerySchema = z.object({
-  email: z.string().trim().min(1).max(320),
+/** `query`, when present, matches against email OR display name (substring, case-insensitive). */
+export const adminUserListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  query: z.string().trim().max(320).optional(),
 });
-export type AdminUserSearchQuery = z.infer<typeof adminUserSearchQuerySchema>;
+export type AdminUserListQuery = z.infer<typeof adminUserListQuerySchema>;
 
-/** null = no account found for that email — a real, expected outcome, not an error. */
-export const adminUserSearchResponseSchema = apiEnvelopeSchema(adminUserSummarySchema.nullable());
-export type AdminUserSearchResponse = z.infer<typeof adminUserSearchResponseSchema>;
+export const adminUserListResponseSchema = apiEnvelopeSchema(paginatedSchema(adminUserSummarySchema));
+export type AdminUserListResponse = z.infer<typeof adminUserListResponseSchema>;
 
 export const adminUserActionResponseSchema = apiEnvelopeSchema(adminUserSummarySchema);
 export type AdminUserActionResponse = z.infer<typeof adminUserActionResponseSchema>;
