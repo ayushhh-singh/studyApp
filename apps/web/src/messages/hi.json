@@ -4,7 +4,11 @@
     "loadErrorDescription": "कुछ गड़बड़ हो गई। कृपया अपना कनेक्शन जाँचें और फिर से प्रयास करें।",
     "retry": "पुनः प्रयास करें",
     "close": "बंद करें",
-    "learnMore": "और जानें"
+    "learnMore": "और जानें",
+    "pagination": "पृष्ठ क्रम",
+    "seeAll": "सभी देखें",
+    "backToRecent": "हाल के पर लौटें",
+    "allPapers": "सभी"
   },
   "Nav": {
     "dashboard": "डैशबोर्ड",

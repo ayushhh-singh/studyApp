@@ -8,8 +8,8 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamYearChip } from "@/components/ui-x/exam-chip";
+import { PaginationControls } from "@/components/ui-x/pagination-controls";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
-import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ReportQuestionSheet } from "@/components/questions/report-question-sheet";
 import { useCurrentExam } from "@/hooks/use-current-exam";
@@ -360,31 +360,16 @@ export function Component() {
                 </ul>
               </div>
             ))}
-            {questionsQuery.data.pagination.total_pages > 1 && (
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => setPage(page - 1)}
-                >
-                  {t("Learn.prevPage")}
-                </Button>
-                <span className="text-xs text-muted-foreground">
-                  {t("Learn.pageOf", { page, total: questionsQuery.data.pagination.total_pages })}
-                </span>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  disabled={page >= questionsQuery.data.pagination.total_pages}
-                  onClick={() => setPage(page + 1)}
-                >
-                  {t("Learn.nextPage")}
-                </Button>
-              </div>
-            )}
+            <PaginationControls
+              page={page}
+              totalPages={questionsQuery.data.pagination.total_pages}
+              onPageChange={setPage}
+              labels={{
+                previous: t("Learn.prevPage"),
+                next: t("Learn.nextPage"),
+                pageOf: t("Learn.pageOf", { page, total: questionsQuery.data.pagination.total_pages }),
+              }}
+            />
           </div>
         )}
       </SectionCard>

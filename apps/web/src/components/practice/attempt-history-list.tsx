@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { ChevronLeft, ChevronRight, History } from "lucide-react";
+import { History } from "lucide-react";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { PaginationControls } from "@/components/ui-x/pagination-controls";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
-import { Button } from "@/components/ui/button";
 import { useAttempts } from "@/hooks/use-attempt";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandColor } from "@/lib/score-band";
@@ -67,33 +67,17 @@ export function AttemptHistoryList() {
         })}
       </ul>
 
-      {data.pagination.total_pages > 1 && (
-        <div className="flex items-center justify-between pt-1">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-          >
-            <ChevronLeft aria-hidden />
-            {t("Practice.historyPrev")}
-          </Button>
-          <span className="text-xs text-muted-foreground">
-            {t("Practice.historyPageOf", { page, total: data.pagination.total_pages })}
-          </span>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={page >= data.pagination.total_pages}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            {t("Practice.historyNext")}
-            <ChevronRight aria-hidden />
-          </Button>
-        </div>
-      )}
+      <PaginationControls
+        page={page}
+        totalPages={data.pagination.total_pages}
+        onPageChange={setPage}
+        className="pt-1"
+        labels={{
+          previous: t("Practice.historyPrev"),
+          next: t("Practice.historyNext"),
+          pageOf: t("Practice.historyPageOf", { page, total: data.pagination.total_pages }),
+        }}
+      />
     </>
   );
 }

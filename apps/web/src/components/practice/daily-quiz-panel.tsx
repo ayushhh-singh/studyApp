@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, ChevronLeft, ChevronRight, Loader2, Sparkles } from "lucide-react";
+import { CalendarDays, Loader2, Sparkles } from "lucide-react";
 import type { DailyQuizArchiveItem } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { PaginationControls } from "@/components/ui-x/pagination-controls";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { TestCard } from "@/components/practice/test-card";
@@ -166,26 +167,16 @@ export function DailyQuizPanel() {
           );
         })}
       </ul>
-      {totalPages > 1 && (
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="sm" disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
-            <ChevronLeft aria-hidden />
-            {t("Practice.dailyPrev")}
-          </Button>
-          <span className="text-xs text-muted-foreground tabular-nums">
-            {t("Practice.dailyPageOf", { page, total: totalPages })}
-          </span>
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={page >= totalPages}
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-          >
-            {t("Practice.dailyNext")}
-            <ChevronRight aria-hidden />
-          </Button>
-        </div>
-      )}
+      <PaginationControls
+        page={page}
+        totalPages={totalPages}
+        onPageChange={setPage}
+        labels={{
+          previous: t("Practice.dailyPrev"),
+          next: t("Practice.dailyNext"),
+          pageOf: t("Practice.dailyPageOf", { page, total: totalPages }),
+        }}
+      />
     </div>
   );
 }

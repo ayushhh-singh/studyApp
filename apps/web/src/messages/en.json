@@ -4,7 +4,11 @@
     "loadErrorDescription": "Something went wrong. Please check your connection and try again.",
     "retry": "Retry",
     "close": "Close",
-    "learnMore": "Learn more"
+    "learnMore": "Learn more",
+    "pagination": "Pagination",
+    "seeAll": "See all",
+    "backToRecent": "Back to recent",
+    "allPapers": "All"
   },
   "Nav": {
     "dashboard": "Dashboard",
