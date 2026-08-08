@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { stateFocusName } from "@/lib/exam-label";
 import { MagazineToolbar } from "@/components/magazine/magazine-toolbar";
 import { MagazineIndexNav, type MagazineIndexEntry } from "@/components/magazine/magazine-index-nav";
 
@@ -103,14 +104,21 @@ function ItemBlock({ item, locale }: { item: MagazineItemBlock; locale: Locale }
 
 export function Component() {
   const { t } = useTranslation();
-  const { name: examName } = useCurrentExam();
+  const { examCode, exam, name: examName } = useCurrentExam();
   const locale = useLocale();
   const { month = "" } = useParams<{ month: string }>();
   const { data: mag, isLoading, isError, refetch } = useMagazinePrelims(month);
+  // The state this section is named after. `mag.up_special` is only ever
+  // non-empty for a state-scoped exam, so `stateName` resolves to a real value
+  // by the time it's actually rendered — see stateFocusName's own doc for the
+  // pre-load fallback.
+  const stateName = stateFocusName(exam, locale, examCode) ?? "";
 
   const indexEntries: MagazineIndexEntry[] = mag
     ? [
-        ...(mag.up_special.length > 0 ? [{ id: "up-special", label: t("Magazine.upSection") }] : []),
+        ...(mag.up_special.length > 0
+          ? [{ id: "up-special", label: t("Magazine.upSection", { state: stateName }) }]
+          : []),
         ...mag.boxed_features.map((b) => ({ id: `box-${b.kind}`, label: t(`Magazine.boxedFeature.${b.kind}`) })),
         ...mag.topic_sections.map((s) => ({ id: `topic-${s.category}`, label: t(`CurrentAffairs.category.${s.category}`) })),
         ...(mag.workbook.length > 0
@@ -167,7 +175,7 @@ export function Component() {
             {mag.up_special.length > 0 && (
               <section id="up-special" className="mag-section mb-8">
                 <h2 className="mb-3 flex items-center gap-2 border-b border-tulsi/40 pb-1.5 text-lg font-bold text-tulsi-foreground">
-                  <MapPin className="size-5" /> {t("Magazine.upSection")}
+                  <MapPin className="size-5" /> {t("Magazine.upSection", { state: stateName })}
                 </h2>
                 <div className="flex flex-col gap-3">
                   {mag.up_special.map((item) => (

@@ -6,6 +6,7 @@ import { GUIDED_TOUR_STOPS, type WelcomeTourChoice } from "@neev/shared";
 import { billingCopy, pick } from "@/lib/billing-copy";
 import { useProfile } from "@/hooks/use-profile";
 import { useUpdateTourState } from "@/hooks/use-tour";
+import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/marketing/brand-mark";
@@ -33,6 +34,7 @@ export function Component() {
   const navigate = useNavigate();
   const profileQuery = useProfile();
   const updateTour = useUpdateTourState();
+  const { name: examName } = useCurrentExam();
   const [step, setStep] = useState<Step>(0);
 
   if (profileQuery.isPending) return <FullScreenLoader />;
@@ -124,8 +126,12 @@ export function Component() {
             <Icon className="size-8" aria-hidden />
           </span>
           <div className="space-y-2">
-            <h1 className="text-xl font-bold tracking-tight">{t(`Welcome.slide${slide + 1}Title`)}</h1>
-            <p className="text-sm leading-relaxed text-muted-foreground">{t(`Welcome.slide${slide + 1}Body`)}</p>
+            <h1 className="text-xl font-bold tracking-tight">
+              {t(`Welcome.slide${slide + 1}Title`, { exam: examName })}
+            </h1>
+            <p className="text-sm leading-relaxed text-muted-foreground">
+              {t(`Welcome.slide${slide + 1}Body`, { exam: examName })}
+            </p>
           </div>
         </div>
 

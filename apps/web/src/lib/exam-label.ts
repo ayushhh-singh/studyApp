@@ -52,3 +52,44 @@ export function shortExamName(exam: Exam | null | undefined, locale: Locale, fal
   if (code && code in PROVENANCE_EXAM_LABEL) return PROVENANCE_EXAM_LABEL[code][locale];
   return code ?? "";
 }
+
+/**
+ * Pre-load fallback for a state-scoped exam's state name/code, keyed by exam
+ * code — same rationale as {@link PROVENANCE_EXAM_LABEL}: `exam.state_lens` (see
+ * `examStateLensSchema`) is the source of truth, server-derived from
+ * `apps/api/src/lib/exam-config.ts`'s `relevanceLens`; this only covers the
+ * split second before `GET /exams` resolves. Only exams known (today) to be
+ * state-scoped need an entry — a nationally-scoped exam correctly has none.
+ */
+const STATE_LENS_FALLBACK: Partial<Record<ExamCode, { name: BilingualText; code: string }>> = {
+  uppsc: { name: { en: "Uttar Pradesh", hi: "उत्तर प्रदेश" }, code: "UP" },
+};
+
+/**
+ * The full state name a state-scoped exam's content is focused on ("{{state}}
+ * Focus"), for the pre-onboarding-choice-agnostic surfaces (magazine, current
+ * affairs) that used to hardcode "Uttar Pradesh"/"UP". Returns `null` for a
+ * nationally-scoped exam or while that's still unknown (see `exam-config.ts`'s
+ * `relevanceLens` — a state block is a structural fact, not gated on
+ * authoring, so once the registry resolves this is never wrong, only
+ * momentarily unknown).
+ */
+export function stateFocusName(exam: Exam | null | undefined, locale: Locale, fallbackCode?: string): string | null {
+  if (exam) return exam.state_lens ? exam.state_lens.name_i18n[locale] : null;
+  const code = fallbackCode as ExamCode | undefined;
+  return (code && STATE_LENS_FALLBACK[code]?.name[locale]) || null;
+}
+
+/**
+ * The short state CODE ("UP", "MP") for a compact badge — deliberately NOT
+ * routed through i18n (kept Latin in both locales), matching the app's own
+ * established convention of rendering a short exam/paper abbreviation in Latin
+ * regardless of locale (see `hooks/use-paper-catalog.ts`'s `latinLabel`). `state_lens`
+ * carries no per-locale short form, and guessing one client-side would just be
+ * a different flavor of the hardcoding this replaces.
+ */
+export function stateFocusCode(exam: Exam | null | undefined, fallbackCode?: string): string | null {
+  if (exam) return exam.state_lens?.code ?? null;
+  const code = fallbackCode as ExamCode | undefined;
+  return (code && STATE_LENS_FALLBACK[code]?.code) || null;
+}

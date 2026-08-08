@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { formatQuestionStem } from "@/lib/format-question-stem";
+import { stateFocusCode } from "@/lib/exam-label";
 import { MagazineToolbar } from "@/components/magazine/magazine-toolbar";
 import { MagazineIndexNav, type MagazineIndexEntry } from "@/components/magazine/magazine-index-nav";
 import { RelevanceBadges } from "@/components/current-affairs/relevance-badge";
@@ -46,13 +47,18 @@ function SyllabusChips({ nodeIds, locale }: { nodeIds: string[]; locale: Locale 
  * for the raw `is_up_specific` column being one commission's verdict OR-ed onto
  * a row that is shared across exams. Resolving on the server removed both the
  * prop and the registry-loading race it had to guard against.
+ *
+ * `stateCode` (e.g. "UP") is passed down rather than re-derived per card — see
+ * `stateFocusCode`'s own doc for why it's Latin in both locales.
  */
 function IssueBriefCard({
   item,
   locale,
+  stateCode,
 }: {
   item: MagazineIssueBrief;
   locale: Locale;
+  stateCode: string | null;
 }) {
   const { t } = useTranslation();
   const b = item.brief;
@@ -69,9 +75,9 @@ function IssueBriefCard({
             mainsTitle: t("CurrentAffairs.mainsRelevanceTitle"),
           }}
         />
-        {item.state_focus && (
+        {item.state_focus && stateCode && (
           <span className="rounded-full bg-tulsi/15 px-2 py-0.5 font-semibold text-tulsi-foreground">
-            {t("CurrentAffairs.upSpecific")}
+            {stateCode}
           </span>
         )}
         {item.editors_pick && (
@@ -237,10 +243,11 @@ function ModelQuestionCard({ q, locale }: { q: MagazineModelQuestion; locale: Lo
 
 export function Component() {
   const { t } = useTranslation();
-  const { name: examName } = useCurrentExam();
+  const { name: examName, exam, examCode } = useCurrentExam();
   const locale = useLocale();
   const { month = "" } = useParams<{ month: string }>();
   const { data: mag, isLoading, isError, refetch } = useMagazineMains(month);
+  const stateCode = stateFocusCode(exam, examCode);
 
   const indexEntries: MagazineIndexEntry[] = mag
     ? [
@@ -311,7 +318,7 @@ export function Component() {
                 <h2 className="mb-3 border-b border-border pb-1.5 text-lg font-bold">{s.paper}</h2>
                 <div className="flex flex-col gap-4">
                   {s.items.map((item) => (
-                    <IssueBriefCard key={item.item_id} item={item} locale={locale} />
+                    <IssueBriefCard key={item.item_id} item={item} locale={locale} stateCode={stateCode} />
                   ))}
                 </div>
               </section>

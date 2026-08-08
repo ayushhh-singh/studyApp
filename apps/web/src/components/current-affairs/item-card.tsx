@@ -5,10 +5,13 @@ import { RelevanceBadges } from "./relevance-badge";
 export function CurrentAffairsItemCard({
   item,
   locale,
+  stateCode,
   onSelect,
 }: {
   item: CurrentAffairsItem;
   locale: Locale;
+  /** e.g. "UP" — see `lib/exam-label.ts`'s `stateFocusCode`. */
+  stateCode: string | null;
   onSelect: (id: string) => void;
 }) {
   const { t } = useTranslation();
@@ -31,9 +34,9 @@ export function CurrentAffairsItemCard({
               mainsTitle: t("CurrentAffairs.mainsRelevanceTitle"),
             }}
           />
-          {item.state_focus && (
+          {item.state_focus && stateCode && (
             <span className="rounded-full bg-tulsi/15 px-2 py-0.5 font-semibold text-tulsi-foreground">
-              {t("CurrentAffairs.upSpecific")}
+              {stateCode}
             </span>
           )}
           {item.category && (

@@ -15,6 +15,7 @@ import { QuickScanFeed } from "@/components/current-affairs/quick-scan-feed";
 import { useCurrentAffairs } from "@/hooks/use-current-affairs";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
+import { stateFocusName, stateFocusCode } from "@/lib/exam-label";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Nav.currentAffairs" };
@@ -73,13 +74,17 @@ export function Component() {
   const locale = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const { exam, isLoading: examLoading } = useCurrentExam();
+  const { exam, examCode, isLoading: examLoading } = useCurrentExam();
   // While the registry is still loading `exam` is null, which is NOT "this exam
   // has no state lens" — assume it has one until we know, so the tab never
   // flickers away and back for the live (state-scoped) exam.
   const hasStateLens = examLoading || exam === null || exam.state_lens !== null;
   const lenses = LENSES.filter((l) => hasStateLens || !STATE_LENSES.has(l));
   const categories = CATEGORIES.filter((c) => hasStateLens || !STATE_CATEGORIES.has(c));
+  // Only ever actually rendered (via the "up" lens tab) when hasStateLens is
+  // true, so this resolves to a real state by the time it's on screen.
+  const stateName = stateFocusName(exam, locale, examCode) ?? "";
+  const stateCode = stateFocusCode(exam, examCode);
 
   const rawLens = (searchParams.get("lens") as CurrentAffairsLens | null) ?? "all";
   // A stale `?lens=up` survives an exam switch. Rather than erroring or leaving a
@@ -155,7 +160,7 @@ export function Component() {
                 lens === l ? "bg-background text-foreground shadow-xs" : "text-muted-foreground",
               )}
             >
-              {t(LENS_LABEL[l])}
+              {t(LENS_LABEL[l], { state: stateName })}
             </button>
           ))}
         </div>
@@ -231,6 +236,7 @@ export function Component() {
                       key={item.id}
                       item={item}
                       locale={locale}
+                      stateCode={stateCode}
                       onSelect={(id) => patchParams({ item: id })}
                     />
                   ))}
@@ -270,6 +276,7 @@ export function Component() {
       <CurrentAffairsDetailSheet
         itemId={selectedId}
         locale={locale}
+        stateCode={stateCode}
         onOpenChange={(open) => !open && patchParams({ item: null })}
       />
     </div>
