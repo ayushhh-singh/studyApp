@@ -56,6 +56,7 @@ import {
   countWords,
   FEEDBACK_WRITE_NOW,
   isBlockingClaim,
+  isWellFormedClaim,
   MODEL_ANSWER_VERIFY_SCHEMA,
   type AnalysisPageImage,
   type EvalContext,
@@ -900,7 +901,10 @@ async function generateVerifiedModelAnswer(opts: {
           onUsage,
           signal,
         });
-        claims = Array.isArray(res?.claims) ? res.claims : [];
+        // Filtered HERE, inside the fail-open try: a malformed element would
+        // otherwise throw out of `.filter(isBlockingClaim)` below, which sits
+        // outside it, and fail an evaluation the candidate has already paid for.
+        claims = Array.isArray(res?.claims) ? res.claims.filter(isWellFormedClaim) : [];
       } catch (err) {
         // Fail open — see the note above. `claims` stays empty, so the only
         // live check is the deterministic word count.

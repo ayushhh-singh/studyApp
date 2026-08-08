@@ -709,6 +709,24 @@ export interface VerifiedClaim {
 }
 
 /**
+ * Drop anything the verifier returned that is not a usable claim object.
+ *
+ * The response is schema-constrained, so this should never fire — but the gate
+ * that consumes it is documented FAIL-OPEN ("a verifier that errors must not
+ * fail the evaluation"), and without this a single null element in an otherwise
+ * well-formed envelope throws out of `.filter(isBlockingClaim)` and fails the
+ * whole run — AFTER the candidate has been charged a credit and already seen
+ * their scores and feedback. Filtering here (rather than defending inside
+ * `isBlockingClaim`) keeps the blocking rule a clean predicate and preserves
+ * every well-formed sibling claim instead of discarding the batch.
+ */
+export function isWellFormedClaim(c: unknown): c is VerifiedClaim {
+  if (typeof c !== "object" || c === null) return false;
+  const v = (c as VerifiedClaim).verdict;
+  return v === "supported" || v === "unverifiable" || v === "contradicted";
+}
+
+/**
  * The blocking rule, in one place so the gate and its rationale cannot drift.
  * See `buildModelAnswerVerifySystem` for the measurement this encodes: blocking
  * on `contradicted` alone missed the panel's worst answer, and blocking on all
