@@ -98,7 +98,14 @@ jobs:
       # rather than here. A shell `date -u +%Y-%m` would be UTC — this repo is IST
       # throughout and `current_affairs_items.date` is `istDateString(pubDate)` —
       # and would also name the CURRENT month, which on the 1st has barely begun.
-      - name: Run ca:deepdive for the previous calendar month
+      #
+      # No `--exam`: deep dives are per exam (0118), and with the flag omitted
+      # this builds for every LIVE exam via the shared resolveTargetExams. So a
+      # second exam going live needs no change here, and a scheduled run can
+      # never inherit the pre-launch `--exam` override. The CLI exits non-zero if
+      # any exam failed, so a partially-empty month goes red rather than
+      # false-green.
+      - name: Run ca:deepdive for the previous calendar month (all live exams)
         run: pnpm --filter api ca:deepdive --previous --run
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

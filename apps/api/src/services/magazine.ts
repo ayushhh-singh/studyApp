@@ -26,7 +26,6 @@ import { monthBounds, monthLabel, isMonthPublished } from "../lib/month.js";
 import { istClockUtc } from "../lib/ist.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
-import { examCodeForNode } from "../lib/exams.js";
 import { gsPapersFor } from "../lib/exam-config.js";
 import {
   CA_CURATION_SCOPE_COLUMNS,
@@ -356,32 +355,24 @@ async function countCuratedMainsIssues(
 }
 
 /**
- * `magazine_deep_dives` carries no `exam_code` column of its own (adding one is
- * a schema change, out of scope for this fix) — its exam is derived the SAME
- * way ca/deepdive.ts derives it at generation time (buildRequests): from the
- * ranked issue's PRIMARY syllabus node, `syllabus_node_ids[0]`. Reusing
- * `examCodeForNode` (rather than re-deriving the rule) keeps this read-time
- * filter byte-identical in behaviour to the write-time decision, so a deep
- * dive can never be shown to an exam other than the one it was written for.
+ * 0118 gave `magazine_deep_dives` a real `exam_code`, so the exam is now a
+ * FILTER IN THE QUERY rather than a per-row derivation in JS.
+ *
+ * What this replaces: a `filterDeepDivesByExam` that ran one `examCodeForNode`
+ * lookup PER ROW (on the Mains edition's hot path) to re-derive the exam from
+ * `syllabus_node_ids[0]`. That derivation could also silently disagree with the
+ * writer — `[0]` is whichever node was written first, and a shared item
+ * legitimately carries nodes from several exams' trees (0106 §11).
  */
-async function filterDeepDivesByExam<T extends { syllabus_node_ids: string[] | null }>(
-  rows: T[],
-  examCode: string,
-): Promise<T[]> {
-  if (rows.length === 0) return rows;
-  const codes = await Promise.all(rows.map((r) => examCodeForNode(r.syllabus_node_ids?.[0] ?? null)));
-  return rows.filter((_, i) => codes[i] === examCode);
-}
-
 async function countPublishedDeepDives(month: string, examCode: string): Promise<number> {
-  const { data, error } = await supabase()
+  const { count, error } = await supabase()
     .from("magazine_deep_dives")
-    .select("syllabus_node_ids")
+    .select("id", { count: "exact", head: true })
     .eq("month", month)
+    .eq("exam_code", examCode)
     .eq("status", "published");
   if (error) throw new HttpError(500, `magazine deep-dive count failed: ${error.message}`);
-  const rows = (data ?? []) as { syllabus_node_ids: string[] | null }[];
-  return (await filterDeepDivesByExam(rows, examCode)).length;
+  return count ?? 0;
 }
 
 // ---------------------------------------------------------------------------
@@ -609,19 +600,18 @@ export async function compileMainsEdition(month: string, examCode: string): Prom
         "id, month, rank, status, title_i18n, intro_i18n, synthesis_i18n, significance_i18n, challenges_i18n, way_forward_i18n, keywords_i18n, case_examples_i18n, gs_papers, syllabus_node_ids, source_item_ids, sources, model, cost_usd, created_at, updated_at",
       )
       .eq("month", month)
+      // 0118: the dive's own exam column, not a per-row re-derivation.
+      .eq("exam_code", examCode)
       .eq("status", "published")
       .order("rank", { ascending: true }),
     loadModelQuestions(month, examCode),
     loadNodeWeightage(),
   ]);
   if (ddError) throw new HttpError(500, `mains edition deep-dive query failed: ${ddError.message}`);
-  // magazine_deep_dives has no exam_code column — filtered at read time via
-  // filterDeepDivesByExam (derives it from each row's primary syllabus node,
-  // mirroring how ca/deepdive.ts derived it at generation time).
-  const deepDives = await filterDeepDivesByExam(
-    ((ddData ?? []) as unknown as MagazineDeepDive[]).map((d) => ({ ...d, cost_usd: Number(d.cost_usd) })),
-    examCode,
-  );
+  const deepDives = ((ddData ?? []) as unknown as MagazineDeepDive[]).map((d) => ({
+    ...d,
+    cost_usd: Number(d.cost_usd),
+  }));
 
   if (items.length === 0 && deepDives.length === 0 && modelQuestions.length === 0) return null;
 

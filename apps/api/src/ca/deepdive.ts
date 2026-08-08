@@ -55,7 +55,7 @@ interface MainsItemRow extends CaCurationScopeRow {
   mains_brief: CurrentAffairsMainsBrief;
 }
 
-async function loadMainsItems(month: string): Promise<MainsItemRow[]> {
+async function loadMainsItems(month: string, examCode: string): Promise<MainsItemRow[]> {
   const { start, end } = monthBounds(month);
   // Paged: a busy month already reaches ~92% of PostgREST's 1000-row cap.
   return (await selectAll<unknown>(() =>
@@ -66,6 +66,14 @@ async function loadMainsItems(month: string): Promise<MainsItemRow[]> {
       // WRITTEN FOR, resolved below, never the shared row's cross-exam union.
       .select(`id, date, title_i18n, mains_relevance, syllabus_node_ids, mains_brief, ${CA_CURATION_SCOPE_COLUMNS}`)
       .eq("status", "published")
+      // ⚑ THE POOL IS PER EXAM. Without this the ranking mixed every exam's
+      // current affairs and took a GLOBAL top-5, so one exam could take all five
+      // slots and another get zero deep dives for the month — silently, since
+      // each individual dive still looked correctly written for whichever exam
+      // its own primary node belonged to. `.overlaps` (not `.eq`) because one
+      // national story is deliberately ONE row shared across exams (0106 §11),
+      // and it should be rankable by each of them.
+      .overlaps("exam_codes", [examCode])
       .gte("mains_relevance", RELEVANCE_GATE)
       .not("mains_brief", "is", null)
       .gte("date", start)
@@ -75,15 +83,50 @@ async function loadMainsItems(month: string): Promise<MainsItemRow[]> {
   )) as MainsItemRow[];
 }
 
+/**
+ * The syllabus node a deep dive is filed under FOR A GIVEN EXAM — the first of
+ * the item's nodes that belongs to that exam's own tree.
+ *
+ * `syllabus_node_ids[0]` (what the old read-time derivation used) is whichever
+ * node happened to be written first, and a shared item legitimately carries
+ * nodes from several exams' trees. Using [0] blindly would ground a UPSC deep
+ * dive against a UPPSC node — and `retrieveGrounding` filters by exam inside the
+ * RPC, so the two would disagree and the dive would come back thinly grounded
+ * with nothing logged. Resolved in ONE query for every issue rather than a
+ * lookup per node.
+ */
+async function resolvePrimaryNodes(issues: RankedIssue[], examCode: string): Promise<Map<string, string | null>> {
+  const allIds = [...new Set(issues.flatMap((i) => i.item.syllabus_node_ids ?? []))];
+  const owned = new Set<string>();
+  // Chunked: an `.in()` with a few hundred uuids hits PostgREST's URL-length limit.
+  for (let i = 0; i < allIds.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("syllabus_nodes")
+      .select("id")
+      .eq("exam_code", examCode)
+      .in("id", allIds.slice(i, i + 100));
+    if (error) throw new Error(`resolving primary syllabus nodes failed: ${error.message}`);
+    for (const r of (data ?? []) as { id: string }[]) owned.add(r.id);
+  }
+  return new Map(
+    issues.map((i) => [i.item.id, (i.item.syllabus_node_ids ?? []).find((id) => owned.has(id)) ?? null]),
+  );
+}
+
 export interface RankedIssue {
   item: MainsItemRow;
   relatedItems: MainsItemRow[];
   score: number;
 }
 
-/** Rank this month's mains-life items by relevance + rolled-up syllabus weightage, and cluster related items. */
-export async function rankIssues(month: string): Promise<RankedIssue[]> {
-  const items = await loadMainsItems(month);
+/**
+ * Rank this EXAM's mains-life items for the month by relevance + rolled-up
+ * syllabus weightage, and cluster related items. `examCode` is REQUIRED so the
+ * compiler forces every caller to say which exam it is ranking for — a defaulted
+ * parameter would let a caller silently keep the old cross-exam pooling (M24).
+ */
+export async function rankIssues(month: string, examCode: string): Promise<RankedIssue[]> {
+  const items = await loadMainsItems(month, examCode);
   if (items.length === 0) return [];
 
   const weightage = await loadNodeWeightage();
@@ -222,13 +265,15 @@ interface DeepDiveRequest {
   examCode: string;
 }
 
-async function buildRequests(issues: RankedIssue[]): Promise<DeepDiveRequest[]> {
+async function buildRequests(issues: RankedIssue[], examCode: string): Promise<DeepDiveRequest[]> {
   const out: DeepDiveRequest[] = [];
+  // The exam is now the RUN's exam, not derived per issue: the pool was already
+  // scoped to it, so every issue here is one this exam's triage placed. What
+  // still has to be resolved per issue is WHICH of the item's nodes is this
+  // exam's — see resolvePrimaryNodes.
+  const primaryNodes = await resolvePrimaryNodes(issues, examCode);
   for (const issue of issues) {
-    const primaryNodeId = issue.item.syllabus_node_ids[0] ?? null;
-    // A CA item can map into several exams' trees; the deep dive is written for
-    // the exam that owns the node it is primarily filed under.
-    const examCode = await examCodeForNode(primaryNodeId);
+    const primaryNodeId = primaryNodes.get(issue.item.id) ?? null;
     const [grounding, pyqText] = await Promise.all([
       retrieveGrounding({
         questionText: `${issue.item.title_i18n.en} ${issue.item.mains_brief.why_in_news_i18n.en}`,
@@ -258,9 +303,9 @@ export interface DeepDivePlan {
   estimatedCostUsd: number;
 }
 
-/** Rank + preview the month's deep dives (no LLM calls, no writes). */
-export async function planDeepDives(month: string): Promise<DeepDivePlan> {
-  const issues = await rankIssues(month);
+/** Rank + preview one exam's deep dives for the month (no LLM calls, no writes). */
+export async function planDeepDives(month: string, examCode: string): Promise<DeepDivePlan> {
+  const issues = await rankIssues(month, examCode);
   // Measured against real synthesis calls: a rich context (~2.5k input tokens) + a long structured 6-paragraph output.
   const perCallCost = estimateCostUsd(MODELS.sonnet, 3000, 3500) * BATCH_DISCOUNT;
   return {
@@ -272,6 +317,7 @@ export async function planDeepDives(month: string): Promise<DeepDivePlan> {
 
 export interface DeepDiveRunResult {
   month: string;
+  examCode: string;
   planned: number;
   generated: number;
   failed: number;
@@ -286,21 +332,27 @@ type Log = (msg: string) => void;
  * re-run replaces drafts cleanly instead of accumulating stale duplicates —
  * rows a reviewer already published are left untouched.
  */
-export async function runDeepDives(month: string, log: Log = () => {}): Promise<DeepDiveRunResult> {
-  const issues = await rankIssues(month);
-  const result: DeepDiveRunResult = { month, planned: issues.length, generated: 0, failed: 0, costUsd: 0 };
+export async function runDeepDives(month: string, examCode: string, log: Log = () => {}): Promise<DeepDiveRunResult> {
+  const issues = await rankIssues(month, examCode);
+  const result: DeepDiveRunResult = { month, examCode, planned: issues.length, generated: 0, failed: 0, costUsd: 0 };
   if (issues.length === 0) return result;
 
-  log(`ranked ${issues.length} candidate issue(s) for ${month}`);
-  const requests = await buildRequests(issues);
+  log(`ranked ${issues.length} candidate issue(s) for ${month} / ${examCode}`);
+  const requests = await buildRequests(issues, examCode);
 
+  // ⚑ THE DELETE IS SCOPED TO THIS EXAM. Without `.eq("exam_code", examCode)` a
+  // per-exam run would wipe EVERY other exam's unpublished drafts for the month
+  // — a destructive cross-exam side effect, and the more dangerous half of the
+  // scoping gap, since the ranking bug merely produced nothing while this one
+  // would silently destroy another exam's pending review queue.
   const { error: delError } = await supabase()
     .from("magazine_deep_dives")
     .delete()
     .eq("month", month)
+    .eq("exam_code", examCode)
     .neq("status", "published");
   if (delError) throw new Error(`clearing previous deep-dive drafts failed: ${delError.message}`);
-  log(`cleared previous (unpublished) deep-dive drafts for ${month}`);
+  log(`cleared previous (unpublished) deep-dive drafts for ${month} / ${examCode}`);
 
   const batchRequests: BatchRequest[] = requests.map((r, i) => ({
     customId: `dd_${i}`,
@@ -313,9 +365,9 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
       maxTokens: 8000,
     }),
     purpose: "magazine_deepdive",
-    // The exam this deep dive is written for — `buildRequests` already resolved
-    // it from the issue's primary syllabus node (examCodeForNode), and it is the
-    // exam both the system prompt and the grounding were scoped to.
+    // The exam this deep dive is written for — the RUN's exam, which is also the
+    // exam the candidate pool, the system prompt and the grounding were all
+    // scoped to. (It used to be derived per issue from syllabus_node_ids[0].)
     examCode: r.examCode,
   }));
 
@@ -345,6 +397,10 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
     const { issue, sources, examCode: diveExamCode } = requests[i];
     const { error: insError } = await supabase().from("magazine_deep_dives").insert({
       month,
+      // 0118: the dive's own exam. Every read filters on it, and the unique
+      // constraint is (month, exam_code, rank) — 0068's (month, rank) would have
+      // made a second exam's rank-1 dive a 23505.
+      exam_code: diveExamCode,
       rank: i + 1,
       status: "needs_review",
       title_i18n: parsed.title_i18n,
@@ -356,8 +412,8 @@ export async function runDeepDives(month: string, log: Log = () => {}): Promise<
       keywords_i18n: parsed.keywords_i18n,
       case_examples_i18n: parsed.case_examples_i18n,
       // ⚑ M20b — RESOLVED for the exam this dive is written for (`diveExamCode`,
-      // derived from the issue's primary syllabus node above), never the shared
-      // row's cross-exam UNION. `magazine_deep_dives.gs_papers` is rendered as
+      // the run's own exam), never the shared row's cross-exam UNION.
+      // `magazine_deep_dives.gs_papers` is rendered as
       // paper chips by the review panel and the Mains edition, so the union
       // would tag a UPSC dive with UPPSC's papers — including, for a dive whose
       // source item uppsc had flagged, the state-only GS5_UP/GS6_UP labels that
