@@ -3,6 +3,7 @@ import {
   adminGrantLogResponseSchema,
   adminUserActionResponseSchema,
   adminUserAttemptsResponseSchema,
+  adminUserCostResponseSchema,
   adminUserListResponseSchema,
   adminUserStatsResponseSchema,
 } from "@neev/shared";
@@ -53,6 +54,19 @@ export function useAdminUserAttempts(userId: string | undefined, page: number) {
     queryFn: () => api.get(`/api/v1/admin/users/${userId}/attempts`, adminUserAttemptsResponseSchema, { page }),
     enabled: !!userId,
     placeholderData: (prev) => prev,
+  });
+}
+
+/**
+ * Real per-user LLM spend, rolled up from `llm_calls`. Kept as its own query
+ * rather than folded into the stats snapshot because it is the heaviest of the
+ * three (an unbounded paged scan of this user's calls).
+ */
+export function useAdminUserCost(userId: string | undefined) {
+  return useQuery({
+    queryKey: queryKeys.adminUserCost(userId ?? ""),
+    queryFn: () => api.get(`/api/v1/admin/users/${userId}/cost`, adminUserCostResponseSchema),
+    enabled: !!userId,
   });
 }
 

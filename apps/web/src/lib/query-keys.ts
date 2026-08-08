@@ -112,6 +112,7 @@ export const queryKeys = {
   adminUserGrants: (id: string) => ["admin", "users", id, "grants"] as const,
   adminUserStats: (id: string) => ["admin", "users", id, "stats"] as const,
   adminUserAttempts: (id: string, page: number) => ["admin", "users", id, "attempts", page] as const,
+  adminUserCost: (id: string) => ["admin", "users", id, "cost"] as const,
   scoreboardDailyToday: () => ["scoreboard", "daily-quiz", "today"] as const,
   scoreboardDailyWeekly: () => ["scoreboard", "daily-quiz", "weekly"] as const,
   scoreboardMockTests: (paperCode?: string) => ["scoreboard", "mocks", "tests", paperCode ?? "all"] as const,

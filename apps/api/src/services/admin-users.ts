@@ -25,6 +25,8 @@
 import type {
   AdminGrantAction,
   AdminUserAttempt,
+  AdminUserCost,
+  AdminUserCostPurpose,
   AdminUserListRow,
   AdminUserStats,
   AdminUserSummary,
@@ -33,6 +35,8 @@ import type {
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
+import { priceLlmCall, type PriceableLlmCall } from "../lib/llm-cost.js";
+import { selectAll } from "../lib/paginate.js";
 import { listAttempts } from "./attempts.js";
 import { getStats } from "./srs.js";
 
@@ -285,6 +289,64 @@ export async function listUserAttempts(
       return { ...a, user_rank: rank?.user_rank ?? null, cohort_size: rank?.cohort_size ?? null };
     }),
     total,
+  };
+}
+
+/**
+ * Per-user LLM cost, rolled up from real `llm_calls` rows.
+ *
+ * Pricing goes through `priceLlmCall` — the same module `cost:report`'s
+ * `isModelId` now comes from — so the admin surface and the ops report cannot
+ * disagree about what a call cost or which rows are priceable. No pricing math
+ * is reimplemented here.
+ *
+ * PAGED via `selectAll`: a heavy user's row count is unbounded, and an unranged
+ * select would silently truncate at PostgREST's 1000-row cap and UNDERSTATE the
+ * bill — the failure mode this repo has hit repeatedly, and the worst possible
+ * one for a cost figure, since a truncated total looks entirely plausible.
+ *
+ * The `(user_id, created_at desc)` index from 0021 covers this filter.
+ */
+export async function getUserCost(userId: string): Promise<AdminUserCost> {
+  await requireUserSummary(userId);
+
+  const rows = await selectAll<PriceableLlmCall & { purpose: string }>(() =>
+    supabase()
+      .from("llm_calls")
+      .select("purpose, model, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, meta, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: true }),
+  );
+
+  const byPurpose = new Map<string, AdminUserCostPurpose>();
+  let totalCost = 0;
+  let unpriced = 0;
+  for (const row of rows) {
+    const cost = priceLlmCall(row);
+    if (cost === null) unpriced++;
+    const entry = byPurpose.get(row.purpose) ?? {
+      purpose: row.purpose,
+      calls: 0,
+      input_tokens: 0,
+      output_tokens: 0,
+      cost_usd: 0,
+    };
+    entry.calls++;
+    entry.input_tokens += row.input_tokens;
+    entry.output_tokens += row.output_tokens;
+    entry.cost_usd += cost ?? 0;
+    byPurpose.set(row.purpose, entry);
+    totalCost += cost ?? 0;
+  }
+
+  return {
+    total_cost_usd: totalCost,
+    total_calls: rows.length,
+    by_purpose: [...byPurpose.values()].sort((a, b) => b.cost_usd - a.cost_usd),
+    // Rows are fetched created_at ASC, so the ends of the array are the bounds.
+    first_call_at: rows[0]?.created_at ?? null,
+    last_call_at: rows[rows.length - 1]?.created_at ?? null,
+    unpriced_calls: unpriced,
   };
 }
 

@@ -107,6 +107,63 @@ export type AdminUserAttemptsResponse = z.infer<typeof adminUserAttemptsResponse
 export const adminUserAttemptsQuerySchema = z.object({ page: z.coerce.number().int().min(1).default(1) });
 export type AdminUserAttemptsQuery = z.infer<typeof adminUserAttemptsQuerySchema>;
 
+/* ------------------------------------------------------------------------- *
+ * Per-user LLM cost attribution
+ * ------------------------------------------------------------------------- */
+
+/** One AI-calling action type this user triggered, with what it really cost. */
+export const adminUserCostPurposeSchema = z.object({
+  /** The raw `llm_calls.purpose` (e.g. "answer_eval_analysis", "mentor_doubt"). */
+  purpose: z.string(),
+  calls: z.number().int(),
+  input_tokens: z.number().int(),
+  output_tokens: z.number().int(),
+  cost_usd: z.number(),
+});
+export type AdminUserCostPurpose = z.infer<typeof adminUserCostPurposeSchema>;
+
+/**
+ * What this user's AI usage actually cost, rolled up from real `llm_calls`
+ * rows.
+ *
+ * ⚑ THIS IS ATTRIBUTABLE SPEND, NOT THIS USER'S SHARE OF TOTAL SPEND — the
+ * distinction matters for reading the number correctly. Only calls made in a
+ * request context carry a `user_id`; the content pipelines (`ca_*`, `ingest_*`,
+ * `qgen_*`, `notes_*`, `audit_*`) run from cron/CLI with no request user and are
+ * a much larger share of total spend, correctly attributed to nobody. So a
+ * per-user figure answers "what did serving THIS user cost", not "what fraction
+ * of the bill is theirs".
+ *
+ * ⚑ AND IT UNDERSTATES, in one known way that cannot be recovered:
+ * `llm_calls.user_id` is `on delete set null`, so when an account is deleted its
+ * spend becomes permanently unattributable. That affects historical totals, not
+ * a live user's own figure.
+ *
+ * Figures are RECOMPUTED from the token columns under the price schedule in
+ * effect at each call's own timestamp — the same choice `cost:report` makes, so
+ * the two surfaces agree — rather than summing the stored `cost_usd`. See
+ * `lib/llm-cost.ts` for why.
+ */
+export const adminUserCostSchema = z.object({
+  total_cost_usd: z.number(),
+  total_calls: z.number().int(),
+  /** Descending by cost — the expensive actions first. */
+  by_purpose: z.array(adminUserCostPurposeSchema),
+  /** ISO date of this user's first attributable call, or null if they have none. */
+  first_call_at: z.string().nullable(),
+  last_call_at: z.string().nullable(),
+  /**
+   * Rows whose `model` has no MODEL_PRICING entry (a retired id, or a sibling
+   * app sharing this database). Surfaced rather than silently dropped or priced
+   * at zero, so a non-zero count explains why the total may be low.
+   */
+  unpriced_calls: z.number().int(),
+});
+export type AdminUserCost = z.infer<typeof adminUserCostSchema>;
+
+export const adminUserCostResponseSchema = apiEnvelopeSchema(adminUserCostSchema);
+export type AdminUserCostResponse = z.infer<typeof adminUserCostResponseSchema>;
+
 /**
  * The non-paginated half of the drill-down: who this account is, how engaged it
  * is, and what its revision practice looks like.

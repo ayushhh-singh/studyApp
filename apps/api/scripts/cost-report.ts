@@ -25,7 +25,8 @@
  * table answer "what did exam X cost" without that hazard.
  */
 import { parseArgs } from "../src/ingest/_shared.js";
-import { MODEL_PRICING, costFromPriceSet, type ModelId } from "../src/lib/models.js";
+import { MODEL_PRICING, costFromPriceSet } from "../src/lib/models.js";
+import { isModelId } from "../src/lib/llm-cost.js";
 import { selectAll } from "../src/lib/paginate.js";
 import { supabase } from "../src/lib/supabase.js";
 import { computeEmbedCoverage, hasCoverageGap, INGEST_EMBED_TYPES, REMEDY } from "../src/ingest/embed-coverage.js";
@@ -112,9 +113,11 @@ function percentile(values: number[], p: number): number | null {
   return sorted[idx];
 }
 
-function isModelId(m: string): m is ModelId {
-  return m in MODEL_PRICING;
-}
+// isModelId moved to src/lib/llm-cost.ts so the admin per-user cost rollup
+// narrows `llm_calls.model` exactly the way this report does — a second copy
+// could drift and make the two surfaces disagree about which rows are
+// priceable. See that module's header for why both recompute from tokens
+// rather than reading the stored cost_usd.
 
 // Question-bank health alert thresholds (documented in docs/operations.md).
 const REPORT_RATE_ALERT = 0.02; // >2% of a cohort's published MCQs carrying an open user report

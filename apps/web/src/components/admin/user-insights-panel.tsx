@@ -1,13 +1,13 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Activity, ClipboardList, Flame, Layers } from "lucide-react";
+import { Activity, ClipboardList, Coins, Flame, Layers } from "lucide-react";
 import type { AdminUserAttempt } from "@neev/shared";
 import { StatCard } from "@/components/ui-x/stat-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { PaginationControls } from "@/components/ui-x/pagination-controls";
-import { useAdminUserAttempts, useAdminUserStats } from "@/hooks/use-admin-users";
+import { useAdminUserAttempts, useAdminUserCost, useAdminUserStats } from "@/hooks/use-admin-users";
 import { useLocale } from "@/hooks/use-locale";
 import type { Locale } from "@/lib/locale";
 import { formatRelativeTime } from "@/lib/format-relative-time";
@@ -75,17 +75,25 @@ export function UserInsightsPanel({ userId }: { userId: string }) {
               icon={Layers}
               label={t("AdminUsers.statSrsCards")}
               value={stats.data.srs.total_cards}
-              hint={t("AdminUsers.statSrsHint", {
-                due: stats.data.srs.due_today,
-                /* retention_pct is null with no review history in the 30-day
-                   window — render an em dash, never "0%", which would read as
-                   "this user forgets everything" rather than "no data yet". */
-                retention: stats.data.srs.retention_pct === null ? "—" : `${Math.round(stats.data.srs.retention_pct)}%`,
-              })}
+              /* retention_pct is null with no review history in the 30-day
+                 window. That drops the retention CLAUSE entirely rather than
+                 interpolating a placeholder: "38 due today · — retention" reads
+                 as broken copy, and "0% retention" would be a lie (it says
+                 "this user forgets everything" rather than "no data yet"). */
+              hint={
+                stats.data.srs.retention_pct === null
+                  ? t("AdminUsers.statSrsHintDueOnly", { due: stats.data.srs.due_today })
+                  : t("AdminUsers.statSrsHint", {
+                      due: stats.data.srs.due_today,
+                      retention: `${Math.round(stats.data.srs.retention_pct)}%`,
+                    })
+              }
             />
           </div>
         ) : null}
       </section>
+
+      <CostSection userId={userId} />
 
       <section className="flex flex-col gap-2">
         <h3 className="text-sm font-semibold text-muted-foreground">{t("AdminUsers.historyTitle")}</h3>
@@ -128,6 +136,82 @@ export function UserInsightsPanel({ userId }: { userId: string }) {
       </section>
     </div>
   );
+}
+
+/**
+ * Real attributable AI spend for this account, per action type.
+ *
+ * ⚑ THE CAPTION IS LOAD-BEARING, NOT DECORATION. A bare dollar figure on an
+ * admin page invites being read as "this user's share of the AI bill", which it
+ * is not: only request-context calls carry a `user_id`, so the content pipelines
+ * (ca_*, ingest_*, qgen_*, notes_*) — a much larger share of total spend — are
+ * correctly attributed to nobody. It also understates, because
+ * `llm_calls.user_id` is `on delete set null`. Both caveats are stated in the
+ * UI rather than left in a schema comment nobody reading the number will see.
+ */
+function CostSection({ userId }: { userId: string }) {
+  const { t } = useTranslation();
+  const cost = useAdminUserCost(userId);
+
+  return (
+    <section className="flex flex-col gap-2">
+      <h3 className="text-sm font-semibold text-muted-foreground">{t("AdminUsers.costTitle")}</h3>
+      {isAwaitingData(cost) ? (
+        <Skeleton className="h-28 w-auto" />
+      ) : cost.isError ? (
+        <QueryErrorState onRetry={() => cost.refetch()} />
+      ) : cost.data && cost.data.total_calls === 0 ? (
+        <EmptyState
+          icon={Coins}
+          title={t("AdminUsers.costEmptyTitle")}
+          description={t("AdminUsers.costEmptyDescription")}
+        />
+      ) : cost.data ? (
+        <div className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <span className="font-display text-3xl tabular-nums text-card-foreground">
+              {formatUsd(cost.data.total_cost_usd)}
+            </span>
+            <span className="text-xs tabular-nums text-muted-foreground">
+              {t("AdminUsers.costCalls", { count: cost.data.total_calls })}
+            </span>
+          </div>
+
+          <ul className="flex flex-col gap-1.5">
+            {cost.data.by_purpose.map((p) => (
+              <li key={p.purpose} className="flex items-center justify-between gap-3 text-xs">
+                {/* The raw purpose string, deliberately: these are internal
+                    engineering identifiers an owner correlates with the code,
+                    and inventing 24 translated labels would both drift from the
+                    source and obscure which call site is meant. */}
+                <span className="truncate font-mono text-muted-foreground">{p.purpose}</span>
+                <span className="flex shrink-0 items-center gap-2 tabular-nums">
+                  <span className="text-muted-foreground">{t("AdminUsers.costCalls", { count: p.calls })}</span>
+                  <span className="font-semibold">{formatUsd(p.cost_usd)}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
+
+          {cost.data.unpriced_calls > 0 && (
+            <p className="text-xs text-marigold-foreground">
+              {t("AdminUsers.costUnpriced", { count: cost.data.unpriced_calls })}
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">{t("AdminUsers.costCaveat")}</p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+/**
+ * 4 decimal places, matching `cost:report`'s own fmtUsd — a single mentor or
+ * evaluation call is often well under a cent, so 2dp would render most real
+ * per-purpose rows as "$0.00".
+ */
+function formatUsd(n: number): string {
+  return `$${n.toFixed(4)}`;
 }
 
 function AttemptRow({ attempt, locale }: { attempt: AdminUserAttempt; locale: Locale }) {

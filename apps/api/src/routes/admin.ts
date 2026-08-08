@@ -7,6 +7,7 @@ import {
   adminUserActionResponseSchema,
   adminUserAttemptsQuerySchema,
   adminUserAttemptsResponseSchema,
+  adminUserCostResponseSchema,
   adminUserListQuerySchema,
   adminUserListResponseSchema,
   adminUserStatsResponseSchema,
@@ -81,6 +82,7 @@ import {
 import {
   ADMIN_USER_LIST_PAGE_SIZE,
   getGrantLog,
+  getUserCost,
   getUserStats,
   grantAdmin,
   grantPro,
@@ -440,6 +442,17 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
     res.json(adminUserStatsResponseSchema.parse({ data: await getUserStats(id), error: null }));
+  }),
+);
+
+// Separate from /stats because it is the heaviest of the three (an unbounded,
+// paged scan of this user's llm_calls) and the least often needed — folding it
+// into the snapshot would make every drill-down pay for it.
+adminRouter.get(
+  "/admin/users/:id/cost",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminUserCostResponseSchema.parse({ data: await getUserCost(id), error: null }));
   }),
 );
 
