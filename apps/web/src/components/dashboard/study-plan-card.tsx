@@ -340,9 +340,11 @@ export function StudyPlanCard() {
               {t("StudyPlan.statusGenerating", { stage: stream.stage ?? "" })}
             </p>
           )}
-          {stream.cooldownSeconds !== null && (
+          {stream.rateLimited && (
             <p className="text-sm text-muted-foreground">
-              {t("StudyPlan.rateLimited", { seconds: stream.cooldownSeconds })}
+              {stream.rateLimited.seconds !== null
+                ? t("StudyPlan.rateLimited", { seconds: stream.rateLimited.seconds })
+                : t("StudyPlan.rateLimitedGeneric")}
             </p>
           )}
           {stream.error && <p className="text-sm text-destructive">{stream.error}</p>}

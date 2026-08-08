@@ -98,6 +98,13 @@ app.use(
       }
       callback(new Error(`CORS: origin ${origin} not allowed`));
     },
+    // Without this, a browser silently strips Retry-After from what JS can
+    // read via response.headers.get() on every cross-origin request — which
+    // is ALL of them here (web and api are always different origins: :3000
+    // vs :4000 in dev, different domains in prod). lib/rate-limit.ts's 429
+    // sets this header so lib/sse.ts can render a real cooldown; without
+    // exposing it, that silently degrades to the static fallback every time.
+    exposedHeaders: ["Retry-After"],
   }),
 );
 app.use(helmet());

@@ -6,18 +6,20 @@ import { queryKeys } from "@/lib/query-keys";
 
 const API_URL = import.meta.env.VITE_API_URL as string;
 
-// Fallback when a 429 carries no (or a malformed) Retry-After header — should
-// only happen for a rate-limit source other than lib/rate-limit.ts's
-// rateLimit(), which always sets one. Matches this endpoint's rate-limit window.
-const DEFAULT_COOLDOWN_SECONDS = 60;
-
 export interface StudyPlanStreamState {
   stage: string | null;
   plan: StudyPlan | null;
   error: string | null;
-  /** Set only when the pre-flight was rejected with a 429 — the card renders
-   * a friendly countdown from this instead of the generic `error` message. */
-  cooldownSeconds: number | null;
+  /**
+   * Set only when the pre-flight was rejected with a 429 — the card renders a
+   * friendly cooldown notice from this instead of the generic `error`
+   * message. `seconds` is the real Retry-After value when the server sent
+   * one (it always does — see lib/rate-limit.ts); null means that header
+   * wasn't readable (e.g. stripped by an intermediary), and the card should
+   * show a generic "wait a bit" message rather than fabricate a number that
+   * could understate the real wait.
+   */
+  rateLimited: { seconds: number | null } | null;
   isStreaming: boolean;
 }
 
@@ -25,7 +27,7 @@ const INITIAL_STATE: StudyPlanStreamState = {
   stage: null,
   plan: null,
   error: null,
-  cooldownSeconds: null,
+  rateLimited: null,
   isStreaming: false,
 };
 
@@ -66,15 +68,16 @@ export function useStudyPlanStream() {
           });
         },
         onError: (err) => {
-          const rateLimited = err instanceof SseError && err.status === 429;
+          const rateLimitInfo =
+            err instanceof SseError && err.status === 429 ? { seconds: err.retryAfterSeconds ?? null } : null;
           setState((prev) => ({
             ...prev,
             isStreaming: false,
-            cooldownSeconds: rateLimited ? (err.retryAfterSeconds ?? DEFAULT_COOLDOWN_SECONDS) : null,
-            // A rate-limit hit is shown via cooldownSeconds instead, not as a
+            rateLimited: rateLimitInfo,
+            // A rate-limit hit is shown via `rateLimited` instead, not as a
             // generic error — keep whatever pipeline-level `error` (from the
             // "error" SSE event above) was already set, same as before.
-            error: rateLimited ? prev.error : (prev.error ?? (err instanceof Error ? err.message : "Study plan generation failed")),
+            error: rateLimitInfo ? prev.error : (prev.error ?? (err instanceof Error ? err.message : "Study plan generation failed")),
           }));
         },
       });

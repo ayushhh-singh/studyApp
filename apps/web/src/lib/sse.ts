@@ -68,13 +68,15 @@ export function streamEvents(opts: StreamOptions): AbortController {
           } catch {
             // Non-JSON body (e.g. a proxy error page) — keep the generic message.
           }
+          // Retry-After is defined as delta-seconds OR an HTTP-date; we only
+          // ever send delta-seconds (see lib/rate-limit.ts), so a date string
+          // (or anything else non-numeric) correctly falls through to
+          // undefined here rather than being misread as a seconds value.
           const retryAfterHeader = response.headers.get("Retry-After");
-          const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : undefined;
-          throw new SseError(
-            response.status,
-            message,
-            retryAfterSeconds !== undefined && Number.isFinite(retryAfterSeconds) ? retryAfterSeconds : undefined,
-          );
+          const parsedRetryAfter = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+          const retryAfterSeconds =
+            Number.isFinite(parsedRetryAfter) && parsedRetryAfter >= 0 ? Math.round(parsedRetryAfter) : undefined;
+          throw new SseError(response.status, message, retryAfterSeconds);
         }
       },
       onmessage(msg: EventSourceMessage) {
