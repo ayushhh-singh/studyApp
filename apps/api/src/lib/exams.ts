@@ -239,8 +239,42 @@ export async function paperCodesForExam(examCode: string): Promise<Set<string>> 
 }
 
 /**
+ * Cached is_live membership, mirroring `paperCodesForExam`'s TTL cache above.
+ * `exams.is_live` changes only on a deliberate launch decision, and
+ * `getUserExam` runs on hot paths (dashboard, evaluation, mentor, tests, ...),
+ * so re-querying the registry on every call would be a real, avoidable cost for
+ * a value that almost never changes. 60s TTL matches `paperCodesForExam` and
+ * `resolveTargetExams`'s own tolerance for staleness (a cron already treats the
+ * live set as fixed for the duration of one run).
+ */
+let liveExamCache: { at: number; codes: Set<string> } | null = null;
+const LIVE_EXAM_CACHE_TTL_MS = 60_000;
+
+async function isExamLive(examCode: string): Promise<boolean> {
+  const now = Date.now();
+  if (!liveExamCache || now - liveExamCache.at >= LIVE_EXAM_CACHE_TTL_MS) {
+    liveExamCache = { at: now, codes: new Set(await liveExamCodes()) };
+  }
+  return liveExamCache.codes.has(examCode);
+}
+
+/**
  * The exam a user's content should be scoped to — `users_profile.target_exam`,
- * defaulting for a row written before 0106 (or a profile that vanished).
+ * defaulting for a row written before 0106 (or a profile that vanished), and
+ * for a row whose exam is registered but NOT LIVE.
+ *
+ * ⚑ THE is_live CHECK CLOSES docs/OUTSTANDING.md U7. `assertSelectableExam`
+ * only ever ran on the two WRITE paths (onboarding, the U3 switcher) — nothing
+ * stopped a row that ALREADY held a non-live exam (however it got there: a
+ * direct DB edit for pre-launch testing, or an exam that was live and later
+ * un-launched) from reading as that exam FOREVER, with no further write
+ * needed. Every read-side consumer of this function — evaluation's rubric
+ * selection, the mentor's grounding/persona, the dashboard, notes, tests,
+ * boards, community — inherits the fix automatically; none of them need their
+ * own is_live check. This is a READ-TIME correction only: it never touches
+ * `target_exam` in the database, so a row parked on a non-live exam for
+ * deliberate testing is untouched by this function and resumes reading as
+ * that exam the moment its `is_live` flips true — no write, no cleanup.
  *
  * Prefer threading an exam the CALLER already has (most of these paths already
  * read the profile for something else) over calling this: it is one extra
@@ -249,7 +283,11 @@ export async function paperCodesForExam(examCode: string): Promise<Set<string>> 
  * holding `currentUserId()` and nothing else.
  *
  * NOTE this is the PRODUCT exam (what content the user sees), never the
- * provenance `questions.exam_code` ("which exam asked this question").
+ * provenance `questions.exam_code` ("which exam asked this question"), and
+ * never a CONTENT pipeline's target exam — `examCodeForNode`/`--exam` on a
+ * content-building CLI are deliberately NOT is_live-gated (see
+ * `resolveTargetExams`'s doc comment): stocking an unlaunched exam's content
+ * is the whole point of those paths, and gating them here would remove that.
  */
 export async function getUserExam(userId: string): Promise<string> {
   const { data, error } = await supabase()
@@ -258,7 +296,9 @@ export async function getUserExam(userId: string): Promise<string> {
     .eq("id", userId)
     .maybeSingle();
   if (error) throw new HttpError(500, `target exam lookup failed: ${error.message}`);
-  return ((data as { target_exam?: string } | null)?.target_exam) || DEFAULT_EXAM_CODE;
+  const target = ((data as { target_exam?: string } | null)?.target_exam) || DEFAULT_EXAM_CODE;
+  if (target === DEFAULT_EXAM_CODE) return target;
+  return (await isExamLive(target)) ? target : DEFAULT_EXAM_CODE;
 }
 
 /**
