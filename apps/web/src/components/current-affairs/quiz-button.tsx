@@ -41,6 +41,8 @@ interface Cadence {
   isLoading: boolean;
   emptyPrelims: string;
   emptyMains: string;
+  /** Shown INSTEAD of two placeholder slots when neither set exists. */
+  emptyBoth: string;
 }
 
 function ActionButton({
@@ -82,9 +84,15 @@ function ActionButton({
   );
 }
 
+/**
+ * `min-h-11`, never a fixed `h-11`: this text is longer than a button label and
+ * is far longer in Devanagari, so a fixed height clipped it the moment it wrapped
+ * — which is the state a real user sees whenever supply pauses. The slot grows
+ * instead. Copy names only the TYPE; the panel heading already says the cadence.
+ */
 function EmptySlot({ icon, text }: { icon: ReactNode; text: string }) {
   return (
-    <span className="inline-flex h-11 flex-1 items-center gap-2 rounded-[10px] border border-dashed border-border px-3.5 text-sm text-muted-foreground">
+    <span className="inline-flex min-h-11 flex-1 items-center gap-2 rounded-[10px] border border-dashed border-border px-3.5 py-2 text-sm text-muted-foreground">
       {icon}
       <span className="min-w-0 leading-[1.75]">{text}</span>
     </span>
@@ -101,6 +109,11 @@ function CadencePanel({ cadence }: { cadence: Cadence }) {
 
   const prelimsIcon = <ListChecks className="size-4 shrink-0" aria-hidden />;
   const mainsIcon = <PenLine className="size-4 shrink-0" aria-hidden />;
+  // Two dashed placeholders side by side is a lot of furniture for "nothing
+  // here yet" — and it is the state a whole cadence sits in whenever the supply
+  // pipeline pauses. One sentence, paired with the refresh line below, says the
+  // same thing without pretending there are two absent things to look at.
+  const bothEmpty = !cadence.prelims && !cadence.mains;
 
   return (
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-background/60 p-4">
@@ -119,6 +132,8 @@ function CadencePanel({ cadence }: { cadence: Cadence }) {
             <span className="h-11 flex-1 animate-pulse rounded-[10px] bg-muted" aria-hidden />
             <span className="sr-only">{t("CurrentAffairs.weeklyLoading")}</span>
           </>
+        ) : bothEmpty ? (
+          <p className="text-sm leading-[1.75] text-muted-foreground">{cadence.emptyBoth}</p>
         ) : (
           <>
             {cadence.prelims ? (
@@ -194,6 +209,7 @@ export function CurrentAffairsQuizSets() {
       isLoading: daily.isLoading,
       emptyPrelims: t("CurrentAffairs.dailyEmptyPrelims"),
       emptyMains: t("CurrentAffairs.dailyEmptyMains"),
+      emptyBoth: t("CurrentAffairs.dailyEmptyBoth"),
     },
     {
       icon: <CalendarRange className="size-4" aria-hidden />,
@@ -207,6 +223,7 @@ export function CurrentAffairsQuizSets() {
       isLoading: weekly.isLoading,
       emptyPrelims: t("CurrentAffairs.weeklyEmptyPrelims"),
       emptyMains: t("CurrentAffairs.weeklyEmptyMains"),
+      emptyBoth: t("CurrentAffairs.weeklyEmptyBoth"),
     },
   ];
 
