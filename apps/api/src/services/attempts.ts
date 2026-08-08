@@ -102,18 +102,32 @@ interface AttemptListRow {
 export async function listAttempts(
   userId: string,
   page: number,
+  /**
+   * Restrict to attempts on one paper (the history archive's segmentation).
+   * Optional — the unfiltered call is still the full mixed history.
+   *
+   * SERVER-SIDE for the same reason as the daily archive's: a paper is a SPARSE
+   * filter over a date-ordered list, so narrowing a fetched page yields ragged
+   * pages and a page count that describes the wrong list. UNTRUSTED, but it can
+   * only narrow a query already scoped by BOTH `user_id` and the user's own
+   * exam, so a foreign paper code returns zero rows, never another user's or
+   * another exam's attempts.
+   */
+  paperCode?: string,
 ): Promise<{ items: AttemptListItem[]; total: number }> {
   const examCode = await getUserExam(userId);
   const from = (page - 1) * ATTEMPTS_PAGE_SIZE;
   const to = from + ATTEMPTS_PAGE_SIZE - 1;
-  const { data, error, count } = await supabase()
+  let query = supabase()
     .from("attempts")
     .select("id, submitted_at, score, total, test_id, tests!inner(title_i18n, kind, paper_code, exam_code)", {
       count: "exact",
     })
     .eq("user_id", userId)
     .eq("tests.exam_code", examCode)
-    .not("submitted_at", "is", null)
+    .not("submitted_at", "is", null);
+  if (paperCode) query = query.eq("tests.paper_code", paperCode);
+  const { data, error, count } = await query
     .order("submitted_at", { ascending: false })
     .range(from, to);
   if (error) throw new HttpError(500, `attempts query failed: ${error.message}`);

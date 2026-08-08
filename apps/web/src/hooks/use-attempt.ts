@@ -10,10 +10,20 @@ import {
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
-export function useAttempts(page: number) {
+/**
+ * `paper` narrows the history to one paper and is applied SERVER-SIDE — see
+ * listAttempts for why filtering a fetched page would produce ragged pages. It
+ * is part of the query key, so the mixed and per-paper histories are separate
+ * cache entries rather than one that flip-flops.
+ */
+export function useAttempts(page: number, paper?: string) {
   return useQuery({
-    queryKey: queryKeys.attempts(page),
-    queryFn: () => api.get(`/api/v1/attempts?page=${page}`, attemptListResponseSchema),
+    queryKey: queryKeys.attempts(page, paper),
+    queryFn: () =>
+      api.get(
+        `/api/v1/attempts?page=${page}${paper ? `&paper=${encodeURIComponent(paper)}` : ""}`,
+        attemptListResponseSchema,
+      ),
   });
 }
 

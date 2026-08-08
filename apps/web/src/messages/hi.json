@@ -241,6 +241,8 @@
     "historyPrev": "नए",
     "historyNext": "पुराने",
     "historyPageOf": "{{page}} / {{total}}",
+    "historySeeAll": "सभी {{count}} प्रयास देखें",
+    "historyBackToRecent": "पिछले {{count}} पर लौटें",
     "paletteGoTo": "प्रश्न {{number}} पर जाएँ",
     "paletteLegendHeading": "संकेत",
     "paletteNotVisited": "देखा नहीं गया",

@@ -241,6 +241,8 @@
     "historyPrev": "Newer",
     "historyNext": "Older",
     "historyPageOf": "{{page}} / {{total}}",
+    "historySeeAll": "See all {{count}} attempts",
+    "historyBackToRecent": "Back to last {{count}}",
     "paletteGoTo": "Go to question {{number}}",
     "paletteLegendHeading": "Legend",
     "paletteNotVisited": "Not visited",

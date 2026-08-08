@@ -32,13 +32,20 @@ export const attemptsRouter = Router();
 attemptsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
 
 const attemptIdParams = z.object({ id: z.string().uuid() });
-const attemptListQuerySchema = z.object({ page: z.coerce.number().int().min(1).default(1) });
+const attemptListQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  // Optional paper segmentation for the history archive. Not validated against
+  // the exam's paper list here: the query it feeds is already scoped by user_id
+  // AND the caller's own exam, so an unknown or foreign code narrows to zero
+  // rows rather than leaking anything.
+  paper: z.string().min(1).max(64).optional(),
+});
 
 attemptsRouter.get(
   "/attempts",
   asyncHandler(async (req, res) => {
-    const { page } = parse(attemptListQuerySchema, req.query);
-    const { items, total } = await listAttempts(currentUserId(), page);
+    const { page, paper } = parse(attemptListQuerySchema, req.query);
+    const { items, total } = await listAttempts(currentUserId(), page, paper);
     res.json(
       attemptListResponseSchema.parse({
         data: {
