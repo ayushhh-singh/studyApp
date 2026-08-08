@@ -597,7 +597,7 @@ export async function compileMainsEdition(month: string, examCode: string): Prom
     supabase()
       .from("magazine_deep_dives")
       .select(
-        "id, month, rank, status, title_i18n, intro_i18n, synthesis_i18n, significance_i18n, challenges_i18n, way_forward_i18n, keywords_i18n, case_examples_i18n, gs_papers, syllabus_node_ids, source_item_ids, sources, model, cost_usd, created_at, updated_at",
+        "id, month, exam_code, rank, status, title_i18n, intro_i18n, synthesis_i18n, significance_i18n, challenges_i18n, way_forward_i18n, keywords_i18n, case_examples_i18n, gs_papers, syllabus_node_ids, source_item_ids, sources, model, cost_usd, created_at, updated_at",
       )
       .eq("month", month)
       // 0118: the dive's own exam column, not a per-row re-derivation.
@@ -667,7 +667,7 @@ export async function compileMainsEdition(month: string, examCode: string): Prom
 export const MAGAZINE_REVIEW_PAGE_SIZE = 5;
 
 const REVIEW_DEEP_DIVE_COLUMNS =
-  "id, month, rank, status, title_i18n, intro_i18n, synthesis_i18n, significance_i18n, challenges_i18n, way_forward_i18n, keywords_i18n, case_examples_i18n, gs_papers, syllabus_node_ids, source_item_ids, sources, model, cost_usd, created_at, updated_at";
+  "id, month, exam_code, rank, status, title_i18n, intro_i18n, synthesis_i18n, significance_i18n, challenges_i18n, way_forward_i18n, keywords_i18n, case_examples_i18n, gs_papers, syllabus_node_ids, source_item_ids, sources, model, cost_usd, created_at, updated_at";
 
 function toDeepDive(row: Record<string, unknown>): MagazineDeepDive {
   return { ...(row as unknown as MagazineDeepDive), cost_usd: Number(row.cost_usd ?? 0) };

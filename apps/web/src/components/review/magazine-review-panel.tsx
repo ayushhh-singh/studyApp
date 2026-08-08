@@ -52,6 +52,16 @@ function DeepDiveReviewCard({ dive }: { dive: MagazineDeepDive }) {
         <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
           {dive.month} · #{dive.rank}
         </span>
+        {/*
+          Deep dives are per exam (0118) and ranks are per (month, exam), so
+          without this label two exams' pending dives are an unlabelled mixed
+          list of "#1..#5" repeated — and a reviewer could approve one exam's
+          dive believing it belongs to the other. Latin code, matching how the
+          paper chips beside it render in both locales.
+        */}
+        <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium uppercase text-muted-foreground">
+          {dive.exam_code}
+        </span>
         {dive.gs_papers.map((p) => (
           <span key={p} className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">
             {p}

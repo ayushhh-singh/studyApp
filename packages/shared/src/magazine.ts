@@ -163,6 +163,18 @@ export type MagazineDeepDiveSource = z.infer<typeof magazineDeepDiveSourceSchema
 export const magazineDeepDiveSchema = z.object({
   id: z.string().uuid(),
   month: magazineMonthSchema,
+  /**
+   * The exam this deep dive was written FOR (0118). Required, and REQUIRED IN
+   * EVERY SELECT that feeds this schema — a partial column list makes the zod
+   * parse throw and errors the whole surface (the CURRENT_AFFAIRS_COLUMNS
+   * lesson). Both reads live in services/magazine.ts: the Mains edition's
+   * deep-dive query and REVIEW_DEEP_DIVE_COLUMNS.
+   *
+   * Carried to the client so the admin Review Queue can LABEL which exam a
+   * pending dive belongs to. Ranks are per (month, exam), so without it two
+   * exams' dives are an unlabelled mixed list of "#1..#5" repeated.
+   */
+  exam_code: z.string(),
   rank: z.number().int().min(1).max(5),
   status: z.enum(["needs_review", "published", "rejected"]),
   title_i18n: bilingualTextSchema,
