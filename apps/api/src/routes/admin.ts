@@ -5,8 +5,11 @@ import {
   adminGrantLogResponseSchema,
   adminGrantProBodySchema,
   adminUserActionResponseSchema,
+  adminUserAttemptsQuerySchema,
+  adminUserAttemptsResponseSchema,
   adminUserListQuerySchema,
   adminUserListResponseSchema,
+  adminUserStatsResponseSchema,
   caBulkApproveHighConfidenceBodySchema,
   caHighConfidenceCountResponseSchema,
   caHighConfidenceQuerySchema,
@@ -78,12 +81,15 @@ import {
 import {
   ADMIN_USER_LIST_PAGE_SIZE,
   getGrantLog,
+  getUserStats,
   grantAdmin,
   grantPro,
+  listUserAttempts,
   listUsers,
   revokeAdmin,
   revokePro,
 } from "../services/admin-users.js";
+import { ATTEMPTS_PAGE_SIZE } from "../services/attempts.js";
 
 export const adminRouter = Router();
 
@@ -421,6 +427,42 @@ adminRouter.get(
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
     res.json(adminGrantLogResponseSchema.parse({ data: await getGrantLog(id), error: null }));
+  }),
+);
+
+// The per-user drill-down, split in two because only one half paginates:
+// /stats is a fixed-size snapshot, /attempts is a page of test history. Folding
+// a paginated sub-list into a composite response would make the page cursor
+// ambiguous (which list does ?page= advance?) and would re-fetch the snapshot on
+// every page turn.
+adminRouter.get(
+  "/admin/users/:id/stats",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    res.json(adminUserStatsResponseSchema.parse({ data: await getUserStats(id), error: null }));
+  }),
+);
+
+adminRouter.get(
+  "/admin/users/:id/attempts",
+  asyncHandler(async (req, res) => {
+    const { id } = parse(idParams, req.params);
+    const { page } = parse(adminUserAttemptsQuerySchema, req.query);
+    const { items, total } = await listUserAttempts(id, page);
+    res.json(
+      adminUserAttemptsResponseSchema.parse({
+        data: {
+          items,
+          pagination: {
+            page,
+            page_size: ATTEMPTS_PAGE_SIZE,
+            total,
+            total_pages: Math.max(1, Math.ceil(total / ATTEMPTS_PAGE_SIZE)),
+          },
+        },
+        error: null,
+      }),
+    );
   }),
 );
 

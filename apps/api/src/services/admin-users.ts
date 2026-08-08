@@ -22,10 +22,19 @@
  * misclassification entirely: this always resolves as full paid-equivalent
  * Pro (60/mo evaluations, 100/day mentor), regardless of trial history.
  */
-import type { AdminGrantAction, AdminUserListRow, AdminUserSummary, TargetExamCode } from "@neev/shared";
+import type {
+  AdminGrantAction,
+  AdminUserAttempt,
+  AdminUserListRow,
+  AdminUserStats,
+  AdminUserSummary,
+  TargetExamCode,
+} from "@neev/shared";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
+import { listAttempts } from "./attempts.js";
+import { getStats } from "./srs.js";
 
 interface AuthUserLike {
   id: string;
@@ -184,6 +193,99 @@ export async function listUsers(opts: { page: number; query?: string }): Promise
     };
   });
   return { items, total };
+}
+
+/**
+ * The drill-down's non-paginated half: identity + access + activity + streak +
+ * SRS practice for ONE account.
+ *
+ * `getStats` is the user's OWN `GET /srs/stats` service function, called
+ * verbatim so an admin and the student cannot read different revision figures.
+ * Its 7-day forecast is dropped from the response (see the shared schema's note)
+ * — the computation is reused, only the payload is trimmed.
+ */
+export async function getUserStats(userId: string): Promise<AdminUserStats> {
+  // Confirms the AUTH user exists and 404s if not, before doing any of the work.
+  const summary = await requireUserSummary(userId);
+
+  const [profile, activityById, srs] = await Promise.all([
+    supabase()
+      .from("users_profile")
+      .select("streak_count, streak_freezes, streak_freeze_used_on, last_active_date")
+      .eq("id", userId)
+      .maybeSingle(),
+    loadActivityByIds([userId]),
+    getStats(userId),
+  ]);
+  if (profile.error) throw new HttpError(500, `profile lookup failed: ${profile.error.message}`);
+  const streakRow = (profile.data ?? null) as {
+    streak_count: number;
+    streak_freezes: number;
+    streak_freeze_used_on: string | null;
+    last_active_date: string | null;
+  } | null;
+  const activity = activityById.get(userId);
+
+  return {
+    user: {
+      ...summary,
+      last_active_at: activity?.last_active_at ?? null,
+      tests_taken: activity?.tests_taken ?? 0,
+      srs_reviews_count: activity?.srs_reviews_count ?? 0,
+      streak_count: streakRow?.streak_count ?? 0,
+    },
+    streak: {
+      streak_count: streakRow?.streak_count ?? 0,
+      streak_freezes: streakRow?.streak_freezes ?? 0,
+      streak_freeze_used_on: streakRow?.streak_freeze_used_on ?? null,
+      last_active_date: streakRow?.last_active_date ?? null,
+    },
+    srs: {
+      total_cards: srs.total_cards,
+      due_today: srs.due_today,
+      reviewed_today: srs.reviewed_today,
+      retention_pct: srs.retention_pct,
+    },
+  };
+}
+
+/**
+ * The drill-down's paginated test history.
+ *
+ * `listAttempts` is reused UNCHANGED — and it is safe to point at another user
+ * because it takes the target user id and resolves that user's OWN exam via
+ * `getUserExam(userId)`, so an admin sees the history scoped exactly as the
+ * student would see it, not as the admin's own exam.
+ *
+ * Ranks are attached from `admin_user_test_ranks` (0121), which mirrors
+ * `getTestBoard` so the number matches the student's scoreboard. Most rows have
+ * NO rank — see the shared schema's note. The RPC is fetched once for the whole
+ * user, not per row: it is set-based and small (one entry per ranked test), and a
+ * per-row lookup would be a query per attempt.
+ */
+export async function listUserAttempts(
+  userId: string,
+  page: number,
+): Promise<{ items: AdminUserAttempt[]; total: number }> {
+  await requireUserSummary(userId);
+
+  const [{ items, total }, ranks] = await Promise.all([
+    listAttempts(userId, page),
+    supabase().rpc("admin_user_test_ranks", { p_user_id: userId }),
+  ]);
+  if (ranks.error) throw new HttpError(500, `rank lookup failed: ${ranks.error.message}`);
+  const rankByTest = new Map<string, { user_rank: number; cohort_size: number }>();
+  for (const row of (ranks.data ?? []) as { test_id: string; user_rank: number; cohort_size: number }[]) {
+    rankByTest.set(row.test_id, { user_rank: row.user_rank, cohort_size: row.cohort_size });
+  }
+
+  return {
+    items: items.map((a) => {
+      const rank = a.test_id ? rankByTest.get(a.test_id) : undefined;
+      return { ...a, user_rank: rank?.user_rank ?? null, cohort_size: rank?.cohort_size ?? null };
+    }),
+    total,
+  };
 }
 
 async function requireUserSummary(userId: string): Promise<AdminUserSummary> {

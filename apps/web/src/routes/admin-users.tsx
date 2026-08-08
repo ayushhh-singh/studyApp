@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, ShieldOff, Sparkles, Lock, TriangleAlert, UserRound } from "lucide-react";
 import type { AdminUserListRow, AdminUserSummary } from "@neev/shared";
+import { UserInsightsPanel } from "@/components/admin/user-insights-panel";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -209,14 +210,25 @@ export function Component() {
                       </div>
                     </button>
                     {/* Opens directly below the clicked row (accordion-style),
-                        not in a separate section after the whole list. */}
+                        not in a separate section after the whole list. Insights
+                        come BEFORE the grant controls: you read who someone is
+                        before you change their access. */}
                     {active && (
-                      <UserManagePanel
-                        user={u}
-                        pending={pending}
-                        onTogglePro={onTogglePro}
-                        onToggleAdmin={onToggleAdmin}
-                      />
+                      <>
+                        {/* Matches UserManagePanel's own chrome (border-t +
+                            muted/30 + px-4) so the two read as one stacked
+                            panel; the manage panel's own border-t then doubles
+                            as the divider between insights and controls. */}
+                        <div className="border-t border-border bg-muted/30 px-4 py-4">
+                          <UserInsightsPanel userId={u.id} />
+                        </div>
+                        <UserManagePanel
+                          user={u}
+                          pending={pending}
+                          onTogglePro={onTogglePro}
+                          onToggleAdmin={onToggleAdmin}
+                        />
+                      </>
                     )}
                   </li>
                 );

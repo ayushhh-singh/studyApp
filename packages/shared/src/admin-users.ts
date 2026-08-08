@@ -2,6 +2,7 @@ import { z } from "zod";
 import { apiEnvelopeSchema, paginatedSchema } from "./types";
 import { userPlanSchema } from "./profile";
 import { targetExamCodeSchema } from "./exams";
+import { attemptListItemSchema } from "./tests";
 
 /**
  * The admin "Users" surface — browse every account (paginated, newest first),
@@ -76,6 +77,73 @@ export type AdminUserListResponse = z.infer<typeof adminUserListResponseSchema>;
 
 export const adminUserActionResponseSchema = apiEnvelopeSchema(adminUserSummarySchema);
 export type AdminUserActionResponse = z.infer<typeof adminUserActionResponseSchema>;
+
+/* ------------------------------------------------------------------------- *
+ * Per-user drill-down
+ * ------------------------------------------------------------------------- */
+
+/**
+ * One row of the drill-down's test history: the SAME `AttemptListItem` the
+ * user's own Practice → History tab renders, plus a rank where one exists.
+ *
+ * ⚑ RANK IS NULL FOR MOST ROWS, BY DESIGN, NOT BECAUSE IT FAILED TO LOAD.
+ * `mv_test_leaderboard` (0067) only admits `mock`/`sectional` tests, only each
+ * user's FIRST attempt on a given test, and only published tests — so daily
+ * quizzes, PYQ practice, custom sets, time attack and every re-attempt
+ * legitimately have no rank at all. The UI must render that absence as "not
+ * ranked", never as a missing/pending value. `cohort_size` is null exactly when
+ * `user_rank` is.
+ */
+export const adminUserAttemptSchema = attemptListItemSchema.extend({
+  user_rank: z.number().int().nullable(),
+  cohort_size: z.number().int().nullable(),
+});
+export type AdminUserAttempt = z.infer<typeof adminUserAttemptSchema>;
+
+export const adminUserAttemptsResponseSchema = apiEnvelopeSchema(paginatedSchema(adminUserAttemptSchema));
+export type AdminUserAttemptsResponse = z.infer<typeof adminUserAttemptsResponseSchema>;
+
+/** Declared inline rather than shared — matches the per-module convention (postsQuerySchema, reportsQueueQuerySchema, …). */
+export const adminUserAttemptsQuerySchema = z.object({ page: z.coerce.number().int().min(1).default(1) });
+export type AdminUserAttemptsQuery = z.infer<typeof adminUserAttemptsQuerySchema>;
+
+/**
+ * The non-paginated half of the drill-down: who this account is, how engaged it
+ * is, and what its revision practice looks like.
+ *
+ * SRS numbers are the four scalars from the user's own `GET /srs/stats`
+ * (`services/srs.ts::getStats`), computed by that exact function so an admin and
+ * the student cannot read different figures. Its 7-day `forecast` array is
+ * deliberately NOT carried through — it is a study-planning aid for the learner,
+ * not a usage signal for a product owner, and it would triple this payload.
+ */
+export const adminUserStatsSchema = z.object({
+  user: adminUserListRowSchema,
+  streak: z.object({
+    streak_count: z.number().int(),
+    streak_freezes: z.number().int(),
+    streak_freeze_used_on: z.string().nullable(),
+    /**
+     * The streak engine's own notion of the last STUDY day. Kept alongside
+     * `user.last_active_at` (a max() over five activity tables) rather than
+     * instead of it: the two answer different questions, and a wide gap between
+     * them is itself the interesting signal — "opens the app daily but never
+     * completes anything".
+     */
+    last_active_date: z.string().nullable(),
+  }),
+  srs: z.object({
+    total_cards: z.number().int(),
+    due_today: z.number().int(),
+    reviewed_today: z.number().int(),
+    /** null when there is no review history in the 30-day lookback window. */
+    retention_pct: z.number().nullable(),
+  }),
+});
+export type AdminUserStats = z.infer<typeof adminUserStatsSchema>;
+
+export const adminUserStatsResponseSchema = apiEnvelopeSchema(adminUserStatsSchema);
+export type AdminUserStatsResponse = z.infer<typeof adminUserStatsResponseSchema>;
 
 /**
  * `days` is OPTIONAL — omit (or null) for the original indefinite grant.
