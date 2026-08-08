@@ -46,10 +46,22 @@ function mapRow(row: DailyQuizRow, best: Map<string, { best: number; count: numb
 export async function listDailyQuizzes(
   examCode: string,
   page: number,
+  /**
+   * Restrict to one paper (the archive's GS/CSAT segmentation). Optional — the
+   * unfiltered call is still the full mixed archive.
+   *
+   * FILTERING MUST BE SERVER-SIDE, not applied to a fetched page: a paper is a
+   * SPARSE filter over a date-ordered list, so narrowing a 20-row page
+   * client-side yields ragged pages (10 rows, then 12, then 8) and a page count
+   * that describes the wrong list. UNTRUSTED (a query param), but it can only
+   * ever narrow a result set already scoped by `exam_code` below, so a foreign
+   * exam's paper code yields zero rows rather than another exam's quizzes.
+   */
+  paperCode?: string,
 ): Promise<{ items: DailyQuizArchiveItem[]; total: number }> {
   const from = (page - 1) * DAILY_ARCHIVE_PAGE_SIZE;
   const to = from + DAILY_ARCHIVE_PAGE_SIZE - 1;
-  const { data, error, count } = await supabase()
+  let query = supabase()
     .from("tests")
     .select(
       "id, slug, title_i18n, kind, paper_code, duration_minutes, total_marks, scheduled_date, test_questions(count)",
@@ -58,7 +70,9 @@ export async function listDailyQuizzes(
     .eq("kind", "daily_quiz")
     .eq("exam_code", examCode)
     .eq("is_published", true)
-    .not("scheduled_date", "is", null)
+    .not("scheduled_date", "is", null);
+  if (paperCode) query = query.eq("paper_code", paperCode);
+  const { data, error, count } = await query
     .order("scheduled_date", { ascending: false })
     .range(from, to);
   if (error) throw new HttpError(500, `daily quiz archive query failed: ${error.message}`);

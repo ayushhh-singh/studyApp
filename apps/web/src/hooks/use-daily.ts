@@ -4,10 +4,17 @@ import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
 /** The daily-quiz archive (today, yesterday's makeup, and every past day), newest first. */
-export function useDailyQuizArchive(page = 1) {
+/**
+ * `paper` narrows the archive to one paper (GS/CSAT segmentation) and is applied
+ * SERVER-SIDE — see listDailyQuizzes for why filtering a fetched page would
+ * produce ragged pages. It is part of the query key, so the mixed and per-paper
+ * archives are separate cache entries rather than one that flip-flops.
+ */
+export function useDailyQuizArchive(page = 1, paper?: string) {
   return useQuery({
-    queryKey: queryKeys.dailyQuizArchive(page),
-    queryFn: () => api.get("/api/v1/daily-quiz/archive", dailyQuizArchiveResponseSchema, { page }),
+    queryKey: queryKeys.dailyQuizArchive(page, paper),
+    queryFn: () =>
+      api.get("/api/v1/daily-quiz/archive", dailyQuizArchiveResponseSchema, paper ? { page, paper } : { page }),
   });
 }
 

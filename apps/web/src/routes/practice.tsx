@@ -11,6 +11,7 @@ import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PyqList } from "@/components/learn/pyq-list";
+import { DailyCaSetsPanel } from "@/components/current-affairs/quiz-button";
 import { TestCard } from "@/components/practice/test-card";
 import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
@@ -250,9 +251,35 @@ export function Component() {
           <TabsTrigger value="history">{t("Practice.tabHistory")}</TabsTrigger>
         </TabsList>
         <TabsContent value="daily">
-          <SectionCard title={t("Practice.dailyArchiveTitle")} description={t("Practice.dailyArchiveDescription")}>
-            <DailyQuizPanel />
-          </SectionCard>
+          {/* Two daily cadences, kept as two SECTIONS rather than merged into
+              one feed. They are genuinely different things: the syllabus quiz
+              is assembled from the question bank against this exam's papers,
+              while the current-affairs set is assembled from the week's news.
+              A student deciding what to do next needs to be able to tell them
+              apart, so each keeps its own heading and its own copy. The CA
+              panel is the SAME component the Current Affairs page renders
+              (components/current-affairs/quiz-button.tsx), reading the same
+              query cache — not a second implementation, and not a move: it
+              still lives there too. */}
+          <div className="flex flex-col gap-6">
+            <SectionCard title={t("Practice.dailyArchiveTitle")} description={t("Practice.dailyArchiveDescription")}>
+              <DailyQuizPanel />
+            </SectionCard>
+            <SectionCard
+              title={t("Practice.dailyCaTitle")}
+              description={t("Practice.dailyCaDescription")}
+              action={
+                <Link
+                  to={`/${locale}/current-affairs`}
+                  className="shrink-0 rounded-md text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {t("Practice.dailyCaLink")}
+                </Link>
+              }
+            >
+              <DailyCaSetsPanel />
+            </SectionCard>
+          </div>
         </TabsContent>
         <TabsContent value="pyq">
           <SectionCard

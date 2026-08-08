@@ -16,8 +16,18 @@ dailyRouter.use(rateLimit({ windowMs: 60_000, max: 60 }));
 dailyRouter.get(
   "/daily-quiz/archive",
   asyncHandler(async (req, res) => {
-    const { page } = parse(z.object({ page: z.coerce.number().int().min(1).default(1) }), req.query);
-    const { items, total } = await listDailyQuizzes(await getUserExam(currentUserId()), page);
+    const { page, paper } = parse(
+      z.object({
+        page: z.coerce.number().int().min(1).default(1),
+        // Optional GS/CSAT segmentation. Not validated against the exam's paper
+        // list here: the query it feeds is already scoped by exam_code, so an
+        // unknown or foreign code narrows to zero rows rather than leaking
+        // another exam's quizzes.
+        paper: z.string().min(1).max(64).optional(),
+      }),
+      req.query,
+    );
+    const { items, total } = await listDailyQuizzes(await getUserExam(currentUserId()), page, paper);
     res.json(
       dailyQuizArchiveResponseSchema.parse({
         data: {

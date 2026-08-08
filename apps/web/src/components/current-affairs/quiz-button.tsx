@@ -205,10 +205,44 @@ function CadencePanel({ cadence }: { cadence: Cadence }) {
  * separate queries because they are built by separate crons — either can be
  * ready while the other is not.
  */
+/**
+ * The DAILY cadence on its own, exported so Practice → Daily can render the
+ * day's current-affairs sets beside the day's syllabus quizzes without
+ * duplicating this panel.
+ *
+ * Extracted rather than copied precisely because the CA page keeps its own
+ * copy of it: two renderings of the same sets would otherwise drift in empty
+ * state, error handling and the refresh promise — the three things this panel
+ * exists to get right. Both call sites read the same `useDailyCaSets` cache
+ * entry, so the second rendering costs no extra request.
+ */
+export function DailyCaSetsPanel() {
+  const { t } = useTranslation();
+  const daily = useDailyCaSets();
+
+  return (
+    <CadencePanel
+      cadence={{
+        icon: <Sunrise className="size-4" aria-hidden />,
+        title: t("CurrentAffairs.dailySetsLabel"),
+        blurb: t("CurrentAffairs.dailySetsBlurb"),
+        refresh: t("CurrentAffairs.dailyRefreshHint"),
+        prelims: daily.data?.prelims,
+        mains: daily.data?.mains,
+        isLoading: daily.isLoading,
+        isError: daily.isError,
+        retry: () => void daily.refetch(),
+        emptyPrelims: t("CurrentAffairs.dailyEmptyPrelims"),
+        emptyMains: t("CurrentAffairs.dailyEmptyMains"),
+        emptyBoth: t("CurrentAffairs.dailyEmptyBoth"),
+      }}
+    />
+  );
+}
+
 export function CurrentAffairsQuizSets() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const daily = useDailyCaSets();
   const weekly = useWeeklyCaSets();
 
   // When the next weekly set lands. The weekly assembly is Monday-anchored and
@@ -229,20 +263,6 @@ export function CurrentAffairsQuizSets() {
 
   const cadences: Cadence[] = [
     {
-      icon: <Sunrise className="size-4" aria-hidden />,
-      title: t("CurrentAffairs.dailySetsLabel"),
-      blurb: t("CurrentAffairs.dailySetsBlurb"),
-      refresh: t("CurrentAffairs.dailyRefreshHint"),
-      prelims: daily.data?.prelims,
-      mains: daily.data?.mains,
-      isLoading: daily.isLoading,
-      isError: daily.isError,
-      retry: () => void daily.refetch(),
-      emptyPrelims: t("CurrentAffairs.dailyEmptyPrelims"),
-      emptyMains: t("CurrentAffairs.dailyEmptyMains"),
-      emptyBoth: t("CurrentAffairs.dailyEmptyBoth"),
-    },
-    {
       icon: <CalendarRange className="size-4" aria-hidden />,
       title: t("CurrentAffairs.weeklySetsLabel"),
       blurb: t("CurrentAffairs.weeklySetsBlurb"),
@@ -262,6 +282,7 @@ export function CurrentAffairsQuizSets() {
 
   return (
     <div className="grid gap-3 lg:grid-cols-2">
+      <DailyCaSetsPanel />
       {cadences.map((c) => (
         <CadencePanel key={c.title} cadence={c} />
       ))}
