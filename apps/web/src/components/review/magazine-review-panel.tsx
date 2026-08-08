@@ -13,7 +13,6 @@ import {
   useMagazineDeepDiveReject,
   useReviewMagazine,
 } from "@/hooks/use-review-magazine";
-import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
 function Bilingual({ label, hi, en }: { label: string; hi: string; en: string }) {
@@ -299,7 +298,7 @@ export function MagazineReviewPanel() {
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["admin", "magazine", "review"] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.reviewCounts() });
+    queryClient.invalidateQueries({ queryKey: ["admin", "review", "counts"] });
   }, [queryClient]);
 
   useEffect(() => {

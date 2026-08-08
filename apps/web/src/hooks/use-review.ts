@@ -7,6 +7,7 @@ import {
   reviewQueueResponseSchema,
   type ReviewEditBody,
   type ReviewTab,
+  type TargetExamCode,
 } from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
@@ -20,18 +21,19 @@ export function useAdminStatus() {
   });
 }
 
-export function useReviewCounts(enabled: boolean) {
+/** Per-tab counts, scoped to one exam's backlog (`exam` is required server-side — see reviewCountsQuerySchema). */
+export function useReviewCounts(exam: TargetExamCode, enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.reviewCounts(),
-    queryFn: () => api.get("/api/v1/admin/review/counts", reviewCountsResponseSchema),
+    queryKey: queryKeys.reviewCounts(exam),
+    queryFn: () => api.get("/api/v1/admin/review/counts", reviewCountsResponseSchema, { exam }),
     enabled,
   });
 }
 
-export function useReviewQueue(tab: ReviewTab, page: number, enabled: boolean) {
+export function useReviewQueue(tab: ReviewTab, page: number, exam: TargetExamCode, enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.reviewQueue(tab, page),
-    queryFn: () => api.get("/api/v1/admin/review", reviewQueueResponseSchema, { tab, page }),
+    queryKey: queryKeys.reviewQueue(tab, page, exam),
+    queryFn: () => api.get("/api/v1/admin/review", reviewQueueResponseSchema, { tab, page, exam }),
     enabled,
   });
 }
@@ -62,22 +64,24 @@ export function useReviewBulkApprove() {
   });
 }
 
-/** How many CA questions across the WHOLE needs_review backlog (not just the current page) are currently high-confidence. */
-export function useCaHighConfidenceCount(enabled: boolean) {
+/** How many CA questions across the WHOLE needs_review backlog for ONE exam (not just the current page, and never another exam's) are currently high-confidence. */
+export function useCaHighConfidenceCount(exam: TargetExamCode, enabled: boolean) {
   return useQuery({
-    queryKey: queryKeys.caHighConfidenceCount(),
-    queryFn: () => api.get("/api/v1/admin/review/current-affairs/high-confidence-count", caHighConfidenceCountResponseSchema),
+    queryKey: queryKeys.caHighConfidenceCount(exam),
+    queryFn: () =>
+      api.get("/api/v1/admin/review/current-affairs/high-confidence-count", caHighConfidenceCountResponseSchema, { exam }),
     enabled,
   });
 }
 
-/** Approve every high-confidence CA question across the whole backlog in one action. */
-export function useCaBulkApproveHighConfidence() {
+/** Approve every high-confidence CA question across one exam's whole backlog in one action. */
+export function useCaBulkApproveHighConfidence(exam: TargetExamCode) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: () => api.post("/api/v1/admin/review/current-affairs/bulk-approve-high-confidence", reviewActionResponseSchema),
+    mutationFn: () =>
+      api.post("/api/v1/admin/review/current-affairs/bulk-approve-high-confidence", reviewActionResponseSchema, { exam }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.caHighConfidenceCount() });
+      queryClient.invalidateQueries({ queryKey: queryKeys.caHighConfidenceCount(exam) });
     },
   });
 }

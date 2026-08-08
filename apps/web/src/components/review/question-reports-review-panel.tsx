@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { ReviewCard } from "@/components/review/review-card";
 import { useQuestionReportsQueue, useResolveQuestionReport } from "@/hooks/use-question-reports";
-import { queryKeys } from "@/lib/query-keys";
 
 export function QuestionReportsReviewPanel() {
   const { t } = useTranslation();
@@ -27,7 +26,7 @@ export function QuestionReportsReviewPanel() {
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["admin", "question-reports"] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.reviewCounts() });
+    queryClient.invalidateQueries({ queryKey: ["admin", "review", "counts"] });
   }, [queryClient]);
 
   useEffect(() => {

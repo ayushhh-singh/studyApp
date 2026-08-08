@@ -1,19 +1,22 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useQueryClient } from "@tanstack/react-query";
 import { ShieldCheck, Check, X, Pencil, ChevronLeft, ChevronRight, Inbox, Lock, Sparkles } from "lucide-react";
 import {
   CA_BULK_APPROVE_BATCH_LIMIT,
+  DEFAULT_EXAM_CODE,
   isHighConfidenceQuestion,
   reviewTabSchema,
   type ReviewEditBody,
   type ReviewTab,
+  type TargetExamCode,
 } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Button } from "@/components/ui/button";
 import { ReviewCard } from "@/components/review/review-card";
 import { ReviewEditForm } from "@/components/review/review-edit-form";
@@ -32,8 +35,65 @@ import {
   useReviewQueue,
   useReviewReject,
 } from "@/hooks/use-review";
+import { useCurrentExam } from "@/hooks/use-current-exam";
+import { useExams } from "@/hooks/use-exams";
+import { useLocale } from "@/hooks/use-locale";
 import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
+
+/**
+ * Which exam's backlog the reviewer is looking at — all registered exams
+ * (including a NOT-YET-LIVE one, e.g. `upsc`), since a pre-launch exam's
+ * generated content still needs a human pass before it ever reaches a real
+ * user. Deliberately every option always clickable (unlike `ExamPickerList`,
+ * which greys out a non-live exam for a real user's onboarding pick) — an
+ * admin reviewing content is not "selecting an exam to prepare for".
+ */
+function ExamReviewSelector({
+  value,
+  onChange,
+}: {
+  value: TargetExamCode;
+  onChange: (next: TargetExamCode) => void;
+}) {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const { data: exams, isLoading, isError, refetch } = useExams();
+
+  if (isLoading) return <Skeleton className="h-9 w-56" />;
+  if (isError || !exams) return <QueryErrorState onRetry={() => refetch()} />;
+
+  const sorted = [...exams].sort((a, b) => a.sort_order - b.sort_order);
+
+  return (
+    <div
+      role="group"
+      aria-label={t("Review.examSelectorLabel")}
+      className="inline-flex items-center rounded-lg border border-border bg-card p-0.5"
+    >
+      {sorted.map((exam) => {
+        const active = exam.exam_code === value;
+        return (
+          <button
+            key={exam.exam_code}
+            type="button"
+            aria-pressed={active}
+            onClick={() => onChange(exam.exam_code)}
+            className={cn(
+              "rounded-md px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              active ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+            )}
+          >
+            {exam.display_name_i18n[locale]}
+            {!exam.is_live && (
+              <span className="ml-1.5 text-xs opacity-70">{t("Review.examNotLiveBadge")}</span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 export const handle = { titleKey: "Nav.review" };
 
@@ -60,16 +120,38 @@ export function Component() {
   const [index, setIndex] = useState(0);
   const [editing, setEditing] = useState(false);
 
+  // Which exam's backlog to review — defaults to the admin's own target exam
+  // once it resolves, but stops auto-following the instant they pick one
+  // explicitly (a reviewer switching exams must never get silently reset).
+  const { examCode: myExamCode } = useCurrentExam();
+  const [examCode, setExamCode] = useState<TargetExamCode>(DEFAULT_EXAM_CODE);
+  const userPickedExam = useRef(false);
+  useEffect(() => {
+    if (!userPickedExam.current) setExamCode(myExamCode as TargetExamCode);
+  }, [myExamCode]);
+  function selectExam(next: TargetExamCode) {
+    userPickedExam.current = true;
+    setExamCode(next);
+    setPage(1);
+    setIndex(0);
+    setEditing(false);
+  }
+
   const queryClient = useQueryClient();
-  const counts = useReviewCounts(adminMode);
+  const counts = useReviewCounts(examCode, adminMode);
   const isNotesTab = tab === "notes";
   const isReportsTab = tab === "reports";
   const isQuestionReportsTab = tab === "question_reports";
   const isMagazineTab = tab === "magazine";
   const isCurrentAffairsTab = tab === "current_affairs";
-  const caHighConfidence = useCaHighConfidenceCount(adminMode && isCurrentAffairsTab);
-  const caBulkAll = useCaBulkApproveHighConfidence();
-  const queue = useReviewQueue(tab, page, adminMode && !isNotesTab && !isReportsTab && !isQuestionReportsTab && !isMagazineTab);
+  // The four tabs backed by `questions.exam_code` (services/review.ts's
+  // applyTab) — notes/reports/question_reports/magazine review a different
+  // table each and have no exam concept in their current design, so the exam
+  // selector doesn't apply to them (see ExamReviewSelector's render guard below).
+  const isExamScopedTab = !isNotesTab && !isReportsTab && !isQuestionReportsTab && !isMagazineTab;
+  const caHighConfidence = useCaHighConfidenceCount(examCode, adminMode && isCurrentAffairsTab);
+  const caBulkAll = useCaBulkApproveHighConfidence(examCode);
+  const queue = useReviewQueue(tab, page, examCode, adminMode && isExamScopedTab);
   const items = useMemo(() => queue.data?.items ?? [], [queue.data]);
   const totalPages = queue.data?.pagination.total_pages ?? 1;
 
@@ -96,10 +178,11 @@ export function Component() {
   }
 
   const refresh = useCallback(() => {
-    // Invalidate every page of this tab (the acted item left needs_review) + the counts badges.
+    // Invalidate every page (and, harmlessly, every exam) of this tab (the
+    // acted item left needs_review) + this exam's counts badges.
     queryClient.invalidateQueries({ queryKey: ["admin", "review", tab] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.reviewCounts() });
-  }, [queryClient, tab]);
+    queryClient.invalidateQueries({ queryKey: queryKeys.reviewCounts(examCode) });
+  }, [queryClient, tab, examCode]);
 
   // After a refetch empties the current page, step back a page if we can.
   useEffect(() => {
@@ -226,6 +309,15 @@ export function Component() {
           ) : undefined
         }
       />
+
+      {/* Which exam's backlog to review — only meaningful for the four
+          `questions`-backed tabs (see isExamScopedTab above). */}
+      {isExamScopedTab && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-muted-foreground">{t("Review.examSelectorLabel")}</span>
+          <ExamReviewSelector value={examCode} onChange={selectExam} />
+        </div>
+      )}
 
       {/* Payment mode — verify TEST vs LIVE at a glance before/after go-live. */}
       {admin?.billing?.configured ? (

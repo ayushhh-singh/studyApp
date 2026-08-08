@@ -2,9 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   adminStatusResponseSchema,
+  caBulkApproveHighConfidenceBodySchema,
   caHighConfidenceCountResponseSchema,
+  caHighConfidenceQuerySchema,
   reviewActionResponseSchema,
   reviewBulkApproveBodySchema,
+  reviewCountsQuerySchema,
   reviewCountsResponseSchema,
   reviewEditBodySchema,
   reviewQueueQuerySchema,
@@ -102,8 +105,8 @@ adminRouter.use("/admin/magazine", requireAdmin, rateLimit({ windowMs: 60_000, m
 adminRouter.get(
   "/admin/review",
   asyncHandler(async (req, res) => {
-    const { tab, page } = parse(reviewQueueQuerySchema, req.query);
-    const { items, total } = await listReviewQueue(tab, page);
+    const { tab, page, exam } = parse(reviewQueueQuerySchema, req.query);
+    const { items, total } = await listReviewQueue(tab, page, exam);
     res.json(
       reviewQueueResponseSchema.parse({
         data: {
@@ -123,8 +126,9 @@ adminRouter.get(
 
 adminRouter.get(
   "/admin/review/counts",
-  asyncHandler(async (_req, res) => {
-    res.json(reviewCountsResponseSchema.parse({ data: await reviewCounts(), error: null }));
+  asyncHandler(async (req, res) => {
+    const { exam } = parse(reviewCountsQuerySchema, req.query);
+    res.json(reviewCountsResponseSchema.parse({ data: await reviewCounts(exam), error: null }));
   }),
 );
 
@@ -138,19 +142,22 @@ adminRouter.post(
 
 // Current Affairs high-confidence bulk approve: unlike the page-scoped bulk
 // approve above (max 100 ids the client already has loaded), this acts on the
-// ENTIRE needs_review CA backlog server-side — the count endpoint lets the
-// Review Queue's CA tab show the number before the admin commits to it.
+// ENTIRE needs_review CA backlog for ONE exam server-side — the count
+// endpoint lets the Review Queue's CA tab show the number before the admin
+// commits to it.
 adminRouter.get(
   "/admin/review/current-affairs/high-confidence-count",
-  asyncHandler(async (_req, res) => {
-    res.json(caHighConfidenceCountResponseSchema.parse({ data: { count: await caHighConfidenceCount() }, error: null }));
+  asyncHandler(async (req, res) => {
+    const { exam } = parse(caHighConfidenceQuerySchema, req.query);
+    res.json(caHighConfidenceCountResponseSchema.parse({ data: { count: await caHighConfidenceCount(exam) }, error: null }));
   }),
 );
 
 adminRouter.post(
   "/admin/review/current-affairs/bulk-approve-high-confidence",
-  asyncHandler(async (_req, res) => {
-    res.json(reviewActionResponseSchema.parse({ data: await bulkApproveCaHighConfidence(), error: null }));
+  asyncHandler(async (req, res) => {
+    const { exam } = parse(caBulkApproveHighConfidenceBodySchema, req.body);
+    res.json(reviewActionResponseSchema.parse({ data: await bulkApproveCaHighConfidence(exam), error: null }));
   }),
 );
 

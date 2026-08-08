@@ -9,7 +9,6 @@ import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { useNoteApprove, useNoteEdit, useNoteReject, useReviewNotes } from "@/hooks/use-review-notes";
 import { ChapterReview, isChapterNote } from "@/components/review/chapter-review";
-import { queryKeys } from "@/lib/query-keys";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -263,7 +262,7 @@ export function NotesReviewPanel() {
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["admin", "notes", "review"] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.reviewCounts() });
+    queryClient.invalidateQueries({ queryKey: ["admin", "review", "counts"] });
   }, [queryClient]);
 
   useEffect(() => {

@@ -21,6 +21,7 @@ import type {
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
+import { questionExamScopeFilter } from "../lib/exams.js";
 import { reviewNotesCount } from "./notes.js";
 import { reportsCounts } from "./community-admin.js";
 import { questionReportsCounts } from "./question-reports.js";
@@ -34,24 +35,37 @@ const REVIEW_COLUMNS =
   "meta, created_at, syllabus_nodes(title_i18n)";
 
 /**
- * Narrow a questions query to one review tab. The four tabs are disjoint:
+ * Narrow a questions query to one review tab, AND scoped to one exam's
+ * backlog. The four tabs are disjoint:
  *  - generated_mcq / generated_descriptive: qgen output (needs_review), CA excluded.
  *  - current_affairs: the ca:run pool (needs_review), by paper_code.
  *  - machine_translated: PYQ rows whose Hindi was machine-regenerated and not yet
  *    human-verified. These are already approved+published (visible); this tab is
  *    an AUDIT surface — approving stamps meta.human_verified so it leaves the tab.
+ *
+ * `examCode` is REQUIRED (never defaulted — see reviewQueueQuerySchema's own
+ * doc comment): every branch ANDs in `questionExamScopeFilter(examCode)` (a
+ * second `.or()` call, verified elsewhere in this codebase to AND with an
+ * existing `.or()`/`.eq()` chain rather than replace it), so a reviewer looking
+ * at one exam's tab can never see — or act on — another exam's rows.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function applyTab(query: any, tab: ReviewTab): any {
+async function applyTab(query: any, tab: ReviewTab, examCode: string): Promise<any> {
+  const examScope = await questionExamScopeFilter(examCode);
   switch (tab) {
     case "generated_mcq":
       return query
         .eq("review_state", "needs_review")
         .eq("source", "generated")
         .eq("type", "mcq")
-        .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+        .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+        .or(examScope);
     case "generated_descriptive":
-      return query.eq("review_state", "needs_review").eq("source", "generated").eq("type", "descriptive");
+      return query
+        .eq("review_state", "needs_review")
+        .eq("source", "generated")
+        .eq("type", "descriptive")
+        .or(examScope);
     case "current_affairs":
       // Fresh ca:run output (needs_review) OR a LIVE (approved) CA MCQ flagged
       // for a second pass by the retroactive re-review sweep
@@ -61,12 +75,14 @@ function applyTab(query: any, tab: ReviewTab): any {
       // which clears the flag) or removes (Reject) each one.
       return query
         .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
-        .or("review_state.eq.needs_review,generation_meta->re_review.not.is.null");
+        .or("review_state.eq.needs_review,generation_meta->re_review.not.is.null")
+        .or(examScope);
     case "machine_translated":
       return query
         .eq("meta->>machine_translated", "true")
         .neq("review_state", "rejected")
-        .or("meta->>human_verified.is.null,meta->>human_verified.neq.true");
+        .or("meta->>human_verified.is.null,meta->>human_verified.neq.true")
+        .or(examScope);
     default:
       // "notes" is served by a separate endpoint (services/notes.ts); never a
       // questions query (listReviewQueue guards it first). Return an
@@ -153,13 +169,18 @@ function mapRow(row: ReviewRow, similar: SimilarQuestion[]): ReviewQuestion {
   };
 }
 
-export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ items: ReviewQuestion[]; total: number }> {
+export async function listReviewQueue(
+  tab: ReviewTab,
+  page: number,
+  examCode: string,
+): Promise<{ items: ReviewQuestion[]; total: number }> {
   // Notes/magazine/reports have their own list endpoints — never a questions query.
   if (tab === "notes" || tab === "magazine" || tab === "reports" || tab === "question_reports") return { items: [], total: 0 };
   const from = (page - 1) * REVIEW_PAGE_SIZE;
   const to = from + REVIEW_PAGE_SIZE - 1;
   const base = supabase().from("questions").select(REVIEW_COLUMNS, { count: "exact" });
-  const { data, error, count } = await applyTab(base, tab)
+  const scoped = await applyTab(base, tab, examCode);
+  const { data, error, count } = await scoped
     // re_review-flagged rows first (the retroactive CA sweep's live-content
     // second-pass batch — otherwise their OLD created_at buries them behind
     // fresh needs_review output). A no-op for every other tab, where no row
@@ -176,10 +197,12 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
     // with the current total (PostgREST leaves count null on this error, so
     // re-count) instead of 500ing the whole queue.
     if (error.code === "PGRST103") {
-      const { count: total, error: countError } = await applyTab(
+      const countScoped = await applyTab(
         supabase().from("questions").select("id", { count: "exact", head: true }),
         tab,
+        examCode,
       );
+      const { count: total, error: countError } = await countScoped;
       // If even the re-count fails, that's a genuine DB fault (not a benign
       // over-range) — surface it as a 500 rather than masking it as total:0,
       // which would make the UI show an empty queue when there is really data.
@@ -193,15 +216,20 @@ export async function listReviewQueue(tab: ReviewTab, page: number): Promise<{ i
   return { items: rows.map((r) => mapRow(r, similar.get(r.id) ?? [])), total: count ?? 0 };
 }
 
-export async function reviewCounts(): Promise<ReviewCounts> {
+/**
+ * `examCode` is REQUIRED (see reviewCountsQuerySchema) — the per-tab counts
+ * are exam-scoped for the four `questions`-backed tabs. Notes/reports/
+ * question_reports/magazine have no exam concept in their current design (they
+ * review a different table each), so those four counts stay global — the web
+ * app hides the exam selector on those tabs rather than imply it narrows them.
+ */
+export async function reviewCounts(examCode: string): Promise<ReviewCounts> {
   const tabs: ReviewTab[] = ["generated_mcq", "generated_descriptive", "machine_translated", "current_affairs"];
   const [questionEntries, notes, reports, questionReports, magazine] = await Promise.all([
     Promise.all(
       tabs.map(async (tab) => {
-        const { count, error } = await applyTab(
-          supabase().from("questions").select("id", { count: "exact", head: true }),
-          tab,
-        );
+        const scoped = await applyTab(supabase().from("questions").select("id", { count: "exact", head: true }), tab, examCode);
+        const { count, error } = await scoped;
         if (error) throw new HttpError(500, `review count (${tab}) failed: ${error.message}`);
         return [tab, count ?? 0] as const;
       }),
@@ -350,14 +378,18 @@ interface HighConfidenceCandidateRow {
 
 /**
  * needs_review CA questions that meet isHighConfidenceQuestion, across the
- * whole backlog (not just the current Review Queue page). Paginated via
- * .range() so a backlog past PostgREST's 1000-row default cap is never
- * silently truncated. Backs both the "how many are ready" count (no limit —
- * the admin should see the true total) and the actual bulk-approve action
- * (limit set — see CA_BULK_APPROVE_BATCH_LIMIT) — one query shape either way,
- * so the count shown before clicking never drifts from what a click acts on.
+ * whole backlog for ONE exam (not just the current Review Queue page, and not
+ * across every exam — CA questions carry a real `exam_code`, the exam they
+ * were generated for, so this is scoped by it directly rather than via
+ * `questionExamScopeFilter`: paper_code is already pinned to CURRENT_AFFAIRS
+ * here, which is that filter's own CA disjunct). Paginated via .range() so a
+ * backlog past PostgREST's 1000-row default cap is never silently truncated.
+ * Backs both the "how many are ready" count (no limit — the admin should see
+ * the true total) and the actual bulk-approve action (limit set — see
+ * CA_BULK_APPROVE_BATCH_LIMIT) — one query shape either way, so the count
+ * shown before clicking never drifts from what a click acts on.
  */
-async function caHighConfidenceIds(limit?: number): Promise<string[]> {
+async function caHighConfidenceIds(examCode: string, limit?: number): Promise<string[]> {
   const ids: string[] = [];
   let from = 0;
   for (;;) {
@@ -365,6 +397,7 @@ async function caHighConfidenceIds(limit?: number): Promise<string[]> {
       .from("questions")
       .select("id, type, publish_gate_ok, generation_meta")
       .eq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+      .eq("exam_code", examCode)
       .eq("review_state", "needs_review")
       .range(from, from + CA_HIGH_CONFIDENCE_PAGE_SIZE - 1);
     if (error) throw new HttpError(500, `CA high-confidence lookup failed: ${error.message}`);
@@ -380,19 +413,20 @@ async function caHighConfidenceIds(limit?: number): Promise<string[]> {
   return ids;
 }
 
-/** How many CA questions in the whole needs_review backlog are currently high-confidence (read-only, for the Review Queue's CA tab to show before acting). */
-export async function caHighConfidenceCount(): Promise<number> {
-  return (await caHighConfidenceIds()).length;
+/** How many CA questions in one exam's needs_review backlog are currently high-confidence (read-only, for the Review Queue's CA tab to show before acting). */
+export async function caHighConfidenceCount(examCode: string): Promise<number> {
+  return (await caHighConfidenceIds(examCode)).length;
 }
 
 /**
  * Approve up to CA_BULK_APPROVE_BATCH_LIMIT high-confidence CA questions
- * across the whole backlog (not just the current page) in one action. A
- * backlog deeper than the limit just needs another click — the count (and
- * the UI button's own label) reflects whatever's left after this call.
+ * across one exam's whole backlog (not just the current page, and never
+ * another exam's) in one action. A backlog deeper than the limit just needs
+ * another click — the count (and the UI button's own label) reflects whatever
+ * is left, for that exam, after this call.
  */
-export async function bulkApproveCaHighConfidence(): Promise<ReviewActionResult> {
-  const ids = await caHighConfidenceIds(CA_BULK_APPROVE_BATCH_LIMIT);
+export async function bulkApproveCaHighConfidence(examCode: string): Promise<ReviewActionResult> {
+  const ids = await caHighConfidenceIds(examCode, CA_BULK_APPROVE_BATCH_LIMIT);
   if (ids.length === 0) return { id: null, review_state: "approved", is_published: false, approved: 0, published: 0, skipped: 0 };
   return bulkApprove(ids);
 }

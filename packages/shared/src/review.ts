@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema, examStageSchema, paginatedSchema } from "./types";
 import { difficultySchema, questionOptionSchema, questionSourceSchema, questionTypeSchema } from "./questions";
+import { targetExamCodeSchema } from "./exams";
 
 /** Review lifecycle for a question (migration 0035). */
 export const reviewStateSchema = z.enum(["draft", "needs_review", "approved", "rejected"]);
@@ -166,11 +167,24 @@ export const reviewTabSchema = z.enum([
 ]);
 export type ReviewTab = z.infer<typeof reviewTabSchema>;
 
+/**
+ * `exam` is REQUIRED, never defaulted — an admin reviewing content must always
+ * say which exam's backlog they mean. A defaulted exam here is exactly the M24
+ * shape that has bitten this codebase before (a silently-uppsc-pinned filter
+ * that looks parameterised): the Review Queue exists precisely to review
+ * pre-launch exams' generated content (a not-yet-live exam's questions/CA still
+ * need a human pass), so there is no safe "current exam" to fall back to.
+ */
 export const reviewQueueQuerySchema = z.object({
   tab: reviewTabSchema.default("generated_mcq"),
   page: z.coerce.number().int().min(1).default(1),
+  exam: targetExamCodeSchema,
 });
 export type ReviewQueueQuery = z.infer<typeof reviewQueueQuerySchema>;
+
+/** GET /admin/review/counts — per-tab counts are scoped to one exam's backlog. */
+export const reviewCountsQuerySchema = z.object({ exam: targetExamCodeSchema });
+export type ReviewCountsQuery = z.infer<typeof reviewCountsQuerySchema>;
 
 export const reviewQueueResponseSchema = apiEnvelopeSchema(paginatedSchema(reviewQuestionSchema));
 export type ReviewQueueResponse = z.infer<typeof reviewQueueResponseSchema>;
@@ -238,6 +252,19 @@ export type CaHighConfidenceCount = z.infer<typeof caHighConfidenceCountSchema>;
 
 export const caHighConfidenceCountResponseSchema = apiEnvelopeSchema(caHighConfidenceCountSchema);
 export type CaHighConfidenceCountResponse = z.infer<typeof caHighConfidenceCountResponseSchema>;
+
+/**
+ * `exam` is required on both the count lookup and the bulk-approve action
+ * below, for the same reason as `reviewQueueQuerySchema.exam` — this backlog
+ * is scoped by `questions.exam_code` (the CA-generating exam), and a whole-
+ * backlog action is exactly the kind of query that must never silently widen
+ * across exams.
+ */
+export const caHighConfidenceQuerySchema = z.object({ exam: targetExamCodeSchema });
+export type CaHighConfidenceQuery = z.infer<typeof caHighConfidenceQuerySchema>;
+
+export const caBulkApproveHighConfidenceBodySchema = z.object({ exam: targetExamCodeSchema });
+export type CaBulkApproveHighConfidenceBody = z.infer<typeof caBulkApproveHighConfidenceBodySchema>;
 
 /** Billing mode snapshot — populated for admins only, so the active Razorpay
  * TEST/LIVE mode (and any misconfiguration) is visible in-app, not just in logs. */

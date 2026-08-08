@@ -7,7 +7,6 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { useResolveReport, useReviewReports } from "@/hooks/use-review-reports";
-import { queryKeys } from "@/lib/query-keys";
 
 export function ReportsReviewPanel() {
   const { t } = useTranslation();
@@ -24,7 +23,7 @@ export function ReportsReviewPanel() {
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: ["admin", "community", "reports"] });
-    queryClient.invalidateQueries({ queryKey: queryKeys.reviewCounts() });
+    queryClient.invalidateQueries({ queryKey: ["admin", "review", "counts"] });
   }, [queryClient]);
 
   useEffect(() => {
