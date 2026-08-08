@@ -1407,7 +1407,11 @@
     "installTitle": "Install Neev",
     "installDescription": "Add it to your home screen for one-tap access and offline studying.",
     "installCta": "Install app",
-    "installDismiss": "Dismiss"
+    "installDismiss": "Dismiss",
+    "installSectionTitle": "Install app",
+    "installAlready": "Neev is already installed on this device.",
+    "installIosInstructions": "Tap the Share icon in Safari's toolbar, then choose \"Add to Home Screen.\"",
+    "installManualInstructions": "Open your browser's menu and look for \"Install app\" or \"Add to Home Screen.\""
   },
   "MyNotes": {
     "title": "My notes",

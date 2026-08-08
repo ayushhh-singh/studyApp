@@ -13,6 +13,7 @@ import { ExamSwitcherCard } from "@/components/profile/exam-switcher-card";
 import { SettingsCard } from "@/components/profile/settings-card";
 import { ChangePasswordCard } from "@/components/profile/change-password-card";
 import { PushNotificationsCard } from "@/components/profile/push-notifications-card";
+import { InstallAppCard } from "@/components/profile/install-app-card";
 import { HelpAboutCard } from "@/components/profile/help-about-card";
 import { PlanBanner } from "@/components/billing/plan-banner";
 import { useProfile } from "@/hooks/use-profile";
@@ -90,6 +91,8 @@ export function Component() {
       <ChangePasswordCard />
 
       <PushNotificationsCard />
+
+      <InstallAppCard />
     </div>
   );
 }
