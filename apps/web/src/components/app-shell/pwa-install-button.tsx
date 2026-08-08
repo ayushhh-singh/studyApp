@@ -1,7 +1,7 @@
 import { Download } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
-import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { useInstallPrompt } from "@/stores/install-prompt-store";
 
 /**
  * Quiet, always-in-view entry point in the sticky TopBar for installing the

@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { CheckCircle2, Download } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
-import { useInstallPrompt } from "@/hooks/use-install-prompt";
+import { useInstallPrompt } from "@/stores/install-prompt-store";
 import { isIosDevice, isStandaloneDisplay } from "@/lib/pwa-platform";
 
 /**
