@@ -1,4 +1,4 @@
-import { NavLink, type NavLinkRenderProps } from "react-router";
+import { Link, NavLink, type NavLinkRenderProps } from "react-router";
 import { useTranslation } from "react-i18next";
 import { visibleNav } from "@/lib/nav";
 import { useLocale } from "@/hooks/use-locale";
@@ -26,8 +26,12 @@ export function Sidebar() {
       <div className="flex items-center gap-2 px-2 py-3">
         {/* BrandMark always renders "Neev" in Latin — matches landing/auth/
             onboarding/pricing, unlike the old hardcoded Devanagari literal that
-            ignored the active locale. */}
-        <BrandMark />
+            ignored the active locale. Wrapped in a Link to dashboard (this
+            sidebar's own "home") — same pattern as marketing-header/footer,
+            which already link the mark to the locale root. */}
+        <Link to={`/${locale}/dashboard`} aria-label={t("Landing.brand")} className="rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+          <BrandMark />
+        </Link>
       </div>
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (

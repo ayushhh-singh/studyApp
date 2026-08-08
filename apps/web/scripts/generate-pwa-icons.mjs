@@ -8,7 +8,7 @@ import path from "node:path";
 import sharp from "sharp";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const mark = readFileSync(path.join(root, "..", "public", "favicon.svg"), "utf8");
+const mark = readFileSync(path.join(root, "..", "public", "favicon.svg"), "utf8").trim();
 const outDir = path.join(root, "..", "public", "pwa");
 mkdirSync(outDir, { recursive: true });
 
@@ -18,8 +18,8 @@ const PRIMARY = "#2563EB";
 // need the mark inside Android's ~80%-diameter safe circle, so they get a
 // smaller scale + more padding than plain "any" icons.
 function canvas(size, { markScale, background }) {
-  const w = 48;
-  const h = 46;
+  const w = 68;
+  const h = 56;
   const drawSize = size * markScale;
   const scale = drawSize / w;
   const x = (size - w * scale) / 2;
