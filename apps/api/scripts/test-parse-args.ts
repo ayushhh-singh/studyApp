@@ -351,8 +351,9 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
   },
   {
     script: "ca:deepdive",
-    spec: { value: ["month"], boolean: ["run"] },
-    documented: [["--month", "2026-07", "--run"]],
+    spec: { value: ["month"], boolean: ["run", "previous"] },
+    // `--previous --run` is the LIVE cron invocation (.github/workflows/ca-deepdive.yml).
+    documented: [["--month", "2026-07", "--run"], ["--previous", "--run"], ["--previous"]],
   },
   {
     script: "ca:verify-mcqs",

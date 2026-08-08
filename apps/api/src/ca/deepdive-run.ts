@@ -7,18 +7,41 @@
  *                                               them as needs_review (clears any
  *                                               previous unpublished drafts for
  *                                               that month first).
+ * `pnpm ca:deepdive --previous --run`         — the same, for the most recent
+ *                                               FULLY ELAPSED IST month. This is
+ *                                               the scheduled monthly invocation
+ *                                               (.github/workflows/ca-deepdive.yml,
+ *                                               1st of the month): on 1 Aug it
+ *                                               compiles July 1-31 complete.
+ *
+ * `--previous` exists so the schedule never has to compute a month itself. A
+ * workflow doing `date -u +%Y-%m` would be UTC (this repo is IST throughout, and
+ * `current_affairs_items.date` is `istDateString(pubDate)`) and would name the
+ * CURRENT month, i.e. the one that has barely started.
  */
 import { parseArgs, report } from "../ingest/_shared.js";
-import { currentIstMonth } from "../lib/month.js";
+import { currentIstMonth, previousIstMonth } from "../lib/month.js";
 import { planDeepDives, runDeepDives } from "./deepdive.js";
 
 async function main(): Promise<void> {
   const args = parseArgs(
     process.argv.slice(2),
-    { value: ["month"], boolean: ["run"] },
+    { value: ["month"], boolean: ["run", "previous"] },
     "ca:deepdive",
   );
-  const month = typeof args.month === "string" ? args.month : currentIstMonth();
+  const usePrevious = args.previous === true;
+  // Refuse rather than silently pick a winner: the two flags name different
+  // months, and a scheduled run that quietly compiled the wrong one would be
+  // invisible (deep dives land as needs_review either way, both look plausible).
+  if (usePrevious && typeof args.month === "string") {
+    report.fail("--previous and --month are mutually exclusive; pass one or the other");
+    process.exit(1);
+  }
+  const month = usePrevious
+    ? previousIstMonth()
+    : typeof args.month === "string"
+      ? args.month
+      : currentIstMonth();
   // `run` is declared boolean, so the parser yields only `true` or `undefined`
   // — the old `|| args.run === "true"` branch is now dead.
   const doRun = args.run === true;

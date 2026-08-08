@@ -19,6 +19,28 @@ export function currentIstMonth(): string {
   return istToday().slice(0, 7);
 }
 
+/** The calendar month before `month` ("YYYY-MM"), rolling the year at January. */
+export function previousMonth(month: string): string {
+  const [y, m] = month.split("-").map(Number);
+  const py = m === 1 ? y - 1 : y;
+  const pm = m === 1 ? 12 : m - 1;
+  return `${py}-${String(pm).padStart(2, "0")}`;
+}
+
+/**
+ * The IST calendar month before the current one — i.e. the most recent FULLY
+ * ELAPSED month. This is what a monthly job running on the 1st should compile:
+ * on 1 Aug (IST) it returns "2026-07", covering July 1-31 complete.
+ *
+ * IST, not UTC, so the job agrees with `current_affairs_items.date` — which
+ * pipeline.ts stamps as `istDateString(pubDate)`. A UTC-derived month would
+ * disagree for the 18:30-24:00 UTC window on the 1st, which is precisely when
+ * a "run on the 1st" cron is most likely to fire.
+ */
+export function previousIstMonth(): string {
+  return previousMonth(currentIstMonth());
+}
+
 export function monthLabel(month: string): { hi: string; en: string } {
   const [y, m] = month.split("-").map(Number);
   const idx = Math.max(0, Math.min(11, (m || 1) - 1));

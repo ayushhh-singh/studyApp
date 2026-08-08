@@ -23,6 +23,7 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { monthBounds, monthLabel } from "../lib/month.js";
+import { istClockUtc } from "../lib/ist.js";
 import { RELEVANCE_GATE } from "../ca/pipeline.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { examCodeForNode } from "../lib/exams.js";
@@ -82,6 +83,27 @@ const FACT_KIND_ORDER: CurrentAffairsFactKind[] = [
 
 const WORKBOOK_LIMIT = 30;
 const MODEL_QUESTIONS_LIMIT = 15;
+
+/**
+ * The month's bounds as UTC INSTANTS, for filtering `timestamptz` columns.
+ *
+ * ⚑ `monthBounds` returns bare `YYYY-MM-DD` strings, which is exactly right for
+ * `current_affairs_items.date` (a `date` column, stamped `istDateString(pubDate)`
+ * by ca/pipeline.ts). But `questions.created_at` is `timestamptz`, and Postgres
+ * coerces a bare date against it to UTC midnight — so the workbook and
+ * model-question windows were `[start 00:00 UTC, end 00:00 UTC)`, i.e. IST 05:30
+ * to 05:30, skewed 5.5h from the very items they sit beside in the same edition.
+ *
+ * Measured live (2026-08-08) on the July 2026 edition: the latest workbook MCQ
+ * matched at `2026-07-31T19:33Z` — 01:03 IST on 1 AUGUST — so a question created
+ * on the 1st was being printed in July's workbook, while a question created in
+ * the first 5.5h of 1 July fell into June's. Anchoring both ends to IST midnight
+ * makes the whole edition one calendar month with no gap and no overlap.
+ */
+function monthBoundsUtc(month: string): { startUtc: string; endUtc: string } {
+  const { start, end } = monthBounds(month);
+  return { startUtc: istClockUtc(start, 0), endUtc: istClockUtc(end, 0) };
+}
 
 // ---------------------------------------------------------------------------
 // Shared curation selection — used by BOTH the full editions (compile*) and the
@@ -396,7 +418,8 @@ function toItemBlock(s: Scored<PrelimsItemRow>): MagazineItemBlock {
 }
 
 async function loadWorkbook(month: string, examCode: string): Promise<MagazineMcq[]> {
-  const { start, end } = monthBounds(month);
+  // IST-anchored instants, not the bare date strings — see monthBoundsUtc.
+  const { startUtc, endUtc } = monthBoundsUtc(month);
   // `questions.exam_code` is PROVENANCE, not the node-derived product exam (see
   // lib/exams.ts) — but a CA-generated MCQ is created BY one exam's run, so for
   // this table provenance and product exam coincide and the filter is right.
@@ -415,8 +438,8 @@ async function loadWorkbook(month: string, examCode: string): Promise<MagazineMc
     .eq("type", "mcq")
     .eq("review_state", "approved")
     .eq("exam_code", examCode)
-    .gte("created_at", start)
-    .lt("created_at", end)
+    .gte("created_at", startUtc)
+    .lt("created_at", endUtc)
     .order("created_at", { ascending: true })
     .limit(WORKBOOK_LIMIT);
   if (error) throw new HttpError(500, `magazine workbook query failed: ${error.message}`);
@@ -511,7 +534,8 @@ interface MainsItemRow extends MainsScoreRow {
 }
 
 async function loadModelQuestions(month: string, examCode: string): Promise<MagazineModelQuestion[]> {
-  const { start, end } = monthBounds(month);
+  // IST-anchored instants, not the bare date strings — see monthBoundsUtc.
+  const { startUtc, endUtc } = monthBoundsUtc(month);
   // See loadWorkbook's comment: `questions.exam_code` is provenance, and for a
   // CA-generated question it coincides with the product exam (verified live,
   // 0 mismatches) — so this filter is genuinely per-exam, not accidentally
@@ -523,8 +547,8 @@ async function loadModelQuestions(month: string, examCode: string): Promise<Maga
     .eq("type", "descriptive")
     .eq("review_state", "approved")
     .eq("exam_code", examCode)
-    .gte("created_at", start)
-    .lt("created_at", end)
+    .gte("created_at", startUtc)
+    .lt("created_at", endUtc)
     .order("created_at", { ascending: true })
     .limit(MODEL_QUESTIONS_LIMIT);
   if (error) throw new HttpError(500, `magazine model-questions query failed: ${error.message}`);
