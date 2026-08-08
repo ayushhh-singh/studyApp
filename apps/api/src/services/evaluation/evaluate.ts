@@ -47,14 +47,20 @@ import {
   buildAnalysisUserContent,
   buildFeedbackSharedContext,
   buildImprovementsSystem,
+  buildModelAnswerCorrection,
   buildModelAnswerSystem,
   buildModelAnswerUserContent,
+  buildModelAnswerVerifyContent,
+  buildModelAnswerVerifySystem,
   buildStrengthsSystem,
   countWords,
   FEEDBACK_WRITE_NOW,
+  isBlockingClaim,
+  MODEL_ANSWER_VERIFY_SCHEMA,
   type AnalysisPageImage,
   type EvalContext,
   type Pass1Result,
+  type VerifiedClaim,
 } from "./prompts.js";
 import { assertImagesExist, downloadImageAsBase64, getOcrProvider, type OcrResult } from "../ocr/index.js";
 import { assertEvaluationCredit, assertHandwrittenOcr, assertNotGuest } from "../entitlements.js";
@@ -682,37 +688,45 @@ export async function executeEvaluation(
       modelAnswer = reused.modelAnswer;
       emit("model_answer_delta", { text: modelAnswer });
     } else {
-      const modelAnswerUsage = { tokens: 0, cost: 0 };
-      await streamText({
-        model: MODELS.sonnet,
-        system: buildModelAnswerSystem(ctx),
-        content: buildModelAnswerUserContent(ctx, pass1),
-        maxTokens: 4000,
-        purpose: "answer_eval_model",
+      const generated = await generateVerifiedModelAnswer({
+        ctx,
+        pass1,
         userId,
+        onUsage,
         signal,
-        onUsage: (u) => {
-          onUsage(u);
-          modelAnswerUsage.tokens += u.inputTokens + u.outputTokens;
-          modelAnswerUsage.cost += u.costUsd;
-        },
-        onDelta: (t) => {
-          modelAnswer += t;
-          emit("model_answer_delta", { text: t });
-        },
       });
       if (signal?.aborted) return;
+      modelAnswer = generated.modelAnswer;
+      // ONE event carrying the whole answer, exactly like the reuse branch
+      // above. Deliberately not streamed token-by-token: the answer has to be
+      // complete before it can be checked, and a check that fires after the
+      // candidate has already read the text protects nobody. The UX cost is
+      // near zero because (a) the reuse branch — the dominant path for a
+      // catalogued question — has always emitted in one event, so this makes
+      // the two paths consistent rather than introducing a new behaviour, and
+      // (b) `EvaluationModelAnswer` renders this card COLLAPSED by default, so
+      // the streaming was almost never on screen. The `model_answer` status
+      // event already told the client this phase is running.
+      emit("model_answer_delta", { text: modelAnswer });
       // Only cache a non-empty answer — an empty/failed generation must stay
       // a one-off for THIS submission, not get replayed as empty for every
       // future student who lands on this question until RUBRIC_VERSION bumps.
-      if (submission.question_id && modelAnswer.trim()) {
+      //
+      // ⚑ AND only cache one that PASSED the gate. This is the whole point of
+      // G3: an unverified answer served once to one candidate is a bad answer;
+      // the same answer written into `question_model_answers` is replayed to
+      // every future student on that question and can never be noticed again.
+      // A rejected answer is simply not stored, so the next submission on this
+      // question regenerates and re-checks — self-healing at the cost of one
+      // repeated generation, which is the right way round.
+      if (submission.question_id && modelAnswer.trim() && generated.passed) {
         await persistStoredModelAnswer(
           submission.question_id,
           language,
           plan.rubricVersion,
           modelAnswer,
-          modelAnswerUsage.tokens,
-          modelAnswerUsage.cost,
+          generated.tokens,
+          generated.cost,
         );
       }
     }
@@ -757,6 +771,210 @@ export async function executeEvaluation(
     await setSubmissionStatus(submission.id, "failed").catch(() => {});
     throw err;
   }
+}
+
+/**
+ * The length gate is TWO-TIER, and the asymmetry is the whole design.
+ *
+ * ⚑ WHAT THE NUMBERS ACTUALLY SAY. G8 recorded "7 of 16 model answers exceed
+ * their stated word limit". Re-measured against the panel's own key, those 7
+ * are over the BARE limit (ratios 1.02-1.13) but only ONE is over the ~10%
+ * grace the prompt itself promises ("stay within about 10% of it — do not
+ * overshoot"). So a gate set at the prompt's own promise would fire once in
+ * sixteen and leave six answers 2-10% long. The three blind judges scored the
+ * `len` dimension against the BARE limit — 5 at or under it, 4 at 1.02-1.04,
+ * 3 beyond — so the standard a reader applies is the stated number, not the
+ * grace. A model answer is an exemplar: showing 138 words for a 125-word
+ * question teaches a candidate to overshoot in a hall where that costs marks.
+ *
+ * So: the FIRST attempt must come in at or under the stated limit.
+ *
+ * ⚑ WHY THE RETRY IS TOLERANT. A single strict tier has a real failure mode
+ * that is worse than the defect: if a question's answer stubbornly lands a few
+ * words long, a strict gate rejects it forever, nothing is ever written to
+ * `question_model_answers`, and EVERY future candidate on that question re-pays
+ * the full generation. Accepting a small residual after we have already made
+ * the model measure and cut once is the right trade — it bounds the damage of
+ * an instruction the model cannot quite follow, without ever waving through the
+ * 1.13-style overshoot that started this.
+ */
+const MODEL_ANSWER_LENGTH_STRICT = 1.0;
+const MODEL_ANSWER_LENGTH_AFTER_RETRY = 1.1;
+
+interface VerifiedModelAnswer {
+  modelAnswer: string;
+  /**
+   * Whether the FINAL text below cleared the gate. False means it is still
+   * served to this candidate (a flawed answer beats no answer, and the flaws
+   * are usually one specific in an otherwise sound answer) but must NOT be
+   * written into `question_model_answers`.
+   */
+  passed: boolean;
+  /** Tokens/cost of the generation calls only — what gets stored alongside a cached answer. */
+  tokens: number;
+  cost: number;
+}
+
+/**
+ * Generate the pass-2 model answer, check it, and give it exactly one chance to
+ * fix itself. See `buildModelAnswerVerifySystem` in prompts.ts for why the
+ * check exists and why `contradicted` is the only blocking verdict.
+ *
+ * Sequence: generate -> gate -> (regenerate with the findings -> gate) -> done.
+ * The retry is capped at one deliberately: a second retry roughly doubles the
+ * cost tail again for a case that is already rare, and an answer that fails
+ * twice is better handled by not caching it (so the next student's run tries
+ * afresh) than by looping here while a candidate waits.
+ *
+ * COST. On the happy path this adds ONE `claude-haiku-4-5` call per GENERATED
+ * answer — not per evaluation, because a catalogued question generates once and
+ * is then served from `question_model_answers` for every later candidate.
+ * `MODELS.haiku` is the same model qgen's Stage-C blind verify uses; the task
+ * here is recall of well-established facts and denominator arithmetic, not
+ * open reasoning.
+ *
+ * FAIL-OPEN. A verifier that errors or times out must not fail the evaluation
+ * or, worse, silently suppress caching for every question — the answer is
+ * treated as passing and the failure is logged, matching how `retrieveGrounding`
+ * degrades. The gate is a net over a low-base-rate defect, not a dependency.
+ */
+async function generateVerifiedModelAnswer(opts: {
+  ctx: EvalContext;
+  pass1: Pass1Result;
+  userId: string;
+  onUsage: (u: LlmUsage) => void;
+  signal?: AbortSignal;
+}): Promise<VerifiedModelAnswer> {
+  const { ctx, pass1, userId, onUsage, signal } = opts;
+  const genUsage = { tokens: 0, cost: 0 };
+
+  const generate = async (correction: string | null): Promise<string> => {
+    let text = "";
+    const content = correction
+      ? `${buildModelAnswerUserContent(ctx, pass1)}\n\n${correction}`
+      : buildModelAnswerUserContent(ctx, pass1);
+    await streamText({
+      model: MODELS.sonnet,
+      system: buildModelAnswerSystem(ctx),
+      content,
+      maxTokens: 4000,
+      purpose: "answer_eval_model",
+      userId,
+      signal,
+      onUsage: (u) => {
+        onUsage(u);
+        genUsage.tokens += u.inputTokens + u.outputTokens;
+        genUsage.cost += u.costUsd;
+      },
+      onDelta: (t) => {
+        text += t;
+      },
+    });
+    return text;
+  };
+
+  const gate = async (text: string, lengthTolerance: number) => {
+    const wordCount = countWords(text);
+    const overLimit = wordCount > Math.round(ctx.wordLimit * lengthTolerance);
+    let claims: VerifiedClaim[] = [];
+    if (text.trim()) {
+      try {
+        const res = await structuredJson<{ claims: VerifiedClaim[] }>({
+          // sonnet, NOT haiku. Measured on the panel's own 16 answers, a haiku
+          // verifier both anchored on the retrieved passages (rejecting real
+          // schemes like MISHTI and GeM as "not mentioned in the reference
+          // passages") and produced flatly wrong contradictions (denying the
+          // existence of the Criminal Law (Amendment) Act, 2013). This task is
+          // recall of well-established public facts, which is exactly where the
+          // model tier shows. It runs once per GENERATED answer, not per
+          // evaluation — a catalogued question generates once and is then served
+          // from question_model_answers — so the cost is amortised to near zero.
+          model: MODELS.sonnet,
+          effort: "low",
+          system: buildModelAnswerVerifySystem(),
+          content: buildModelAnswerVerifyContent(ctx, text),
+          schema: MODEL_ANSWER_VERIFY_SCHEMA,
+          maxTokens: 3000,
+          purpose: "answer_eval_model_verify",
+          userId,
+          onUsage,
+          signal,
+        });
+        claims = Array.isArray(res?.claims) ? res.claims : [];
+      } catch (err) {
+        // Fail open — see the note above. `claims` stays empty, so the only
+        // live check is the deterministic word count.
+        logger.warn({ err }, "model-answer verify failed; accepting the answer unchecked");
+      }
+    }
+    const blocking = claims.filter(isBlockingClaim);
+    // Recorded, never blocking: an unconfirmed FIGURE is usually a true figure
+    // that simply is not in the syllabus passages (see isBlockingClaim).
+    const tolerated = claims.filter((c) => c.verdict === "unverifiable" && !isBlockingClaim(c));
+    return {
+      wordCount,
+      overLimit,
+      blocking,
+      tolerated,
+      passed: !overLimit && blocking.length === 0,
+    };
+  };
+
+  const first = await generate(null);
+  if (signal?.aborted) return { modelAnswer: first, passed: false, ...genUsage };
+  const firstGate = await gate(first, MODEL_ANSWER_LENGTH_STRICT);
+  if (signal?.aborted) return { modelAnswer: first, passed: false, ...genUsage };
+  if (firstGate.passed) {
+    // `unverifiable` never blocks, but a high count on a cached answer is the
+    // signal worth having if this ever needs retuning — record it.
+    if (firstGate.tolerated.length) {
+      logger.info(
+        { unverifiableFigures: firstGate.tolerated.length, examCode: ctx.examCode },
+        "model-answer verify: unconfirmed figures recorded (not blocking)",
+      );
+    }
+    return { modelAnswer: first, passed: true, ...genUsage };
+  }
+
+  logger.warn(
+    {
+      examCode: ctx.examCode,
+      rubricVersion: ctx.rubricVersion,
+      wordCount: firstGate.wordCount,
+      wordLimit: ctx.wordLimit,
+      overLimit: firstGate.overLimit,
+      blocking: firstGate.blocking.map((c) => `[${c.kind}/${c.verdict}] ${c.claim} :: ${c.issue}`),
+    },
+    "model-answer rejected by verify gate; regenerating once",
+  );
+
+  const second = await generate(
+    buildModelAnswerCorrection({
+      wordCount: firstGate.wordCount,
+      wordLimit: ctx.wordLimit,
+      overLimit: firstGate.overLimit,
+      blocking: firstGate.blocking,
+    }),
+  );
+  if (signal?.aborted) return { modelAnswer: second, passed: false, ...genUsage };
+  // An empty retry is worse than the flawed original — keep the text that at
+  // least says something, but it stays uncached either way.
+  if (!second.trim()) return { modelAnswer: first, passed: false, ...genUsage };
+
+  const secondGate = await gate(second, MODEL_ANSWER_LENGTH_AFTER_RETRY);
+  if (!secondGate.passed) {
+    logger.warn(
+      {
+        examCode: ctx.examCode,
+        wordCount: secondGate.wordCount,
+        wordLimit: ctx.wordLimit,
+        overLimit: secondGate.overLimit,
+        blocking: secondGate.blocking.map((c) => `[${c.kind}/${c.verdict}] ${c.claim} :: ${c.issue}`),
+      },
+      "model-answer still failing after one regeneration; serving it uncached",
+    );
+  }
+  return { modelAnswer: second, passed: secondGate.passed, ...genUsage };
 }
 
 interface TranslationRow {

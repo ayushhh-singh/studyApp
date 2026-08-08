@@ -511,7 +511,47 @@ async function collectEvaluationPrompts(): Promise<void> {
     "evaluation/buildModelAnswerUserContent:no-points",
     mod.buildModelAnswerUserContent(ctx({ language: "hi" }), pass1({ reference_points: [], missed_key_points: [] })),
   );
+
+  // --- pass 2b: the model-answer verify gate (§9 G3 / G8). Exam-independent by
+  // design, so there is one system prompt and no per-exam variants to pin.
+  put("evaluation/buildModelAnswerVerifySystem", mod.buildModelAnswerVerifySystem());
+  put("evaluation/buildModelAnswerVerifyContent:grounded", mod.buildModelAnswerVerifyContent(ctx(), FIXTURE_MODEL_ANSWER));
+  // Both correction shapes, because they gate independently: a length-only
+  // rejection must NOT carry a factual-errors block, and vice versa.
+  put(
+    "evaluation/buildModelAnswerCorrection:length-only",
+    mod.buildModelAnswerCorrection({ wordCount: 168, wordLimit: 125, overLimit: true, blocking: [] }),
+  );
+  put(
+    "evaluation/buildModelAnswerCorrection:facts-mixed",
+    mod.buildModelAnswerCorrection({
+      wordCount: 120,
+      wordLimit: 125,
+      overLimit: false,
+      blocking: [
+        { claim: "the Supreme Court held in 2011 that", kind: "attribution", verdict: "contradicted", issue: "no such judgment exists; the 2011 event was a Bill." },
+        { claim: "the Second ARC recommended a statutory grievance framework", kind: "attribution", verdict: "unverifiable", issue: "could not place this recommendation." },
+      ],
+    }),
+  );
+  put(
+    "evaluation/buildModelAnswerCorrection:both",
+    mod.buildModelAnswerCorrection({
+      wordCount: 168,
+      wordLimit: 125,
+      overLimit: true,
+      blocking: [
+        { claim: "India signed the CTBT", kind: "attribution", verdict: "contradicted", issue: "India has never signed the CTBT." },
+        { claim: "coal supplies 70% of primary energy", kind: "figure", verdict: "contradicted", issue: "that share is of electricity generation, not primary energy." },
+      ],
+    }),
+  );
 }
+
+/** Fixed answer text for the verify-content fixture — no clock, no model, no DB. */
+const FIXTURE_MODEL_ANSWER =
+  "Introduction: a fixture model answer. Body: the Supreme Court held in 2011 that fixture " +
+  "doctrine applies, and coal supplies 70% of primary energy. Conclusion: a fixture conclusion.";
 
 async function collectMentorPrompts(): Promise<void> {
   const mod = await load<typeof import("../src/services/mentor/prompts.js")>("../src/services/mentor/prompts.js");

@@ -567,3 +567,215 @@ export function buildModelAnswerUserContent(ctx: EvalContext, pass1: Pass1Result
     `Write the model answer now in ${langName(ctx.language)}, within the word limit.`
   );
 }
+
+// ---------------------------------------------------------------------------
+// Pass 2b — model-answer VERIFY (docs/OUTSTANDING.md §9 G3 + G8)
+// ---------------------------------------------------------------------------
+/**
+ * ⚑ WHY THIS STAGE EXISTS AT ALL. Until this landed, `answer_eval_model` was the
+ * ONLY generating surface in the repo with no verification stage — qgen has a
+ * critic AND a blind verify, CA MCQs have `ca_mcq_verify`, chapters have a fact
+ * audit with a publish gate. And it is the surface where an error is most
+ * durable: the output is presented to the candidate as the near-full-marks
+ * answer AND persisted into `question_model_answers` for replay to EVERY future
+ * student on that question, so one wrong specific is authoritative and permanent
+ * until `RUBRIC_VERSION` bumps. A blind 3-judge panel measured 2/16 answers at
+ * accuracy <=3.5, three judges independently naming the same errors.
+ *
+ * DESIGN NOTES, each of which is load-bearing:
+ *
+ *  - It is a BLIND CHECK, like qgen's Stage C. The verifier is never told the
+ *    answer is a model answer, never shown the rubric, and never asked whether
+ *    it is good — only which of its checkable specifics are wrong. Telling it
+ *    "this is the exemplar" invites agreement rather than scrutiny.
+ *
+ *  - IT CLASSIFIES `kind` AS WELL AS `verdict`, AND THAT IS WHAT MAKES THE GATE
+ *    WORK. Measured on the panel's own 16 answers: the worst-scoring answer's
+ *    known defect — the invented "Supreme Court (2011)" ruling three judges
+ *    caught — comes back `unverifiable`, NOT `contradicted`, because a careful
+ *    checker will not assert that a judgment it has never heard of definitely
+ *    does not exist. A gate that blocked only on `contradicted` therefore let
+ *    the single worst answer straight through. But blocking on ALL
+ *    `unverifiable` is not the answer either: the grounding store is
+ *    syllabus/PYQ text, not an almanac, so most true specifics in a good answer
+ *    are legitimately absent from it, and blocking on absence would reject
+ *    nearly everything and destroy the reuse cache (re-billing every student on
+ *    every question).
+ *
+ *    The split that resolves it is ATTRIBUTION vs everything else, and it falls
+ *    straight out of the generator's own contract. `FACTUAL_PRECISION` already
+ *    tells the writer: "if you are not certain that a named court, committee,
+ *    report or scheme said a particular thing in a particular year, state the
+ *    principle WITHOUT naming a source". So an attribution the checker cannot
+ *    confirm is a breach of the rule the writer was given, whether or not it
+ *    can be positively disproved — while an unconfirmed figure is just a figure
+ *    outside the passages. Hence: `contradicted` blocks whatever its kind, and
+ *    `unverifiable` blocks ONLY for kind `attribution`.
+ *
+ *  - It adds NO exam-config slot, deliberately. Fact-checking a named court,
+ *    year or denominator is exam-INDEPENDENT — nothing about it encodes one
+ *    commission's examiner judgment, which is the bar `lib/exam-config.ts`
+ *    exists to enforce (U6). Same reasoning as the ethics model-answer branch
+ *    reusing `modelAnswerFramingGs`. This also means the stage works for every
+ *    exam the moment that exam has content, with no new UNAUTHORED slots.
+ */
+export const MODEL_ANSWER_VERIFY_SCHEMA: Record<string, unknown> = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    claims: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          claim: { type: "string" },
+          kind: { type: "string", enum: ["attribution", "figure", "other"] },
+          verdict: { type: "string", enum: ["supported", "unverifiable", "contradicted"] },
+          issue: { type: "string" },
+        },
+        required: ["claim", "kind", "verdict", "issue"],
+      },
+    },
+  },
+  required: ["claims"],
+};
+
+export function buildModelAnswerVerifySystem(): string {
+  return (
+    "You are a meticulous fact-checker with broad knowledge of Indian polity, economy, history, " +
+    "geography, environment, science and current affairs. You are shown an examination question, a " +
+    "written answer to it, and some reference passages. Your only job is to check the answer's " +
+    "CHECKABLE SPECIFICS — every named court judgment or case, Act, constitutional article, " +
+    "committee or commission, official report or index, government scheme, treaty and its " +
+    "ratification status, named institution, date or year, and every number, percentage or " +
+    "monetary figure together with the denominator or base year it is attached to.\n\n" +
+    "⚑ HOW TO USE THE REFERENCE PASSAGES. They are a SMALL, PARTIAL extract of syllabus and " +
+    "past-paper text — they are not an encyclopedia and they are not the boundary of what is true. " +
+    "MOST TRUE STATEMENTS IN A GOOD ANSWER WILL NOT APPEAR IN THEM. Judge each specific from YOUR " +
+    "OWN KNOWLEDGE FIRST, and use the passages only as extra corroboration where they happen to " +
+    "cover the point. A well-known Act, scheme, body or figure that you know to be real is " +
+    "\"supported\" EVEN IF THE PASSAGES NEVER MENTION IT. Absence from the passages is not evidence " +
+    "of anything and must never on its own produce \"unverifiable\" or \"contradicted\". Never write " +
+    "that something \"is not mentioned in the passages\" as your reason for doubting it — if that is " +
+    "your only reason, the verdict is \"supported\".\n\n" +
+    "Ignore style, structure, coverage, balance and whether the answer is any good — you are not " +
+    "grading it. Ignore ordinary analytical prose, general principles and value judgements: they " +
+    "are not checkable specifics and must not be listed.\n\n" +
+    "For each checkable specific, set \"kind\":\n" +
+    "- \"attribution\": the answer says a NAMED body or instrument said, held, ruled, recommended, " +
+    "reported, launched or established something — a court judgment or case, a committee or " +
+    "commission, an official report or index, an Act or constitutional article, a scheme, a " +
+    "treaty, a named institution. Anything of the form \"X did/said Y\" where X is named.\n" +
+    "- \"figure\": a number, percentage, amount, rank or date standing on its own.\n" +
+    "- \"other\": any remaining checkable specific.\n\n" +
+    "Then set \"verdict\":\n" +
+    "- \"supported\": you know it to be true, OR the passages corroborate it. This is the DEFAULT " +
+    "for anything you recognise as real and correctly described. A real Act cited by its real " +
+    "name and year, a real scheme, a real body, a widely-quoted figure in the right ballpark " +
+    "attached to the right denominator — all \"supported\".\n" +
+    "- \"contradicted\": you POSITIVELY KNOW the specific is wrong and can say what is true instead " +
+    "— the named body never said or did that, the attribution belongs to a different institution " +
+    "or instrument, the event happened in a different year, the status is the opposite of what is " +
+    "stated, or the figure is attached to the wrong denominator or base year. If you cannot state " +
+    "the correction, it is not \"contradicted\".\n" +
+    "- \"unverifiable\": YOU PERSONALLY DO NOT KNOW whether this is true — the named judgment, " +
+    "committee, report or scheme is one you cannot place at all, or the figure is too specific for " +
+    "you to have any view on. This is about the limits of YOUR knowledge, not about the passages. " +
+    "Never assert that something does not exist merely because you do not recognise it, and never " +
+    "use this verdict for something you do recognise.\n\n" +
+    "Set \"issue\" to a short explanation of what is actually true for a contradicted claim, what " +
+    "you could not confirm for an unverifiable one, and an empty string for a supported one. " +
+    "Quote the answer's own wording in \"claim\". If the answer contains no checkable specifics, " +
+    "return an empty list. Do not explain outside the JSON. Return strict JSON only."
+  );
+}
+
+export function buildModelAnswerVerifyContent(ctx: EvalContext, modelAnswer: string): string {
+  return (
+    `QUESTION:\n${ctx.questionText}\n\n` +
+    `ANSWER TO CHECK:\n<<<\n${neutralizeFence(modelAnswer)}\n>>>\n\n` +
+    `REFERENCE PASSAGES:\n${groundingBlock(ctx.grounding, ctx.examCode)}\n\n` +
+    `List the checkable specifics in the answer with your verdict on each.`
+  );
+}
+
+/** One checkable specific the verifier judged, as returned by `MODEL_ANSWER_VERIFY_SCHEMA`. */
+export interface VerifiedClaim {
+  claim: string;
+  kind: "attribution" | "figure" | "other";
+  verdict: "supported" | "unverifiable" | "contradicted";
+  issue: string;
+}
+
+/**
+ * The blocking rule, in one place so the gate and its rationale cannot drift.
+ * See `buildModelAnswerVerifySystem` for the measurement this encodes: blocking
+ * on `contradicted` alone missed the panel's worst answer, and blocking on all
+ * `unverifiable` would reject almost everything.
+ */
+export function isBlockingClaim(c: VerifiedClaim): boolean {
+  if (c.verdict === "contradicted") return true;
+  return c.verdict === "unverifiable" && c.kind === "attribution";
+}
+
+/**
+ * A regeneration brief, appended to the model-answer user content on the ONE
+ * retry a failed answer gets.
+ *
+ * ⚑ WHY THIS IS NOT "the instruction, repeated louder". G8 recorded 7 of 16
+ * answers exceeding a word limit the prompt ALREADY states ("stay within about
+ * 10% of it — do not overshoot"), and the conclusion drawn there was that an
+ * instruction being ignored is not fixed by restating it. So this deliberately
+ * carries only MEASUREMENTS AND FINDINGS about the draft that just failed — its
+ * real word count against the limit, and the specific claims a blind checker
+ * found false — never a re-statement of the original rules. The model is told
+ * what its own previous attempt did wrong, which is information it did not have
+ * the first time.
+ */
+export function buildModelAnswerCorrection(opts: {
+  wordCount: number;
+  wordLimit: number;
+  overLimit: boolean;
+  blocking: VerifiedClaim[];
+}): string {
+  const parts: string[] = [
+    "REVISION REQUIRED. Your previous draft was checked and rejected. Write it again, fixing " +
+      "exactly the problems below and changing nothing else.",
+  ];
+  if (opts.overLimit) {
+    parts.push(
+      `LENGTH: the draft ran to ${opts.wordCount} words against a limit of ${opts.wordLimit}. ` +
+        `Cut it to ${opts.wordLimit} words or fewer. Remove the least load-bearing material rather ` +
+        `than compressing every sentence.`,
+    );
+  }
+  const wrong = opts.blocking.filter((c) => c.verdict === "contradicted");
+  const unplaceable = opts.blocking.filter((c) => c.verdict !== "contradicted");
+  if (wrong.length) {
+    parts.push(
+      `FACTUAL ERRORS a fact-checker found in the draft:\n` +
+        wrong.map((c) => `- "${c.claim}" — ${c.issue || "this is not correct."}`).join("\n"),
+    );
+  }
+  if (unplaceable.length) {
+    // Deliberately NOT phrased as "this is wrong": the checker's finding is that
+    // it could not place the source, which is a different fact about the world.
+    // Telling the model a true claim is false invites it to swap in another
+    // invented one — the exact move this whole gate exists to stop.
+    parts.push(
+      `UNCONFIRMED ATTRIBUTIONS. A fact-checker could not confirm that these named sources said ` +
+        `or did what the draft claims:\n` +
+        unplaceable.map((c) => `- "${c.claim}"`).join("\n"),
+    );
+  }
+  if (wrong.length || unplaceable.length) {
+    parts.push(
+      `For every item above: make the point WITHOUT the attribution, year or figure rather than ` +
+        `substituting another plausible-looking one. Do not replace one named source with a ` +
+        `different named source to fill the gap. A slightly less specific true statement is worth ` +
+        `more marks than a precise false one.`,
+    );
+  }
+  return parts.join("\n\n");
+}
