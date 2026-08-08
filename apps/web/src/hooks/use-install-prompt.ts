@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-const DISMISSED_KEY = "neev-pwa-install-dismissed";
-
 /**
  * `beforeinstallprompt` isn't in standard lib.dom.d.ts — Chromium-only,
  * never fires in Safari/Firefox, and never fires in dev unless the app
@@ -14,44 +12,37 @@ interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
 }
 
-function readDismissed(): boolean {
-  try {
-    return localStorage.getItem(DISMISSED_KEY) === "1";
-  } catch {
-    // localStorage unavailable (private mode / disabled) — never persists,
-    // but the in-memory default (not dismissed) is still a safe fallback.
-    return false;
-  }
-}
-
 /**
  * Captures the browser's `beforeinstallprompt` event (which Chromium fires
  * once, early, then never again for that page load) so the app can trigger
  * it later from its own UI instead of relying on the native omnibox/menu
  * affordance most users never notice. `event.preventDefault()` suppresses
- * the browser's automatic mini-infobar so Neev's own banner is the only
- * prompt the user sees.
+ * the browser's automatic mini-infobar so Neev's own UI is the only prompt
+ * the user sees.
  *
- * Dismissal is a simple one-way flag in localStorage — matches
- * `pwa-update-toast.tsx`'s convention of not over-engineering re-show
- * logic for a low-stakes, easily-reachable-via-browser-menu affordance.
+ * Two consumers: `PwaInstallButton` (a quiet icon in the sticky TopBar,
+ * the common quick-access path) and `InstallAppCard` (Profile > Settings,
+ * the full picture — manual instructions for non-Chromium browsers, an
+ * "already installed" state) — the same TopBar-icon/Settings-card split
+ * this app already uses for notifications (`NotificationBell` +
+ * `PushNotificationsCard`). Neither needs a "dismiss forever" concept: a
+ * small icon that only appears when genuinely actionable isn't naggy
+ * enough to warrant one.
  */
 export function useInstallPrompt() {
   const [deferredEvent, setDeferredEvent] = useState<BeforeInstallPromptEvent | null>(null);
-  const [dismissed, setDismissed] = useState<boolean>(readDismissed);
   // Tracks the `appinstalled` event specifically — distinct from checking
   // `display-mode: standalone` (the more common "already installed" check),
   // because the CURRENT tab doesn't switch into standalone display just by
   // installing; that only happens on a fresh launch from the installed
-  // icon. Without this, a persistent "Install" entry point (unlike the
-  // one-shot banner, which simply disappears once `canInstall` goes false)
-  // would fall through to "here's how to install manually" immediately
-  // after the user successfully installed via that exact entry point.
+  // icon. Without this, a persistent "Install" entry point would fall
+  // through to "here's how to install manually" immediately after the
+  // user successfully installed via that exact entry point.
   const [installed, setInstalled] = useState(false);
   // Reentrancy guard for promptInstall — a ref, not state, because the
-  // callback below is memoized on [deferredEvent, dismiss] and would
-  // otherwise close over a stale value of an `isPrompting` state flag
-  // across renders where those deps haven't changed.
+  // callback below is memoized on [deferredEvent] and would otherwise
+  // close over a stale value of an `isPrompting` state flag across
+  // renders where that dep hasn't changed.
   const promptingRef = useRef(false);
   const [isPrompting, setIsPrompting] = useState(false);
 
@@ -62,7 +53,7 @@ export function useInstallPrompt() {
     }
     function handleAppInstalled() {
       // Already installed (via this prompt or the browser's own menu) —
-      // nothing left to offer, regardless of prior dismissal state.
+      // nothing left to offer.
       setDeferredEvent(null);
       setInstalled(true);
     }
@@ -72,16 +63,6 @@ export function useInstallPrompt() {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
       window.removeEventListener("appinstalled", handleAppInstalled);
     };
-  }, []);
-
-  const dismiss = useCallback(() => {
-    setDismissed(true);
-    try {
-      localStorage.setItem(DISMISSED_KEY, "1");
-    } catch {
-      // Best-effort persistence — the in-memory state still hides the
-      // banner for the rest of this session either way.
-    }
   }, []);
 
   const promptInstall = useCallback(async () => {
@@ -94,26 +75,22 @@ export function useInstallPrompt() {
     setIsPrompting(true);
     try {
       await deferredEvent.prompt();
-      const choice = await deferredEvent.userChoice;
-      // Chrome only allows calling prompt() once per captured event, so it's
-      // spent either way — clear it, and if the user explicitly declined the
-      // native dialog, treat that the same as dismissing our own banner.
+      await deferredEvent.userChoice;
+      // Chrome only allows calling prompt() once per captured event, so
+      // it's spent either way (accepted or declined) — clear it. A fresh
+      // page load gets a fresh event, so declining isn't sticky here the
+      // way it would need to be for a persistent banner.
       setDeferredEvent(null);
-      if (choice.outcome === "dismissed") {
-        dismiss();
-      }
     } finally {
       promptingRef.current = false;
       setIsPrompting(false);
     }
-  }, [deferredEvent, dismiss]);
+  }, [deferredEvent]);
 
   return {
     canInstall: deferredEvent !== null,
     promptInstall,
     isPrompting,
-    dismissed,
-    dismiss,
     installed,
   };
 }

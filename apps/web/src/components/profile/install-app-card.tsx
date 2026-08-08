@@ -6,12 +6,14 @@ import { useInstallPrompt } from "@/hooks/use-install-prompt";
 import { isIosDevice, isStandaloneDisplay } from "@/lib/pwa-platform";
 
 /**
- * Persistent Settings entry point for installing the PWA — unlike
- * `PwaInstallBanner` (a one-time, dismissible nudge), this always renders
- * `canInstall`'s current state regardless of whether the banner was
- * dismissed, so a user who dismissed it once still has a standing way to
- * install later. Reuses `useInstallPrompt()` rather than re-implementing
- * `beforeinstallprompt` capture.
+ * The full-picture Settings entry point for installing the PWA — pairs
+ * with `PwaInstallButton` (a quiet TopBar icon for the common one-tap
+ * case, same split as `NotificationBell` + `PushNotificationsCard`) by
+ * additionally covering the states a tiny header icon can't: an
+ * already-installed confirmation, and manual instructions for the
+ * non-Chromium browsers `beforeinstallprompt` never fires in. Reuses
+ * `useInstallPrompt()` rather than re-implementing `beforeinstallprompt`
+ * capture.
  */
 export function InstallAppCard() {
   const { t } = useTranslation();
