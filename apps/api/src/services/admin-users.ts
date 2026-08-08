@@ -22,7 +22,7 @@
  * misclassification entirely: this always resolves as full paid-equivalent
  * Pro (60/mo evaluations, 100/day mentor), regardless of trial history.
  */
-import type { AdminGrantAction, AdminUserSummary, TargetExamCode } from "@neev/shared";
+import type { AdminGrantAction, AdminUserListRow, AdminUserSummary, TargetExamCode } from "@neev/shared";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
@@ -42,9 +42,42 @@ interface ProfileRow {
   is_admin: boolean;
   target_exam: string;
   created_at: string;
+  streak_count: number;
 }
 
-const PROFILE_COLUMNS = "display_name, plan, plan_expires_at, has_used_trial, is_admin, target_exam, created_at";
+const PROFILE_COLUMNS =
+  "display_name, plan, plan_expires_at, has_used_trial, is_admin, target_exam, created_at, streak_count";
+
+/** One row of `admin_user_activity` (migration 0119). */
+export interface UserActivityRow {
+  user_id: string;
+  last_active_at: string | null;
+  tests_taken: number;
+  srs_reviews_count: number;
+}
+
+/**
+ * Batched activity for a set of users, via the `admin_user_activity` aggregate
+ * (migration 0119 — see that file for why this is a SQL function rather than
+ * PostgREST calls, and why "active" spans five tables).
+ *
+ * The RPC returns exactly one row per requested id, so a user with no activity
+ * at all still gets an entry and renders as "never active" rather than
+ * disappearing. Chunked at 100 ids on the same reasoning as
+ * `loadProfilesByIds`' `.in()` chunking — a large array in the request body is
+ * fine, but keeping both reads to the same batch size keeps the shape uniform.
+ */
+export async function loadActivityByIds(ids: string[]): Promise<Map<string, UserActivityRow>> {
+  const map = new Map<string, UserActivityRow>();
+  if (ids.length === 0) return map;
+  for (let i = 0; i < ids.length; i += 100) {
+    const chunk = ids.slice(i, i + 100);
+    const { data, error } = await supabase().rpc("admin_user_activity", { p_user_ids: chunk });
+    if (error) throw new HttpError(500, `activity lookup failed: ${error.message}`);
+    for (const row of (data ?? []) as UserActivityRow[]) map.set(row.user_id, row);
+  }
+  return map;
+}
 
 /** Page size for the "all users" list — mirrors REVIEW_PAGE_SIZE's convention. */
 export const ADMIN_USER_LIST_PAGE_SIZE = 20;
@@ -117,7 +150,7 @@ async function loadProfilesByIds(ids: string[]): Promise<Map<string, ProfileRow>
  * Paginated server-side so the response stays small regardless of the
  * underlying user count.
  */
-export async function listUsers(opts: { page: number; query?: string }): Promise<{ items: AdminUserSummary[]; total: number }> {
+export async function listUsers(opts: { page: number; query?: string }): Promise<{ items: AdminUserListRow[]; total: number }> {
   const authUsers = await listAllAuthUsers();
   const profilesById = await loadProfilesByIds(authUsers.map((u) => u.id));
   let summaries = authUsers.map((u) => buildSummary(u, profilesById.get(u.id)));
@@ -133,7 +166,23 @@ export async function listUsers(opts: { page: number; query?: string }): Promise
 
   const total = summaries.length;
   const from = (opts.page - 1) * ADMIN_USER_LIST_PAGE_SIZE;
-  const items = summaries.slice(from, from + ADMIN_USER_LIST_PAGE_SIZE);
+  const pageSummaries = summaries.slice(from, from + ADMIN_USER_LIST_PAGE_SIZE);
+
+  // Activity is loaded for the SLICED PAGE ONLY (<= ADMIN_USER_LIST_PAGE_SIZE
+  // ids), never for every account: it aggregates five tables, so pricing it per
+  // page keeps this endpoint's cost flat as the user count grows. This is also
+  // why the slice happens before the lookup rather than after.
+  const activityById = await loadActivityByIds(pageSummaries.map((s) => s.id));
+  const items: AdminUserListRow[] = pageSummaries.map((s) => {
+    const activity = activityById.get(s.id);
+    return {
+      ...s,
+      last_active_at: activity?.last_active_at ?? null,
+      tests_taken: activity?.tests_taken ?? 0,
+      srs_reviews_count: activity?.srs_reviews_count ?? 0,
+      streak_count: profilesById.get(s.id)?.streak_count ?? 0,
+    };
+  });
   return { items, total };
 }
 

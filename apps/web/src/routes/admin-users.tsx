@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ShieldCheck, ShieldOff, Sparkles, Lock, TriangleAlert, UserRound } from "lucide-react";
-import type { AdminUserSummary } from "@neev/shared";
+import type { AdminUserListRow, AdminUserSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -19,6 +19,8 @@ import {
   useRevokePro,
 } from "@/hooks/use-admin-users";
 import { cn } from "@/lib/utils";
+import { formatRelativeTime } from "@/lib/format-relative-time";
+import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "Nav.adminUsers" };
 
@@ -38,6 +40,7 @@ export const handle = { titleKey: "Nav.adminUsers" };
  */
 export function Component() {
   const { t } = useTranslation();
+  const locale = useLocale();
   const { data: admin, isLoading: adminLoading } = useAdminStatus();
   const adminMode = admin?.admin_mode ?? false;
 
@@ -182,6 +185,7 @@ export function Component() {
                       <div className="min-w-0">
                         <p className="truncate font-medium">{u.display_name || u.email || u.id}</p>
                         <p className="truncate text-xs text-muted-foreground">{u.email ?? t("AdminUsers.noEmail")}</p>
+                        <UserActivityMeta user={u} locale={locale} />
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-1.5">
                         {u.is_anonymous && (
@@ -239,6 +243,35 @@ export function Component() {
         )}
       </SectionCard>
     </div>
+  );
+}
+
+/**
+ * The at-a-glance activity line under each row's email: when this account was
+ * last actually active, and how much it has done.
+ *
+ * A NEVER-ACTIVE account says so explicitly rather than rendering an empty gap
+ * — "signed up and never returned" is one of the most useful things this list
+ * can tell a product owner, so it must be visible, not an absence. Counts are
+ * hidden when zero to keep the line short for exactly those accounts.
+ *
+ * Numerals use `tabular-nums` so figures line up down the column while
+ * scanning, per the display-numeral convention in the design system.
+ */
+function UserActivityMeta({ user, locale }: { user: AdminUserListRow; locale: string }) {
+  const { t } = useTranslation();
+  const lastActive = formatRelativeTime(user.last_active_at, locale);
+  const parts: string[] = [
+    lastActive ? t("AdminUsers.activeAgo", { ago: lastActive }) : t("AdminUsers.neverActive"),
+  ];
+  if (user.tests_taken > 0) parts.push(t("AdminUsers.testsCount", { count: user.tests_taken }));
+  if (user.srs_reviews_count > 0) parts.push(t("AdminUsers.reviewsCount", { count: user.srs_reviews_count }));
+  if (user.streak_count > 0) parts.push(t("AdminUsers.streakCount", { count: user.streak_count }));
+
+  return (
+    <p className="truncate text-xs tabular-nums text-muted-foreground/80">
+      {parts.join(" · ")}
+    </p>
   );
 }
 

@@ -41,7 +41,37 @@ export const adminUserListQuerySchema = z.object({
 });
 export type AdminUserListQuery = z.infer<typeof adminUserListQuerySchema>;
 
-export const adminUserListResponseSchema = apiEnvelopeSchema(paginatedSchema(adminUserSummarySchema));
+/**
+ * One row of the admin Users LIST — an `AdminUserSummary` plus the activity
+ * signals a product owner scans the list for.
+ *
+ * Deliberately a SEPARATE type rather than four more fields on
+ * `adminUserSummarySchema`: that summary is the response shape of the four
+ * grant/revoke endpoints, which are about ACCESS CONTROL and have no use for
+ * activity counts. Widening it would make every grant response pay for an
+ * extra aggregate query to populate fields its caller ignores. So:
+ * summary = access-control state, list row = summary + activity.
+ */
+export const adminUserListRowSchema = adminUserSummarySchema.extend({
+  /**
+   * Last genuinely-active moment, or null for an account that has never done
+   * anything. NOT `users_profile.last_active_date` — that column is only
+   * written on a study-DAY activity, so a user who reads chapters daily but
+   * never completes a study action would look inactive. This is a max() across
+   * the same five durable-activity tables `pruneAbandonedGuests` treats as
+   * "active" (events, attempts, srs_reviews, srs_cards, user_notes), so the
+   * admin list and the guest-retention job cannot disagree about the word.
+   */
+  last_active_at: z.string().nullable(),
+  /** SUBMITTED attempts only — an abandoned attempt row exists from the moment the player opens. */
+  tests_taken: z.number().int(),
+  srs_reviews_count: z.number().int(),
+  /** `users_profile.streak_count` — the live streak the dashboard/TopBar flame renders. */
+  streak_count: z.number().int(),
+});
+export type AdminUserListRow = z.infer<typeof adminUserListRowSchema>;
+
+export const adminUserListResponseSchema = apiEnvelopeSchema(paginatedSchema(adminUserListRowSchema));
 export type AdminUserListResponse = z.infer<typeof adminUserListResponseSchema>;
 
 export const adminUserActionResponseSchema = apiEnvelopeSchema(adminUserSummarySchema);
