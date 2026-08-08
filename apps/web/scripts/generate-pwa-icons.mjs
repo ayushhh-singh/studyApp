@@ -1,46 +1,30 @@
 // One-off generator, not part of the build pipeline — run manually with
-// `node scripts/generate-pwa-icons.mjs` whenever public/favicon.svg changes.
-// Rasterizes the brand mark onto a solid-color canvas (matching --primary from
-// index.css) at every size vite-plugin-pwa's manifest references.
-import { readFileSync, mkdirSync } from "node:fs";
+// `node scripts/generate-pwa-icons.mjs` whenever scripts/assets/brand-mark-source.png
+// changes. The source is a flat, pre-composed raster (not a vector we control),
+// so this just resizes it into every size the favicon/PWA manifest reference —
+// no background/scale logic needed, the source already has its own padding
+// and background baked in.
+import { mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import sharp from "sharp";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const mark = readFileSync(path.join(root, "..", "public", "favicon.svg"), "utf8").trim();
-const outDir = path.join(root, "..", "public", "pwa");
+const source = path.join(root, "assets", "brand-mark-source.png");
+const publicDir = path.join(root, "..", "public");
+const outDir = path.join(publicDir, "pwa");
 mkdirSync(outDir, { recursive: true });
 
-const PRIMARY = "#2563EB";
-
-// markScale: how much of the canvas the 48x46 mark occupies. Maskable icons
-// need the mark inside Android's ~80%-diameter safe circle, so they get a
-// smaller scale + more padding than plain "any" icons.
-function canvas(size, { markScale, background }) {
-  const w = 68;
-  const h = 56;
-  const drawSize = size * markScale;
-  const scale = drawSize / w;
-  const x = (size - w * scale) / 2;
-  const y = (size - h * scale) / 2;
-  const inner = mark.replace(/^<svg[^>]*>/, "").replace(/<\/svg>$/, "");
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-    <rect width="${size}" height="${size}" fill="${background}"/>
-    <g transform="translate(${x} ${y}) scale(${scale})">${inner}</g>
-  </svg>`;
-}
-
 const targets = [
-  { file: "icon-192.png", size: 192, markScale: 0.62, background: PRIMARY },
-  { file: "icon-512.png", size: 512, markScale: 0.62, background: PRIMARY },
-  { file: "icon-maskable-192.png", size: 192, markScale: 0.45, background: PRIMARY },
-  { file: "icon-maskable-512.png", size: 512, markScale: 0.45, background: PRIMARY },
-  { file: "apple-touch-icon.png", size: 180, markScale: 0.58, background: PRIMARY },
+  { file: path.join(outDir, "icon-192.png"), size: 192 },
+  { file: path.join(outDir, "icon-512.png"), size: 512 },
+  { file: path.join(outDir, "icon-maskable-192.png"), size: 192 },
+  { file: path.join(outDir, "icon-maskable-512.png"), size: 512 },
+  { file: path.join(outDir, "apple-touch-icon.png"), size: 180 },
+  { file: path.join(publicDir, "favicon.png"), size: 64 },
 ];
 
 for (const t of targets) {
-  const svg = canvas(t.size, t);
-  await sharp(Buffer.from(svg)).png().toFile(path.join(outDir, t.file));
-  console.log(`wrote pwa/${t.file}`);
+  await sharp(source).resize(t.size, t.size).png().toFile(t.file);
+  console.log(`wrote ${path.relative(publicDir, t.file)}`);
 }

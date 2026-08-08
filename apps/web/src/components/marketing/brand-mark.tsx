@@ -1,33 +1,24 @@
-import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 /**
- * Wordmark: "Marked Right" — an ink dot (the pen touching down) drawing into a
- * checkmark, stroked in the score gauge's own coral->marigold->tulsi gradient
- * (matches public/favicon.svg, generated via scripts/generate-pwa-icons.mjs).
- * Picked over a literal Rubric-Dial repeat because it's the one thing every
- * core surface shares — MCQs, mocks, and the flagship AI answer evaluation
- * are all, in the end, something written or answered and then marked. Used
- * on the sidebar, landing hero, auth, and onboarding. Pure SVG + tokens, no
- * external asset.
+ * Wordmark: a supplied raster mark (scripts/assets/brand-mark-source.png —
+ * a student reading an open book, gradient-ringed in the score gauge's own
+ * coral->marigold->tulsi band), not a hand-drawn SVG. scripts/generate-pwa-icons.mjs
+ * resizes the same source into every favicon/PWA icon size; this reuses the
+ * 192px copy rather than shipping a duplicate file.
+ *
+ * The source image has its own opaque off-white background baked in (it
+ * isn't a transparent cutout), so it's wrapped in a fixed light chip here —
+ * NOT `bg-background`, which would flip dark in dark mode and mismatch the
+ * image's own white margin, producing a visible seam. Used on the sidebar,
+ * landing hero, auth, and onboarding.
  */
 export function BrandMark({ className, showText = true }: { className?: string; showText?: boolean }) {
-  // Unique per instance so two BrandMarks on one page (e.g. header + footer)
-  // never collide on the gradient's id.
-  const gradId = useId();
   return (
     <span className={cn("inline-flex items-center gap-2.5", className)}>
-      <svg viewBox="0 0 40 40" className="size-8 shrink-0" aria-hidden>
-        <defs>
-          <linearGradient id={gradId} x1="8" y1="24" x2="34" y2="8" gradientUnits="userSpaceOnUse">
-            <stop offset="0" stopColor="var(--coral)" />
-            <stop offset="0.5" stopColor="var(--marigold)" />
-            <stop offset="1" stopColor="var(--tulsi)" />
-          </linearGradient>
-        </defs>
-        <circle cx="8" cy="24" r="4.2" fill="var(--coral)" />
-        <path d="M8 24 L16 32 L34 8" fill="none" stroke={`url(#${gradId})`} strokeWidth="6.5" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
+      <span className="size-8 shrink-0 overflow-hidden rounded-lg bg-[#F7F9FC] shadow-sm">
+        <img src="/pwa/icon-192.png" alt="" className="size-full object-cover" />
+      </span>
       {showText ? (
         <span className="text-lg font-extrabold tracking-tight text-foreground">
           Neev

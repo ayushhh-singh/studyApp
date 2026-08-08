@@ -8,7 +8,7 @@
 # before the catch-all ever sees it.
 /sitemap.xml               /sitemap.xml               200
 /robots.txt                /robots.txt                200
-/favicon.svg               /favicon.svg               200
+/favicon.png               /favicon.png               200
 /manifest.webmanifest      /manifest.webmanifest      200
 /manifest.hi.webmanifest   /manifest.hi.webmanifest   200
 /og-default-en.png         /og-default-en.png         200

@@ -19,7 +19,7 @@ export default defineConfig({
         enabled: false, // injectManifest + dev SSR reload don't mix well; test PWA behavior against `vite build && vite preview`
         type: 'module',
       },
-      includeAssets: ['favicon.svg', 'offline.html', 'manifest.hi.webmanifest', 'pwa/*.png'],
+      includeAssets: ['favicon.png', 'offline.html', 'manifest.hi.webmanifest', 'pwa/*.png'],
       injectManifest: {
         // Precache the app shell + hashed JS/CSS/font assets. Fonts are
         // Fontsource woff2 files bundled as hashed assets by Vite, so they're

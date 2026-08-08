@@ -15,7 +15,7 @@ precacheAndRoute(self.__WB_MANIFEST);
 
 // Workbox's NavigationRoute matches EVERY `mode: 'navigate'` request by
 // default, regardless of path — that includes a user directly typing
-// /sitemap.xml, /robots.txt, /favicon.svg, etc. into the address bar. None
+// /sitemap.xml, /robots.txt, /favicon.png, etc. into the address bar. None
 // of this app's real SPA routes have a dot in the path, so any navigation
 // to a path ending in a file extension is a real static file, never the
 // app shell, and must be excluded here — otherwise it gets pulled into the

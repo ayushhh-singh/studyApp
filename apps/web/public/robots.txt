@@ -7,7 +7,7 @@ Disallow: /
 # of sign-in state), and Google explicitly recommends against blocking assets
 # a crawler needs to render a page: https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt#blocking-css-js
 Allow: /assets/
-Allow: /favicon.svg
+Allow: /favicon.png
 Allow: /manifest.webmanifest
 Allow: /manifest.hi.webmanifest
 Allow: /pwa/
