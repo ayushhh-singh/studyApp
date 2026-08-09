@@ -21,9 +21,15 @@ const targets = [
   { file: path.join(outDir, "icon-maskable-192.png"), size: 192 },
   { file: path.join(outDir, "icon-maskable-512.png"), size: 512 },
   { file: path.join(outDir, "apple-touch-icon.png"), size: 180 },
-  { file: path.join(publicDir, "favicon.png"), size: 64 },
+  { file: path.join(publicDir, "favicon.png"), size: 96 },
 ];
 
+// .png() output is lossless by construction (compressionLevel only trades
+// file size for CPU, never quality) and sharp's default downscale kernel is
+// already lanczos3 — so every generated size preserves as much of the
+// source's detail as its own pixel count allows. The only place detail is
+// unavoidably lost is a real 16-32px browser tab, which no resize technique
+// changes: that's a physical pixel-count limit, not a quality setting here.
 for (const t of targets) {
   await sharp(source).resize(t.size, t.size).png().toFile(t.file);
   console.log(`wrote ${path.relative(publicDir, t.file)}`);
