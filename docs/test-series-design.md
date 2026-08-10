@@ -25,19 +25,27 @@ Prelims CSAT and Mains**.
 
 ## 1. Executive summary
 
-1. **The full pattern is supportable today for UPPSC.** A 25-test Prelims series
-   and a 22-paper Mains series both fit inside the existing bank with no
-   generation programme. §6.
-2. **UPSC Prelims fits too, with one real gap: current affairs.** 1,057 GS
-   questions carry the series, but only **2** CA questions are approved for
-   `upsc` — and every real series puts CA in *every* test. §6.3.
-3. **"Goes live at 14:00 IST" needs almost no scheduling infrastructure.**
+1. **The full pattern is supportable — question supply is not the constraint.**
+   The existing bank already carries a 25-test UPPSC Prelims series and a
+   22-paper UPPSC Mains series outright (§6.3), and the two generation pipelines
+   between them produce **~530 new questions/week** against a whole series'
+   demand of ~2,500 (§6.6). **Nothing needs to be cut.**
+2. **But both pipelines must actually be running, and one is not.** `ca:run` is
+   healthy (~90-100 published items/day). **`qgen` has produced zero batches
+   since 2026-08-01 — nine days of silence against a nightly schedule** (§6.6).
+   Fix that before a series depends on it.
+3. **The real constraint moves to review throughput.** ~530 questions/week
+   arrive needing human approval, on top of a 1,027 backlog. That is the number
+   to staff against (Q9).
+4. **"Goes live at 14:00 IST" needs almost no scheduling infrastructure.**
    Opening a test is a read-time predicate, not a job. §7.
-4. **Prelims is ~free to serve; Mains is not.** Measured **$0.0584/evaluation**
+5. **Prelims is ~free to serve; Mains is not.** Measured **$0.0584/evaluation**
    → a 22-paper UPPSC Mains series is **~$25.7/student** against a ~$28 annual
    plan. Supply is fine; the economics are the blocker. §9.3.
-5. **Adding a `test_kind` value for series tests would silently break ranking.**
+6. **Adding a `test_kind` value for series tests would silently break ranking.**
    §5.3.
+7. **Four concrete published calendars are in §13** — UPPSC and UPSC, Prelims
+   and Mains, with dates, per-test syllabus, sources and question composition.
 
 ---
 
@@ -413,25 +421,23 @@ UPSC is better placed (`Basic Numeracy and DI` 292). Either run fewer, broader
 CSAT sectionals for UPPSC, or generate — CSAT is the one place where qgen has a
 **measured, partial clearance** (§6.4).
 
-**Net: the founder's instruction holds. Nothing needs to be cut except a
-UPPSC CSAT maths ladder, and one editorial action unblocks UPSC.**
+**Net: nothing needs to be cut.** Existing supply carries every series outright
+except the UPPSC CSAT maths ladder; the CA slice for UPSC is one editorial
+action (approve the `needs_review` CA MCQs); and §6.6 shows the pipelines
+refill faster than any series consumes.
 
-### 6.4 qgen — a dependency, sized honestly
+### 6.4 qgen — quality status
 
-Stated explicitly because §6.2's full-length mix leans on it:
-
-- **Volume is gated on human review, not generation.** Every generated question
-  is `needs_review` until a person approves it; the backlog is **1,027**. Nothing
-  in this repo budgets reviewer throughput (Q9).
 - **MCQ generation has a partial, measured clearance.** The 2026-08-08 panel
   confirmed `ac150dc`'s format fix real (`statement_counting` 20.7% → 0%), but it
   was **CSAT-only and never re-panelled**, and GS-I MCQ generation has never been
-  panel-gated at all (`PRE_GS1` has 17 generated questions).
-- **Cost is bounded**: `QGEN_BATCH_MAX_USD` defaults to $5/night on the Batches
-  API.
-- **But the full pattern does not require a generation programme** (§6.3) —
-  qgen improves full-length freshness rather than being load-bearing for
-  existence. That is the substantive change from the first draft.
+  panel-gated at all — `PRE_GS1` has **17** approved generated questions against
+  `PRE_CSAT`'s **291**.
+- **Acceptance is 69.5%** measured over 285 real batches: 2,018 requested →
+  1,403 accepted, at **$0.0165 per accepted question**. The four-stage pipeline
+  (generate → critic → blind verify → dedup) is doing real filtering.
+- Generated questions still land `needs_review`; approval is a human step and
+  that is the throughput limit, not generation (§6.6).
 
 ### 6.5 ⚑ Mains-descriptive generation is NOT cleared
 
@@ -441,6 +447,59 @@ Stated explicitly because §6.2's full-length mix leans on it:
 as **evenly spread** with a **second, undiagnosed cause**. All 28 generated
 descriptive rows stay `needs_review`. **A Mains series is PYQ-only until G1 is
 diagnosed and a fresh panel clears it** — and §6.3 shows that costs nothing.
+
+### 6.6 ⚑ The content supply engine — BOTH pipelines must run
+
+A scheduled series turns question supply from a stock into a **flow**: the
+calendar publishes a demand schedule months ahead, and two pipelines must keep
+filling it. This is a standing operational requirement of the feature, not a
+one-off content task.
+
+**The two feeds, and what each is for:**
+
+| Pipeline | Cron | Feeds | Measured output |
+|---|---|---|---|
+| **`ca:run`** (+ `ca:embed`) | `ca-run.yml`, 6-hourly | The **CA slice in every test** (§2.4), the 4 CA papers, and the `state_focus` UP-special test | **~90–100 published items/day**; **~20–30 CA MCQs/day ≈ 150–210/week** |
+| **`qgen:topup`** | `qgen-topup.yml`, nightly 03:00 IST | **Full-length freshness** — the ≥50% non-PYQ share that keeps a rank meaningful, and sectional depth (esp. CSAT maths) | **377 accepted/week** when running, 69.5% acceptance, **$0.0165/accepted question, ~$6.23/week** |
+
+**Demand vs supply, for a full 25-test UPPSC Prelims series:**
+
+| | questions |
+|---|---:|
+| 10 sectional × 50 | 500 |
+| 4 CA papers × 100 | 400 |
+| 1 UP-special × 100 | 100 |
+| 10 full-length × 150 | 1,500 |
+| **Total demand** | **2,500** |
+| Supply over a 40-week series (CA ~150/wk + qgen ~377/wk) | **~21,000** |
+
+Supply exceeds demand by roughly **8×**. Even a single quarter of both pipelines
+running covers a whole series. **The founder's position is correct and now
+measured: question volume is not a constraint on this feature.**
+
+**⚑ Three things that ARE constraints, in order:**
+
+1. **`qgen` is not currently running.** `generation_batches` shows 285 batches
+   between 2026-07-06 and **2026-08-01**, then **nothing for nine days** against
+   a nightly schedule. Root cause not diagnosed here — but note `OUTSTANDING.md`
+   §8k (U8k) records that `schedule:` triggers run from the **default branch**,
+   and `assert-fresh-checkout.mjs` fails a scheduled run whose checkout is stale.
+   **Verify `qgen-topup.yml` is green before building a series that assumes it.**
+2. **Review throughput is the real ceiling.** ~150 CA + ~377 qgen = **~530
+   questions/week arriving for human approval**, on top of the standing 1,027
+   backlog. Nothing in this repo budgets a reviewer. This is Q9 and it is the
+   single most important operational answer needed.
+3. **Per-section targeting, not just volume.** `qgen:topup`'s
+   `computeNodeTargets` keeps every top-level node above a floor; a series wants
+   generation aimed at the sections its calendar is about to test. Recommend a
+   `--series <slug>` mode that reads the upcoming entries' `syllabus_note` nodes
+   and biases targets toward them, so generation runs **ahead of** the calendar
+   rather than uniformly.
+
+**Recommended standing ops loop, once a series is live** (folds into
+`docs/operations.md`'s weekly routine): confirm both workflows green → drain the
+Review Queue → `pnpm ingest:embed --missing-only` → check the next 4 weeks'
+entries have their pools filled → `pnpm cost:report`.
 
 ---
 
@@ -599,7 +658,9 @@ Recommendation: 2 or 3. Explicitly the founder's call.
 | **U8u** — 0 `upsc` mocks | §8k | UPSC series assembly (one CLI run) |
 | **G1** — Mains-descriptive quality, second cause undiagnosed | §9 | qgen content in a Mains series. Not Prelims, and §6.3 shows PYQ-only is enough. |
 | **G3** — model-answer verify recall unmeasured | §9, §9a | Mains series ship |
-| **Reviewer throughput** — 1,027 `needs_review` | §3.3 | Any plan depending on qgen volume; UPPSC CSAT maths depth |
+| **⚑ `qgen:topup` has not produced a batch since 2026-08-01** | §6.6 | Full-length freshness and CSAT depth. **Verify the workflow is green before Phase 1.** |
+| **Reviewer throughput** — 1,027 backlog + **~530/week** inflow | §6.6 | Turning generated supply into *visible* supply. The single most important operational answer (Q9). |
+| **`exam_calendar` holds one row** (`uppsc/prelims/2026-12-06`) | §13 | Anchoring any calendar other than UPPSC Prelims. Seed the UPSC 2027 dates + UPPSC Mains. |
 | **D3** — in-process rate limiter | §4 | A real live-mock event (hundreds of `startAttempt` in one minute on a multi-instance deploy) |
 | **D7 / V2** — nothing is deployed | §4, §5 | Everything |
 | **Push unproven** — 1 subscription | §3.3 | Push as primary channel |
@@ -608,8 +669,15 @@ Recommendation: 2 or 3. Explicitly the founder's call.
 
 ## 11. Phased build plan
 
-**Phase 0 — decisions (no code).** Answer §12, especially Q2 (which model) and
-Q4 (Mains economics). Schedule the U8v CA approvals if UPSC is in scope for v1.
+**Phase 0 — decisions and pipeline health (no feature code).** Answer §12,
+especially Q2 (which model), Q4 (Mains economics) and Q9 (review throughput).
+Then three concrete unblocks, all of which are prerequisites rather than
+build work:
+1. **Get `qgen:topup` running again** — no batch since 2026-08-01 (§6.6).
+2. **Approve `upsc` CA MCQs** and confirm `ca:run --exam upsc` is scheduled
+   (U8v) — required before §13.3's calendar can be honoured.
+3. **Seed `exam_calendar`** with UPSC Prelims 2027 (23 May), UPSC Mains 2027
+   (20 Aug) and the UPPSC Mains date; today it holds one row (§13).
 
 **Phase 1 — Prelims series, end to end, both exams.**
 1. Migration: the three tables + owner-only RLS + the `v_test_leaderboard`
@@ -651,7 +719,257 @@ Mock as an acquisition event · institute-style mentor feedback per test.
 | **Q6** | **Should series full-lengths appear in the existing per-paper mock board?** | They will by default (§5.3). | Yes, but surface the series board as primary. |
 | **Q7** | **UPPSC only, or both at launch?** | UPSC Prelims GS supply is fine but its CA slice is empty (U8v) and `is_live=false`. | UPPSC first; UPSC as a fast follow once CA MCQs are approved. |
 | **Q8** | **Acceptable notification lag?** | Decides whether §7.2's `pg_cron` v2 is needed. | Accept 0–20 min for v1; revisit before any advertised live event. |
-| **Q9** | **Who reviews generated questions?** | 1,027 backlog; nothing budgets reviewer time. Gates UPPSC CSAT maths depth and full-length freshness. | Must be answered before any plan depending on qgen volume. |
+| **Q9** | **Who reviews generated questions, and at what weekly rate?** | **The only real supply constraint left** (§6.6): ~530 questions/week arrive for approval on top of a 1,027 backlog. Generation is solved; approval is not. | Decide a weekly review quota and who owns it. A series calendar is a commitment to publish on fixed dates — it cannot absorb a stalled queue. |
+| **Q10** | **One series per exam, or GS and CSAT sold separately?** | The market prices them as separate products (₹16,000 / ₹9,000) and §13.3 designs them separately; `test_series.paper_scope` supports either. | Separate — it matches the market and lets CSAT ship later, which matters because UPPSC CSAT is the one thin product (§13.3). |
+
+---
+
+## 13. The published calendars
+
+This is the deliverable a student sees and the spec `pnpm series:build` reads.
+Four series, both exams, both stages. Each is given as **(a) a reusable T-minus
+template** (date-agnostic, so the same series regenerates every cycle) and
+**(b) a concrete instantiation** against the real next exam date.
+
+**Anchor dates** — `exam_calendar` currently holds **exactly one row**
+(`uppsc / prelims / 2026-12-06`). The others are from the commissions' own
+calendars and **must be seeded before a generator can use them**:
+
+| Exam | Stage | Date | Source |
+|---|---|---|---|
+| UPPSC | Prelims 2026 | **6 Dec 2026** (Sun) | `exam_calendar`, verified Session 5 |
+| UPPSC | Mains 2026 | ~**late Mar 2027** (est.) | prior cycle ran 29 Mar–1 Apr; **not seeded, estimate** |
+| UPSC | Prelims 2027 | **23 May 2027** (Sun) | UPSC Calendar 2027 (released 20 May 2026) |
+| UPSC | Mains 2027 | **20 Aug 2027**, 5 days | same |
+
+Conventions: every test opens **Sunday 09:00 IST** (`opens_at`), closes the
+following **Saturday 23:59 IST** (`closes_at = ranked_until`) — a 7-day validity
+window that delivers the market's postpone-yes / prepone-no rule (§2.4) without
+a lockout. Composition columns are the §6.2 mix.
+
+---
+
+### 13.1 UPPSC Prelims GS — 25 tests (Model B compact)
+
+**Template.** Three phases; cadence compresses toward the exam, per §2.4.
+
+| Phase | Window | Cadence | Tests |
+|---|---|---|---|
+| I · Foundation | T−40 → T−22 | fortnightly | 1–10 sectional |
+| II · Integration | T−21 → T−13 | fortnightly | 11–15 (CA ×3, UP-special, revision sectional) |
+| III · Simulation | T−12 → T−2 | weekly | 16–25 full-length (incl. 1 CSAT FLT, 1 final CA) |
+
+| # | T− | Kind | Syllabus (`syllabus_note_i18n`) | Node target | Q | PYQ/CA/qgen |
+|---|---|---|---|---|---:|---|
+| 1 | 40 | sectional | Indian Polity & Constitution — Preamble, FRs, DPSP, FDs, Amendment, Basic Structure, Emergency | Polity → Constitution subtree | 50 | 60/10/30 |
+| 2 | 38 | sectional | Working of the Constitution — Union & State executive, Parliament, Judiciary, federalism, local govt, elections | Polity → remaining depth-2 | 50 | 60/10/30 |
+| 3 | 36 | sectional | Physical Geography — geomorphology, climatology, oceanography, soils, hazards; physical India | Geography → Physical | 50 | 60/10/30 |
+| 4 | 34 | sectional | Economic & Human Geography — resources, agriculture, industry, transport, population, settlements (World + India) | Geography → Economic/Human | 50 | 60/10/30 |
+| 5 | 32 | sectional | Ancient & Medieval India + Art & Culture | History → Ancient/Medieval | 50 | 70/5/25 |
+| 6 | 30 | sectional | Modern India & the National Movement (1757–1947) | History → Modern | 50 | 70/5/25 |
+| 7 | 28 | sectional | Economy I — national income, money & banking, inflation, budget, fiscal policy | Economic & Social Dev → macro | 50 | 55/15/30 |
+| 8 | 26 | sectional | Economy II & Social Development — agriculture, industry, services, external sector, schemes, HDI | Economic & Social Dev → rest | 50 | 55/15/30 |
+| 9 | 24 | sectional | Environment, Ecology, Biodiversity & Climate Change | Environmental Ecology (whole) | 50 | 50/20/30 |
+| 10 | 22 | sectional | General Science — Physics, Chemistry, Biology + Science & Tech | General Science (whole) | 50 | 55/15/30 |
+| 11 | 21 | current_affairs | CA Quarter 1 (`ca_window` = T−40 → T−28) | all sections | 100 | 0/100/0 |
+| 12 | 19 | sectional | Revision sectional — Polity + Economy combined | 2 depth-1 nodes | 75 | 40/25/35 |
+| 13 | 17 | current_affairs | CA Quarter 2 (`ca_window` = T−28 → T−17) | all sections | 100 | 0/100/0 |
+| 14 | 15 | state_special | **Uttar Pradesh special** — UP polity, economy, geography, schemes, culture, current affairs | `state_focus` CA + UP-tagged PYQ | 100 | 40/60/0 |
+| 15 | 13 | current_affairs | CA Quarter 3 (`ca_window` = T−17 → T−13) | all sections | 100 | 0/100/0 |
+| 16 | 12 | full_length | Full syllabus FLT-1 | whole paper, weightage-balanced | 150 | 30/20/50 |
+| 17 | 11 | full_length | FLT-2 | " | 150 | 30/20/50 |
+| 18 | 10 | full_length | FLT-3 | " | 150 | 30/20/50 |
+| 19 | 9 | full_length | **CSAT full-length** (qualifying paper) | `PRE_CSAT` whole | 100 | 70/0/30 |
+| 20 | 8 | full_length | FLT-4 | " | 150 | 30/20/50 |
+| 21 | 7 | full_length | FLT-5 | " | 150 | 30/20/50 |
+| 22 | 6 | full_length | FLT-6 | " | 150 | 25/25/50 |
+| 23 | 5 | full_length | FLT-7 | " | 150 | 25/25/50 |
+| 24 | 4 | current_affairs | **Final CA sweep** (`ca_window` = last 12 months) | all sections | 150 | 0/100/0 |
+| 25 | 2 | full_length | **FLT-8 — final simulation** | " | 150 | 25/25/50 |
+
+Demand: **2,525 slots**, 1,200 of which must be mutually disjoint (the 8 GS
+full-lengths). Available now: **2,143** (§3.1) plus ~530/week inflow (§6.6).
+
+**Instantiation — UPPSC Prelims 2026 (T = Sun 6 Dec 2026).** Only **17 weeks**
+remain from 2026-08-10, so the full 25-test template does not fit this cycle.
+Ship the **Accelerated 16** — the same phases, weekly throughout, sectionals
+merged pairwise. (Institutes sell exactly this as a "crash" series alongside the
+full one.)
+
+| # | Opens (Sun 09:00 IST) | Kind | Coverage |
+|---|---|---|---|
+| 1 | 16 Aug 2026 | sectional | Polity & Constitution (full) |
+| 2 | 23 Aug | sectional | Physical + Economic/Human Geography |
+| 3 | 30 Aug | sectional | Ancient & Medieval + Art & Culture |
+| 4 | 6 Sep | sectional | Modern India & National Movement |
+| 5 | 13 Sep | sectional | Economy I — macro, money, budget |
+| 6 | 20 Sep | sectional | Economy II & Social Development |
+| 7 | 27 Sep | sectional | Environment, Ecology & Climate Change |
+| 8 | 4 Oct | sectional | General Science + Science & Tech |
+| 9 | 11 Oct | current_affairs | CA — Jan–Jun 2026 |
+| 10 | 18 Oct | state_special | Uttar Pradesh special |
+| 11 | 25 Oct | current_affairs | CA — Jul–Oct 2026 |
+| 12 | 1 Nov | full_length | GS FLT-1 |
+| 13 | 8 Nov | full_length | GS FLT-2 |
+| 14 | 15 Nov | full_length | **CSAT full-length** |
+| 15 | 22 Nov | full_length | GS FLT-3 |
+| 16 | 29 Nov | full_length | **GS FLT-4 — final simulation** |
+| — | 6 Dec 2026 | — | **EXAM** (one clear revision week) |
+
+---
+
+### 13.2 UPPSC Mains — 22 papers (Target PCS shape)
+
+6 sectional + 12 full-length GS (two complete cycles of GS I–VI) + 2 Essay +
+2 General Hindi. Every paper **20 questions / 3 hours**, marks per
+`exams.paper_structure`. Runs post-Prelims-result, **two papers per week**.
+
+| # | Week | Paper | Kind | Coverage |
+|---|---|---|---|---|
+| 1 | 1 | GS-I | sectional | History, Art & Culture, Geography — Indian heritage focus |
+| 2 | 1 | GS-II | sectional | Constitution, polity, governance, social justice, IR |
+| 3 | 2 | GS-III | sectional | Economy, S&T, environment, security, disaster mgmt |
+| 4 | 2 | GS-IV | sectional | Ethics, integrity, aptitude — theory + case studies |
+| 5 | 3 | GS-V | sectional | **UP-specific** — UP history, culture, economy, administration |
+| 6 | 3 | GS-VI | sectional | **UP-specific** — UP contemporary issues, schemes, development |
+| 7 | 4 | Essay | full_length | Essay Paper I — 3 essays across the four UPPSC sections |
+| 8 | 4 | GH | full_length | General Hindi Paper I — comprehension, precis, letter, grammar |
+| 9–14 | 5–7 | GS I–VI | full_length | **Cycle 1** — complete syllabus, one paper per slot |
+| 15 | 8 | Essay | full_length | Essay Paper II |
+| 16 | 8 | GH | full_length | General Hindi Paper II |
+| 17–22 | 9–11 | GS I–VI | full_length | **Cycle 2** — complete syllabus, full simulation |
+
+Demand: 22 × 20 = **440 descriptive questions**. Available: GS2 198 · GS3 177 ·
+GS1 161 · GS4 159 · GS5 128 · GS6 99 · Essay 108 · GH 168 = **1,198**. ✅ Fits
+from PYQs alone, ~2.7× over. **PYQ-only until G1 clears (§6.5).**
+
+**Instantiation (est.):** Prelims 6 Dec 2026 → result ~mid-Jan 2027 → series
+**Sun 24 Jan 2027 → Sun 4 Apr 2027**, two papers per week (Sun + Wed), against
+an estimated late-March Mains. ⚠️ The UPPSC Mains date is **not seeded and is an
+estimate** — confirm before publishing this calendar.
+
+---
+
+### 13.3 UPSC Prelims GS — 35 tests (Model A spiral)
+
+The three-pass structure of §2.1: Fundamental (NCERT-level, subject by subject)
+→ Applied (same subjects at depth, wider CA window, richer sources) →
+Full-Length.
+
+**Template.** 8 + 17 + 10 over 35 weekly slots, T−37 → T−3.
+
+| Phase | T− | Cadence | Tests | Character |
+|---|---|---|---|---|
+| I · Fundamental | 37 → 30 | weekly | 1–8 | One subject each. Sources: NCERTs + core standard texts. CA window = 1 month. |
+| II · Applied | 29 → 13 | weekly | 9–25 | Same subjects re-run at depth + new topics (Governance, Environment, S&T, IR). Sources add 2nd ARC, Yojana, PIB, EPW, Economic Survey. CA window = 2 months. |
+| III · Full-Length | 12 → 3 | weekly | 26–35 | Whole syllabus, UPSC pattern (100 Q / 200 marks / 2 hrs, ⅓ negative). |
+
+**Phase I — Fundamental (one subject per test, 50–60 Q):**
+
+| # | Subject | Node |
+|---|---|---|
+| 1 | Indian Polity & Constitution | Polity → Constitution |
+| 2 | Working of the Constitution & Governance | Polity → rest |
+| 3 | Geography I — Physical (World + India) | Geography → Physical |
+| 4 | Geography II — Economic & Human (World + India) | Geography → Economic/Human |
+| 5 | Ancient & Medieval India + Art & Culture | History → Ancient/Medieval |
+| 6 | Modern India & the National Movement | History → Modern |
+| 7 | Indian Economy | Economic & Social Development |
+| 8 | Environment, Ecology & General Science | Environment + General Science |
+
+**Phase II — Applied (75–100 Q; the same eight subjects again, plus five topics
+that get no Fundamental test of their own):** Polity Applied I & II · Geography
+Applied I & II · Ancient/Medieval Applied · Modern Applied · Economy Applied
+I & II · Environment Applied · Science & Technology · **Governance & Social
+Justice** · **International Relations** · **Internal Security** · Art & Culture
+deep-dive · CA Consolidation I · CA Consolidation II · Mixed Revision.
+
+**Phase III — Full-Length ×10** (tests 26–35), whole syllabus, weightage-
+balanced, ≤30% PYQ / 20% CA / ≥50% qgen, all ten mutually disjoint.
+
+**Instantiation — UPSC Prelims 2027 (T = Sun 23 May 2027):**
+
+| Phase | Opens | Tests |
+|---|---|---|
+| I · Fundamental | **Sun 6 Sep 2026** → 25 Oct 2026, weekly | 1–8 |
+| II · Applied | **Sun 1 Nov 2026** → 21 Feb 2027, weekly | 9–25 |
+| III · Full-Length | **Sun 28 Feb 2027** → 2 May 2027, weekly | 26–35 |
+| — | 9–16 May 2027 | no tests — revision fortnight |
+| — | **Sun 23 May 2027** | **EXAM** |
+
+⚑ **Gate: the CA slice.** Every test above carries current affairs, and only
+**2** CA questions are currently approved for `upsc` (§6.3, `OUTSTANDING.md`
+U8v). Approve `upsc` CA MCQs in the Review Queue, and confirm `ca:run --exam
+upsc` is on the cron, **before** publishing this calendar.
+
+**Separate CSAT product — 25 tests (15 sectional + 10 FLT), fortnightly then
+weekly**, mirroring §2.1: eight Maths+DI+RC sectionals laddering
+percentage → profit/loss → SI/CI → ratio → averages → time-speed-distance →
+number system → time & work, each carrying one DI form (line, bar, pie, table,
+misc); seven Reasoning+RC sectionals (series, coding-decoding, puzzles,
+syllogism, Venn, blood relations, calendar/clock, cubes/dice); then 10
+full-lengths at 80 Q / 2 hrs. **RC appears in every test.** UPSC supply is
+comfortable (`Basic Numeracy and DI` 292, `Logical Reasoning` 258,
+`Comprehension` 246); **the UPPSC equivalent is the one thin product in this
+whole design** (`Basic Numeracy` 115) and is the first place to point
+`qgen:topup`.
+
+---
+
+### 13.4 UPSC Mains — 30 tests (Model A)
+
+8 Fundamental + 14 Advanced + 8 Full-Length (**two complete cycles of GS I–IV**),
+every paper **250 marks / 3 hours**, fortnightly.
+
+⚑ **This calendar has a deliberate 12-week hole for Prelims** (§2.1) — Vision
+IAS's own schedule jumps 23 Mar → 15 Jun. A generator that spreads 30 tests
+evenly across the year is wrong.
+
+| Phase | Window | Tests | Coverage |
+|---|---|---|---|
+| A · Fundamental | pre-Prelims, fortnightly | 1–8 | GS-II Polity · GS-I Geography · GS-I History (Art&Culture/Modern/World) · GS-III Economics 1 · GS-III Economics 2 · GS-III Environment & Disaster Mgmt · GS-II&I Governance/Social Justice/Society · GS-IV Ethics |
+| B · Advanced | pre-Prelims, fortnightly | 9–22 | Polity & Governance Pt1 · Pt2 · Art&Culture + World History · Modern + Post-Independence · Physical Geography + Disaster Mgmt · Human Geography + Environment · Economics Pt1 · Ethics Pt1 · Economics Pt2 · Society & Social Justice · Ethics Pt2 · International Relations · Security · Technology |
+| — | **PRELIMS PAUSE** | — | no tests for ~12 weeks |
+| C · Full-Length | post-Prelims, weekly | 23–30 | GS-I, II, III, IV — **then the same four again** |
+
+**Instantiation — UPSC Mains 2027 (T = Fri 20 Aug 2027):**
+
+| Phase | Opens | Tests |
+|---|---|---|
+| A · Fundamental | **Sun 13 Sep 2026** → 20 Dec 2026, fortnightly | 1–8 |
+| B · Advanced | **Sun 3 Jan 2027** → 11 Jul 2027… | — |
+| — | | ⚠️ collides with Prelims (23 May 2027) |
+| B · Advanced (adjusted) | **Sun 3 Jan 2027** → 18 Apr 2027, fortnightly (8 slots) + **weekly 25 Apr–2 May** (6 slots) | 9–22 |
+| — | 9 May → 20 Jun 2027 | **PRELIMS PAUSE** (exam 23 May, result ~mid-Jun) |
+| C · Full-Length | **Sun 27 Jun 2027** → 15 Aug 2027, weekly | 23–30 |
+| — | **Fri 20 Aug 2027** | **MAINS BEGINS** |
+
+Demand: 30 × 20 = **600 evaluated answers per student**. Supply is fine
+(UPSC_MAINS_GS1/2/3 = 200 each, GS4 = 131, Essay = 80 — and per the real
+schedule GS-IV appears in 5 tests = 100 Q). **The blocker is §9.3's economics:
+600 evaluations ≈ $35/student.** Do not publish this calendar until Q4 is
+answered.
+
+---
+
+### 13.5 What `series:build` needs from this
+
+Each table row above is one `test_series_entries` row. The generator's inputs
+per entry are exactly the columns in §5.2:
+
+- `sequence_no`, `entry_kind`, `opens_at` / `closes_at` / `ranked_until`
+- `syllabus_note_i18n` ← the *Syllabus / Coverage* column (bilingual, and it is
+  what the T−24h reminder notification carries)
+- `sources_i18n` ← the *Sources covered* column every real schedule publishes
+- `ca_window` ← the *CA window* column, which bounds the CA slice's selection
+- `meta.node_targets` ← the *Node target* column, resolved through
+  `resolveSubtreeNodeIds`
+- `meta.composition` ← the *PYQ/CA/qgen* column
+
+A calendar is therefore a **data file, not code** — one JSON/YAML per series,
+validated and loaded the way `ingest/seed/upsc-syllabus-seed.ts` loads the
+syllabus. That keeps a calendar change (a slipped exam date, a re-ordered
+sectional) out of a deploy.
 
 ---
 
@@ -673,6 +991,18 @@ Mock as an acquisition event · institute-style mentor feedback per test.
 - **The `v_test_leaderboard` change in §5.5 is untested.**
 - **`pg_cron`/`pg_net` availability is from Supabase docs, not this project.**
 - **Push at cohort scale is entirely unproven** — 1 subscription.
+- **The `qgen` stall was measured, not diagnosed.** `generation_batches` is empty
+  after 2026-08-01; the stale-default-branch hypothesis (§6.6) is a pointer, not
+  a root cause. Check the Actions tab.
+- **The UPPSC Mains 2027 date in §13.2 is an estimate**, extrapolated from the
+  prior cycle. It is not seeded and not confirmed against a UPPSC notification.
+- **CA throughput was measured over a 21-day window that includes backfill.**
+  The steady-state daily figures (~90–100 items, ~20–30 CA MCQs) are taken from
+  the most recent two weeks; the all-time average is higher and would flatter
+  the supply case.
+- **§13's calendars are a design, not a validated plan.** No entry has been
+  built, no pool has been checked for whether it can actually fill its row's
+  composition, and the Phase-I instantiation dates assume a build lands in time.
 - **The cost model assumes model-answer caching holds across a cohort** — it
   follows from the unique key but has never been measured over a real
   multi-student cohort, because none exists.
