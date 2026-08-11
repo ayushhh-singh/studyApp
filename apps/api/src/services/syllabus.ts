@@ -19,6 +19,7 @@ import { HttpError, notFound } from "../lib/http-error.js";
 import { getGradedAnswers } from "../lib/graded-answers.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { CURRENT_AFFAIRS_COLUMNS, toWireItem } from "./current-affairs.js";
+import { isPrelimsPaperCode } from "../lib/exams.js";
 import {
   byYearRecord,
   currentExamYear,
@@ -277,7 +278,7 @@ export async function getPaperTree(
   // but a topic set admits them via the test scope. Fold them into the generated
   // top-up supply so the custom builder's cap reflects the real pool. Prelims
   // only (CA never maps to mains nodes); paginated since one node can hold 1000+.
-  if (paperCode.startsWith("PRE_")) {
+  if (await isPrelimsPaperCode(paperCode)) {
     const caNodeIds = rows.map((r) => r.id);
     const caRows = await selectAll<{ syllabus_node_id: string | null }>(() => {
       let q = supabase()

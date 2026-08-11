@@ -12,6 +12,7 @@ import type { AnswerSession, AnswerSessionDetail, AnswerSessionResult, Submissio
 import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { getTestDetail } from "./tests.js";
+import { isPrelimsPaperCode } from "../lib/exams.js";
 
 interface SessionRow {
   id: string;
@@ -79,7 +80,7 @@ export async function startAnswerSession(userId: string, testId: string): Promis
   // options_i18n/correct_option_key semantics the answer-session player and
   // validateAnswerSessionSubmission (typed/handwritten answer intake) don't
   // understand at all.
-  if ((test.paper_code ?? "").startsWith("PRE_")) {
+  if (await isPrelimsPaperCode(test.paper_code)) {
     throw badRequest("This test is an MCQ test, not an answer-writing test");
   }
 

@@ -239,6 +239,76 @@ export async function paperCodesForExam(examCode: string): Promise<Set<string>> 
 }
 
 /**
+ * Which stage a paper belongs to, resolved from `syllabus_nodes`' own depth-0
+ * roots rather than from the SHAPE of the paper code.
+ *
+ * ⚑ WHY THIS EXISTS. Four call sites decided "is this Prelims?" with a string
+ * test — `paper_code LIKE 'PRE_%'` / `.startsWith("PRE_")`. That was true while
+ * UPPSC was the only exam, and §0's own convention then made it FALSE: a
+ * non-default exam's paper codes are exam-PREFIXED (M23), so UPSC's Prelims
+ * papers are `UPSC_PRE_GS1` / `UPSC_PRE_CSAT` — which do not start with `PRE_`
+ * and DO satisfy `NOT LIKE 'PRE_%'`. Both branches were therefore wrong at once.
+ *
+ * Measured live the moment `upsc` went live (2026-08-11), with 42 mock sets
+ * already built: a UPSC user's `listTests` returned **0** for Prelims — the
+ * entire Practice page, every mock invisible — while `stage: "mains"` returned
+ * **44**, wrongly including 14 UPSC *Prelims* tests. The other two sites failed
+ * open the same way: `answer-sessions.ts`'s "this is an MCQ test, not an
+ * answer-writing test" guard stops firing for a UPSC Prelims test, and
+ * `syllabus.ts`'s CA top-up fold silently under-counts a UPSC Prelims node's
+ * real supply.
+ *
+ * Paper codes are globally unique across exams (`docs/multi-exam.md` §0), so a
+ * bare code identifies its stage unambiguously and the two boolean call sites
+ * need no exam argument. There are ~15 depth-0 rows in total, so this is one
+ * tiny query behind the same 60s TTL as `paperCodesForExam`.
+ *
+ * `CURRENT_AFFAIRS` has no `syllabus_nodes` row for any exam, so it is in
+ * neither set — callers that care about it must say so explicitly, exactly as
+ * `paperCodesForExam` documents.
+ */
+interface PaperStageIndex {
+  stageByPaper: Map<string, string>;
+  prelimsByExam: Map<string, string[]>;
+}
+let paperStageCache: { at: number; index: PaperStageIndex } | null = null;
+
+async function paperStageIndex(): Promise<PaperStageIndex> {
+  if (paperStageCache && Date.now() - paperStageCache.at < PAPER_CODE_TTL_MS) return paperStageCache.index;
+  const { data, error } = await supabase()
+    .from("syllabus_nodes")
+    .select("paper_code, exam_code, exam_stage")
+    .eq("depth", 0);
+  if (error) throw new HttpError(500, `paper stage index failed: ${error.message}`);
+  const stageByPaper = new Map<string, string>();
+  const prelimsByExam = new Map<string, string[]>();
+  for (const r of data ?? []) {
+    const paper = r.paper_code as string;
+    const stage = r.exam_stage as string;
+    stageByPaper.set(paper, stage);
+    if (stage === "prelims") {
+      const list = prelimsByExam.get(r.exam_code as string) ?? [];
+      list.push(paper);
+      prelimsByExam.set(r.exam_code as string, list);
+    }
+  }
+  const index = { stageByPaper, prelimsByExam };
+  paperStageCache = { at: Date.now(), index };
+  return index;
+}
+
+/** True for a Prelims paper of ANY exam. False for Mains and for `CURRENT_AFFAIRS`. */
+export async function isPrelimsPaperCode(paperCode: string | null | undefined): Promise<boolean> {
+  if (!paperCode) return false;
+  return (await paperStageIndex()).stageByPaper.get(paperCode) === "prelims";
+}
+
+/** This exam's own Prelims paper codes — for use as a query filter. */
+export async function prelimsPaperCodesForExam(examCode: string): Promise<string[]> {
+  return (await paperStageIndex()).prelimsByExam.get(examCode) ?? [];
+}
+
+/**
  * Cached is_live membership, mirroring `paperCodesForExam`'s TTL cache above.
  * `exams.is_live` changes only on a deliberate launch decision, and
  * `getUserExam` runs on hot paths (dashboard, evaluation, mentor, tests, ...),

@@ -11,7 +11,7 @@ import { supabase } from "../lib/supabase.js";
 import { roundMarks } from "../lib/marks.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { currentUserId } from "../lib/user-context.js";
-import { getUserExam } from "../lib/exams.js";
+import { getUserExam, prelimsPaperCodesForExam } from "../lib/exams.js";
 import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
@@ -72,10 +72,19 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
   // remembering to opt in. Prelims paper codes are always prefixed "PRE_"
   // (see ingest/_shared.ts's PAPERS); Mains is everything else except the
   // current-affairs quiz's own synthetic paper code.
+  // Stage comes from the exam's own syllabus roots, NOT from the shape of the
+  // paper code — `LIKE 'PRE_%'` silently matched nothing for an exam whose codes
+  // are exam-prefixed (see prelimsPaperCodesForExam's note; measured live as a
+  // completely empty Practice page for UPSC, with its Prelims mocks also leaking
+  // into the Mains list).
+  const prelimsCodes = await prelimsPaperCodesForExam(examCode);
   if (filters.stage === "mains") {
-    query = query.not("paper_code", "like", "PRE_%").neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
+    // An exam with no Prelims stage at all has nothing to exclude — skip the
+    // filter rather than emitting `not.in.()`, which is not valid syntax.
+    if (prelimsCodes.length) query = query.not("paper_code", "in", `(${prelimsCodes.join(",")})`);
+    query = query.neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
   } else {
-    query = query.like("paper_code", "PRE_%");
+    query = query.in("paper_code", prelimsCodes);
   }
   // "Quiz me on this week" (createCustomTestFromCurrentAffairs) also stamps
   // kind="custom" — exclude it from the Custom tab's "your custom sets" list
