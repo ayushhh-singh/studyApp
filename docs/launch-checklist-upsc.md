@@ -11,6 +11,16 @@ Supabase project (the same one used for dev and prod), per
 tracking.
 
 **Status as of this writing: 2 of 9 items need action before flipping.**
+
+> **UPDATE 2026-08-11 — all three outstanding items are now DONE; `is_live` is still `false`.**
+> Item 5 needed nothing: the 3 upsc CA MCQs were **already actioned** (2 approved+published,
+> 1 deliberately rejected) — 0 were left pending, so nothing was approved by this pass and the
+> rejection was left standing rather than overridden. Item 6 is done: **42 mock sets built**
+> (6 each for `UPSC_PRE_GS1`, `UPSC_PRE_CSAT`, `UPSC_MAINS_GS1-GS4`, `UPSC_MAINS_ESSAY`), all
+> published with membership rows and **0 cross-exam question leak**. The `launch_scope_i18n` copy
+> is rewritten against measured coverage and re-validated through `listExamsDetailed()`. **The flip
+> itself was deliberately NOT run — it is the one launch action and is left for founder sign-off
+> (§4).**
 Everything else passed real, live verification. See the summary table, then
 the per-item detail below it.
 
@@ -105,13 +115,13 @@ for the two live options and why neither was picked unilaterally.
 | 2 | CA content correctly per-exam scoped (M20b) | ✅ PASS | No |
 | 3 | Magazine — national lens, no state leakage, UPPSC regression | ✅ PASS | No |
 | 4 | Daily quiz (GS+CSAT) | ✅ PASS | No |
-| 5 | **CA quiz ("Quiz me on this week")** | 🔴 **BLOCKED** | **Yes — approve upsc CA MCQs in the Review Queue** |
-| 6 | **Mocks per paper type** | 🔴 **BLOCKED** | **Yes — run `pnpm mocks:build --exam upsc` and `pnpm mocks:build:mains --exam upsc`** |
+| 5 | **CA quiz ("Quiz me on this week")** | ✅ **RESOLVED 2026-08-11** | No — the 3 upsc CA MCQs were already actioned (2 approved+published, 1 rejected); **0 were pending** |
+| 6 | **Mocks per paper type** | ✅ **RESOLVED 2026-08-11** | No — both builds run; **42 sets**, 6 per paper × 7 papers, all published, 0 cross-exam leak |
 | 7 | Chapters — coverage + M21 (pyq_ids exam-scoped) | ✅ PASS (78/195) | No (ongoing rollout, not a launch blocker) |
 | 8 | Evaluation, real end-to-end run | ✅ PASS | No |
 | 9 | Mentor, real end-to-end run, real citation | ✅ PASS | No |
 | — | Onboarding picker + profile switcher UI, both locales/390px | ✅ PASS | No |
-| — | **`launch_scope_i18n` copy for `upsc`** | 🟡 **STALE** | **Recommended — update before real users see it** |
+| — | **`launch_scope_i18n` copy for `upsc`** | ✅ **RESOLVED 2026-08-11** | No — rewritten against measured coverage (incl. the honest "78 of 195" chapter figure) and zod-revalidated |
 
 ---
 
