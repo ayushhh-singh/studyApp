@@ -86,8 +86,13 @@ function ActionButton({
         <span className="truncate">{label}</span>
       </span>
       <span className="inline-flex shrink-0 items-baseline gap-1">
-        {/* Display numeral: the one thing that makes 5-vs-20 readable at a glance. */}
-        <span className="font-extrabold tabular-nums tracking-[-0.02em] text-base leading-none">{count}</span>
+        {/* Display numeral: the one thing that makes 15-vs-50 readable at a glance.
+            NOT `leading-none` — at text-base that gives a 16px line box for glyphs
+            measuring 18px, so a two-digit count overflows its own box. Nothing is
+            visibly cut today (the span is overflow-visible) but it would be the
+            instant any ancestor gained overflow-hidden. Baseline alignment is
+            unaffected: `items-baseline` positions by baseline, not box height. */}
+        <span className="font-extrabold tabular-nums tracking-[-0.02em] text-base leading-tight">{count}</span>
         <span className="text-[11px] font-medium opacity-80">{t("CurrentAffairs.setQuestionUnit")}</span>
       </span>
     </Link>
