@@ -2,8 +2,8 @@
  * Cron-built current-affairs sittings, at TWO cadences.
  *
  * WEEKLY (the curated sitting, built by `ca:assemble` every MONDAY):
- *   - "CA Prelims Quiz" — up to 20 approved CA MCQs from the last N days.
- *   - "CA Mains Set"    — 3-5 approved CA descriptive questions.
+ *   - "CA Prelims Quiz" — up to 50 approved CA MCQs from the last N days.
+ *   - "CA Mains Set"    — up to 20 approved CA descriptive questions.
  *
  *   ⚑ THE WEEK IS MONDAY-ANCHORED, and that alignment is load-bearing. The week
  *   used to be `floor(daysBetween("1970-01-01", date) / 7)` — and because the
@@ -17,8 +17,8 @@
  *
  * DAILY (the quick daily hit, built alongside the GS/CSAT daily quiz by
  * `daily:build` — see `assembleDailyCaSets` at the bottom of this file):
- *   - "CA Prelims Quiz — Today" — up to 5 MCQs approved in the last day.
- *   - "CA Mains Set — Today"    — up to 2 descriptive questions, same window.
+ *   - "CA Prelims Quiz — Today" — up to 15 MCQs approved in the last day.
+ *   - "CA Mains Set — Today"    — up to 5 descriptive questions, same window.
  *
  * The two cadences deliberately share every mechanism below (pool query,
  * relevance+weightage ranking, slug idempotency, per-exam scoping) and differ
@@ -79,17 +79,21 @@ import { selectAll } from "../lib/paginate.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
 import { getTestDetail } from "../services/tests.js";
 
-const PRELIMS_MAX = 20;
-const MAINS_MAX = 5;
+const PRELIMS_MAX = 50;
+const MAINS_MAX = 20;
 
 /**
- * The daily sitting is deliberately a fraction of the weekly one: it is a quick
- * hit on what was approved since yesterday, not a second full sitting. Sized so
- * that a normal day's approved supply produces a complete set rather than a
- * perpetually-thin one, and so the weekly quiz stays the substantial sitting.
+ * The daily sitting stays a fraction of the weekly one: a quick hit on what was
+ * approved since yesterday, not a second full sitting.
+ *
+ * SUPPLY REALITY, measured rather than assumed — approved CA MCQs run ~50-125
+ * per day while the pipeline is running, so the prelims cap fills easily. Approved
+ * DESCRIPTIVE runs only ~1-6 per day, so the mains cap is an upper bound the
+ * supply frequently cannot reach; a short mains set is the honest result, not a
+ * fault. See `docs`-free note on the exclusion interaction at DAILY_RECENCY_DAYS.
  */
-const DAILY_PRELIMS_MAX = 5;
-const DAILY_MAINS_MAX = 2;
+const DAILY_PRELIMS_MAX = 15;
+const DAILY_MAINS_MAX = 5;
 
 /**
  * The daily window, in days back from the day being built — so the pool is
@@ -443,7 +447,7 @@ export async function assembleWeeklySetsForExam(
   // extended to the DAILY sets of the same week: that overlap is deliberate.
   // The weekly sitting is a consolidation of the week, so re-meeting an item a
   // few days after the daily quiz is spaced revision, not a bug -- and
-  // excluding them would strip ~35 questions from a pool capped at 20.
+  // excluding them would strip a week of daily picks from a pool capped at 50.
   const [seenPrelims, seenMains] = await Promise.all([
     recentCaQuestionIds(precedingWeeklyBases("prelims", weekStart), examCode),
     recentCaQuestionIds(precedingWeeklyBases("mains", weekStart), examCode),
@@ -589,7 +593,7 @@ async function recentCaQuestionIds(
   if (tErr) throw new HttpError(500, `recent CA sets lookup failed: ${tErr.message}`);
   const testIds = (tests ?? []).map((r) => r.id as string);
   if (testIds.length === 0) return new Set();
-  // Bounded by the recency depth x the per-set cap (at most 2 weeks x 20 = 40
+  // Bounded by the recency depth x the per-set cap (at most 2 weeks x 50 = 100
   // rows), far below PostgREST's 1000-row cap, so this needs no paging.
   const { data, error } = await supabase().from("test_questions").select("question_id").in("test_id", testIds);
   if (error) throw new HttpError(500, `recent CA questions lookup failed: ${error.message}`);

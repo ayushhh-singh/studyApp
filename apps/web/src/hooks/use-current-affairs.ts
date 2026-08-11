@@ -32,7 +32,7 @@ export function useCurrentAffairsItem(id: string | undefined) {
   });
 }
 
-/** The week's curated sitting (up to 20 CA MCQs + 5 descriptive), built Monday. */
+/** The week's curated sitting (up to 50 CA MCQs + 20 descriptive), built Monday. */
 export function useWeeklyCaSets() {
   return useQuery({
     queryKey: queryKeys.currentAffairsWeeklySets(),
@@ -41,7 +41,7 @@ export function useWeeklyCaSets() {
 }
 
 /**
- * Today's quick sitting (up to 5 CA MCQs + 2 descriptive) over what was approved
+ * Today's quick sitting (up to 15 CA MCQs + 5 descriptive) over what was approved
  * since yesterday. Separate from the weekly query because the two are built by
  * different crons — either can be present while the other is null.
  */

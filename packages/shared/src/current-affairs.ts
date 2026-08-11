@@ -233,8 +233,8 @@ export const currentAffairsSetPairSchema = z.object({
 export type CurrentAffairsSetPair = z.infer<typeof currentAffairsSetPairSchema>;
 
 /**
- * GET /current-affairs/weekly-sets — the week's curated sitting (up to 20 MCQs /
- * 5 descriptive), assembled Monday by `ca:assemble`.
+ * GET /current-affairs/weekly-sets — the week's curated sitting (up to 50 MCQs /
+ * 20 descriptive), assembled Monday by `ca:assemble`.
  */
 export const currentAffairsWeeklySetsSchema = currentAffairsSetPairSchema;
 export type CurrentAffairsWeeklySets = z.infer<typeof currentAffairsWeeklySetsSchema>;
@@ -243,7 +243,7 @@ export const currentAffairsWeeklySetsResponseSchema = apiEnvelopeSchema(currentA
 export type CurrentAffairsWeeklySetsResponse = z.infer<typeof currentAffairsWeeklySetsResponseSchema>;
 
 /**
- * GET /current-affairs/daily-sets — today's quick sitting (up to 5 MCQs / 2
+ * GET /current-affairs/daily-sets — today's quick sitting (up to 15 MCQs / 5
  * descriptive) over what was approved since yesterday, assembled by
  * `daily:build` alongside the GS/CSAT daily quizzes.
  *

@@ -21,7 +21,7 @@ import { cn } from "@/lib/utils";
  *   SCALE    -> the question count as a display numeral (Inter 800, tabular),
  *               so "5" vs "20" is legible at a glance. This is the honest
  *               distinguisher: the daily set is a quick hit, the weekly one is
- *               the substantial sitting (caps 5/2 vs 20/5 in ca/assemble.ts).
+ *               the substantial sitting (caps 15/5 vs 50/20 in ca/assemble.ts).
  *   TYPE     -> colour + icon, unchanged and consistent across both panels
  *               (primary/ListChecks = prelims MCQs, marigold/PenLine = mains
  *               descriptive), so the pairing a user already knows still holds.
