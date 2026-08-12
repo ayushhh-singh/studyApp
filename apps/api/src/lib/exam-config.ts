@@ -1113,8 +1113,31 @@ const UPPSC: ExamConfig = {
     fewShotAttribution: "UPPSC",
     groundingStoreLabel: UPPSC_GROUNDING_STORE,
     groundingFallbackLabel: UPPSC_SYLLABUS_LABEL,
+    // FORMAT MIX RE-MEASURED 2026-08-13 over all 1,195 real ingested PRE_GS1
+    // rows, because the previous text listed five formats as peers — with
+    // "Consider the following statements" second — and generation then produced
+    // that form in 33% of its output against a real rate of 3.0%, an 11x
+    // over-production of the RAREST format named. Measured distribution:
+    //   direct single-item, no scaffold ....... 60.3%
+    //   match-list / correctly-matched pairs .. 16.8%
+    //   negative framing (NOT / except) ....... 9.8%
+    //   assertion-reason ...................... 6.7%
+    //   chronological / correct sequence ...... 5.8%
+    //   "Consider the following statements" ... 3.0%
+    // Stated as an explicit ranked mix rather than an unordered list, exactly as
+    // `marksNormGuidance` was rewritten for UPSC on 2026-08-01 after the same
+    // class of defect (a slot that named a set without naming its proportions).
+    // ⚑ UPPSC and UPSC are near-opposites here — UPSC's PRE_GS1 is 34%
+    // statement-combination — so this text must never be shared between them.
+    // It also reaches UPPSC's CSAT paper, which has no authored norm of its own
+    // (`csat: null` below) and was measurably over-scaffolded by the old text.
     formatGuidance:
-      "Prefer UPPSC's real formats: single statement, 'Consider the following statements', matching, assertion-reason, correctly-matched-pairs.",
+      "Use UPPSC's real format mix, and match its proportions: most questions — about three in five — are a " +
+      "DIRECT single-item question with no scaffolding at all, so make that your default. Of the scaffolded " +
+      "forms, matching / correctly-matched-pairs is the commonest (roughly one in six), then negative framing " +
+      "(asking which option is NOT correct, about one in ten), then assertion-reason and chronological-sequence " +
+      "(each about one in fifteen). 'Consider the following statements' is UNCOMMON in UPPSC — only about one " +
+      "question in thirty — so use it rarely and never as your default shape.",
     // Deliberate no-op — see `ExamQgenConfig.csat`. NOT a claim that UPPSC's
     // CSAT paper has no norm of its own (measured: ~89% direct-single, median
     // stem 87 chars, ~4% passage-based against UPSC CSAT's ~30%). Authoring it
