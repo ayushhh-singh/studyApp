@@ -5,6 +5,7 @@ import { ArrowRight, BookmarkPlus, BookOpen, Check, GraduationCap, Layers, ListT
 import type { CoveredByNode, Locale, NoteBody } from "@neev/shared";
 import { hasChapter } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -82,7 +83,7 @@ export function NotesView({
 }) {
   const { t } = useTranslation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { data: note, isLoading, isError } = useNoteForNode(nodeId);
+  const { data: note, isLoading, isError, refetch } = useNoteForNode(nodeId);
   const addDeck = useAddNoteDeck();
   const addBlock = useAddNoteBlock();
   const recordEvent = useRecordEvent();
@@ -121,11 +122,23 @@ export function NotesView({
     );
   }
 
-  if (isError || !note || !body) {
+  // A FAILED fetch is not "this topic has no chapter". Both used to fall
+  // through to "haven't been published yet — check back soon", which is a
+  // false statement about real, published content and gives the reader nothing
+  // to do about it; only the coveredBy branch below had ever guarded on it.
+  // Measured live: switching exams clears the query cache, every mounted query
+  // refetches at once, and that burst is exactly what trips the 120/min
+  // per-user limiter — so the chapter a reader was mid-way through would
+  // silently claim it did not exist.
+  if (isError) {
+    return <QueryErrorState onRetry={() => refetch()} />;
+  }
+
+  if (!note || !body) {
     // This node has no chapter of its own, but a sibling's chapter already
     // teaches it (0115) — link there instead of a bare "check back soon" dead
-    // end. Only for a genuine "no note" response, never an actual fetch error.
-    if (!isError && coveredBy) {
+    // end.
+    if (coveredBy) {
       return (
         <EmptyState
           icon={BookOpen}
