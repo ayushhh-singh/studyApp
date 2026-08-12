@@ -55,6 +55,7 @@ export function DashboardStatStrip({
         }
         icon={Flame}
         tone="accent"
+        pop={greeting.streak_incremented_today}
       />
       <StatCard
         label={t("Dashboard.statRevisionLabel")}

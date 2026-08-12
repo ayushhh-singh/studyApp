@@ -127,7 +127,15 @@ export function ProgressRing({
           className="absolute inset-0 flex items-center justify-center font-display tabular-nums"
           // Scaled from `size`, and line-height stays >= 1.1 so the box is never
           // smaller than its own glyphs (the leading-none trap, twice bitten).
-          style={{ fontSize: Math.round(size * 0.26), lineHeight: 1.15 }}
+          //
+          // 0.24, not 0.26. Measured: at 0.26 the widest real content — "100%"
+          // in the peer-review feed at size 52 / stroke 5 — renders 42.1px wide
+          // against a 42px inner diameter, i.e. ZERO margin. Nothing visibly
+          // breaks at 0.1px, but a primitive with no margin will break on
+          // somebody's device: Inter not yet loaded and a wider system fallback
+          // in its place, or a locale whose digits are wider. 0.24 leaves
+          // 5-6px of clearance at every call site's worst case.
+          style={{ fontSize: Math.round(size * 0.24), lineHeight: 1.15 }}
           aria-hidden
         >
           {children}

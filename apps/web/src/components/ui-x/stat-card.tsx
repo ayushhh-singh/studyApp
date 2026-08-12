@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { motion, useReducedMotion } from "framer-motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -28,6 +29,7 @@ export function StatCard({
   icon: Icon,
   tone = "default",
   leading,
+  pop = false,
   className,
 }: {
   label: string;
@@ -38,8 +40,17 @@ export function StatCard({
   tone?: keyof typeof TONE_CLASS;
   /** Rendered before the text block — the reference puts a ProgressRing here. */
   leading?: ReactNode;
+  /**
+   * Play a one-shot pop on the icon badge. Carries Session 15's streak-advance
+   * reward, which used to live on the dashboard greeting's StreakFlame and was
+   * orphaned when that flame was removed as a duplicate — `streak_incremented
+   * _today` is on the payload for exactly this and had no consumer left.
+   */
+  pop?: boolean;
   className?: string;
 }) {
+  const reduce = useReducedMotion();
+  const playing = pop && !reduce;
   return (
     <div
       className={cn(
@@ -57,14 +68,19 @@ export function StatCard({
         {hint && <span className="truncate text-xs text-muted-foreground">{hint}</span>}
       </div>
       {Icon && (
-        <span
+        <motion.span
+          // Same shape as StreakFlame's pop (scale 1 -> 1.3 -> 1, 0.6s), so the
+          // reward reads identically to the chip it replaced.
+          key={playing ? "pop" : "static"}
+          animate={playing ? { scale: [1, 1.3, 1] } : undefined}
+          transition={{ duration: 0.6, times: [0, 0.4, 1], ease: "easeOut" }}
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-xl",
             tone === "accent" ? "bg-marigold/20 text-marigold-foreground" : "bg-primary/10 text-primary",
           )}
         >
           <Icon className="size-5" aria-hidden />
-        </span>
+        </motion.span>
       )}
     </div>
   );

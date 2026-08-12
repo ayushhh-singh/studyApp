@@ -72,8 +72,14 @@ export function NotificationBell() {
               </div>
               <ul className="flex flex-col gap-2">
                 {items.map((n) => {
-                  const Icon = ICONS[n.type];
-                  const tint = TINTS[n.type];
+                  // Fallbacks, not bare lookups. Both maps are exhaustive at
+                  // compile time, but the TYPE comes off the wire — a
+                  // notification_type added server-side and deployed before the
+                  // web bundle would make `Icon` undefined, and rendering an
+                  // undefined component throws and takes the whole panel down.
+                  // (Pre-existing for ICONS; TINTS inherits the same guard.)
+                  const Icon = ICONS[n.type] ?? Bell;
+                  const tint = TINTS[n.type] ?? "bg-primary/10 text-primary";
                   const body = (
                     <div className="flex gap-3">
                       {/* Rounded square and typed tint, per the reference's
