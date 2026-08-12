@@ -8,7 +8,8 @@
     "pagination": "Pagination",
     "seeAll": "See all",
     "backToRecent": "Back to recent",
-    "allPapers": "All"
+    "allPapers": "All",
+    "clear": "Clear"
   },
   "Nav": {
     "dashboard": "Dashboard",
@@ -200,7 +201,26 @@
     "referencedQuestion": "Referenced question",
     "scopedPyqsNotice_one": "Showing {{count}} PYQ cited in this section.",
     "scopedPyqsNotice_other": "Showing {{count}} PYQs cited in this section.",
-    "viewAllPyqs": "View all PYQs for this topic"
+    "viewAllPyqs": "View all PYQs for this topic",
+    "filtersTitle": "Filters",
+    "filterStage": "Exam stage",
+    "stage_all": "All papers",
+    "stage_prelims": "Prelims",
+    "stage_mains": "Mains",
+    "filterStatus": "Status",
+    "status_all": "All",
+    "status_started": "Started",
+    "status_not_started": "Not started",
+    "sortBy": "Sort by",
+    "sort_syllabus": "Syllabus order",
+    "sort_pyqs": "Most PYQs",
+    "sort_coverage": "Chapter coverage",
+    "sort_accuracy": "My accuracy",
+    "searchPlaceholder": "Search papers and subjects…",
+    "paperCount_one": "{{count}} paper",
+    "paperCount_other": "{{count}} papers",
+    "noMatchTitle": "No papers match",
+    "noMatchDescription": "Try a different search, or clear the filters."
   },
   "Practice": {
     "title": "Practice",
