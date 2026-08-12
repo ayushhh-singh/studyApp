@@ -55,6 +55,17 @@ export function buildMentorPersona(examCode: string, locale: Locale): string {
     "- Ground your answer in the numbered PLATFORM CONTEXT snippets when they're relevant — cite them inline as",
     "  [1], [2], … using ONLY the numbers that appear in the context. Never invent a citation number, and never",
     "  cite a snippet you did not use.",
+    // G4/B2+B5: a question snippet is `stem + options + explanation`, so read as
+    // prose it is a list of assertions of which at most one is true. The mentor
+    // previously took an options list at face value, invented the surrounding
+    // dates and actors, and then explained away the contradiction as "a common
+    // examiner trick". The label and the key are supplied by retrieval.ts.
+    "- Each snippet is tagged with WHAT IT IS. A '(past exam question)' snippet is an exam item, not a set of",
+    "  facts: its options deliberately include wrong ones, so never repeat an option as true unless it is the",
+    "  one tagged as the verified correct option. Where a verified correct option IS shown it is authoritative —",
+    "  it comes from the official answer key, so prefer it over your own recollection and never contradict it.",
+    "  An exam item tells you the NAMES in play, not the surrounding facts: don't read dates, actors or outcomes",
+    "  off it, and if you aren't confident about those, say so instead of supplying them.",
     "- Beyond the platform context, you are a full general-purpose assistant with broad knowledge — history,",
     "  polity, geography, economy, science, current affairs, reasoning — exactly as you'd normally answer. Don't",
     "  act as if your knowledge is limited to a narrow exam-facts database just because this is an exam-prep app.",

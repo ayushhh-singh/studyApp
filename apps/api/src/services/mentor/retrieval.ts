@@ -9,7 +9,7 @@
  * Everything degrades gracefully: any embed/RPC failure yields empty grounding
  * (the mentor is told so and answers from general exam guidance, clearly labelled).
  */
-import type { BilingualText, Locale, MentorCitation } from "@neev/shared";
+import type { BilingualText, Locale, MentorCitation, QuestionOption } from "@neev/shared";
 import { supabase } from "../../lib/supabase.js";
 import { embeddings } from "../../lib/embeddings.js";
 import { logger } from "../../lib/logger.js";
@@ -91,16 +91,110 @@ async function matchEmbeddings(
 }
 
 /**
+ * What each retrieved chunk IS, in the words the mentor sees. Without this the
+ * context block was a flat `[n] <text>` list in which a PYQ stem, a syllabus
+ * line and an authored chapter paragraph are indistinguishable (G4/B5) — and a
+ * question stem read as prose is a list of assertions of which at most one is
+ * true. Unknown types fall back to the raw source_type rather than being
+ * silently dropped or mislabelled.
+ */
+const SOURCE_LABELS: Record<string, string> = {
+  syllabus: "syllabus topic",
+  question: "past exam question",
+  note: "study chapter",
+  current_affairs: "current affairs item",
+};
+
+/**
+ * Does this option's TEXT read as a bare ordering/matching code ("II, I, III, IV",
+ * "2, 1, 4, 3") rather than a self-contained answer?
+ *
+ * Found by validating the fix rather than by review: handed
+ * `verified correct option: A — "II, I, III, IV"` for a chronology question, the
+ * mentor read the code left-to-right as the sequence itself and reported
+ * "Sarnul → Bilgram → …" when II,I,… means Bilgram FIRST — then presented that
+ * as what our verified key confirms. A wrong order wearing the platform's
+ * authority is worse than the silence this whole change is fixing.
+ *
+ * A code is therefore decoded for the mentor where that can be done with
+ * certainty (`decodeOrderingCode`), and only labelled as a code where it cannot.
+ */
+function looksLikeOrderingCode(text: string): boolean {
+  return /^[IVXLCivxlc\d]+(\s*[,;–—-]\s*[IVXLCivxlc\d]+){1,}$/.test(text.trim());
+}
+
+/**
+ * Turn an ordering code into the actual named sequence, by mapping each token
+ * onto the correspondingly-numbered item enumerated in the stem.
+ *
+ * Returns null unless the mapping is UNAMBIGUOUS AND TOTAL — every code token
+ * resolves to exactly one enumerated item, no token repeats, and the stem
+ * enumerates exactly as many items as the code orders. Anything less falls back
+ * to labelling it a code, because a MIS-decode is the one outcome worse than
+ * not decoding: the mentor restates the sequence as "the verified order", so a
+ * wrong decode ships a wrong chronology wearing the platform's authority.
+ * Measured: the warn-only version got one such question right and the other
+ * wrong in a single reply, which is what motivated decoding here.
+ */
+function decodeOrderingCode(stem: string, code: string): string | null {
+  const tokens = code
+    .split(/[,;–—-]/)
+    .map((t) => t.trim().toUpperCase())
+    .filter(Boolean);
+  if (tokens.length < 2 || new Set(tokens).size !== tokens.length) return null;
+
+  // Enumeration markers: "I. ", "1) ", "(iv) " … at a word boundary.
+  const marker = /(?:^|[\s(])((?:[IVXLC]+|\d+))[.)]\s+/gi;
+  const marks: { label: string; end: number; start: number }[] = [];
+  for (let m = marker.exec(stem); m; m = marker.exec(stem)) {
+    marks.push({ label: m[1].toUpperCase(), start: m.index, end: marker.lastIndex });
+  }
+  if (marks.length !== tokens.length) return null;
+
+  const byLabel = new Map<string, string>();
+  for (let i = 0; i < marks.length; i++) {
+    const text = stem.slice(marks[i].end, marks[i + 1]?.start ?? stem.length).replace(/\s+/g, " ").trim();
+    // A trailing item can run into the question's closing instruction.
+    const clipped = text.split(/\s+(?:Select|Choose|Code|Codes|कूट|उपर्युक्त)\b/i)[0].replace(/[.:;]+$/, "").trim();
+    if (!clipped || clipped.length > 120 || byLabel.has(marks[i].label)) return null;
+    byLabel.set(marks[i].label, clipped);
+  }
+  const seq = tokens.map((t) => byLabel.get(t));
+  if (seq.some((s) => !s)) return null;
+  return seq.join(" → ");
+}
+
+interface ResolvedChunks {
+  citations: MentorCitation[];
+  /**
+   * question source_id → the verified answer, phrased for the context block.
+   * Only present for an MCQ that actually has a key and a matching option.
+   */
+  answerNotes: Map<string, string>;
+}
+
+/**
  * Resolve retrieved chunks (in retrieval order) to numbered citations with a
  * title and deep link, batching one lookup per source type.
+ *
+ * Also returns each question chunk's VERIFIED ANSWER (G4/B2-B3). A `question`
+ * embedding is `stem + options + explanation` (`ingest/embed.ts`) and
+ * deliberately omits `correct_option_key`, so the mentor was handed four
+ * mutually exclusive options with no marker of which is right and filled the
+ * gap from parametric memory — getting the ordering, date and actors of a
+ * battle wrong while OUR OWN ROW held the web-verified key. The key is read
+ * here rather than embedded because this piggybacks on a `questions` lookup
+ * `resolveCitations` already performs on ids already in hand: no extra round
+ * trip, and no re-embed of ~7,000 questions × 2 locales.
  */
-async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
+async function resolveCitations(chunks: MatchRow[], locale: Locale): Promise<ResolvedChunks> {
   const byType = new Map<string, Set<string>>();
   for (const c of chunks) {
     const set = byType.get(c.source_type) ?? new Set<string>();
     set.add(c.source_id);
     byType.set(c.source_type, set);
   }
+  const answerNotes = new Map<string, string>();
 
   const titles = new Map<string, { title: BilingualText; link: string | null }>();
   const key = (t: string, id: string) => `${t}:${id}`;
@@ -129,7 +223,7 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
   if (questionIds.length) {
     const { data } = await supabase()
       .from("questions")
-      .select("id, stem_i18n, paper_code, syllabus_node_id")
+      .select("id, stem_i18n, paper_code, syllabus_node_id, type, correct_option_key, options_i18n")
       .in("id", questionIds);
     for (const q of data ?? []) {
       const node = q.syllabus_node_id as string | null;
@@ -141,6 +235,34 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
         title: truncate(q.stem_i18n as BilingualText),
         link: node ? `/learn/${q.paper_code}/${node}?tab=pyqs&qid=${q.id}` : null,
       });
+
+      // The answer note, when there genuinely is one. A descriptive question
+      // has no key by design, and an MCQ can carry a key whose option is
+      // missing from a partially-captured row — in both cases the snippet just
+      // keeps its "past exam question" label and claims nothing further. Never
+      // synthesise or guess a key here: a WRONG stated answer would be worse
+      // than the silence this is fixing.
+      const stem = q.stem_i18n as BilingualText;
+      const optionKey = q.correct_option_key as string | null;
+      if (q.type === "mcq" && optionKey) {
+        const options = (q.options_i18n as QuestionOption[] | null) ?? [];
+        const correct = options.find((o) => o?.key === optionKey);
+        const text = (correct?.text_i18n?.[locale] ?? correct?.text_i18n?.en ?? "").trim();
+        const clean = text.replace(/\s+/g, " ").slice(0, 200);
+        const stemText = (stem[locale] ?? stem.en ?? "").trim();
+        const decoded = clean && looksLikeOrderingCode(clean) ? decodeOrderingCode(stemText, clean) : null;
+        answerNotes.set(
+          q.id as string,
+          !clean
+            ? `verified correct option: ${optionKey}`
+            : decoded
+              ? `verified correct option: ${optionKey} — "${clean}", i.e. ${decoded}`
+              : looksLikeOrderingCode(clean)
+                ? `verified correct option: ${optionKey} — "${clean}", which is a CODE, not a sequence of names: ` +
+                  `map each numeral to the item numbered the same way in the stem above, in exactly this left-to-right order`
+                : `verified correct option: ${optionKey} — "${clean}"`,
+        );
+      }
     }
   }
 
@@ -177,7 +299,7 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
     }
   }
 
-  return chunks.map((c, i) => {
+  const citations = chunks.map((c, i) => {
     const resolved = titles.get(key(c.source_type, c.source_id));
     return {
       ref: i + 1,
@@ -187,6 +309,7 @@ async function resolveCitations(chunks: MatchRow[]): Promise<MentorCitation[]> {
       link: resolved?.link ?? null,
     };
   });
+  return { citations, answerNotes };
 }
 
 /**
@@ -236,10 +359,20 @@ export async function retrieveContext(opts: {
 
     const topSimilarity = merged.reduce((m, r) => Math.max(m, r.similarity), 0);
     const weak = merged.length === 0 || topSimilarity < WEAK_RETRIEVAL_THRESHOLD;
-    const citations = merged.length ? await resolveCitations(merged) : [];
+    const { citations, answerNotes } = merged.length
+      ? await resolveCitations(merged, opts.locale)
+      : { citations: [], answerNotes: new Map<string, string>() };
 
+    // Each snippet carries WHAT IT IS, and a question snippet carries its
+    // verified key. Both are per-message user content sitting after every
+    // prompt-cache breakpoint, so this costs the cache nothing.
     const contextText = merged
-      .map((c, i) => `[${i + 1}] ${c.chunk_text.replace(/\s+/g, " ").trim()}`)
+      .map((c, i) => {
+        const label = SOURCE_LABELS[c.source_type] ?? c.source_type;
+        const note = c.source_type === "question" ? answerNotes.get(c.source_id) : undefined;
+        const tag = note ? `${label}; ${note}` : label;
+        return `[${i + 1}] (${tag}) ${c.chunk_text.replace(/\s+/g, " ").trim()}`;
+      })
       .join("\n\n");
 
     return { vectorLiteral: opts.vectorLiteral, citations, contextText, weak };
