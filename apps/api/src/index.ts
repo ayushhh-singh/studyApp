@@ -10,6 +10,7 @@ import { checkMentorCacheHealthAtBoot } from "./services/mentor/cache-health.js"
 import { checkExamConfigRegistryAtBoot } from "./lib/exam-config.js";
 import { streamRouter } from "./routes/stream.js";
 import { syllabusRouter } from "./routes/syllabus.js";
+import { searchRouter } from "./routes/search.js";
 import { questionsRouter } from "./routes/questions.js";
 import { questionReportsRouter } from "./routes/question-reports.js";
 import { testsRouter } from "./routes/tests.js";
@@ -140,6 +141,7 @@ app.use("/api/v1", guestAuthRouter);
 
 app.use("/api/v1", streamRouter);
 app.use("/api/v1", syllabusRouter);
+app.use("/api/v1", searchRouter);
 app.use("/api/v1", questionsRouter);
 app.use("/api/v1", questionReportsRouter);
 app.use("/api/v1", testsRouter);

@@ -44,7 +44,15 @@
     "placeholder": "विभाग और पाठ्यक्रम विषय खोजें...",
     "empty": "कोई परिणाम नहीं मिला।",
     "navigate": "जाएँ",
-    "syllabus": "पाठ्यक्रम विषय"
+    "groupSyllabus": "पाठ्यक्रम विषय",
+    "searching": "खोजा जा रहा है…",
+    "error": "खोज विफल रही। पुनः प्रयास करें।",
+    "tooShort": "खोजने के लिए कम से कम {{count}} अक्षर लिखें।",
+    "andMore": "(और भी)",
+    "degraded": "कुछ परिणाम लोड नहीं हो सके। थोड़ी देर बाद पुनः प्रयास करें।",
+    "resultCount_zero": "कोई परिणाम नहीं",
+    "resultCount_one": "{{count}} परिणाम",
+    "resultCount_other": "{{count}} परिणाम"
   },
   "Dashboard": {
     "title": "डैशबोर्ड",

@@ -44,7 +44,15 @@
     "placeholder": "Search sections and syllabus topics...",
     "empty": "No results found.",
     "navigate": "Go to",
-    "syllabus": "Syllabus topics"
+    "groupSyllabus": "Syllabus topics",
+    "searching": "Searching…",
+    "error": "Search failed. Try again.",
+    "tooShort": "Type at least {{count}} characters to search.",
+    "andMore": "(and more)",
+    "degraded": "Some results could not be loaded. Try again in a moment.",
+    "resultCount_zero": "No results",
+    "resultCount_one": "{{count}} result",
+    "resultCount_other": "{{count}} results"
   },
   "Dashboard": {
     "title": "Dashboard",

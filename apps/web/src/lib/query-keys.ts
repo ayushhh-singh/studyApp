@@ -4,6 +4,14 @@ export const queryKeys = {
   /** The exam registry — one global list, identical for every user (no key input). */
   exams: () => ["exams"] as const,
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,
+  /**
+   * Central search. Keyed by locale as well as query because the server resolves
+   * bilingual titles to ONE locale before sending — the same query in the other
+   * language is a different response, not a cache hit. The exam is deliberately
+   * NOT in the key: it is resolved server-side from the profile, and the exam
+   * switcher already calls `queryClient.clear()`.
+   */
+  search: (q: string, locale: string) => ["search", q, locale] as const,
   paperSummaries: () => ["syllabus", "papers"] as const,
   paperTree: (paperCode: string, exam?: ExamCode, difficulty?: Difficulty) =>
     ["syllabus", "papers", paperCode, "tree", exam ?? "all", difficulty ?? "all"] as const,
