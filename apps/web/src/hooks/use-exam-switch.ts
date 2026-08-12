@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { TargetExamCode } from "@neev/shared";
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile";
@@ -29,6 +29,19 @@ export function useExamSwitch() {
   const [pendingExam, setPendingExam] = useState<TargetExamCode | null>(null);
 
   /**
+   * Whatever the user was on when they asked to switch, so the dialog can put
+   * focus back there when it closes.
+   *
+   * Radix restores focus by capturing `document.activeElement` itself, which is
+   * NOT reliable here and was measured stranding keyboard users on `<body>`
+   * from BOTH entry points — after which the next Tab restarts from the top of
+   * the document. Capturing at the moment of the request, and checking the node
+   * is still connected before using it, is explicit and survives the popover
+   * unmounting underneath the dialog.
+   */
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  /**
    * Ask to switch. Re-selecting the exam already active is a no-op rather than
    * a confirmation dialog — there is nothing to confirm. Returns whether a
    * confirmation was actually opened, so a caller that owns surrounding chrome
@@ -37,6 +50,7 @@ export function useExamSwitch() {
   function requestSwitch(code: TargetExamCode): boolean {
     if (code === profile?.target_exam) return false;
     updateProfile.reset();
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setPendingExam(code);
     return true;
   }
@@ -70,12 +84,25 @@ export function useExamSwitch() {
     );
   }
 
+  /**
+   * Where focus should go when the dialog closes: the element that asked for
+   * the switch, if it is still in the document. A caller whose opener is
+   * unmounted by then (the top-bar popover) passes its own fallback.
+   */
+  function focusOpener(): boolean {
+    const el = openerRef.current;
+    if (!el || !el.isConnected) return false;
+    el.focus();
+    return true;
+  }
+
   return {
     /** The exam currently active, or undefined while the profile is loading. */
     currentExam: profile?.target_exam,
     /** The exam awaiting confirmation, or null when no dialog should be open. */
     pendingExam,
     requestSwitch,
+    focusOpener,
     cancel,
     confirm,
     isPending: updateProfile.isPending,

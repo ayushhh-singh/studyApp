@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Popover } from "radix-ui";
@@ -40,6 +40,11 @@ export function ExamSwitcherChip({ className }: { className?: string }) {
   const { data: exams } = useExams();
   const examSwitch = useExamSwitch();
   const [open, setOpen] = useState(false);
+  // The confirmation dialog opens as the popover CLOSES, so by the time the
+  // dialog restores focus its opener is gone and the user lands on <body> —
+  // the next Tab then restarts from the top of the document. Hand the dialog
+  // somewhere real to return to.
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   const selectable = exams?.filter((e) => e.is_live) ?? [];
   const current = exams?.find((e) => e.exam_code === profile?.target_exam);
@@ -61,6 +66,7 @@ export function ExamSwitcherChip({ className }: { className?: string }) {
       <Popover.Root open={open} onOpenChange={setOpen}>
         <Popover.Trigger asChild>
           <button
+            ref={triggerRef}
             type="button"
             title={t("TopBar.examSwitcherHint")}
             className={cn(
@@ -111,7 +117,7 @@ export function ExamSwitcherChip({ className }: { className?: string }) {
         </Popover.Portal>
       </Popover.Root>
 
-      <ExamSwitchDialog state={examSwitch} />
+      <ExamSwitchDialog state={examSwitch} returnFocusTo={triggerRef} />
     </>
   );
 }
