@@ -34,21 +34,55 @@ export function Component() {
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [copied, setCopied] = useState(false);
+  const [messageCopied, setMessageCopied] = useState(false);
+  const [handedOff, setHandedOff] = useState(false);
+
+  // Signature line rather than a "From:" header — a mailto cannot set the
+  // sender, and the address they typed is the one we'd need to reply to.
+  const body = [message, "", "\u2014", name, email].filter(Boolean).join("\n");
+  const mailtoHref = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  /**
+   * ⚑ A mailto: URL that is too long is TRUNCATED by the mail client, silently
+   * — which is precisely the "your message vanished" failure this page's
+   * whole design is meant to avoid. So the length is checked on the ENCODED
+   * href, not on the character count: percent-encoding turns one Devanagari
+   * character into nine, so a Hindi message hits the ceiling at roughly a
+   * ninth of the length an English one does, and a `maxLength` in characters
+   * would be wrong in one locale or the other.
+   *
+   * 3500 rather than the ~2000 that older Windows/Outlook shells are usually
+   * quoted at: at 2000, a Hindi message is capped around 200 CHARACTERS —
+   * two sentences — while an English one gets nearly 1800, which is not a
+   * defensible split on a Hindi-first product. And being over the limit is
+   * not a dead end either way: the warning carries a Copy control, so a long
+   * message can always be pasted into a mail client by hand. Nothing the
+   * user typed is ever lost or truncated without being told.
+   */
+  const tooLong = mailtoHref.length > 3500;
 
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    // Signature line rather than a "From:" header — a mailto cannot set the
-    // sender, and the address they typed is the one we'd need to reply to.
-    const body = [message, "", "—", name, email].filter(Boolean).join("\n");
-    const href = `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.location.href = href;
+    if (tooLong) return;
+    window.location.href = mailtoHref;
+    // Setting location.href to a mailto: hands off to another application, so
+    // NOTHING on this page changes — no navigation, no spinner, no error even
+    // when no mail client is registered. Without an acknowledgement the click
+    // reads as a dead button, and the usual reaction is to press it again.
+    // This confirms the hand-off happened and repeats the fallback, so a user
+    // whose mail app never opens is not left guessing.
+    setHandedOff(true);
   }
 
-  async function copyEmail() {
+  async function copyText(text: string, which: "email" | "message") {
     try {
-      await navigator.clipboard.writeText(SUPPORT_EMAIL);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      if (which === "email") {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } else {
+        setMessageCopied(true);
+        setTimeout(() => setMessageCopied(false), 2000);
+      }
     } catch {
       // Clipboard is permission-gated and absent over plain http — the address
       // is already on screen as selectable text, so failing quietly is fine.
@@ -89,7 +123,7 @@ export function Component() {
                   </a>
                   <button
                     type="button"
-                    onClick={copyEmail}
+                    onClick={() => void copyText(SUPPORT_EMAIL, "email")}
                     className="inline-flex min-h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
@@ -160,13 +194,32 @@ export function Component() {
               className={field}
             />
           </div>
-          <Button type="submit" size="lg" className="mt-1 h-12 gap-2 text-base">
+          {tooLong ? (
+            <div role="alert" className="flex flex-col gap-2 rounded-xl border border-coral/40 bg-coral/10 px-3 py-2.5">
+              <p className="text-sm leading-relaxed text-coral-foreground">{t("Contact.tooLong")}</p>
+              <button
+                type="button"
+                onClick={() => void copyText(`${subject}\n\n${body}`, "message")}
+                className="inline-flex min-h-9 w-fit items-center gap-1.5 rounded-lg border border-coral/40 px-2.5 text-xs font-semibold text-coral-foreground outline-none transition-colors hover:bg-coral/10 focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {messageCopied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+                {messageCopied ? t("Contact.copied") : t("Contact.copyMessage")}
+              </button>
+            </div>
+          ) : null}
+          <Button type="submit" size="lg" disabled={tooLong} className="mt-1 h-12 gap-2 text-base">
             <Send className="size-4.5" aria-hidden />
             {t("Contact.submit")}
           </Button>
-          {/* Says plainly what the button does — this hands off to the mail
-              app, it does not post to a server. */}
-          <p className="text-xs leading-relaxed text-muted-foreground">{t("Contact.mailtoNote")}</p>
+          {handedOff ? (
+            <p role="status" className="rounded-xl border border-tulsi/40 bg-tulsi/10 px-3 py-2 text-sm leading-relaxed text-tulsi-foreground">
+              {t("Contact.handedOff")}
+            </p>
+          ) : (
+            /* Says plainly what the button does — this hands off to the mail
+               app, it does not post to a server. */
+            <p className="text-xs leading-relaxed text-muted-foreground">{t("Contact.mailtoNote")}</p>
+          )}
         </form>
       </div>
 

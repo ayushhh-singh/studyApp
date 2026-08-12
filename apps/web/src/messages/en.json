@@ -223,7 +223,11 @@
     "paperCount_one": "{{count}} paper",
     "paperCount_other": "{{count}} papers",
     "noMatchTitle": "No papers match",
-    "noMatchDescription": "Try a different search, or clear the filters."
+    "noMatchDescription": "Try a different search, or clear the filters.",
+    "clearAll": "Clear all",
+    "removeFilter": "Remove filter: {{filter}}",
+    "filterCount_one": "{{count}} filter",
+    "filterCount_other": "{{count}} filters"
   },
   "Practice": {
     "title": "Practice",
@@ -1791,7 +1795,7 @@
     "q3": "Does it work in Hindi?",
     "a3": "Yes — Hindi is first-class here, not a fallback. The interface, study chapters, mentor answers, and evaluation feedback are all fully bilingual, with real Devanagari typography. One honest caveat: some older past-year-question Hindi text is machine-translated from the original exam PDFs, since their Hindi text layer doesn't extract cleanly — we're steadily replacing it with the real printed Hindi.",
     "q4": "What exams does this cover?",
-    "a4": "Each exam we cover is mapped to its OWN syllabus and exam pattern — Prelims, Mains and CSAT — rather than one generic civil-services template stretched to fit, which is why adding an exam takes a full syllabus and question-bank ingest rather than a switch. You pick yours during onboarding and can change it later in your profile. These are live today:",
+    "a4": "Each exam we cover is mapped to its OWN syllabus and exam pattern — Prelims, Mains and CSAT — rather than one generic civil-services template stretched to fit, which is why adding an exam takes a full syllabus and question-bank ingest rather than a switch. You pick yours during onboarding and can change it later in your profile.",
     "q5": "How is my data used?",
     "a5": "Your answers, attempts, and progress are used to power your own prep — scoring, spaced-repetition scheduling, mastery tracking, and analytics. Your account data is scoped to you at the database level (row-level security), and answer evaluation runs through Anthropic's Claude API. We don't sell your data.",
     "q6": "How do I report a wrong answer or explanation?",
@@ -1801,7 +1805,8 @@
     "reportTitle": "Wrong answer or explanation?",
     "reportBody": "Use \"Report this question\" on the question itself — it's the fastest way to get it fixed, and it goes straight to our review queue instead of an inbox.",
     "contactTitle": "Everything else",
-    "contactBody": "Account, billing, bugs, or general feedback — write to us:"
+    "contactBody": "Account, billing, bugs, or general feedback — write to us:",
+    "a4LiveLabel": "Live today:"
   },
   "Terms": {
     "metaTitle": "Terms of Service — Neev",
@@ -1908,7 +1913,8 @@
     "refund": "Refunds",
     "support": "Support",
     "features": "Features",
-    "contact": "Contact"
+    "contact": "Contact",
+    "headerNavLabel": "Main"
   },
   "Features": {
     "hub": {
@@ -2238,6 +2244,9 @@
     "fieldSubject": "Subject",
     "fieldMessage": "Your message",
     "submit": "Compose email",
-    "mailtoNote": "This opens your own email app with the message filled in — nothing is sent from this page. If it doesn't open, write to the address on the left instead."
+    "mailtoNote": "This opens your own email app with the message filled in — nothing is sent from this page. If it doesn't open, write to the address on the left instead.",
+    "tooLong": "This message is too long to hand to your email app — it would be cut off without warning. Copy it below and paste it into an email to us, or shorten it.",
+    "copyMessage": "Copy my message",
+    "handedOff": "Your email app should be opening with this message ready to send. If nothing happened, copy the address on the left and email us directly — your text is still here."
   }
 }

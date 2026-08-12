@@ -136,6 +136,12 @@ export function Component() {
             <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
               {t("Landing.heroSub")}
             </p>
+            {/* ONE primary, one secondary, and the guest path as a quiet
+                tertiary. Three equally-weighted buttons stacked in a row make
+                a visitor choose before they have read anything — the guest
+                entry is a genuine third option, but it is not a third
+                DECISION, so it reads as a link under the pair rather than
+                competing with them. */}
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button asChild size="lg" className="h-12 gap-2 px-6 text-base">
                 <Link to={primaryHref}>
@@ -146,9 +152,24 @@ export function Component() {
                 <Link to={`/${locale}/features`}>{t("Landing.exploreFeatures")}</Link>
               </Button>
             </div>
-            <div className="mt-5 flex flex-col gap-3">
-              {!session ? <GuestEntryButton className="w-fit" /> : null}
-              <p className="text-sm text-muted-foreground">{t("Landing.heroCtaption")}</p>
+            {/* A flex ROW, not a <p> with the control inline: GuestEntryButton
+                renders a <div> (it carries its own failure note), and a <div>
+                inside a <p> is invalid nesting — React flags it and the
+                browser silently closes the paragraph early. */}
+            <div className="mt-4 flex flex-col gap-2.5">
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+                <span>{t("Landing.heroCtaption")}</span>
+                {!session ? (
+                  <>
+                    <span aria-hidden>·</span>
+                    <GuestEntryButton
+                      variant="ghost"
+                      size="default"
+                      className="gap-0 [&>button]:h-auto [&>button]:px-0 [&>button]:text-sm [&>button]:font-medium [&>button]:text-primary [&>button]:underline-offset-4 [&>button:hover]:bg-transparent [&>button:hover]:underline"
+                    />
+                  </>
+                ) : null}
+              </div>
               <LiveExamChips />
             </div>
           </div>

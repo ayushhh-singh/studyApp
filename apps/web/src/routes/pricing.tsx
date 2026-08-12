@@ -13,6 +13,7 @@ import { PageSeo } from "@/components/seo/page-seo";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
 import { Skeleton } from "@/components/ui-x/skeleton";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { cn } from "@/lib/utils";
 import { billingCopy as c, pick, planPeriodLabel, planMonths } from "@/lib/billing-copy";
 
@@ -163,7 +164,17 @@ export function Component() {
       )}
       {message && <p className="text-center text-sm text-muted-foreground">{message}</p>}
 
-      {/* Plan cards */}
+      {/* Plan cards.
+
+          A failed /billing/plans used to render NOTHING here — no cards, no
+          skeletons, no explanation — on the one page whose entire job is to
+          sell. `plans.data?.plans.map(...)` is silently a no-op when the
+          request fails, and that failure is now MORE likely: the landing page
+          added two public API calls sharing this endpoint's per-IP limiter
+          (docs/OUTSTANDING.md B9). Reproduced live by forcing a 429. */}
+      {plans.isError ? (
+        <QueryErrorState onRetry={() => void plans.refetch()} />
+      ) : (
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {plans.isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
         {plans.data?.plans.map((plan) => {
@@ -231,6 +242,7 @@ export function Component() {
           );
         })}
       </div>
+      )}
 
       {/* Free vs Pro comparison */}
       <div className="flex flex-col gap-3">

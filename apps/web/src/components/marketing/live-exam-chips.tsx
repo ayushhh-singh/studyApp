@@ -24,10 +24,19 @@ import { cn } from "@/lib/utils";
  */
 export function LiveExamChips({
   className,
-  /** Off where the surrounding sentence already introduces the list (the FAQ's "these are live today:"). */
+  /**
+   * Introducing text, rendered INSIDE this component so it disappears with the
+   * chips. Passing it as a prop rather than writing it into the surrounding
+   * copy is load-bearing: the FAQ's answer originally ended "…These are live
+   * today:" in its own translated string, and with the registry down that
+   * colon dangled with nothing after it — the exact defect this component's
+   * fail-quiet behaviour is supposed to prevent. Caught live by forcing a 500.
+   */
+  label,
   showLabel = true,
 }: {
   className?: string;
+  label?: string;
   showLabel?: boolean;
 }) {
   const { t } = useTranslation();
@@ -39,7 +48,7 @@ export function LiveExamChips({
 
   return (
     <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm", className)}>
-      {showLabel ? <span className="text-muted-foreground">{t("Landing.builtFor")}</span> : null}
+      {showLabel ? <span className="text-muted-foreground">{label ?? t("Landing.builtFor")}</span> : null}
       {live.map((exam) => (
         <span
           key={exam.exam_code}

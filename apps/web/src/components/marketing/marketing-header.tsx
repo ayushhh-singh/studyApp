@@ -74,7 +74,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
           <BrandMark />
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex" aria-label={t("Footer.navLabel")}>
+        <nav className="hidden items-center gap-6 md:flex" aria-label={t("Footer.headerNavLabel")}>
           {links.map((l) => navLink(l.to, l.label))}
         </nav>
 
@@ -129,7 +129,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
           shorter and fit, which is why this only showed up in one locale. */}
       <nav
         className="flex items-center gap-5 overflow-x-auto border-t border-border/60 px-4 py-2 md:hidden"
-        aria-label={t("Footer.navLabel")}
+        aria-label={t("Footer.headerNavLabel")}
       >
         {links.map((l) => navLink(l.to, l.label))}
       </nav>

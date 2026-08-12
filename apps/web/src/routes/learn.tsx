@@ -5,6 +5,7 @@ import { BookOpen, FileText, ListChecks, Target, ArrowRight, Search, X, SlidersH
 import type { PaperSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
+import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { StatCardSkeleton } from "@/components/ui-x/skeleton";
 import { Chip } from "@/components/ui-x/chip";
 import { Input } from "@/components/ui/input";
@@ -152,7 +153,7 @@ export function Component() {
   const { t } = useTranslation();
   const { name: examName } = useCurrentExam();
   const locale = useLocale();
-  const { data, isLoading } = usePaperSummaries();
+  const { data, isLoading, isError, refetch } = usePaperSummaries();
   const [params, setParams] = useSearchParams();
 
   // Filters live in the URL — a filtered browse is shareable and survives a
@@ -201,6 +202,15 @@ export function Component() {
   }, [data, stage, status, sort, query, locale]);
 
   const totalCount = data?.length ?? 0;
+  const activeCount = (stage !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
+
+  function clearAll() {
+    setQuery("");
+    const next = new URLSearchParams(params);
+    next.delete("stage");
+    next.delete("status");
+    setParams(next, { replace: true });
+  }
 
   const filterRail = (
     <div className="flex flex-col gap-6">
@@ -255,7 +265,14 @@ export function Component() {
         </Link>
       )}
 
-      {isLoading || !data ? (
+      {/* A FAILED fetch must not read as "still loading" (skeletons forever)
+          or as "this exam has no syllabus". `!data` alone collapses all three
+          — the class QueryErrorState exists for, and one this page is now
+          MORE likely to hit: the landing page added two public API calls that
+          share the same per-IP limiter (docs/OUTSTANDING.md B9). */}
+      {isError ? (
+        <QueryErrorState onRetry={() => void refetch()} />
+      ) : isLoading || !data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <StatCardSkeleton />
           <StatCardSkeleton />
@@ -283,7 +300,7 @@ export function Component() {
                 {t("Learn.filtersTitle")}
               </span>
               <span className="text-xs tabular-nums text-muted-foreground">
-                {t("Learn.paperCount", { count: papers.length })}
+                {activeCount > 0 ? t("Learn.filterCount", { count: activeCount }) : t("Learn.paperCount", { count: papers.length })}
               </span>
             </button>
             <div
@@ -323,20 +340,56 @@ export function Component() {
               )}
             </div>
 
-            {/* Active-filter chips double as the "clear this" control. */}
-            {(stage !== "all" || status !== "all") && (
+            {/* Active filters as removable chips, INCLUDING the search term —
+                otherwise a narrowed list has two different "why am I seeing so
+                few?" answers and only one of them is on screen. "Clear all"
+                appears once more than one is active: resetting three controls
+                one at a time is the point at which it starts to feel like
+                work. Each chip's accessible name says what removing it does,
+                since the X alone does not. */}
+            {activeCount > 0 && (
               <div className="flex flex-wrap items-center gap-2">
                 {stage !== "all" && (
-                  <Chip active onClick={() => setParam("stage", "all", "all")} className="min-h-9 gap-1.5 px-3 text-xs">
+                  <Chip
+                    active
+                    onClick={() => setParam("stage", "all", "all")}
+                    aria-label={t("Learn.removeFilter", { filter: t(`Learn.stage_${stage}`) })}
+                    className="min-h-9 gap-1.5 px-3 text-xs"
+                  >
                     {t(`Learn.stage_${stage}`)}
                     <X className="size-3.5" aria-hidden />
                   </Chip>
                 )}
                 {status !== "all" && (
-                  <Chip active onClick={() => setParam("status", "all", "all")} className="min-h-9 gap-1.5 px-3 text-xs">
+                  <Chip
+                    active
+                    onClick={() => setParam("status", "all", "all")}
+                    aria-label={t("Learn.removeFilter", { filter: t(`Learn.status_${status}`) })}
+                    className="min-h-9 gap-1.5 px-3 text-xs"
+                  >
                     {t(`Learn.status_${status}`)}
                     <X className="size-3.5" aria-hidden />
                   </Chip>
+                )}
+                {query.trim() && (
+                  <Chip
+                    active
+                    onClick={() => setQuery("")}
+                    aria-label={t("Learn.removeFilter", { filter: query.trim() })}
+                    className="min-h-9 max-w-[14rem] gap-1.5 px-3 text-xs"
+                  >
+                    <span className="truncate">{`“${query.trim()}”`}</span>
+                    <X className="size-3.5 shrink-0" aria-hidden />
+                  </Chip>
+                )}
+                {activeCount > 1 && (
+                  <button
+                    type="button"
+                    onClick={clearAll}
+                    className="min-h-9 rounded-lg px-2 text-xs font-semibold text-primary underline-offset-4 outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    {t("Learn.clearAll")}
+                  </button>
                 )}
               </div>
             )}

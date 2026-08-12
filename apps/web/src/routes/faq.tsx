@@ -43,7 +43,7 @@ export function Component() {
               <AccordionTrigger>{item.q}</AccordionTrigger>
               <AccordionContent>
                 <p>{item.a}</p>
-                {item.exams && <LiveExamChips className="mt-3" showLabel={false} />}
+                {item.exams && <LiveExamChips className="mt-3" label={t("Faq.a4LiveLabel")} />}
                 {item.link && (
                   <Link to={item.link.to} className="mt-2 inline-block text-sm font-medium text-primary hover:underline">
                     {item.link.label} →
