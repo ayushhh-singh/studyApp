@@ -17,11 +17,23 @@ export function PageHeader({
       data-tour-anchor={tourAnchor}
       className="flex flex-col gap-1 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4"
     >
-      <div className="flex flex-col gap-1">
+      <div className="flex min-w-0 flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight text-balance">{title}</h1>
         {description && <p className="text-sm whitespace-pre-line text-muted-foreground">{description}</p>}
       </div>
-      {action && <div className="shrink-0">{action}</div>}
+      {/* No shrink-0: an action that's itself a `flex flex-wrap` row of several
+          chips (GreetingHeader's trial/exam countdown pills) needs the freedom
+          to shrink so its OWN wrap can kick in — shrink-0 forced it to keep its
+          full unwrapped width and overflow the page instead, right at the
+          sm:/md: breakpoints where the row layout has the least room (real
+          bug, reproduced 640-680px and 768-950px). Deliberately no min-w-0
+          here (unlike the title block above): the default min-width:auto
+          floors this at its widest single chip's own width, which is exactly
+          "wrap to one chip per line" — min-w-0 would let it shrink past that
+          and clip a chip's own text instead. Every other action= caller in the
+          app is a single button/link/select with no internal wrap points, so
+          its own min-content floor is unchanged by this. */}
+      {action && <div>{action}</div>}
     </div>
   );
 }
