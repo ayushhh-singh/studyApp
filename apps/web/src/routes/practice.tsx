@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { Archive, PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
+import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
 import type { ExamCode } from "@neev/shared";
 import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -282,17 +282,7 @@ export function Component() {
           </div>
         </TabsContent>
         <TabsContent value="pyq">
-          <SectionCard
-            title={t("Practice.available")}
-            action={
-              <Button asChild variant="outline" size="sm">
-                <Link to={`/${locale}/pyq-archive`}>
-                  <Archive aria-hidden />
-                  {t("Practice.browsePyqArchive")}
-                </Link>
-              </Button>
-            }
-          >
+          <SectionCard title={t("Practice.available")}>
             <TestListPanel kind="pyq_full" />
           </SectionCard>
         </TabsContent>
