@@ -920,6 +920,22 @@ export async function runPipeline(
   // already seen, has a usable date, inside the freshness window). Hoisting them
   // is what lets PHASE 2 rotate fairly — you cannot round-robin over sources
   // until you know what each one is actually offering.
+  //
+  // TWO DISCLOSED CONSEQUENCES of hoisting, neither a defect:
+  //
+  //  1. EVERY feed is now fetched, even when the budget would have filled from
+  //     the first few. Measured 2026-08-13 on the real 11-source list: 2.1s for
+  //     all of them vs 0.8s for the three the old loop would have reached, i.e.
+  //     ~1.3s added; the absolute worst case (every feed hitting the parser's
+  //     20s timeout) is 220s, well inside `ca-run.yml`'s budget. Unavoidable in
+  //     any case — fair rationing requires knowing what each source offers.
+  //
+  //  2. `skippedDuplicate` / `skippedOld` / `skippedNoDate` are now COMPLETE
+  //     counts over every feed, where they used to stop counting the moment the
+  //     budget filled. The numbers will therefore jump relative to historical
+  //     runs. They are more accurate now, not inflated — but do not read the
+  //     step change as a regression when comparing run reports across this
+  //     commit.
   // ---------------------------------------------------------------------------
   interface EligibleItem {
     link: string;

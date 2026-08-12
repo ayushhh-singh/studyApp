@@ -77,8 +77,15 @@ export function interleaveBySource<T>(perSource: readonly (readonly T[])[]): Rot
   const longest = perSource.reduce((m, s) => Math.max(m, s.length), 0);
   for (let round = 0; round < longest; round++) {
     for (let sourceIndex = 0; sourceIndex < perSource.length; sourceIndex++) {
-      const item = perSource[sourceIndex][round];
-      if (item !== undefined) out.push({ sourceIndex, item });
+      // Bounds, NOT `item !== undefined`. `T` is generic, so a caller may legitimately
+      // hold `undefined` as a value, and skipping on undefined would silently drop it
+      // — breaking the "every input item appears exactly once" guarantee above for
+      // exactly the caller who could least afford it. The pipeline's own EligibleItem
+      // is never undefined, so this is latent rather than live; it is fixed anyway
+      // because a utility that quietly loses elements is the wrong thing to leave in
+      // a hot path someone will reuse.
+      if (round >= perSource[sourceIndex].length) continue;
+      out.push({ sourceIndex, item: perSource[sourceIndex][round] });
     }
   }
   return out;

@@ -83,6 +83,21 @@ function check(name: string, cond: boolean, detail = "") {
   );
 }
 
+// --- a generic T may legitimately BE undefined -------------------------------
+// Regression guard for the audit find: the first cut skipped on
+// `item !== undefined`, which silently dropped such an element and broke the
+// "every input item appears exactly once" guarantee for a generic caller.
+{
+  const src: (string | undefined)[][] = [["a1", undefined, "a3"], ["b1", "b2"]];
+  const order = interleaveBySource(src);
+  check("undefined elements are preserved, not dropped", order.length === 5, `got ${order.length}`);
+  check(
+    "the undefined lands in the right round and source",
+    order.some((r) => r.sourceIndex === 0 && r.item === undefined),
+  );
+  check("an all-undefined source still contributes its slots", interleaveBySource([[undefined, undefined]]).length === 2);
+}
+
 // --- degenerate inputs ------------------------------------------------------
 {
   check("no sources -> empty", interleaveBySource([]).length === 0);

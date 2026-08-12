@@ -137,7 +137,16 @@ async function main(): Promise<void> {
     `skipped — duplicate: ${result.skippedDuplicate}, too old: ${result.skippedOld}, no date: ${result.skippedNoDate}`,
   );
   if (result.cappedTotal > 0) {
-    report.warn(`hit --max-total cap: ${result.cappedTotal} source(s) had remaining items left unprocessed`);
+    // Deliberately does NOT name --max-total as the cause. Since sources are
+    // now drained in round-robin rather than array order, leftovers can come
+    // from EITHER the run-wide budget or a source's own --max-per-source cap,
+    // and asserting the wrong one sends an operator to the wrong flag. The
+    // pipeline logs the exact per-source taken/available breakdown alongside
+    // this, which answers "which cap, and where" precisely.
+    report.warn(
+      `budget/per-source cap reached: ${result.cappedTotal} source(s) had remaining items left unprocessed ` +
+        `(see the per-source breakdown in the run log)`,
+    );
   }
   for (const failure of result.sourceFailures) {
     report.fail(`source "${failure.source}" failed: ${failure.error}`);
