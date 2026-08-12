@@ -1,10 +1,12 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, PenLine, BookOpen, MessagesSquare, Newspaper, Trophy, Sparkles, ShieldCheck, KeyRound, ScanSearch, UserCheck, Flag } from "lucide-react";
+import { ArrowRight, Check, PenLine, BookOpen, MessagesSquare, Newspaper, Trophy, Sparkles, ShieldCheck, KeyRound, ScanSearch, UserCheck, Flag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
+import { BrandPanel } from "@/components/marketing/brand-panel";
+import { LiveExamChips } from "@/components/marketing/live-exam-chips";
 import { Footer, SUPPORT_EMAIL } from "@/components/marketing/footer";
 import { PageSeo } from "@/components/seo/page-seo";
 
@@ -34,17 +36,30 @@ export function Component() {
     <div className="min-h-svh bg-background">
       <PageSeo locale={locale} path="/about" title={t("About.metaTitle")} description={t("About.leadSubtitle")} />
 
-      <MarketingHeader maxWidthClass="max-w-4xl" />
+      <MarketingHeader maxWidthClass="max-w-5xl" />
 
-      {/* Hero — one concrete lead sentence + who it's for */}
+      {/* Hero — docs/design/reference-1's ABOUT panel: the belief statement
+          beside the brand panel, with the four promises as a checklist. */}
       <section className="border-b border-border/60">
-        <div className="mx-auto max-w-3xl px-4 py-14 sm:px-6 sm:py-20">
-          <h1 className="text-balance text-2xl font-extrabold leading-snug tracking-tight sm:text-3xl">
-            {t("About.leadTitle")}
-          </h1>
-          <p className="mt-4 text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
-            {t("About.leadSubtitle")}
-          </p>
+        <div className="mx-auto grid max-w-5xl gap-8 px-4 py-12 sm:px-6 sm:py-16 lg:grid-cols-[1.15fr_1fr] lg:items-center lg:gap-12">
+          <div>
+            <h1 className="text-balance font-heading text-3xl font-extrabold leading-[1.2] tracking-tight sm:text-4xl">
+              {t("About.leadTitle")}
+            </h1>
+            <p className="mt-4 text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {t("About.leadSubtitle")}
+            </p>
+            <ul className="mt-6 flex flex-col gap-2.5">
+              {[1, 2, 3, 4].map((n) => (
+                <li key={n} className="flex items-start gap-2.5 text-sm leading-relaxed sm:text-base">
+                  <Check className="mt-0.5 size-4.5 shrink-0 text-tulsi-foreground" aria-hidden />
+                  <span>{t(`About.promise${n}`)}</span>
+                </li>
+              ))}
+            </ul>
+            <LiveExamChips className="mt-6" />
+          </div>
+          <BrandPanel className="mx-auto w-full max-w-sm py-10 lg:max-w-none" />
         </div>
       </section>
 
@@ -53,7 +68,7 @@ export function Component() {
         <div className="mx-auto grid max-w-4xl gap-4 px-4 py-10 sm:grid-cols-3 sm:px-6">
           {stats.map((s) => (
             <div key={s.label} className="flex flex-col gap-1 rounded-2xl border border-border bg-card p-5">
-              <span className="text-4xl font-extrabold tabular-nums tracking-tight text-primary">{s.num}</span>
+              <span className="font-display text-4xl font-extrabold tabular-nums tracking-tight text-primary">{s.num}</span>
               <span className="text-sm leading-relaxed text-muted-foreground">{s.label}</span>
             </div>
           ))}
