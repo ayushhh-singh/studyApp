@@ -1343,9 +1343,7 @@
     "weekComplete": "Whole week done — great work. A fresh plan is one click away tomorrow.",
     "dayCleared": "No tasks left for this day.",
     "deleteTask": "Remove task",
-    "deleteTaskConfirm": "Confirm remove task",
     "deleteDay": "Remove this day",
-    "deleteDayConfirm": "Confirm remove day",
     "reviewDay": "Show tasks",
     "collapseDay": "Hide tasks"
   },

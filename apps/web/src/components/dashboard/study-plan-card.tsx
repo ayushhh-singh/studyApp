@@ -38,42 +38,27 @@ const KIND_ICON: Record<PlanTaskKind, typeof BookOpen> = {
 
 const DEFAULT_HOURS = 3;
 
-/** Click once to arm (ghost, coral hover), click again to confirm (filled destructive) — mirrors revision/manage-card-list.tsx's row-delete convention. Blur cancels either state. */
-function ConfirmDeleteButton({
+/** Single-tap delete — no arm-then-confirm step. A plan day/task is low-stakes
+    (the whole week can always be regenerated), and the two-step confirm sat
+    right next to the collapse toggle, easy to mis-tap and easy to mistake for
+    "delete isn't working" when it only armed instead of deleting. */
+function DeleteButton({
   onConfirm,
   ariaLabel,
-  ariaLabelConfirm,
   pending,
 }: {
   onConfirm: () => void;
   ariaLabel: string;
-  ariaLabelConfirm: string;
   pending?: boolean;
 }) {
-  const [armed, setArmed] = useState(false);
-  return armed ? (
-    <Button
-      type="button"
-      variant="destructive"
-      size="icon-sm"
-      aria-label={ariaLabelConfirm}
-      disabled={pending}
-      onClick={() => {
-        onConfirm();
-        setArmed(false);
-      }}
-      onBlur={() => setArmed(false)}
-    >
-      <Trash2 className="size-3.5" aria-hidden />
-    </Button>
-  ) : (
+  return (
     <Button
       type="button"
       variant="ghost"
       size="icon-sm"
       aria-label={ariaLabel}
-      onClick={() => setArmed(true)}
-      onBlur={() => setArmed(false)}
+      disabled={pending}
+      onClick={onConfirm}
       className="text-muted-foreground hover:text-coral"
     >
       <Trash2 className="size-3.5" aria-hidden />
@@ -150,10 +135,9 @@ function TaskRow({ task, date }: { task: PlanTask; date: string }) {
           title (chip width + its gap: size-8 + gap-2.5). */}
       <div className="flex items-center justify-end gap-1 ps-[2.625rem]">
         <span className="me-auto shrink-0 text-xs text-muted-foreground">{task.duration_min}m</span>
-        <ConfirmDeleteButton
+        <DeleteButton
           pending={deleteTask.isPending}
           ariaLabel={t("StudyPlan.deleteTask")}
-          ariaLabelConfirm={t("StudyPlan.deleteTaskConfirm")}
           onConfirm={() => deleteTask.mutate({ date, taskId: task.id })}
         />
       </div>
@@ -252,10 +236,9 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
             />
           </span>
         </button>
-        <ConfirmDeleteButton
+        <DeleteButton
           pending={deleteDay.isPending}
           ariaLabel={t("StudyPlan.deleteDay")}
-          ariaLabelConfirm={t("StudyPlan.deleteDayConfirm")}
           onConfirm={() => deleteDay.mutate(day.date)}
         />
       </div>
