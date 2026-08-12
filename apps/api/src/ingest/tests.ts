@@ -3,28 +3,40 @@
  *
  *   pnpm ingest:tests
  *
- * Builds two kinds:
+ * Builds two kinds, across every PRODUCT exam at once (uppsc, upsc, mppsc —
+ * see `TARGET_EXAM_CODES`):
  *   1. pyq_full  — one test per (paper_code, year) full PYQ paper, e.g.
- *      "UPPSC Prelims GS-I 2024", with the real marking scheme stored on the
- *      test row (verified per-paper negative marking; descriptive papers
- *      carry no negative marking).
+ *      "UPPSC Prelims GS-I 2024" / "UPSC Prelims GS-I 2024", with the real
+ *      marking scheme stored on the test row (verified per-paper negative
+ *      marking; descriptive papers carry no negative marking).
  *   2. sectional — one test per top-level syllabus node, from published MCQs
  *      classified under that section's subtree.
  *
- * Both kinds are titled/labeled "UPPSC" and use UPPSC's own marking scheme,
- * so BOTH are restricted to exam_code='uppsc' questions only — this app also
- * ingests UPSC Civil Services and UPSSSC PET questions onto the same
+ * Each test's title/marking scheme is derived from ITS OWN paper's `.exam`
+ * (`paperByCode(paperCode).exam` → `getExamConfig(exam).misc.pyqTestTitlePrefix`
+ * / `PRELIMS_MARKING[paperCode]`, both already keyed per paper) — never a
+ * single hardcoded exam. This is SAFE to run across every product exam at
+ * once specifically because `paper_code` is globally unique across exams
+ * (§0 of docs/multi-exam.md, DB-enforced via `syllabus_nodes_paper_path_key`)
+ * — grouping by `paper_code::year` can never mix two exams' questions into
+ * one test even though this fetch spans them all.
+ *
+ * `questions.exam_code` is deliberately filtered to `TARGET_EXAM_CODES`
+ * (product-selectable exams), NOT left unfiltered: this app also ingests
+ * UPSC-legacy/UPSSSC-PET *provenance-only* questions onto UPPSC's own shared
  * paper_code (PRE_GS1) for weightage-overlap analytics (see _shared.ts's
- * classifyPyqId), and those exams have their own, different, unverified
- * marking schemes. A year with zero genuine UPPSC-sourced questions simply
- * gets no pyq_full test rather than a paper mislabeled "UPPSC" that's
- * actually 100% a different exam.
+ * classifyPyqId) — those carry a different, unverified marking scheme and
+ * must never enter a real test. Filtering to the product-exam allowlist
+ * keeps that protection while adding every OTHER real product exam's own
+ * (exam-prefixed, never-colliding) papers. A year with zero genuine
+ * product-exam-sourced questions simply gets no pyq_full test rather than a
+ * paper mislabeled with the wrong exam's marking.
  *
  * Idempotent: tests keyed on slug; a test's membership is rebuilt each run.
  */
+import { TARGET_EXAM_CODES } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { roundMarks } from "../lib/marks.js";
-import { UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
 import { PRELIMS_MARKING } from "../lib/exam-papers.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { paperByCode, report } from "./_shared.js";
@@ -61,9 +73,10 @@ async function fetchPublished(): Promise<QRow[]> {
       .select("id, type, stage, paper_code, year, marks, syllabus_node_id, exam_code")
       .eq("is_published", true)
       .eq("review_state", "approved")
-      // See the module doc comment — pyq_full/sectional are UPPSC-labeled and
-      // UPPSC-marked, so only genuinely UPPSC-sourced questions may enter them.
-      .eq("exam_code", UPPSC_EXAM_CODE)
+      // See the module doc comment — every product exam's tests are built in
+      // one pass, but provenance-only rows (UPSC-legacy/UPSSSC-PET tagged onto
+      // UPPSC's shared PRE_GS1) must stay excluded.
+      .in("exam_code", TARGET_EXAM_CODES)
       .order("id", { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) throw new Error(`fetch questions: ${error.message}`);
@@ -107,6 +120,7 @@ async function upsertTest(row: {
   title_i18n: { hi: string; en: string };
   kind: string;
   paper_code: string | null;
+  exam_code: string;
   duration_minutes: number | null;
   total_marks: number | null;
   is_published: boolean;
@@ -184,6 +198,15 @@ async function main(): Promise<void> {
       title_i18n: title,
       kind: "pyq_full",
       paper_code: paperCode,
+      // The paper's own product exam — never a hardcoded default. Without
+      // this the row's `exam_code` silently took the column default
+      // ('uppsc'), which was only ever correct by coincidence while this
+      // fetch was itself restricted to uppsc-only questions; broadening
+      // the fetch to every product exam exposed it as a real write-side gap
+      // (found live: 119 UPSC-paper-coded tests created with exam_code
+      // still 'uppsc', invisible to UPSC users and, for Mains stage, leaking
+      // into a UPPSC user's own test list).
+      exam_code: paper.exam,
       duration_minutes: durationFor(stage),
       total_marks: totalMarks,
       is_published: true,
@@ -245,6 +268,7 @@ async function main(): Promise<void> {
       },
       kind: "sectional",
       paper_code: s.paperCode,
+      exam_code: paper.exam,
       duration_minutes: null,
       total_marks: null,
       is_published: true,
