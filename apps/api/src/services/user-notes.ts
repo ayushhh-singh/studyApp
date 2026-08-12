@@ -535,9 +535,16 @@ export async function translateUserNote(userId: string, id: string): Promise<Use
 // SRS deck — materialise this note's candidate cards (like official notes)
 // ---------------------------------------------------------------------------
 export async function addUserNoteDeckToRevision(userId: string, id: string): Promise<{ added: number; already: number }> {
-  const note = await getUserNote(userId, id);
+  const row = await getUserNoteRow(userId, id);
+  const note = toUserNote(row);
   const candidates = note.srs_candidates ?? [];
   if (candidates.length === 0) return { added: 0, already: 0 };
+
+  // The NOTE's own exam (0123), not the caller's current one — this is the exact
+  // exam the note was authored against, so a deck materialised from a note
+  // written before an exam switch is filed where it belongs rather than under
+  // whatever exam the user happens to be on when they click.
+  const deckExam = row.exam_code ?? (await getUserExam(userId));
 
   const rows = candidates.map((c, i) => ({
     user_id: userId,
@@ -545,6 +552,7 @@ export async function addUserNoteDeckToRevision(userId: string, id: string): Pro
     back_i18n: c.back_i18n,
     source_type: "manual" as const,
     source_id: userNoteSourceId(id, `card:${i}`),
+    exam_code: deckExam,
   }));
   const ids = rows.map((r) => r.source_id);
   const { data: existing } = await supabase()

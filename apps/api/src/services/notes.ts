@@ -150,14 +150,15 @@ export async function addNoteDeckToRevision(
   // the same reason srs.ts's addNodeToRevision/addQuestionToRevision are: the
   // published + paywall checks below both pass on another exam's chapter, so
   // without this a user could seed their deck from a syllabus they are not
-  // sitting. 404 per convention. The CARD stays exam-agnostic (0106 §13) — it is
-  // the SOURCE that is scoped.
+  // sitting. 404 per convention. The CARD is stamped with the same exam (0124,
+  // which reverses 0106 §13's shared-deck decision — see that header).
+  const noteExam = await getUserExam(userId);
   const { data: note, error } = await supabase()
     .from("notes")
     .select("id, syllabus_node_id, srs_candidates, syllabus_nodes!inner(exam_code)")
     .eq("id", noteId)
     .eq("status", "published")
-    .eq("syllabus_nodes.exam_code", await getUserExam(userId))
+    .eq("syllabus_nodes.exam_code", noteExam)
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
   const row = note as unknown as (PublishedNoteForDeck & { syllabus_node_id: string }) | null;
@@ -176,6 +177,7 @@ export async function addNoteDeckToRevision(
     back_i18n: c.back_i18n,
     source_type: "manual" as const,
     source_id: noteSourceId(noteId, `card:${i}`),
+    exam_code: noteExam,
   }));
   const ids = rows.map((r) => r.source_id);
 
@@ -204,12 +206,13 @@ export async function addNoteBlockToRevision(
   // Same untrusted-id exam scoping as addNoteDeckToRevision above. The front/back
   // text is client-supplied here (so there is nothing to harvest), but the CARD's
   // recorded source would still point at another exam's chapter.
+  const blockExam = await getUserExam(userId);
   const { data: note, error } = await supabase()
     .from("notes")
     .select("id, syllabus_nodes!inner(exam_code)")
     .eq("id", noteId)
     .eq("status", "published")
-    .eq("syllabus_nodes.exam_code", await getUserExam(userId))
+    .eq("syllabus_nodes.exam_code", blockExam)
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
   if (!note) throw notFound("Note not found");
@@ -232,6 +235,7 @@ export async function addNoteBlockToRevision(
         back_i18n: body.back_i18n,
         source_type: "manual",
         source_id: sourceId,
+        exam_code: blockExam,
       },
       { onConflict: "user_id,source_type,source_id" },
     )

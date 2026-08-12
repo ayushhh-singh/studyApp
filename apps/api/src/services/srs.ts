@@ -29,6 +29,26 @@ interface SrsCardRow {
 const SRS_CARD_COLUMNS = "id, user_id, front_i18n, back_i18n, source_type, source_id";
 
 /**
+ * "Cards that are revision for this exam" (0124).
+ *
+ * A NULL `exam_code` means "not exam-specific — due under every exam". That arm
+ * is NOT vestigial here the way it is for user_notes: 101 of 130 pre-0124 cards
+ * carry a sha256-DERIVED `source_id` (the idempotency key for note decks, CA
+ * facts, evaluation takeaways and personal-note decks), which cannot be resolved
+ * back to an exam, so they are permanently NULL and must keep showing up rather
+ * than silently disappearing from their owner's deck.
+ *
+ * ⚑ This scoping REVERSES 0106 §13's "the deck is shared across exams" decision,
+ * on the founder's report — measured, that decision was giving the one user on a
+ * second exam a daily review made entirely of the OTHER exam's PYQs. Cards are
+ * not deleted, only filtered, so selecting the old exam brings them straight
+ * back. See the 0124 header before changing this back.
+ */
+function examVisibilityFilter(examCode: string): string {
+  return `exam_code.eq.${examCode},exam_code.is.null`;
+}
+
+/**
  * Add a syllabus topic to revision. Idempotent via a DB-level unique index on
  * (user_id, source_type, source_id) (migration 0026) + upsert — a plain
  * check-then-insert can't actually guarantee this under concurrent requests
@@ -44,16 +64,18 @@ export async function addNodeToRevision(userId: string, nodeId: string): Promise
   // (UPSC, 2026-07-30). Note the asymmetry this fixes: the sibling
   // `addCurrentAffairsFactToRevision` below has always scoped its source.
   //
-  // As there: the CARD stays exam-agnostic on purpose (0106 §13 — a user who
-  // switches exams keeps their deck); it is the SOURCE that is scoped.
+  // The CARD is now exam-scoped too (0124 — this deliberately reverses 0106 §13's
+  // shared-deck decision; see that header). It is stamped with the SAME exam the
+  // gate above resolved, so a card can never claim an exam its source contradicts.
   // 404 rather than 403, per the convention: a foreign node genuinely is not
   // part of your syllabus, and a distinct error would confirm the id exists to
   // a caller probing with guessed ids.
+  const nodeExam = await getUserExam(userId);
   const { data: node, error: nodeError } = await supabase()
     .from("syllabus_nodes")
     .select("title_i18n, description_i18n")
     .eq("id", nodeId)
-    .eq("exam_code", await getUserExam(userId))
+    .eq("exam_code", nodeExam)
     .maybeSingle();
   if (nodeError) throw new HttpError(500, `syllabus node lookup failed: ${nodeError.message}`);
   if (!node) throw notFound("Syllabus node not found");
@@ -67,6 +89,7 @@ export async function addNodeToRevision(userId: string, nodeId: string): Promise
         back_i18n: node.description_i18n ?? { hi: "", en: "" },
         source_type: "manual",
         source_id: nodeId,
+        exam_code: nodeExam,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -96,19 +119,18 @@ export async function addQuestionToRevision(userId: string, questionId: string):
   // so a published-only check passes happily on a question from a syllabus this
   // user is not sitting. 404 rather than 403, per convention.
   //
-  // The CARD stays exam-agnostic on purpose (0106 §13 — switching exams must not
-  // cost you your deck); it is the SOURCE that is scoped.
   //
   // Scoped via paper_code (globally unique across exams), NOT questions.exam_code
   // — that column is PROVENANCE and its domain includes exams nobody can select
   // (up_ro_aro, upsssc_pet) whose PYQs legitimately belong to the default exam's
   // bank, so filtering on it would wrongly refuse them.
+  const questionExam = await getUserExam(userId);
   const { data: question, error: questionError } = await supabase()
     .from("questions")
     .select("stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
     .eq("is_published", true)
-    .or(await questionExamScopeFilter(await getUserExam(userId)))
+    .or(await questionExamScopeFilter(questionExam))
     .maybeSingle();
   if (questionError) throw new HttpError(500, `question lookup failed: ${questionError.message}`);
   if (!question) throw notFound("Question not found");
@@ -139,6 +161,7 @@ export async function addQuestionToRevision(userId: string, questionId: string):
         back_i18n,
         source_type: "question",
         source_id: questionId,
+        exam_code: questionExam,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -187,6 +210,11 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
   const analysis = (evaluation as unknown as EvaluationForRevisionRow | null)?.raw_response?.analysis;
   if (!analysis) throw badRequest("This submission has no evaluation to save yet");
 
+  // Ownership-scoped, not exam-scoped: this is the user's OWN past answer, so
+  // there is no cross-exam content to leak and refusing it would strand them
+  // from saving their own work. The CARD still records which exam it is revision
+  // for (0124), taken from the caller's exam.
+  const submissionExam = await getUserExam(userId);
   const front_i18n = row.questions?.stem_i18n ?? row.custom_question_text_i18n ?? { hi: "", en: "" };
   const points = [...analysis.reference_points, ...analysis.missed_key_points];
   const backText = points.length ? points.map((p) => `- ${p}`).join("\n") : "";
@@ -201,6 +229,7 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
         back_i18n,
         source_type: "manual",
         source_id: submissionId,
+        exam_code: submissionExam,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -245,13 +274,14 @@ export async function addCurrentAffairsFactToRevision(
   // `itemId` is untrusted request body, and the CA feed is exam-scoped, so an
   // item outside the caller's exam is not something they can legitimately have
   // reached — same check (and same 404, not 403) as the other untrusted-id
-  // sites. The CARD stays exam-agnostic on purpose (0106 §13: a user who
-  // switches exams keeps their deck); it is the SOURCE that is scoped.
+  // sites. The CARD is stamped with the same exam (0124, which reverses
+  // 0106 §13's shared-deck decision — see that header).
+  const caExam = await getUserExam(userId);
   const { data: item, error: itemError } = await supabase()
     .from("current_affairs_items")
     .select("title_i18n, prelims_facts, detail_i18n->key_facts_i18n")
     .eq("id", itemId)
-    .overlaps("exam_codes", [await getUserExam(userId)])
+    .overlaps("exam_codes", [caExam])
     .eq("is_published", true)
     .maybeSingle();
   if (itemError) throw new HttpError(500, `current affairs item lookup failed: ${itemError.message}`);
@@ -281,6 +311,7 @@ export async function addCurrentAffairsFactToRevision(
         back_i18n: { hi: hi ?? "", en: en ?? "" },
         source_type: "current_affairs",
         source_id: currentAffairsFactSourceId(itemId, factIndex),
+        exam_code: caExam,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -312,20 +343,28 @@ async function headCount(
  * still "today") could be promised by the button but missing from the
  * session it opens — the two numbers must never disagree.
  */
-export async function getDueQueue(userId: string, limit = 30): Promise<{ cards: SrsQueueCard[]; due_count: number }> {
+export async function getDueQueue(
+  userId: string,
+  examCode: string,
+  limit = 30,
+): Promise<{ cards: SrsQueueCard[]; due_count: number }> {
   const { endUtc: todayEndUtc } = istDayRangeUtc(istToday());
+  const examFilter = examVisibilityFilter(examCode);
 
   const dueCount = await headCount(() =>
-    supabase().from("srs_cards").select("id", { count: "exact", head: true }).eq("user_id", userId).lt(
-      "fsrs_state->>due_at",
-      todayEndUtc,
-    ),
+    supabase()
+      .from("srs_cards")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .or(examFilter)
+      .lt("fsrs_state->>due_at", todayEndUtc),
   );
 
   const { data, error } = await supabase()
     .from("srs_cards")
     .select(SRS_CARD_COLUMNS_WITH_STATE)
     .eq("user_id", userId)
+    .or(examFilter)
     .lt("fsrs_state->>due_at", todayEndUtc)
     .order("fsrs_state->>due_at", { ascending: true })
     .limit(limit);
@@ -341,8 +380,9 @@ export async function getDueQueue(userId: string, limit = 30): Promise<{ cards: 
 }
 
 /** Header stats + a 7-day due-count forecast (day 0 absorbs today + any overdue backlog). */
-export async function getStats(userId: string): Promise<SrsStats> {
+export async function getStats(userId: string, examCode: string): Promise<SrsStats> {
   const today = istToday();
+  const examFilter = examVisibilityFilter(examCode);
   const { startUtc: todayStartUtc, endUtc: todayEndUtc } = istDayRangeUtc(today);
   const thirtyDaysAgoIso = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
   const forecastDays = Array.from({ length: 7 }, (_, i) => shiftDate(today, i));
@@ -356,7 +396,9 @@ export async function getStats(userId: string): Promise<SrsStats> {
         .gte("reviewed_at", todayStartUtc)
         .lt("reviewed_at", todayEndUtc),
     ),
-    headCount(() => supabase().from("srs_cards").select("id", { count: "exact", head: true }).eq("user_id", userId)),
+    headCount(() =>
+      supabase().from("srs_cards").select("id", { count: "exact", head: true }).eq("user_id", userId).or(examFilter),
+    ),
     supabase().from("srs_reviews").select("rating").eq("user_id", userId).gte("reviewed_at", thirtyDaysAgoIso),
     Promise.all(
       forecastDays.map((date, i) => {
@@ -366,6 +408,7 @@ export async function getStats(userId: string): Promise<SrsStats> {
               .from("srs_cards")
               .select("id", { count: "exact", head: true })
               .eq("user_id", userId)
+              .or(examFilter)
               .lt("fsrs_state->>due_at", todayEndUtc),
           );
         }
@@ -375,6 +418,7 @@ export async function getStats(userId: string): Promise<SrsStats> {
             .from("srs_cards")
             .select("id", { count: "exact", head: true })
             .eq("user_id", userId)
+            .or(examFilter)
             .gte("fsrs_state->>due_at", range.startUtc)
             .lt("fsrs_state->>due_at", range.endUtc),
         );
@@ -385,6 +429,12 @@ export async function getStats(userId: string): Promise<SrsStats> {
   if (reviewRowsResult.error) {
     throw new HttpError(500, `srs retention lookup failed: ${reviewRowsResult.error.message}`);
   }
+  // `reviewed_today` and `retention_pct` come from `srs_reviews`, which has no
+  // exam column, and are deliberately left GLOBAL: they describe the user's own
+  // review behaviour, not a deck's contents. Since the queue is now exam-scoped,
+  // every FUTURE review is already single-exam, so the only mixing is historical
+  // — and a user's past retention genuinely is their past retention. Scoping it
+  // would need a join through srs_cards for a number nobody reads per-exam.
   const reviewRows = (reviewRowsResult.data ?? []) as { rating: number }[];
   const retention_pct = reviewRows.length
     ? Math.round((reviewRows.filter((r) => r.rating > 1).length / reviewRows.length) * 1000) / 10
@@ -469,7 +519,10 @@ export async function createManualCard(
 ): Promise<SrsCard> {
   const { data: card, error } = await supabase()
     .from("srs_cards")
-    .insert({ user_id: userId, front_i18n, back_i18n, source_type: "manual", source_id: null })
+    // A hand-written card is stamped with the author's exam too (0124): they
+    // wrote it while revising for THAT exam, so it is that exam's revision.
+    // A user who wants it under both can add it again after switching.
+    .insert({ user_id: userId, front_i18n, back_i18n, source_type: "manual", source_id: null, exam_code: await getUserExam(userId) })
     .select(SRS_CARD_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `srs card insert failed: ${error.message}`);
@@ -478,6 +531,7 @@ export async function createManualCard(
 
 export async function listCards(
   userId: string,
+  examCode: string,
   opts: { query?: string; sourceType?: SrsSourceType; page?: number; pageSize?: number },
 ): Promise<{ items: SrsCardListItem[]; pagination: PaginationMeta }> {
   const page = opts.page ?? 1;
@@ -488,7 +542,8 @@ export async function listCards(
   let q = supabase()
     .from("srs_cards")
     .select(SRS_CARD_COLUMNS_WITH_STATE + ", created_at", { count: "exact" })
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .or(examVisibilityFilter(examCode));
   if (opts.sourceType) q = q.eq("source_type", opts.sourceType);
   // PostgREST's .or() syntax reserves `,()` as condition separators — strip them
   // from free-text search input so a comma in the query can't be read as an

@@ -18,8 +18,12 @@
  * attempted a test or submitted an answer under a different exam this week —
  * exactly what switching `target_exam` mid-week produces — would see that
  * exam's numbers silently folded into THIS exam's digest and share image.
- * `srs_reviews` is DELIBERATELY left unscoped: revision is a shared,
- * exam-agnostic deck by design (0106 §13) and this count should reflect that.
+ * `srs_reviews` is DELIBERATELY left unscoped, but the reason CHANGED with 0124:
+ * the deck is no longer shared (0124 reversed 0106 §13). It stays unscoped
+ * because `srs_reviews` has no exam column and a review is a record of the
+ * user's own past behaviour, not of a deck's contents — and since the due queue
+ * is now exam-scoped, every FUTURE review is single-exam anyway, so the only
+ * mixing left is historical. Same reasoning as getStats' retention_pct.
  * `streak_count` needs no join: it already reads the CURRENTLY ACTIVE exam's
  * live value straight off `users_profile` (the park/restore swap in
  * services/profile.ts's updateProfile keeps that column meaning "this exam's

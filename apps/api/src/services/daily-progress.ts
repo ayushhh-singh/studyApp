@@ -60,12 +60,23 @@ async function headCount(build: () => PromiseLike<{ count: number | null; error:
  * Today checklist, the streak engine and the mentor's backlog tip can never
  * drift apart on what counts as a due card.
  */
-export async function countSrsDue(userId: string, nowIso: string = new Date().toISOString()): Promise<number> {
+export async function countSrsDue(
+  userId: string,
+  examCode: string,
+  nowIso: string = new Date().toISOString(),
+): Promise<number> {
   return headCount(() =>
     supabase()
       .from("srs_cards")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
+      // Exam-scoped (0124), and REQUIRED rather than defaulted so no caller can
+      // keep the cross-exam count by doing nothing. This must stay definitionally
+      // identical to getDueQueue's filter: this number drives the Today
+      // checklist, the streak engine and the mentor's backlog tip, and the
+      // "N due" promise vs an empty session is the exact mismatch Session 16
+      // had to chase down once already.
+      .or(`exam_code.eq.${examCode},exam_code.is.null`)
       .lte("fsrs_state->>due_at", nowIso),
   );
 }
@@ -154,7 +165,7 @@ export async function getDailyProgress(userId: string, date: string = istToday()
         .lt("created_at", endUtc),
     ),
     getDailyAnswerSet(userId, date, examCode),
-    countSrsDue(userId, nowIso),
+    countSrsDue(userId, examCode, nowIso),
     headCount(() =>
       supabase()
         .from("discussion_posts")

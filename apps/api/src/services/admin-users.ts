@@ -34,6 +34,7 @@ import type {
 } from "@neev/shared";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { getUserExam } from "../lib/exams.js";
 import { HttpError, badRequest, notFound } from "../lib/http-error.js";
 import { priceLlmCall, type PriceableLlmCall } from "../lib/llm-cost.js";
 import { selectAll } from "../lib/paginate.js";
@@ -225,7 +226,9 @@ export async function getUserStats(userId: string): Promise<AdminUserStats> {
       .eq("id", userId)
       .maybeSingle(),
     loadActivityByIds([userId]),
-    getStats(userId),
+    // The TARGET user's exam, never the viewing admin's — an admin on UPSC
+    // inspecting a UPPSC learner must see that learner's real deck (0124).
+    getUserExam(userId).then((exam) => getStats(userId, exam)),
   ]);
   if (profile.error) throw new HttpError(500, `profile lookup failed: ${profile.error.message}`);
   const streakRow = (profile.data ?? null) as {

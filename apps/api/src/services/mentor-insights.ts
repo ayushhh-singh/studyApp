@@ -484,8 +484,12 @@ async function loadSignals(
     return null;
   };
 
+  // Resolved once here rather than inside countSrsDue, so the due-card number
+  // this tip promises is scoped to the SAME exam the revision session will
+  // serve (0124). A mismatch is the Session-16 "N due -> empty session" bug.
+  const examCode = await getUserExam(userId);
   const [srsDue, dayIsBlank, streakNudgeAcknowledged, plan, weakNodeCa, drillRecommendation, improvementProof] = await Promise.all([
-    countSrsDue(userId).catch(warn("due-card count")),
+    countSrsDue(userId, examCode).catch(warn("due-card count")),
     streakCouldBreak
       ? getDailyProgress(userId)
           .then((p) => !hadActivity(p))

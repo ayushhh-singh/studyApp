@@ -20,6 +20,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import { touchFeature } from "../lib/feature-touch.js";
 import {
   addCurrentAffairsFactToRevision,
@@ -89,7 +90,8 @@ srsRouter.get(
   "/srs/due",
   asyncHandler(async (req, res) => {
     const query = parse(srsDueQuerySchema, req.query);
-    const queue = await getDueQueue(currentUserId(), query.limit);
+    const userId = currentUserId();
+    const queue = await getDueQueue(userId, await getUserExam(userId), query.limit);
     res.json(srsDueQueueResponseSchema.parse({ data: queue, error: null }));
   }),
 );
@@ -97,7 +99,8 @@ srsRouter.get(
 srsRouter.get(
   "/srs/stats",
   asyncHandler(async (req, res) => {
-    const stats = await getStats(currentUserId());
+    const userId = currentUserId();
+    const stats = await getStats(userId, await getUserExam(userId));
     res.json(srsStatsResponseSchema.parse({ data: stats, error: null }));
   }),
 );
@@ -115,7 +118,12 @@ srsRouter.get(
   "/srs/cards",
   asyncHandler(async (req, res) => {
     const query = parse(srsCardsQuerySchema, req.query);
-    const result = await listCards(currentUserId(), { query: query.query, sourceType: query.source_type, page: query.page });
+    const userId = currentUserId();
+    const result = await listCards(userId, await getUserExam(userId), {
+      query: query.query,
+      sourceType: query.source_type,
+      page: query.page,
+    });
     res.json(listSrsCardsResponseSchema.parse({ data: result, error: null }));
   }),
 );
