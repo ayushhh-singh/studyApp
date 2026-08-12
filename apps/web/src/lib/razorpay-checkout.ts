@@ -67,7 +67,9 @@ export async function openRazorpayCheckout(opts: OpenCheckoutOptions): Promise<v
     // UPI-first: surface UPI at the top of the method list.
     config: { display: { blocks: {}, sequence: ["block.upi"], preferences: { show_default_blocks: true } } },
     prefill: { name: opts.prefillName ?? undefined, email: opts.prefillEmail ?? undefined },
-    theme: { color: opts.themeColor ?? "#2563EB" },
+    // Brand blue (--brand-blue). Hardcoded because Razorpay's modal is a
+    // third-party iframe that cannot read our CSS custom properties.
+    theme: { color: opts.themeColor ?? "#1E4FD9" },
     handler: (resp: unknown) => opts.onSuccess(resp as { razorpay_payment_id: string; razorpay_order_id: string }),
     modal: { ondismiss: () => opts.onDismiss?.() },
   });

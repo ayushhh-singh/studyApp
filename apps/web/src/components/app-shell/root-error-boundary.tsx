@@ -43,20 +43,20 @@ export class RootErrorBoundary extends Component<Props, State> {
           padding: "24px",
           textAlign: "center",
           fontFamily: "-apple-system, BlinkMacSystemFont, Segoe UI, Inter, sans-serif",
-          background: "#0D1526",
+          background: "#061225",
           color: "#F7F9FC",
         }}
       >
         <h1 style={{ fontSize: "1.1rem", margin: 0 }}>Something went wrong — कुछ गड़बड़ हो गई</h1>
-        <p style={{ color: "#9AA5B8", fontSize: "0.85rem", maxWidth: 360, margin: 0 }}>
+        <p style={{ color: "#A9B7CC", fontSize: "0.85rem", maxWidth: 360, margin: 0 }}>
           Please reload the page. If this keeps happening, try again in a few minutes.
         </p>
         <button
           type="button"
           onClick={() => window.location.reload()}
           style={{
-            background: "#2563EB",
-            color: "#fff",
+            background: "#F7C873",
+            color: "#0B1D3B",
             border: "none",
             borderRadius: 999,
             padding: "10px 20px",
