@@ -76,7 +76,7 @@ export function StatCard({
           transition={{ duration: 0.6, times: [0, 0.4, 1], ease: "easeOut" }}
           className={cn(
             "flex size-10 shrink-0 items-center justify-center rounded-xl",
-            tone === "accent" ? "bg-marigold/20 text-marigold-foreground" : "bg-primary/10 text-primary",
+            tone === "accent" ? "bg-marigold/20 text-marigold-foreground ring-1 ring-marigold-foreground/25" : "bg-primary/15 text-primary",
           )}
         >
           <Icon className="size-5" aria-hidden />

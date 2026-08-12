@@ -36,7 +36,7 @@ export function QuickActionsCard() {
             to={`/${locale}/${to}`}
             className="flex min-h-11 flex-col items-center justify-center gap-2 rounded-xl border border-border p-3 text-center transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
               <Icon className="size-5" aria-hidden />
             </span>
             {/* Wraps rather than truncates: Devanagari labels here run longer

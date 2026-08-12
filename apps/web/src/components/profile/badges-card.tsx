@@ -63,7 +63,7 @@ export function BadgesCard() {
             return (
               <li key={badge.id} className="flex flex-col items-center gap-2 text-center">
                 <span
-                  className="flex size-16 shrink-0 items-center justify-center rounded-full bg-marigold/20 text-marigold-foreground"
+                  className="flex size-16 shrink-0 items-center justify-center rounded-full bg-marigold/20 text-marigold-foreground ring-1 ring-marigold-foreground/25"
                   title={badge.body_i18n[locale]}
                 >
                   <Icon className="size-7" aria-hidden />

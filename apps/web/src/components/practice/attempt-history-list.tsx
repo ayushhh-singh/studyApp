@@ -40,7 +40,7 @@ function AttemptRow({ item, showPaper }: { item: AttemptListItem; showPaper: boo
       to={`/${locale}/practice/attempt/${item.id}/result`}
       className="group flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
         <FileText className="size-5" aria-hidden />
       </span>
       <span className="flex min-w-0 flex-1 flex-col gap-1">

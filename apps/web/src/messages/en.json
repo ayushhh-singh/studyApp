@@ -133,7 +133,10 @@
     "statRevisionHint": "cards waiting",
     "quickActionsTitle": "Quick actions",
     "weaknessRowMeta": "{{pct}}% accuracy · {{count}} answered",
-    "weaknessStartCta": "Practise"
+    "weaknessStartCta": "Practise",
+    "weaknessShowAll_one": "Show {{count}} more",
+    "weaknessShowAll_other": "Show {{count}} more",
+    "weaknessShowFewer": "Show fewer"
   },
   "Learn": {
     "title": "Learn",

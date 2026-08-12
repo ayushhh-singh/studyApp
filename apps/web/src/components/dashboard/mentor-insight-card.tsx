@@ -48,7 +48,7 @@ function accentFor(kind: string): { rail: string; iconBg: string; iconFg: string
   }
   return {
     rail: "var(--marigold-foreground)",
-    iconBg: "bg-marigold/15",
+    iconBg: "bg-marigold/20 ring-1 ring-marigold-foreground/25",
     iconFg: "text-marigold-foreground",
     label: "text-marigold-foreground",
     Icon: Sparkles,

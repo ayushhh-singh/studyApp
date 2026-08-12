@@ -133,7 +133,10 @@
     "statRevisionHint": "कार्ड शेष",
     "quickActionsTitle": "त्वरित क्रियाएँ",
     "weaknessRowMeta": "{{pct}}% सटीकता · {{count}} हल किए",
-    "weaknessStartCta": "अभ्यास"
+    "weaknessStartCta": "अभ्यास",
+    "weaknessShowAll_one": "{{count}} और दिखाएँ",
+    "weaknessShowAll_other": "{{count}} और दिखाएँ",
+    "weaknessShowFewer": "कम दिखाएँ"
   },
   "Learn": {
     "title": "अध्ययन",

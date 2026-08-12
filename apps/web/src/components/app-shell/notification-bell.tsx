@@ -17,9 +17,9 @@ const ICONS: Record<NotificationType, typeof Bell> = {
 /** Per-type tile tint. Always the paired -foreground for the glyph — raw
  *  --marigold measures 1.6:1 and would be a decorative smudge, not an icon. */
 const TINTS: Record<NotificationType, string> = {
-  quiz_ready: "bg-primary/10 text-primary",
-  streak_at_risk: "bg-marigold/20 text-marigold-foreground",
-  srs_due: "bg-primary/10 text-primary",
+  quiz_ready: "bg-primary/15 text-primary",
+  streak_at_risk: "bg-marigold/20 text-marigold-foreground ring-1 ring-marigold-foreground/25",
+  srs_due: "bg-primary/15 text-primary",
 };
 
 export function NotificationBell() {
@@ -79,7 +79,7 @@ export function NotificationBell() {
                   // undefined component throws and takes the whole panel down.
                   // (Pre-existing for ICONS; TINTS inherits the same guard.)
                   const Icon = ICONS[n.type] ?? Bell;
-                  const tint = TINTS[n.type] ?? "bg-primary/10 text-primary";
+                  const tint = TINTS[n.type] ?? "bg-primary/15 text-primary";
                   const body = (
                     <div className="flex gap-3">
                       {/* Rounded square and typed tint, per the reference's

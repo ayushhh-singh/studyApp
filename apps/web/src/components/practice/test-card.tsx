@@ -26,7 +26,7 @@ export function TestCard({
       to={href ?? `/${locale}/practice/test/${test.id}`}
       className="flex min-h-11 items-start gap-3 rounded-xl border border-border bg-card px-3 py-3 transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
         <FileText className="size-5" aria-hidden />
       </span>
       {/* div, not span: this wraps block-level children, and a <div> inside a

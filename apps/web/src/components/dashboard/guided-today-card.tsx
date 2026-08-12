@@ -63,7 +63,7 @@ function ChecklistRow({
       <span
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-xl",
-          item.done ? "bg-tulsi/15 text-tulsi-foreground" : "bg-primary/10 text-primary",
+          item.done ? "bg-tulsi/15 text-tulsi-foreground" : "bg-primary/15 text-primary",
         )}
       >
         <Icon className="size-4" aria-hidden />
