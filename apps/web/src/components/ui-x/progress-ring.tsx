@@ -55,7 +55,14 @@ export function ProgressRing({
    */
   children?: React.ReactNode;
 }) {
-  const gradientId = useId();
+  // React 19's useId returns ids wrapped in guillemets («r0»), and this one is
+  // interpolated into an SVG `url(#…)` fragment reference rather than used as a
+  // plain IDREF the way ProgressBar's is. Chromium resolves the non-ASCII form
+  // fine (verified by painting both and comparing pixels), but WebKit could not
+  // be tested in this environment and the failure mode is silent — an unpainted
+  // arc, not an error. Stripping to [A-Za-z0-9_-] costs nothing and removes the
+  // question; the suffix keeps it unique per instance.
+  const gradientId = `pr-${useId().replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
   // Non-finite input must never reach strokeDashoffset — NaN there silently
