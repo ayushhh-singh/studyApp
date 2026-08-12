@@ -30,12 +30,29 @@ const NEUTRAL_KINDS = new Set(["exam_proximity", "plan_today", "ca_weak_node", "
  * `border-border` — inline style always wins unambiguously. */
 function accentFor(kind: string): { rail: string; iconBg: string; iconFg: string; label: string; Icon: typeof Sparkles } {
   if (POSITIVE_KINDS.has(kind)) {
-    return { rail: "var(--tulsi)", iconBg: "bg-tulsi/15", iconFg: "text-tulsi", label: "text-tulsi", Icon: TrendingUp };
+    // -foreground for the rail, icon AND label. Raw --tulsi measures 2.5:1 on a
+    // light card and raw --marigold 1.6:1 — as a 4px rail that is invisible in
+    // light mode, and as an icon or a label it is unreadable. The marigold
+    // branch below already had this right for its icon and label; the rail and
+    // the whole tulsi branch did not.
+    return {
+      rail: "var(--tulsi-foreground)",
+      iconBg: "bg-tulsi/15",
+      iconFg: "text-tulsi-foreground",
+      label: "text-tulsi-foreground",
+      Icon: TrendingUp,
+    };
   }
   if (NEUTRAL_KINDS.has(kind)) {
     return { rail: "var(--primary)", iconBg: "bg-primary/15", iconFg: "text-primary", label: "text-primary", Icon: Sparkles };
   }
-  return { rail: "var(--marigold)", iconBg: "bg-marigold/15", iconFg: "text-marigold-foreground", label: "text-marigold-foreground", Icon: Sparkles };
+  return {
+    rail: "var(--marigold-foreground)",
+    iconBg: "bg-marigold/15",
+    iconFg: "text-marigold-foreground",
+    label: "text-marigold-foreground",
+    Icon: Sparkles,
+  };
 }
 
 /**
@@ -65,7 +82,9 @@ export function MentorInsightCard() {
       className="flex items-start gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
       style={{ borderLeftColor: accent.rail, borderLeftWidth: 4 }}
     >
-      <div className={`mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full ${accent.iconBg} ${accent.iconFg}`}>
+      {/* Rounded square, not a circle — the reference's tiles are squares
+          throughout (dashboard, notes, tests, recommended rows). */}
+      <div className={`mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl ${accent.iconBg} ${accent.iconFg}`}>
         <accent.Icon className="size-5" aria-hidden />
       </div>
       <div className="min-w-0 flex-1">
@@ -83,7 +102,9 @@ export function MentorInsightCard() {
         type="button"
         onClick={() => dismiss.mutate(insight.id)}
         aria-label={t("Mentor.dismiss")}
-        className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        // size-9, not size-7: 28px is well under the 44px tap floor and this is
+        // a real in-page control, not one of the documented 36px header icons.
+        className="-me-1 -mt-1 flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-4" aria-hidden />
       </button>

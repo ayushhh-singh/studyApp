@@ -14,6 +14,14 @@ const ICONS: Record<NotificationType, typeof Bell> = {
   srs_due: Layers,
 };
 
+/** Per-type tile tint. Always the paired -foreground for the glyph — raw
+ *  --marigold measures 1.6:1 and would be a decorative smudge, not an icon. */
+const TINTS: Record<NotificationType, string> = {
+  quiz_ready: "bg-primary/10 text-primary",
+  streak_at_risk: "bg-marigold/20 text-marigold-foreground",
+  srs_due: "bg-primary/10 text-primary",
+};
+
 export function NotificationBell() {
   const { t } = useTranslation();
   const locale = useLocale();
@@ -65,10 +73,16 @@ export function NotificationBell() {
               <ul className="flex flex-col gap-2">
                 {items.map((n) => {
                   const Icon = ICONS[n.type];
+                  const tint = TINTS[n.type];
                   const body = (
                     <div className="flex gap-3">
-                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                        <Icon className="size-4" aria-hidden />
+                      {/* Rounded square and typed tint, per the reference's
+                          list rows — a streak at risk is not the same kind of
+                          message as a quiz being ready, and the row said so
+                          only in its wording. marigold-FOREGROUND for the icon:
+                          raw --marigold is 1.6:1 on this surface. */}
+                      <span className={`mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl ${tint}`}>
+                        <Icon className="size-4.5" aria-hidden />
                       </span>
                       <div className="flex min-w-0 flex-col gap-0.5">
                         <span className="text-sm font-medium">{n.title_i18n[locale]}</span>
@@ -77,7 +91,7 @@ export function NotificationBell() {
                     </div>
                   );
                   return (
-                    <li key={n.id} className="flex items-start gap-1 rounded-lg border border-border p-2">
+                    <li key={n.id} className="flex items-start gap-1 rounded-xl border border-border bg-card p-3">
                       {n.link ? (
                         <Link
                           to={`/${locale}${n.link}`}
@@ -95,7 +109,10 @@ export function NotificationBell() {
                       <button
                         type="button"
                         aria-label={t("Notifications.dismiss")}
-                        className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        // size-9 for the same reason the Clear all button above
+                        // is default-size: 28px is under the tap-target floor,
+                        // and this one is tapped far more often.
+                        className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         onClick={() => action.mutate({ id: n.id, action: "dismiss" })}
                       >
                         <X className="size-3.5" aria-hidden />
