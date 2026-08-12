@@ -189,6 +189,24 @@ analytics, RAG doubt-solving chatbot.
   invoked-directly module guard) may touch argv directly. **When verifying a CLI
   guard, use the pure argv harness — never invoke the real pipeline; that is
   precisely what caused the incident.**
+- **NEVER `git checkout -- <file>` / `git restore <file>` TO UNDO AN
+  EXPERIMENTAL EDIT. It is not an undo — it restores from the INDEX/HEAD and so
+  silently discards every uncommitted change in that file, not just the one you
+  made.** This destroyed a whole session's work on `mentor-insights.ts`
+  (2026-08-12) while reverting a one-line `sed` from a negative control;
+  nothing was recoverable — `git fsck --unreachable` held no commit and no blob,
+  because a popped stash's objects had already been pruned — and the file had to
+  be rewritten from scratch. **The pattern for any deliberate temporary edit
+  (negative controls, A/B arms, "does this guard actually fire"):**
+  `cp <file> /tmp/backup` first, restore with `cp`, and verify the restore with
+  `shasum -a 256` every single time. `git checkout` is only safe on a path with
+  no uncommitted work — which is exactly the case you cannot be sure of
+  mid-experiment.
+- **NEVER `git stash` in this checkout.** Concurrent sessions are normal here
+  (see the co-stage incidents below), and a stash momentarily rewrites the
+  shared tree out from under them — including their untracked files when
+  `--include-untracked` is used. To measure a "before" state, read it without
+  touching the tree: `git show HEAD:<path>`, or a separate `git worktree`.
 - **TEST/VERIFICATION CLEANUP MUST DELETE ONLY BY AN EXPLICIT, PRE-GENERATED,
   UNIQUE TAG OR ID FOR THAT RUN'S OWN SYNTHETIC ROWS — NEVER BY BROAD CRITERIA.
   Non-negotiable, permanent, all future sessions.** Any script/step that seeds
@@ -1555,3 +1573,12 @@ Two engagement gaps. Logic only — the visual restyle is Session 9's, so the on
   - **Confirmed not a bug**: no committed test suite exists anywhere in this repo (no `.test`/`.spec` files, no e2e/Playwright directory) that could reference the removed button, key, or text.
   - **Live-verified**, not just typechecked: a throwaway Supabase auth user (admin-API-created, profile patched `onboarding_completed:true` directly rather than driving the full onboarding wizard — proportionate for a purely subtractive JSX change with no data-dependent behavior) driven against the already-running dev servers via Playwright — `/en/practice?tab=pyq` at 1440px and 390px, `/hi/practice?tab=pyq` at 390px. All three render cleanly (no orphaned action-slot spacing, tab bar scrolls correctly at 390px, Hindi renders correctly), **zero console errors**, button text confirmed absent in both languages. Throwaway user + profile row deleted by exact captured id afterward — 0 leftovers.
   - `docs/neev-post-launch-track.md`'s Session 5 marked ✅ DONE, matching Session 1's established pattern in that file.
+
+### Closing the items the audit above had left open (2026-08-12)
+All three "left open" items and both process failures fixed rather than carried. **The `git checkout`/`git stash` lessons are now standing Dev conventions above, not just a session note** — they are repeatable mistakes, so they belong where a future session reads rules, not where it reads history.
+  - **The mentor write path is no longer unexercised.** Ran the real `listInsights` → `dismissInsight` → `listInsights` cycle plus the whole notifications half against the cloud DB under ONE throwaway auth user — **20/20**: a blank account gets exactly one honest `get_started` card; seeding 12 due cards makes `srs_backlog` appear and **outrank** it (78 vs 20, the contextual order proven against real stored rows, not just in-memory); `meta.priority` persists; dismissing the top card reveals `get_started` and the re-run's `ignoreDuplicates` upsert does **not** resurrect the dismissed row; `generateForUser` → `listActive` → `dismissAllActive` reports a true count, empties the bell, and the self-heal does not resurrect what was cleared. Cleanup deleted by the exact ids captured at insert time and then **re-queried to prove it** — 0 leftovers across `mentor_insights`, `notification_schedule`, `srs_cards`, `learner_profiles`, `users_profile`. The streak card's own hour gate still can't be driven live (it was 10:35 IST), so that path remains pure-side plus a direct check of its new query.
+  - **The bell nudge and the mentor's streak card are now an ESCALATION, not a duplicate pair.** They said the same sentence on one screen at 8 PM. The bell goes first — it also drives web push, so it reaches someone who isn't in the app — and the card only takes over once the user has **read or dismissed** it and *still* hasn't studied. `streakRiskDedupeKey` is exported so the two surfaces cannot drift on the key, and **"row absent" deliberately reads as NOT acknowledged**: the two generators self-heal on different endpoints with no ordering guarantee, so treating a missing row as acknowledged would let the card race in ahead of the bell and reintroduce the very duplication this removes. Note the pleasant interaction with "Clear all": clearing the bell counts as acknowledgement, so the card escalates on the next load — which is correct, the streak really is still at risk.
+  - **iCloud conflict copies: 18 moved out of the tree (to the scratchpad, not deleted — several were STALE snapshots rather than identical, so preserving them cost nothing), plus a durable guard.** `.gitignore` now carries `* [0-9].*`, verified to catch `mentor-insights 2.ts` at any depth while leaving a legitimately-named `report v2.ts` tracked.
+  - **⚑ AND THE GUARD IMMEDIATELY FOUND THAT THE HAZARD HAD ALREADY HAPPENED: `apps/web/src/routes/app-shell 2.tsx` was a COMMITTED iCloud duplicate** — swept into `ae04588` ("Fix Practice tab row overflow at 390px") by a `git add -A`. Verified dead before removing it: **zero references anywhere** in the repo, and it is a stale copy missing the guided tour, milestone toaster, guest banner, floating mentor button, paywall modal, push navigation and `titleI18n` support. Removed; full production build clean. This is the concrete cost of the ` 2.` files — one of them had already polluted a caller search during this very session.
+  - **A REAL MISTAKE INSIDE THIS CLEANUP, caught by its own audit:** the bulk move used `**/*" 2."*`, which swept up **tracked** files too — it deleted `app-shell 2.tsx` from the working tree before anyone had decided anything about it. Caught by checking `git ls-files` for the pattern, restored byte-identically from the backup (confirmed by an empty `git status`/`git diff` on the path), and only *then* removed deliberately with `git rm` after proving it was dead. **The lesson is why the move was a move and not an `rm`: a reversible cleanup let a wrong call be undone; an `rm` would not have.** Always check a bulk-cleanup glob against `git ls-files` before running it.
+  - Verified: api typecheck · web `tsc -b` · **full production build** · `check:paths` (828) · `check:cli-args` (239) · `test:args` 316/316 · `test:mentor` 13/13 · **`test:tips` 77/77** · `prompts:snapshot` 168 byte-identical · **lint 42, delta 0**. The escalation gate is negative-controlled (removing it fails "bell nudge still unread → no duplicate card"); an earlier control in this same round exposed that the multi-line `everyTip` fixture had silently stopped covering `streak_risk`, which is now fixed.

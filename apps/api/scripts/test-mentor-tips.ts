@@ -87,6 +87,7 @@ function ctx(over: Partial<TipContext> = {}): TipContext {
     // null = "not evaluated", which is what the loader really passes outside the
     // late-evening window where a streak can break.
     dayIsBlank: null,
+    streakNudgeAcknowledged: null,
     plan: null,
     weakNodeCa: null,
     drillRecommendation: null,
@@ -112,13 +113,30 @@ const tip = (c: TipContext, kind: string) => buildCandidates(c).find((x) => x.ki
 check("10 AM on an untouched day → plan, not streak panic", top(ctx({ plan: plan(3, 5), hourIst: 10 })), "plan_today");
 check(
   "9 PM on that same untouched day → streak rescue",
-  top(ctx({ plan: plan(3, 5), hourIst: 21, dayIsBlank: true })),
+  top(ctx({ plan: plan(3, 5), hourIst: 21, dayIsBlank: true, streakNudgeAcknowledged: true })),
   "streak_risk",
 );
 // The hour gate is real, not just an artefact of the loader not computing it.
 ok(
   "streak_risk cannot fire in the morning even on a blank day",
-  !kinds(ctx({ hourIst: 10, dayIsBlank: true })).has("streak_risk"),
+  !kinds(ctx({ hourIst: 10, dayIsBlank: true, streakNudgeAcknowledged: true })).has("streak_risk"),
+);
+
+// --- Bell first, card second: never both at once ----------------------------
+// The bell nudge (which also pushes to a device) covers the streak first. Until
+// the user acknowledges it, this card must stay quiet or the same sentence
+// appears twice on one screen.
+ok(
+  "bell nudge still unread → no duplicate card",
+  !kinds(ctx({ hourIst: 21, dayIsBlank: true, streakNudgeAcknowledged: false })).has("streak_risk"),
+);
+ok(
+  "bell row not created yet (race) → still no card",
+  !kinds(ctx({ hourIst: 21, dayIsBlank: true, streakNudgeAcknowledged: null })).has("streak_risk"),
+);
+ok(
+  "acknowledged and STILL nothing studied → the card escalates",
+  kinds(ctx({ hourIst: 21, dayIsBlank: true, streakNudgeAcknowledged: true })).has("streak_risk"),
 );
 // …and it must not fire when the day HAS been used, however late it is.
 ok("9 PM but the day has activity → no streak_risk", !kinds(ctx({ hourIst: 21, dayIsBlank: false })).has("streak_risk"));
@@ -127,7 +145,7 @@ ok("9 PM with activity unknown → no streak_risk", !kinds(ctx({ hourIst: 21, da
 // …nor for someone with no streak to lose (inventing urgency would be dishonest).
 ok(
   "9 PM with a 0-day streak → no streak_risk",
-  !kinds(ctx({ hourIst: 21, dayIsBlank: true, profile: profile({ streak_count: 0 }) })).has("streak_risk"),
+  !kinds(ctx({ hourIst: 21, dayIsBlank: true, streakNudgeAcknowledged: true, profile: profile({ streak_count: 0 }) })).has("streak_risk"),
 );
 
 // --- SIGNAL SIZE moves rank -------------------------------------------------
@@ -195,6 +213,7 @@ const everyTip = buildCandidates(
   ctx({
     hourIst: 21,
     dayIsBlank: true,
+    streakNudgeAcknowledged: true,
     srsDue: 40,
     plan: plan(2, 6),
     weakNodeCa: withCa.weakNodeCa,
@@ -204,7 +223,7 @@ const everyTip = buildCandidates(
 );
 ok(`no tip links to /dashboard (${everyTip.length} tips checked)`, everyTip.every((c) => c.cta_link !== "/dashboard"));
 check("the plan tip has no CTA at all, rather than a dead one", planTip.cta_link, null);
-check("the streak rescue sends you somewhere you can act", tip(ctx({ hourIst: 21, dayIsBlank: true }), "streak_risk").cta_link, "/practice");
+check("the streak rescue sends you somewhere you can act", tip(ctx({ hourIst: 21, dayIsBlank: true, streakNudgeAcknowledged: true }), "streak_risk").cta_link, "/practice");
 
 // --- Never nothing: a brand-new account still gets an honest card -----------
 const blank = ctx({

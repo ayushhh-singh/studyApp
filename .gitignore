@@ -34,3 +34,10 @@ content-raw/_redundant_scans/
 .env.prod
 .env.*.prod
 !.env.example
+
+# iCloud Drive conflict copies (D14). This repo lives under a synced ~/Desktop,
+# and iCloud resolves a write conflict by leaving a stale duplicate named
+# "<file> 2.<ext>" beside the real one. They are never wanted: they produce
+# false `grep`/`rg` hits across the tree (the same class of silent-wrong-answer
+# as the D15 census miss) and a `git add -A` would commit them verbatim.
+* [0-9].*

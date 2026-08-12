@@ -13,6 +13,37 @@ import { getDailyProgress, hadActivity } from "./daily-progress.js";
 /** IST wall-clock times each nudge is scheduled for. */
 const TIMES = { quiz_ready: [5, 0], srs_due: [7, 0], streak_at_risk: [20, 0] } as const;
 
+/**
+ * The streak nudge's dedupe key for a given IST day. Exported so the mentor's
+ * own `streak_risk` card can ask whether the bell has already covered today
+ * without hardcoding the string — the two surfaces say the same thing, and a
+ * drifted key would silently make them BOTH fire again.
+ */
+export function streakRiskDedupeKey(date: string): string {
+  return `streak_at_risk:${date}`;
+}
+
+/**
+ * Has the user already seen and acted on (read or dismissed) a given nudge?
+ *
+ * "Row absent" deliberately reads as NOT acknowledged. `generateForUser` and
+ * `generateMentorInsights` self-heal on two different endpoints with no ordering
+ * guarantee between them, so on a dashboard load the bell's row may not exist
+ * yet — and treating that as "acknowledged" would let the mentor card race in
+ * ahead of the bell and show the same thing twice, which is the duplication
+ * this exists to prevent.
+ */
+export async function isNudgeAcknowledged(userId: string, dedupeKey: string): Promise<boolean> {
+  const { count, error } = await supabase()
+    .from("notification_schedule")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("dedupe_key", dedupeKey)
+    .in("status", ["read", "dismissed"]);
+  if (error) throw new HttpError(500, `notification status lookup failed: ${error.message}`);
+  return (count ?? 0) > 0;
+}
+
 const NOTIFICATION_COLUMNS =
   "id, type, status, scheduled_for, title_i18n, body_i18n, link, created_at";
 
@@ -97,7 +128,7 @@ export async function generateForUser(userId: string, now: number = Date.now()):
   }
 
   // 3. Streak at risk — after ~8 PM IST with no qualifying activity today.
-  const streakKey = `streak_at_risk:${today}`;
+  const streakKey = streakRiskDedupeKey(today);
   const eightPm = Date.parse(istClockUtc(today, TIMES.streak_at_risk[0], TIMES.streak_at_risk[1]));
   if (!active && now >= eightPm) {
     await enqueue({

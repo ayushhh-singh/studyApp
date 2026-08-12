@@ -33,6 +33,7 @@ import { getRecommendation } from "./micro-drills.js";
 import { getImprovementProof } from "./profile-analytics.js";
 import { countSrsDue, getDailyProgress, hadActivity, SRS_ACTIVITY_THRESHOLD } from "./daily-progress.js";
 import { getActivePlan } from "./study-plan.js";
+import { isNudgeAcknowledged, streakRiskDedupeKey } from "./notifications.js";
 
 /** A meaningfully positive average rewrite-improvement bar — matches this file's
  * own `delta > 3` percentage-point bar for calling an evaluation trend "up",
@@ -126,6 +127,14 @@ export interface TipContext {
    * deriving it costs a full `getDailyProgress`.
    */
   dayIsBlank: boolean | null;
+  /**
+   * True once the user has read or dismissed the bell's own streak nudge for
+   * today. The two surfaces say the same thing, so they run as an ESCALATION
+   * rather than a pair: the bell (which also drives web push, and so reaches
+   * someone who isn't in the app) goes first, and this card only takes over if
+   * they acknowledged it and STILL haven't studied. Null when not evaluated.
+   */
+  streakNudgeAcknowledged: boolean | null;
   plan: StudyPlan | null;
   weakNodeCa: WeakNodeCa | null;
   drillRecommendation: DrillRecommendation | null;
@@ -151,7 +160,7 @@ function pickWeakNode(profile: LearnerProfile): LearnerProfile["weak_nodes"][num
  * ranking testable (`pnpm --filter api test:tips`).
  */
 export function buildCandidates(ctx: TipContext): Candidate[] {
-  const { profile, today, hourIst, srsDue, dayIsBlank, plan, weakNodeCa, drillRecommendation, improvementProof } = ctx;
+  const { profile, today, hourIst, srsDue, dayIsBlank, streakNudgeAcknowledged, plan, weakNodeCa, drillRecommendation, improvementProof } = ctx;
   const out: Candidate[] = [];
 
   const daysToExam = profile.days_to_exam;
@@ -248,7 +257,15 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
   // meaningless at 9 AM (the day has barely started) and the most urgent thing
   // on the dashboard at 9 PM. Only fires for a streak that actually exists —
   // there is nothing to rescue at 0, and inventing urgency would be dishonest.
-  if (dayIsBlank === true && profile.streak_count >= 1 && hourIst >= STREAK_RISK_HOUR_IST) {
+  // The bell carries this first (and pushes it to a device); this card is the
+  // escalation for someone who acknowledged that and still hasn't studied, so
+  // the two never say the same thing at the same time.
+  if (
+    dayIsBlank === true &&
+    streakNudgeAcknowledged === true &&
+    profile.streak_count >= 1 &&
+    hourIst >= STREAK_RISK_HOUR_IST
+  ) {
     out.push({
       kind: "streak_risk",
       dedupe_key: `streak_risk:${today}`,
@@ -467,12 +484,15 @@ async function loadSignals(
     return null;
   };
 
-  const [srsDue, dayIsBlank, plan, weakNodeCa, drillRecommendation, improvementProof] = await Promise.all([
+  const [srsDue, dayIsBlank, streakNudgeAcknowledged, plan, weakNodeCa, drillRecommendation, improvementProof] = await Promise.all([
     countSrsDue(userId).catch(warn("due-card count")),
     streakCouldBreak
       ? getDailyProgress(userId)
           .then((p) => !hadActivity(p))
           .catch(warn("daily progress"))
+      : null,
+    streakCouldBreak
+      ? isNudgeAcknowledged(userId, streakRiskDedupeKey(today)).catch(warn("streak nudge status"))
       : null,
     getActivePlan(userId)
       .then((state) => state.plan)
@@ -482,7 +502,7 @@ async function loadSignals(
     hasEvaluations ? getImprovementProof(userId).catch(warn("improvement proof")) : null,
   ]);
 
-  return { srsDue, dayIsBlank, plan, weakNodeCa, drillRecommendation, improvementProof };
+  return { srsDue, dayIsBlank, streakNudgeAcknowledged, plan, weakNodeCa, drillRecommendation, improvementProof };
 }
 
 /**
