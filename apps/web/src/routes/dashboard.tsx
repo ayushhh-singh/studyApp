@@ -3,6 +3,8 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { GreetingHeader } from "@/components/dashboard/greeting-header";
 import { GuidedTodayCard } from "@/components/dashboard/guided-today-card";
+import { DashboardStatStrip } from "@/components/dashboard/stat-strip";
+import { QuickActionsCard } from "@/components/dashboard/quick-actions";
 import { ContinueCard } from "@/components/dashboard/continue-card";
 import { TodayCard } from "@/components/dashboard/today-card";
 import { StudyPlanCard } from "@/components/dashboard/study-plan-card";
@@ -59,9 +61,16 @@ export function Component() {
     <div className="flex flex-col gap-6">
       <GreetingHeader greeting={data.greeting} />
 
+      <DashboardStatStrip greeting={data.greeting} today={data.today} />
+
       <MentorInsightCard />
 
-      <GuidedTodayCard today={data.today} cont={data.continue} locale={locale} />
+      <div className="grid gap-4 md:grid-cols-2">
+        <GuidedTodayCard today={data.today} cont={data.continue} locale={locale} />
+        <WeaknessCard nodes={data.weakness_radar} />
+      </div>
+
+      <QuickActionsCard />
 
       <div className="grid gap-4 md:grid-cols-2">
         <ContinueCard data={data.continue} />
@@ -74,10 +83,7 @@ export function Component() {
 
       <ActivityHeatmapCard />
 
-      <div className="grid gap-4 md:grid-cols-[2fr_1fr]">
-        <PerformanceCard data={data.performance} />
-        <WeaknessCard nodes={data.weakness_radar} />
-      </div>
+      <PerformanceCard data={data.performance} />
 
       <AnswerSpotlightCard data={data.answer_spotlight} />
 

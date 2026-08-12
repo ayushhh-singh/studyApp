@@ -2,8 +2,6 @@ import { useTranslation } from "react-i18next";
 import { ShieldCheck } from "lucide-react";
 import type { DashboardGreeting } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
-import { StreakFlame } from "@/components/ui-x/streak-flame";
-import { FreezePips } from "@/components/ui-x/freeze-pips";
 import { ExamCountdownChip } from "./exam-countdown-chip";
 import { TrialCountdownChip } from "./trial-countdown-chip";
 
@@ -19,11 +17,13 @@ export function GreetingHeader({ greeting }: { greeting: DashboardGreeting }) {
             : t("Dashboard.greetingFallback")
         }
         description={t("Dashboard.description")}
+        // The streak flame and freeze pips used to sit here too. They now lead
+        // the stat strip below (streak count + banked freezes as its hint), and
+        // the TopBar already carries a persistent flame on every page — so this
+        // row was the third copy of one number on a single screen.
         action={
           <div className="flex flex-wrap items-center gap-2">
             <TrialCountdownChip />
-            <StreakFlame count={greeting.streak_count} animate={greeting.streak_incremented_today} />
-            <FreezePips count={greeting.streak_freezes} />
             <ExamCountdownChip exam={greeting.next_exam} />
           </div>
         }

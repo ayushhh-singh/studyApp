@@ -122,7 +122,17 @@
     "perfectDaysCount_other": "{{count}} Perfect Days",
     "freezesBanked_one": "{{count}} streak freeze banked",
     "freezesBanked_other": "{{count}} streak freezes banked",
-    "freezeUsed": "Freeze used — streak safe. You missed a day, but a banked freeze kept your streak alive."
+    "freezeUsed": "Freeze used — streak safe. You missed a day, but a banked freeze kept your streak alive.",
+    "statPlanLabel": "Today's plan",
+    "statPlanHint": "steps done today",
+    "statPlanHintDone": "All done for today",
+    "statStreakLabel": "Study streak",
+    "statStreakHint": "days in a row",
+    "statRevisionLabel": "Due for revision",
+    "statRevisionHint": "cards waiting",
+    "quickActionsTitle": "Quick actions",
+    "weaknessRowMeta": "{{pct}}% accuracy · {{count}} answered",
+    "weaknessStartCta": "Practise"
   },
   "Learn": {
     "title": "Learn",

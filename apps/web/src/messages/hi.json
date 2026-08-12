@@ -122,7 +122,17 @@
     "perfectDaysCount_other": "{{count}} पर्फेक्ट दिन",
     "freezesBanked_one": "{{count}} स्ट्रीक फ़्रीज़ बैंक में",
     "freezesBanked_other": "{{count}} स्ट्रीक फ़्रीज़ बैंक में",
-    "freezeUsed": "फ़्रीज़ इस्तेमाल हुआ — स्ट्रीक सुरक्षित। आपने एक दिन छोड़ा, पर बैंक किए फ़्रीज़ ने आपकी स्ट्रीक बचा ली।"
+    "freezeUsed": "फ़्रीज़ इस्तेमाल हुआ — स्ट्रीक सुरक्षित। आपने एक दिन छोड़ा, पर बैंक किए फ़्रीज़ ने आपकी स्ट्रीक बचा ली।",
+    "statPlanLabel": "आज की योजना",
+    "statPlanHint": "चरण आज पूरे हुए",
+    "statPlanHintDone": "आज का काम पूरा",
+    "statStreakLabel": "अध्ययन शृंखला",
+    "statStreakHint": "लगातार दिन",
+    "statRevisionLabel": "पुनरावृत्ति बाकी",
+    "statRevisionHint": "कार्ड शेष",
+    "quickActionsTitle": "त्वरित क्रियाएँ",
+    "weaknessRowMeta": "{{pct}}% सटीकता · {{count}} हल किए",
+    "weaknessStartCta": "अभ्यास"
   },
   "Learn": {
     "title": "अध्ययन",

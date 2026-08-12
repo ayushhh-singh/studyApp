@@ -1,9 +1,8 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { BookOpen, CheckCircle2, ChevronRight, Layers, PenLine, Sparkles } from "lucide-react";
+import { BookOpen, Check, Layers, PenLine, Sparkles } from "lucide-react";
 import type { DashboardChecklistItem, DashboardContinue, DashboardToday, Locale } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
-import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { cn } from "@/lib/utils";
 
 const ICONS: Record<DashboardChecklistItem["key"], typeof Sparkles> = {
@@ -59,17 +58,17 @@ function ChecklistRow({
   return (
     <Link
       to={to}
-      className="flex min-h-11 items-center gap-3 rounded-lg px-2 py-1.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-11 items-center gap-3 rounded-lg px-2 py-2 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <span
         className={cn(
-          "flex size-9 shrink-0 items-center justify-center rounded-full",
+          "flex size-9 shrink-0 items-center justify-center rounded-xl",
           item.done ? "bg-tulsi/15 text-tulsi-foreground" : "bg-primary/10 text-primary",
         )}
       >
-        {item.done ? <CheckCircle2 className="size-4" aria-hidden /> : <Icon className="size-4" aria-hidden />}
+        <Icon className="size-4" aria-hidden />
       </span>
-      <span className={cn("flex-1 text-sm", item.done && "text-muted-foreground line-through")}>
+      <span className={cn("min-w-0 flex-1 text-sm", item.done && "text-muted-foreground line-through")}>
         {t(`Dashboard.guidedItem_${item.key}`)}
       </span>
       {progress && (
@@ -77,7 +76,21 @@ function ChecklistRow({
           {progress}
         </span>
       )}
-      {!item.done && <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />}
+      {/* The reference's Today's Plan puts a real checkbox at the end of each
+          row — filled --action with a tick when done, an empty ring when not.
+          Presentational only: the row is a Link, the item completes by doing
+          the work, so this must not read to a screen reader as a control. */}
+      <span
+        aria-hidden
+        className={cn(
+          "flex size-6 shrink-0 items-center justify-center rounded-md border-2 transition-colors",
+          item.done
+            ? "border-action bg-action text-action-foreground"
+            : "border-border text-transparent",
+        )}
+      >
+        <Check className="size-4" strokeWidth={3} />
+      </span>
     </Link>
   );
 }
@@ -95,18 +108,14 @@ export function GuidedTodayCard({
   const allDone = today.checklist_total > 0 && today.checklist_completed >= today.checklist_total;
 
   return (
-    <SectionCard className="border-primary/20">
-      <div className="flex items-center gap-4">
-        <ProgressRing value={today.checklist_completed} max={today.checklist_total}>
-          {today.checklist_completed}/{today.checklist_total}
-        </ProgressRing>
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <h2 className="text-base font-semibold">{t("Dashboard.guidedTitle")}</h2>
-          <p className="text-sm text-muted-foreground">
-            {allDone ? t("Dashboard.guidedAllDone") : t("Dashboard.guidedSubtitle")}
-          </p>
-        </div>
-      </div>
+    // The progress ring that used to head this card now leads the stat strip
+    // above it (see stat-strip.tsx) — the reference's Today's Plan is a pure
+    // checklist, and two rings showing one fraction on one screen read as a bug.
+    <SectionCard
+      title={t("Dashboard.guidedTitle")}
+      description={allDone ? t("Dashboard.guidedAllDone") : t("Dashboard.guidedSubtitle")}
+      className="border-primary/20"
+    >
       <div className="flex flex-col gap-0.5">
         {today.checklist.map((item) => (
           <ChecklistRow
