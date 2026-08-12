@@ -53,7 +53,8 @@
     "resultCount_zero": "No results",
     "resultCount_one": "{{count}} result",
     "resultCount_other": "{{count}} results",
-    "groupQuestion": "Past questions"
+    "groupQuestion": "Past questions",
+    "groupChapter": "Study chapters"
   },
   "Dashboard": {
     "title": "Dashboard",

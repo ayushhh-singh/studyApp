@@ -20,6 +20,7 @@ const RESULT_ITEM_CLASS =
 /** i18n key per result type — the group heading the palette renders. */
 const TYPE_HEADING: Record<SearchResultType, string> = {
   syllabus: "CommandPalette.groupSyllabus",
+  chapter: "CommandPalette.groupChapter",
   question: "CommandPalette.groupQuestion",
 };
 

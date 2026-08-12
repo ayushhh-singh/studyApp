@@ -239,6 +239,63 @@ const searchQuestions: Searcher = {
   },
 };
 
+interface ChapterRow {
+  id: string;
+  syllabus_node_id: string;
+  syllabus_nodes: { paper_code: string; title_i18n: BilingualText } | { paper_code: string; title_i18n: BilingualText }[] | null;
+}
+
+const searchChapters: Searcher = {
+  examScope:
+    "`notes` has NO exam column of its own — it hangs off a syllabus node. Scoped by " +
+    "joining `syllabus_nodes!inner(exam_code)` and filtering the EMBEDDED column, which " +
+    "is what makes the join an actual filter rather than a decoration. Verified live " +
+    "that it bites (uppsc -> MAINS_GS3, upsc -> UPSC_MAINS_GS3 for the same needle).",
+  async run(ctx) {
+    // ⚑ MATCHES BODY TEXT, NOT THE NODE TITLE. A chapter's name IS its node's
+    // title, so title-matching here would return the exact rows the syllabus
+    // searcher already returned, pointing at the exact same page — noise, not
+    // results. What this adds is the ability to find a chapter that TEACHES a
+    // concept no node is named after: overview, the key-facts list, and every
+    // section heading (`toc` serialises both locales in one blob, so one
+    // condition covers all headings in both languages).
+    const l = ctx.like;
+    const { data, error } = await supabase()
+      .from("notes")
+      .select("id, syllabus_node_id, syllabus_nodes!inner(paper_code, title_i18n)")
+      .eq("status", "published")
+      .eq("syllabus_nodes.exam_code", ctx.examCode)
+      .or(
+        [
+          `content_i18n->en->>overview.ilike.${l}`,
+          `content_i18n->hi->>overview.ilike.${l}`,
+          `content_i18n->en->>key_facts.ilike.${l}`,
+          `content_i18n->hi->>key_facts.ilike.${l}`,
+          `study_content_i18n->>toc.ilike.${l}`,
+        ].join(","),
+      )
+      .order("id", { ascending: true })
+      .limit(ctx.limit);
+    if (error) throw new Error(`chapter search failed: ${error.message}`);
+
+    return ((data ?? []) as unknown as ChapterRow[]).flatMap((r) => {
+      const node = Array.isArray(r.syllabus_nodes) ? r.syllabus_nodes[0] : r.syllabus_nodes;
+      // `!inner` guarantees a node, but the row shape does not — skip rather
+      // than emit a result with no title and a broken link.
+      if (!node) return [];
+      return [
+        {
+          type: "chapter" as const,
+          id: r.id,
+          title: pickLocale(node.title_i18n, ctx.locale),
+          subtitle: node.paper_code,
+          to: `learn/${node.paper_code}/${r.syllabus_node_id}`,
+        },
+      ];
+    });
+  },
+};
+
 /**
  * ⚑ A `Record`, not a partial map: adding a member to `searchResultTypeSchema`
  * is a compile error until its searcher exists here.
@@ -246,6 +303,7 @@ const searchQuestions: Searcher = {
 const SEARCHERS: Record<SearchResultType, Searcher> = {
   syllabus: searchSyllabus,
   question: searchQuestions,
+  chapter: searchChapters,
 };
 
 // ---------------------------------------------------------------------------
@@ -272,9 +330,11 @@ export async function search(
     examCode,
     locale,
     like,
-    // One extra row purely to answer "is there more?" without a second COUNT
-    // query per type. It is sliced off before the results go out.
-    limit: PER_TYPE_LIMIT + 1,
+    // Deliberately well above PER_TYPE_LIMIT. Two reasons: it answers "is there
+    // more?" without a second COUNT query per type, and it leaves headroom for
+    // destination dedupe — a type whose rows collapse heavily (several PYQs on
+    // one topic) would otherwise return a nearly-empty group after deduping.
+    limit: PER_TYPE_LIMIT * 4 + 1,
   };
 
   // Every type in parallel — the slowest single query is the response time,
@@ -286,6 +346,30 @@ export async function search(
 
   const groups: SearchGroup[] = [];
   let degraded = false;
+  /**
+   * ⚑ DEDUPE BY DESTINATION — both ACROSS types and WITHIN one.
+   *
+   * Two rows that go to the same page are one result to the user, however
+   * different they look in the database. Two ways that happens, and a control
+   * sweep over 10 real queries found BOTH:
+   *
+   *  - across types: a chapter has no identity of its own — its name IS its
+   *    node's title and it opens the node's page — so a node whose title
+   *    matched appeared under two headings pointing at one URL.
+   *  - within a type: several PYQs on one topic all link to that topic's
+   *    `?tab=pyqs`. Left alone, "panchayat" spent 3 of its 5 question slots on
+   *    a single destination. Deduping turns those 5 slots into 5 distinct
+   *    topics; the stem shown is still a real matching question, and the page
+   *    it opens lists the rest.
+   *
+   * Keyed on `to`, not on ids: ids differ across tables while the destination is
+   * what the user actually experiences as "the same result". It is also
+   * self-maintaining — a future type landing on an existing page is deduped for
+   * free, and one with a genuinely distinct URL is correctly left alone.
+   *
+   * First writer wins, so `SEARCH_TYPE_ORDER` decides which framing survives.
+   */
+  const seenDestinations = new Set<string>();
   for (const [i, outcome] of settled.entries()) {
     const type = SEARCH_TYPE_ORDER[i]!;
     if (outcome.status === "rejected") {
@@ -293,13 +377,19 @@ export async function search(
       logger.warn({ err: outcome.reason, type, examCode }, "search: one content type failed");
       continue;
     }
-    const rows = outcome.value.results;
-    if (rows.length === 0) continue;
-    groups.push({
-      type,
-      results: rows.slice(0, PER_TYPE_LIMIT),
-      has_more: rows.length > PER_TYPE_LIMIT,
-    });
+    const fetched = outcome.value.results;
+    const shown: SearchResult[] = [];
+    for (const row of fetched) {
+      if (shown.length >= PER_TYPE_LIMIT) break;
+      if (seenDestinations.has(row.to)) continue;
+      seenDestinations.add(row.to);
+      shown.push(row);
+    }
+    if (shown.length === 0) continue;
+    // "There were more matches than these" — true whether the extras were cut
+    // by the cap or collapsed by dedupe, which is the question the user is
+    // actually asking when they see the marker.
+    groups.push({ type, results: shown, has_more: fetched.length > shown.length });
   }
 
   return {

@@ -53,7 +53,8 @@
     "resultCount_zero": "कोई परिणाम नहीं",
     "resultCount_one": "{{count}} परिणाम",
     "resultCount_other": "{{count}} परिणाम",
-    "groupQuestion": "पिछले प्रश्न"
+    "groupQuestion": "पिछले प्रश्न",
+    "groupChapter": "अध्ययन अध्याय"
   },
   "Dashboard": {
     "title": "डैशबोर्ड",
