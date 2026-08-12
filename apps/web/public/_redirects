@@ -17,6 +17,7 @@
 /assets/*                  /assets/:splat             200
 /pwa/*                     /pwa/:splat                200
 /marketing/*               /marketing/:splat          200
+/brand/*                   /brand/:splat              200
 
 # Cloudflare Pages SPA fallback — mirrors apps/web/vercel.json's rewrite rule.
 # Vite copies public/* verbatim into dist/, so this ships as dist/_redirects.
