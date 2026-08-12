@@ -440,6 +440,15 @@ export async function freshTargetsFor(opts: {
   // because a current-affairs MCQ is stamped `paper_code = CURRENT_AFFAIRS` while
   // hanging off a real syllabus node — it is still fresh practice on that leaf,
   // so a paper-code filter here would under-count it and over-generate.
+  //
+  // ⚑ The `exam_code` filter is a NARROWING for cost, never the correctness
+  // boundary — that is `nodeIds.has(...)` below. `questions.exam_code` is
+  // PROVENANCE, whose domain includes exams we ingest from but never sell, so it
+  // must not be trusted to define scope. It is safe to narrow on here only
+  // because a GENERATED row is stamped with the exam that generated it: measured
+  // 2026-08-13, 0 of 2,241 live generated rows disagree with their own node's
+  // exam. If that ever stops holding, delete this filter — do not weaken the
+  // node-set check.
   const nodeIds = new Set(rows.map((r) => r.id));
   const generated = await selectAll<{ syllabus_node_id: string }>(() =>
     supabase()
@@ -511,8 +520,18 @@ async function freshShortfallsFor(opts: {
  * leaf, so it can legitimately appear in BOTH passes; without this it would be
  * planned twice and generated twice in one night. Takes the larger count, which
  * satisfies whichever floor asked for more and therefore both.
+ *
+ * PURE, and exported for the same reason `trimToBudget` is: measured 2026-08-13
+ * the two passes collide on ZERO nodes, so this path has no live instance and
+ * would otherwise ship untested. Exercised by `pnpm --filter api test:qgen`.
+ *
+ * ⚑ A RELATED GAP THIS DOES NOT CLOSE, recorded rather than papered over: dedup
+ * is scoped PER NODE, so a coverage plan on a depth-1 section and a fresh plan on
+ * one of its depth-2 children can generate overlapping content on the same night
+ * without ever being compared. Measured today: 0 such subtree collisions (the one
+ * node the coverage pass fires on is childless). Latent, not live.
  */
-function mergePlans(plans: GeneratePlan[]): GeneratePlan[] {
+export function mergePlans(plans: GeneratePlan[]): GeneratePlan[] {
   const byNode = new Map<string, GeneratePlan>();
   for (const p of plans) {
     const key = `${p.node.id}|${p.kind}`;

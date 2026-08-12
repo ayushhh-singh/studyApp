@@ -11,6 +11,7 @@
     "verify:schema": "tsx --env-file-if-exists=.env scripts/verify-schema.ts",
     "test:mentor": "tsx scripts/test-mentor-heuristics.ts",
     "test:tips": "tsx scripts/test-mentor-tips.ts",
+    "test:qgen": "tsx scripts/test-qgen-plan.ts",
     "test:args": "tsx scripts/test-parse-args.ts",
     "test:ca-rotation": "tsx scripts/test-source-rotation.ts",
     "prompts:snapshot": "tsx scripts/prompt-snapshot.ts",

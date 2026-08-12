@@ -1,9 +1,10 @@
 /**
  * Stage D — near-duplicate detection. Embeds each candidate stem and compares
  * (cosine) against (a) the node's existing question bank and (b) the other
- * candidates in this run. A candidate whose best match is at/above
- * DEDUP_THRESHOLD is rejected as a duplicate; every candidate keeps its nearest
- * existing hits so the Review Queue can show the reviewer what it resembles.
+ * candidates in this run. A candidate whose best match is at/above its kind's
+ * threshold (`DEDUP_THRESHOLD_BY_KIND`) is rejected as a duplicate; every
+ * candidate keeps its nearest existing hits so the Review Queue can show the
+ * reviewer what it resembles.
  *
  * Scoped per node (the only place a duplicate can realistically arise, and
  * bounded — nodes that need top-up have few existing questions). Degrades
@@ -41,10 +42,15 @@ import { logger } from "../lib/logger.js";
  * different questions, so any threshold that would tighten MCQ would reject them.
  * The real MCQ fix is to embed stem+options; until then a permissive threshold is
  * the safe failure direction. Recorded in `docs/OUTSTANDING.md` §9.
+ *
+ * The key set is deliberately NOT `QuestionType`. `dedupCandidates`' parameter is
+ * `keyof typeof` this map, so widening `questionTypeSchema` to a third kind is a
+ * COMPILE ERROR at the call site rather than a lookup returning `undefined` —
+ * and `maxSimilarity >= undefined` is always false, i.e. the gate would silently
+ * switch OFF for the new kind. Verified by widening the type in a throwaway
+ * probe: TS2322 at the assignment, which is the loud direction.
  */
 export const DEDUP_THRESHOLD_BY_KIND = { mcq: 0.9, descriptive: 0.84 } as const;
-/** Back-compat alias — the MCQ value, which is the historical global threshold. */
-export const DEDUP_THRESHOLD = DEDUP_THRESHOLD_BY_KIND.mcq;
 
 export interface DedupHit {
   question_id: string;
