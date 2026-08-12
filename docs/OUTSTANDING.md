@@ -600,6 +600,23 @@ Full narrative in `CLAUDE.md`. Commits `8d300d9` (exemplars + dedup), `71ef3bd` 
 
 **Cost:** $0.75 of real generation (19 questions), $0 for judging (free subagents). All 19 rows and their `generation_batches` rows deleted by exact id captured at insert time, re-queried to confirm 0 remain.
 
+### 9d. Edge-case audit of the qgen fixes *(2026-08-13, same day)*
+
+Adversarial pass over `8d300d9` / `71ef3bd` / `3e55c39` — what they INTRODUCED or newly EXPOSED, not the happy path. Fixed in `ab55952`; no behaviour change.
+
+| # | Check | Result |
+|---|---|---|
+| E1 | **`mergePlans` was defensive code with 0 live instances** (the coverage and fresh-supply passes collide on 0 nodes), so it would have shipped unexercised until the night it first mattered. | ✅ exported + `pnpm --filter api test:qgen`, **17 assertions**, pure. **Negative-controlled**: first-count-instead-of-max fails 2, dropping `kind` from the key fails 1; `topup.ts` restored from a `cp` backup, **sha256 byte-identical** (never `git checkout`). |
+| E2 | **⚑ The silent-disable path in the dedup change.** If `DEDUP_THRESHOLD_BY_KIND[kind]` were ever `undefined`, `maxSimilarity >= undefined` is always **false** — the gate switches OFF with no error. | ✅ **cannot happen loudly-or-silently**: the parameter is `keyof typeof` the map, so widening `questionTypeSchema` to a third kind is a **compile error at the call site**. Verified by an actual throwaway probe (TS2322), not by reasoning. `QuestionType` is exactly `"mcq" \| "descriptive"`. |
+| E3 | **`DEDUP_THRESHOLD` was a dead export** calling itself "back-compat" for nothing — no importer anywhere, and the only "reference" was a stale sentence in the module docblock naming it as the live gate. | ✅ both removed. |
+| E4 | **The 388 leaves the fresh floor newly targets — 364 of them depth-2, a population qgen had NEVER generated for.** Risks: a NULL `exam_stage` rendering `"Paper: X (undefined)"` into the prompt, and few-shot starvation (a leaf has no children, so tier 2 returns nothing). | ✅ 0 NULL/invalid `exam_stage`, 0 empty titles; of the **341** nodes topup would actually generate for, **0 get zero exemplars and 0 get a thin 1-4 set**. The subtree walk + paper fallback covers the whole new population. |
+| E5 | **`freshTargetsFor` filters generated supply by `questions.exam_code`, which is PROVENANCE** — a column this repo repeatedly warns must not define scope. Under-counting supply would over-generate. | ✅ safe, and now documented as a **cost narrowing, not the correctness boundary** (that is the node-set check). Measured: **0 of 2,241** live generated rows disagree with their own node's exam. |
+| E6 | **Cross-pass duplication.** Dedup is scoped PER NODE, so a coverage plan on a depth-1 section and a fresh plan on one of its depth-2 children can generate overlapping content in one night **without ever being compared**. | 🟡 **latent, not live** — measured 0 subtree collisions today (the one node coverage fires on is childless). Recorded at `mergePlans` rather than fixed; the real fix is subtree-aware dedup, which is G14's territory. |
+| E7 | The childless `descendants()` lookup that **181 of 388 leaves** now pay. | ✅ **not waste** — it IS the query that answers "does this node have children"; there is no cheaper way to know. Left alone deliberately. |
+| E8 | **A false green caught in my own audit harness.** `tsc ... \| head` printed `EXIT=0` from `head`, and a standalone `tsc` invocation silently ignored the project config. Re-run bare; the D15 trap, hit again. | ⚑ method |
+| E9 | **The working tree failed `tsc` mid-audit — entirely the concurrent session's `ca/sources.ts`.** Proven rather than assumed by checking out HEAD into a **git worktree** (never `git stash` in this checkout) and typechecking there: **exit 0**. | ✅ my committed state is clean |
+| E10 | **⚑ `prompts:snapshot` reports 5 CHANGED keys — all `ca/*`, all the concurrent session's in-flight `ca/prompts.ts`.** Running `--write` would have baked their prompt changes into the baseline under my commit. | ⚑ **did NOT write.** 0 `qgen/*` keys changed by this audit. |
+
 ### 9a. G3 — the model-answer verify gate: what was measured, and what was not *(2026-08-08)*
 
 Validated against **ground truth**, not a fresh unlabelled sample: the gate was run over the EXACT 16 stored model answers the 2026-08-08 Panel B judged, so every verdict is comparable with three judges' recorded accuracy scores. **Budget: exactly 20 Anthropic calls, the stated cap** (independently confirmed — the cleanup deleted exactly 20 tagged `llm_calls` rows).
