@@ -1,51 +1,44 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { BookOpen, FileText, ListChecks, Target, ArrowRight, Search, X, SlidersHorizontal } from "lucide-react";
+import { BookOpen, FileText, ListChecks, Target, ArrowRight, SlidersHorizontal } from "lucide-react";
 import type { PaperSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { StatCardSkeleton } from "@/components/ui-x/skeleton";
 import { Chip } from "@/components/ui-x/chip";
-import { Input } from "@/components/ui/input";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandTextColor } from "@/lib/score-band";
-import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Nav.learn" };
 
 /**
- * Browse surface for the syllabus, rebuilt to docs/design/reference-1's
- * COURSES page: search + a filter rail + a card grid.
+ * Browse surface for the syllabus: a stage filter and a card grid.
  *
- * The mockup's filters are a placeholder catalogue ("UPSC / State PCS /
- * Optional / Foundation" as sibling checkboxes, an Enrolled/Completed status,
- * a bookmark on every card). None of that maps onto this app: a user prepares
- * for exactly ONE exam at a time (`users_profile.target_exam`), so a
- * cross-exam category filter would be a control with one legal value, and
- * there is no enrolment, no completion flag and no paper bookmark to read.
+ * ⚑ THIS PAGE DELIBERATELY HAS NO FREE-TEXT SEARCH BOX. It used to, and the box
+ * could only ever match the TEN paper titles this grid renders — while the
+ * command palette (Ctrl/Cmd+K) searches the real corpus behind them: syllabus
+ * topics, PYQs, chapters, personal notes and current affairs. Two boxes on one
+ * screen, one of which silently searches ~10 rows and the other ~14,000, is a
+ * trap rather than a convenience: a user who types "inflation" here gets "no
+ * papers match" and reasonably concludes the app has nothing on inflation.
+ * Search is centralised in the palette; this page filters. Do not add it back.
  *
- * So the visual pattern is reproduced against the fields that DO exist:
- * category → the paper's exam STAGE, status → whether this user has actually
- * answered anything in it, and the card's progress bar → real published
- * chapter coverage. Nothing here invents a parallel course catalog.
+ * The stage filter stays because it is STRUCTURED filtering of the list that is
+ * actually on screen, which is a different job from search and belongs next to
+ * the list it narrows. It sits inline rather than in the old collapsible rail —
+ * a whole disclosure panel existed to house three controls, and one chip row
+ * does not need one.
  */
 
 type StageFilter = "all" | "prelims" | "mains";
-type StatusFilter = "all" | "started" | "not_started";
 type SortKey = "syllabus" | "pyqs" | "coverage" | "accuracy";
 
 const STAGE_FILTERS: StageFilter[] = ["all", "prelims", "mains"];
-const STATUS_FILTERS: StatusFilter[] = ["all", "started", "not_started"];
 const SORT_KEYS: SortKey[] = ["syllabus", "pyqs", "coverage", "accuracy"];
-
-/** "Has this user actually done anything here" — the only real progress signal a paper carries. */
-function isStarted(paper: PaperSummary) {
-  return paper.answered_count > 0;
-}
 
 function coveragePct(paper: PaperSummary) {
   return paper.topics_count > 0
@@ -64,7 +57,7 @@ function PaperCard({ paper }: { paper: PaperSummary }) {
       className="flex flex-col gap-3 rounded-xl border border-border bg-card p-4 shadow-sm transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       <div className="flex items-start justify-between gap-2">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
           <BookOpen className="size-5" aria-hidden />
         </span>
         {paper.accuracy_pct !== null && (
@@ -104,51 +97,6 @@ function PaperCard({ paper }: { paper: PaperSummary }) {
   );
 }
 
-/** Radio-style filter group — the reference's checkbox rail, as single-select rows. */
-function FilterGroup<T extends string>({
-  name,
-  label,
-  options,
-  value,
-  onChange,
-  optionLabel,
-}: {
-  /**
-   * Radio-group name. A stable ASCII id, NOT the translated label: two groups
-   * that happened to translate to the same string would silently merge into
-   * one radio group, and that failure would appear in one locale only.
-   */
-  name: string;
-  label: string;
-  options: T[];
-  value: T;
-  onChange: (next: T) => void;
-  optionLabel: (opt: T) => string;
-}) {
-  return (
-    <fieldset className="flex flex-col gap-1.5">
-      <legend className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">{label}</legend>
-      {options.map((opt) => (
-        <label
-          key={opt}
-          className="flex min-h-9 cursor-pointer items-center gap-2.5 rounded-lg px-1 text-sm transition-colors hover:text-foreground has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-ring"
-        >
-          <input
-            type="radio"
-            name={name}
-            checked={value === opt}
-            onChange={() => onChange(opt)}
-            className="size-4 accent-[var(--action)] outline-none"
-          />
-          <span className={cn(value === opt ? "font-semibold text-foreground" : "text-muted-foreground")}>
-            {optionLabel(opt)}
-          </span>
-        </label>
-      ))}
-    </fieldset>
-  );
-}
-
 export function Component() {
   const { t } = useTranslation();
   const { name: examName } = useCurrentExam();
@@ -161,10 +109,7 @@ export function Component() {
   // filters. Unknown/absent values fall back to the permissive default rather
   // than rendering an empty grid for a typo'd URL.
   const stage = (STAGE_FILTERS.find((s) => s === params.get("stage")) ?? "all") as StageFilter;
-  const status = (STATUS_FILTERS.find((s) => s === params.get("status")) ?? "all") as StatusFilter;
   const sort = (SORT_KEYS.find((s) => s === params.get("sort")) ?? "syllabus") as SortKey;
-  const [query, setQuery] = useState("");
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   function setParam(key: string, value: string, fallback: string) {
     const next = new URLSearchParams(params);
@@ -175,20 +120,7 @@ export function Component() {
 
   const papers = useMemo(() => {
     if (!data) return [];
-    const q = query.trim().toLocaleLowerCase(locale === "hi" ? "hi-IN" : "en-IN");
-    const filtered = data.filter((p) => {
-      if (stage !== "all" && p.exam_stage !== stage) return false;
-      if (status === "started" && !isStarted(p)) return false;
-      if (status === "not_started" && isStarted(p)) return false;
-      if (!q) return true;
-      // Search both locales' titles plus the paper code: an aspirant may well
-      // type "GS1" or the English name while reading the Hindi UI.
-      return (
-        p.title_i18n.en.toLocaleLowerCase("en-IN").includes(q) ||
-        p.title_i18n.hi.toLocaleLowerCase("hi-IN").includes(q) ||
-        p.paper_code.toLocaleLowerCase("en-IN").includes(q)
-      );
-    });
+    const filtered = data.filter((p) => stage === "all" || p.exam_stage === stage);
     const sorted = [...filtered];
     if (sort === "pyqs") sorted.sort((a, b) => b.pyq_count - a.pyq_count);
     else if (sort === "coverage") sorted.sort((a, b) => coveragePct(b) - coveragePct(a));
@@ -199,56 +131,9 @@ export function Component() {
       sorted.sort((a, b) => (b.accuracy_pct ?? -1) - (a.accuracy_pct ?? -1));
     }
     return sorted;
-  }, [data, stage, status, sort, query, locale]);
+  }, [data, stage, sort]);
 
   const totalCount = data?.length ?? 0;
-  const activeCount = (stage !== "all" ? 1 : 0) + (status !== "all" ? 1 : 0) + (query.trim() ? 1 : 0);
-
-  function clearAll() {
-    setQuery("");
-    const next = new URLSearchParams(params);
-    next.delete("stage");
-    next.delete("status");
-    setParams(next, { replace: true });
-  }
-
-  const filterRail = (
-    <div className="flex flex-col gap-6">
-      <FilterGroup
-        name="stage"
-        label={t("Learn.filterStage")}
-        options={STAGE_FILTERS}
-        value={stage}
-        onChange={(v) => setParam("stage", v, "all")}
-        optionLabel={(o) => t(`Learn.stage_${o}`)}
-      />
-      <FilterGroup
-        name="status"
-        label={t("Learn.filterStatus")}
-        options={STATUS_FILTERS}
-        value={status}
-        onChange={(v) => setParam("status", v, "all")}
-        optionLabel={(o) => t(`Learn.status_${o}`)}
-      />
-      <div className="flex flex-col gap-1.5">
-        <label htmlFor="learn-sort" className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          {t("Learn.sortBy")}
-        </label>
-        <select
-          id="learn-sort"
-          value={sort}
-          onChange={(e) => setParam("sort", e.target.value, "syllabus")}
-          className="h-11 rounded-xl border border-input bg-background px-3 text-sm outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-        >
-          {SORT_KEYS.map((k) => (
-            <option key={k} value={k}>
-              {t(`Learn.sort_${k}`)}
-            </option>
-          ))}
-        </select>
-      </div>
-    </div>
-  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -282,136 +167,63 @@ export function Component() {
       ) : totalCount === 0 ? (
         <EmptyState icon={BookOpen} title={t("Learn.emptyTitle")} description={t("Learn.emptyDescription")} />
       ) : (
-        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:gap-8">
-          {/* Filter rail — a fixed column on desktop, a disclosure above the
-              grid at 390px (the reference's own mobile sheet, without a second
-              overlay layer to trap focus in). */}
-          <aside className="lg:w-56 lg:shrink-0">
-            <h2 className="hidden text-base font-semibold lg:mb-4 lg:block">{t("Learn.filtersTitle")}</h2>
-            <button
-              type="button"
-              onClick={() => setFiltersOpen((o) => !o)}
-              aria-expanded={filtersOpen}
-              aria-controls="learn-filters"
-              className="flex min-h-11 w-full items-center justify-between gap-2 rounded-xl border border-border bg-card px-4 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring lg:hidden"
-            >
-              <span className="flex items-center gap-2">
-                <SlidersHorizontal className="size-4" aria-hidden />
-                {t("Learn.filtersTitle")}
-              </span>
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {activeCount > 0 ? t("Learn.filterCount", { count: activeCount }) : t("Learn.paperCount", { count: papers.length })}
-              </span>
-            </button>
-            <div
-              id="learn-filters"
-              className={cn(
-                "mt-4 rounded-xl border border-border bg-card p-4 lg:mt-0 lg:block lg:border-0 lg:bg-transparent lg:p-0",
-                filtersOpen ? "block" : "hidden",
-              )}
-            >
-              {filterRail}
-            </div>
-          </aside>
-
-          <div className="flex min-w-0 flex-1 flex-col gap-4">
-            <div className="relative">
-              <Search
-                className="pointer-events-none absolute start-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                aria-hidden
-              />
-              <Input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder={t("Learn.searchPlaceholder")}
-                aria-label={t("Learn.searchPlaceholder")}
-                className="ps-10 pe-10"
-              />
-              {query && (
-                <button
-                  type="button"
-                  onClick={() => setQuery("")}
-                  aria-label={t("Common.clear")}
-                  className="absolute end-1.5 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-lg text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        <div className="flex flex-col gap-4">
+          {/* Stage chips + sort on one wrapping row. `gap-y` matters more than
+              `gap-x` here: at 390px the sort control wraps below the chips, and
+              without vertical gap the two rows touch. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <div role="group" aria-label={t("Learn.filterStage")} className="flex flex-wrap gap-2">
+              {STAGE_FILTERS.map((opt) => (
+                <Chip
+                  key={opt}
+                  active={stage === opt}
+                  onClick={() => setParam("stage", opt, "all")}
+                  className="min-h-9 px-3 text-xs"
                 >
-                  <X className="size-4" aria-hidden />
-                </button>
-              )}
+                  {t(`Learn.stage_${opt}`)}
+                </Chip>
+              ))}
             </div>
-
-            {/* Active filters as removable chips, INCLUDING the search term —
-                otherwise a narrowed list has two different "why am I seeing so
-                few?" answers and only one of them is on screen. "Clear all"
-                appears once more than one is active: resetting three controls
-                one at a time is the point at which it starts to feel like
-                work. Each chip's accessible name says what removing it does,
-                since the X alone does not. */}
-            {activeCount > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                {stage !== "all" && (
-                  <Chip
-                    active
-                    onClick={() => setParam("stage", "all", "all")}
-                    aria-label={t("Learn.removeFilter", { filter: t(`Learn.stage_${stage}`) })}
-                    className="min-h-9 gap-1.5 px-3 text-xs"
-                  >
-                    {t(`Learn.stage_${stage}`)}
-                    <X className="size-3.5" aria-hidden />
-                  </Chip>
-                )}
-                {status !== "all" && (
-                  <Chip
-                    active
-                    onClick={() => setParam("status", "all", "all")}
-                    aria-label={t("Learn.removeFilter", { filter: t(`Learn.status_${status}`) })}
-                    className="min-h-9 gap-1.5 px-3 text-xs"
-                  >
-                    {t(`Learn.status_${status}`)}
-                    <X className="size-3.5" aria-hidden />
-                  </Chip>
-                )}
-                {query.trim() && (
-                  <Chip
-                    active
-                    onClick={() => setQuery("")}
-                    aria-label={t("Learn.removeFilter", { filter: query.trim() })}
-                    className="min-h-9 max-w-[14rem] gap-1.5 px-3 text-xs"
-                  >
-                    <span className="truncate">{`“${query.trim()}”`}</span>
-                    <X className="size-3.5 shrink-0" aria-hidden />
-                  </Chip>
-                )}
-                {activeCount > 1 && (
-                  <button
-                    type="button"
-                    onClick={clearAll}
-                    className="min-h-9 rounded-lg px-2 text-xs font-semibold text-primary underline-offset-4 outline-none transition-colors hover:underline focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    {t("Learn.clearAll")}
-                  </button>
-                )}
-              </div>
-            )}
-
-            <p aria-live="polite" className="text-xs text-muted-foreground">
-              {t("Learn.paperCount", { count: papers.length })}
-            </p>
-
-            {papers.length === 0 ? (
-              <EmptyState
-                icon={Search}
-                title={t("Learn.noMatchTitle")}
-                description={t("Learn.noMatchDescription")}
-              />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                {papers.map((paper) => (
-                  <PaperCard key={paper.paper_code} paper={paper} />
+            <div className="ms-auto flex items-center gap-2">
+              <label
+                htmlFor="learn-sort"
+                className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground"
+              >
+                <SlidersHorizontal className="size-3.5" aria-hidden />
+                {t("Learn.sortBy")}
+              </label>
+              <select
+                id="learn-sort"
+                value={sort}
+                onChange={(e) => setParam("sort", e.target.value, "syllabus")}
+                className="min-h-9 rounded-xl border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                {SORT_KEYS.map((k) => (
+                  <option key={k} value={k}>
+                    {t(`Learn.sort_${k}`)}
+                  </option>
                 ))}
-              </div>
-            )}
+              </select>
+            </div>
           </div>
+
+          <p aria-live="polite" className="text-xs text-muted-foreground">
+            {t("Learn.paperCount", { count: papers.length })}
+          </p>
+
+          {papers.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title={t("Learn.noMatchTitle")}
+              description={t("Learn.noMatchDescription")}
+            />
+          ) : (
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              {papers.map((paper) => (
+                <PaperCard key={paper.paper_code} paper={paper} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
