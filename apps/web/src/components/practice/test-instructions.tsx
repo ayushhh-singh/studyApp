@@ -63,7 +63,7 @@ export function TestInstructions({
             <li>{t("Practice.instructionAutosave")}</li>
             <li>{t("Practice.instructionPalette")}</li>
             {test.marking_scheme?.negative_marking ? (
-              <li className="flex items-start gap-1.5 font-medium text-coral">
+              <li className="flex items-start gap-1.5 font-medium text-coral-foreground">
                 <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
                 {test.marking_scheme.note ??
                   t("Practice.instructionNegativeMarking", {

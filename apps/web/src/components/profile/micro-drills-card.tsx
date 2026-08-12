@@ -86,7 +86,7 @@ export function MicroDrillsCard() {
                 );
               })}
             </div>
-            {startFailedSilently && <p className="text-sm text-coral">{t("MicroDrill.startError")}</p>}
+            {startFailedSilently && <p className="text-sm text-destructive">{t("MicroDrill.startError")}</p>}
           </div>
         )}
 

@@ -31,7 +31,7 @@ export function SubmitConfirmDialog({
               ? t("Practice.submitConfirmUnanswered", { count: unansweredCount })
               : t("Practice.submitConfirmAllAnswered")}
           </Dialog.Description>
-          {error && <p className="mt-3 text-sm text-coral">{error}</p>}
+          {error && <p className="mt-3 text-sm text-destructive">{error}</p>}
           <div className="mt-5 flex justify-end gap-2">
             {/* Disabled (not just Dialog.Close) while submitting: once Confirm
                 is clicked, the underlying request is already in flight and

@@ -24,7 +24,7 @@ function TopicRow({ item, locale }: { item: AttemptTopicBreakdownItem; locale: L
           <span className="truncate text-sm font-medium text-muted-foreground">{title}</span>
         )}
         {item.is_weak && (
-          <span className="shrink-0 rounded-full bg-coral/10 px-2 py-0.5 text-xs font-semibold text-coral">
+          <span className="shrink-0 rounded-full bg-coral/10 px-2 py-0.5 text-xs font-semibold text-coral-foreground">
             {t("Practice.resultWeak")}
           </span>
         )}

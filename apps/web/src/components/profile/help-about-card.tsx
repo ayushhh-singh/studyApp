@@ -67,7 +67,7 @@ export function HelpAboutCard() {
         </Link>
 
         <Link to={`/${locale}/refund`} className={rowClass}>
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-coral/15 text-coral">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-coral/15 text-coral-foreground">
             <ReceiptIndianRupee className="size-4.5" aria-hidden />
           </span>
           <span className="flex min-w-0 flex-col gap-0.5">

@@ -316,8 +316,8 @@ function CutoffYears({
 function Verdict({ ok, small }: { ok: boolean; small?: boolean }) {
   const cls = small ? "size-4" : "size-5";
   return ok ? (
-    <CheckCircle2 className={cn(cls, "shrink-0 text-tulsi")} aria-hidden />
+    <CheckCircle2 className={cn(cls, "shrink-0 text-tulsi-foreground")} aria-hidden />
   ) : (
-    <XCircle className={cn(cls, "shrink-0 text-coral")} aria-hidden />
+    <XCircle className={cn(cls, "shrink-0 text-coral-foreground")} aria-hidden />
   );
 }
