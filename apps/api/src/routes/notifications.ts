@@ -1,11 +1,15 @@
 import { Router } from "express";
 import { z } from "zod";
-import { notificationListResponseSchema, notificationResponseSchema } from "@neev/shared";
+import {
+  notificationClearAllResponseSchema,
+  notificationListResponseSchema,
+  notificationResponseSchema,
+} from "@neev/shared";
 import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
-import { generateForUser, listActive, setStatus } from "../services/notifications.js";
+import { dismissAllActive, generateForUser, listActive, setStatus } from "../services/notifications.js";
 
 export const notificationsRouter = Router();
 notificationsRouter.use(rateLimit({ windowMs: 60_000, max: 120 }));
@@ -20,6 +24,17 @@ notificationsRouter.get(
     await generateForUser(userId);
     const { items, unread_count } = await listActive(userId);
     res.json(notificationListResponseSchema.parse({ data: { items, unread_count }, error: null }));
+  }),
+);
+
+// Registered ahead of the `/:id/*` routes so the literal path can never be
+// captured as an id (it wouldn't match their two-segment shape anyway, but the
+// ordering keeps that independent of how the params are written later).
+notificationsRouter.post(
+  "/notifications/clear-all",
+  asyncHandler(async (_req, res) => {
+    const cleared = await dismissAllActive(currentUserId());
+    res.json(notificationClearAllResponseSchema.parse({ data: { cleared }, error: null }));
   }),
 );
 

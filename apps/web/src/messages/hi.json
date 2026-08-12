@@ -1065,7 +1065,8 @@
   "Notifications": {
     "title": "सूचनाएँ",
     "empty": "सब कुछ देख लिया।",
-    "dismiss": "हटाएँ"
+    "dismiss": "हटाएँ",
+    "clearAll": "सब हटाएँ"
   },
   "Digest": {
     "title": "इस सप्ताह",

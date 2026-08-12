@@ -1,11 +1,11 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Bell, Flame, Layers, Sparkles, X } from "lucide-react";
+import { Bell, CheckCheck, Flame, Layers, Sparkles, X } from "lucide-react";
 import type { NotificationType } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent } from "@/components/ui-x/sheet";
-import { useNotifications, useNotificationAction } from "@/hooks/use-notifications";
+import { useNotifications, useNotificationAction, useClearNotifications } from "@/hooks/use-notifications";
 import { useLocale } from "@/hooks/use-locale";
 
 const ICONS: Record<NotificationType, typeof Bell> = {
@@ -20,6 +20,7 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false);
   const { data } = useNotifications();
   const action = useNotificationAction();
+  const clearAll = useClearNotifications();
   const items = data?.items ?? [];
   const unread = data?.unread_count ?? 0;
 
@@ -46,48 +47,62 @@ export function NotificationBell() {
           {items.length === 0 ? (
             <p className="py-8 text-center text-sm text-muted-foreground">{t("Notifications.empty")}</p>
           ) : (
-            <ul className="flex flex-col gap-2">
-              {items.map((n) => {
-                const Icon = ICONS[n.type];
-                const body = (
-                  <div className="flex gap-3">
-                    <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                      <Icon className="size-4" aria-hidden />
-                    </span>
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                      <span className="text-sm font-medium">{n.title_i18n[locale]}</span>
-                      <span className="text-xs text-muted-foreground">{n.body_i18n[locale]}</span>
+            <>
+              <div className="mb-2 flex justify-end">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={clearAll.isPending}
+                  onClick={() => clearAll.mutate()}
+                >
+                  <CheckCheck className="size-3.5" aria-hidden />
+                  {t("Notifications.clearAll")}
+                </Button>
+              </div>
+              <ul className="flex flex-col gap-2">
+                {items.map((n) => {
+                  const Icon = ICONS[n.type];
+                  const body = (
+                    <div className="flex gap-3">
+                      <span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        <Icon className="size-4" aria-hidden />
+                      </span>
+                      <div className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-sm font-medium">{n.title_i18n[locale]}</span>
+                        <span className="text-xs text-muted-foreground">{n.body_i18n[locale]}</span>
+                      </div>
                     </div>
-                  </div>
-                );
-                return (
-                  <li key={n.id} className="flex items-start gap-1 rounded-lg border border-border p-2">
-                    {n.link ? (
-                      <Link
-                        to={`/${locale}${n.link}`}
-                        className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                        onClick={() => {
-                          action.mutate({ id: n.id, action: "read" });
-                          setOpen(false);
-                        }}
+                  );
+                  return (
+                    <li key={n.id} className="flex items-start gap-1 rounded-lg border border-border p-2">
+                      {n.link ? (
+                        <Link
+                          to={`/${locale}${n.link}`}
+                          className="min-w-0 flex-1 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => {
+                            action.mutate({ id: n.id, action: "read" });
+                            setOpen(false);
+                          }}
+                        >
+                          {body}
+                        </Link>
+                      ) : (
+                        <div className="min-w-0 flex-1">{body}</div>
+                      )}
+                      <button
+                        type="button"
+                        aria-label={t("Notifications.dismiss")}
+                        className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        onClick={() => action.mutate({ id: n.id, action: "dismiss" })}
                       >
-                        {body}
-                      </Link>
-                    ) : (
-                      <div className="min-w-0 flex-1">{body}</div>
-                    )}
-                    <button
-                      type="button"
-                      aria-label={t("Notifications.dismiss")}
-                      className="flex size-7 shrink-0 items-center justify-center rounded-full text-muted-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                      onClick={() => action.mutate({ id: n.id, action: "dismiss" })}
-                    >
-                      <X className="size-3.5" aria-hidden />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                        <X className="size-3.5" aria-hidden />
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </>
           )}
         </SheetContent>
       </Sheet>

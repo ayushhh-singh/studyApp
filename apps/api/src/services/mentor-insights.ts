@@ -2,24 +2,75 @@
  * Feature 5 — proactive mentor insights.
  *
  * The mentor never messages first; instead a nightly (and on-load self-healing)
- * job derives at most a few actionable nudge cards from the learner profile and
- * writes them to `mentor_insights`, idempotent per (user, dedupe_key). The
- * dashboard renders at most ONE undismissed card. Everything is templated from
- * real profile signals — no LLM call, so it's free and never hallucinates.
+ * job derives actionable nudge cards from the learner's own data and writes them
+ * to `mentor_insights`, idempotent per (user, dedupe_key). The dashboard renders
+ * at most ONE undismissed card. Everything is templated from real signals — no
+ * LLM call, so it's free and never hallucinates.
+ *
+ * There is a catalogue of tip KINDS (weak section, revision backlog, streak
+ * rescue, today's study-plan day, fresh current affairs on a weak section,
+ * answer-writing weaknesses, rewrite gains, exam pacing). Which one a learner
+ * sees is decided by a contextual priority — the IST hour, distance to the exam,
+ * and the size of the signal itself — never by insertion order, and never at
+ * random. Dismissing the top card reveals the next-most-relevant one.
  */
-import type { BilingualText, DrillRecommendation, ImprovementProofItem, MentorInsight } from "@neev/shared";
+import type {
+  BilingualText,
+  DrillRecommendation,
+  ImprovementProofItem,
+  LearnerProfile,
+  MentorInsight,
+  StudyPlan,
+} from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
-import { istToday } from "../lib/ist.js";
+import { IST_OFFSET_MS, istToday, shiftDate } from "../lib/ist.js";
+import { getUserExam } from "../lib/exams.js";
+import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { getLearnerProfile } from "./learner-profile.js";
 import { getRecommendation } from "./micro-drills.js";
 import { getImprovementProof } from "./profile-analytics.js";
+import { getDailyProgress, hadActivity, SRS_ACTIVITY_THRESHOLD, type DailyProgress } from "./daily-progress.js";
+import { getActivePlan } from "./study-plan.js";
 
 /** A meaningfully positive average rewrite-improvement bar — matches this file's
  * own `delta > 3` percentage-point bar for calling an evaluation trend "up",
  * just set a bit higher since this is a headline stat, not a soft trend read. */
 const REWRITE_IMPROVEMENT_MIN_PCT = 5;
+
+/**
+ * IST hour from which a still-blank day counts as "streak at risk". Matches
+ * `services/notifications.ts`'s own `TIMES.streak_at_risk` (20:00) on purpose —
+ * the bell and the mentor card must not disagree about when the day is late.
+ */
+const STREAK_RISK_HOUR_IST = 20;
+
+/** Only current affairs this fresh are worth interrupting a study session for. */
+const CA_RECENT_DAYS = 7;
+/** …and within this window it's genuinely "today's news", which ranks higher. */
+const CA_HOT_DAYS = 3;
+
+/** Inside this many days to Prelims, recall/revision outranks Mains writing. */
+const PRELIMS_ENDGAME_DAYS = 30;
+/** Inside this many days, a weak section is a revision emergency, not a project. */
+const PRELIMS_REVISION_DAYS = 60;
+
+/** A backlog worth its own card is at least one study day's worth of reviews. */
+const SRS_BACKLOG_MIN = SRS_ACTIVITY_THRESHOLD;
+/** Beyond this the backlog is the day's headline problem, not a footnote. */
+const SRS_BACKLOG_LARGE = 30;
+
+/**
+ * Rows fetched before the contextual sort, and rows returned after it. The fetch
+ * limit is deliberately generous: the DB can only order by `created_at`, and
+ * every one of a day's candidates is written in ONE upsert (so they share a
+ * timestamp and their DB order is arbitrary). Truncating at the database would
+ * therefore drop tips at random — possibly the most relevant one — so the whole
+ * undismissed set is read and ranked here instead.
+ */
+const INSIGHT_FETCH_LIMIT = 25;
+const INSIGHT_RETURN_LIMIT = 6;
 
 const DRILL_TYPE_LABELS: Record<"intro" | "conclusion", BilingualText> = {
   intro: { en: "introduction", hi: "परिचय" },
@@ -35,25 +86,78 @@ const DIMENSION_LABELS: Record<string, BilingualText> = {
   word_limit_language: { en: "word limit & language", hi: "शब्द-सीमा और भाषा" },
 };
 
-interface Candidate {
+export interface Candidate {
   kind: string;
   dedupe_key: string;
   insight_i18n: BilingualText;
   cta_link: string | null;
+  /**
+   * How much this tip matters RIGHT NOW, 0-100. The dashboard shows exactly one
+   * card, so this — not insertion order, and not `created_at` — is what decides
+   * which. Every score is a base for the tip's kind plus modifiers read off the
+   * three things that actually change what a candidate should be doing: the IST
+   * hour, how close the exam is, and the size of the signal itself.
+   */
+  priority: number;
 }
 
-function buildCandidates(
-  profile: Awaited<ReturnType<typeof getLearnerProfile>>,
-  today: string,
-  drillRecommendation: DrillRecommendation | null,
-  improvementProof: { items: ImprovementProofItem[]; avg_delta_pct: number | null } | null,
-): Candidate[] {
+/** A freshly-published current-affairs item mapped into a weak section's subtree. */
+interface WeakNodeCa {
+  id: string;
+  date: string;
+  title_i18n: BilingualText;
+  section_title_i18n: BilingualText;
+}
+
+/** Everything the catalogue below reads. Any field may be null — each signal is
+ * loaded best-effort, and a tip whose signal failed to load is simply not a
+ * candidate rather than an error on the dashboard's hottest card. */
+export interface TipContext {
+  profile: LearnerProfile;
+  today: string;
+  /** IST wall-clock hour, 0-23 — the time-of-day input to the ranking. */
+  hourIst: number;
+  progress: DailyProgress | null;
+  plan: StudyPlan | null;
+  weakNodeCa: WeakNodeCa | null;
+  drillRecommendation: DrillRecommendation | null;
+  improvementProof: { items: ImprovementProofItem[]; avg_delta_pct: number | null } | null;
+}
+
+/**
+ * The weakest section that clears the evidence bar — scanned for, rather than
+ * taken as `weak_nodes[0]`, because the very weakest may rest on too few
+ * answers to nudge on honestly.
+ *
+ * ONE definition, used by both the `weak_node` tip and the CA tip that hangs
+ * off the same section, so the card can never name one section while its
+ * companion links current affairs for another.
+ */
+function pickWeakNode(profile: LearnerProfile): LearnerProfile["weak_nodes"][number] | undefined {
+  return profile.weak_nodes.find((n) => n.accuracy_pct < 55 && n.answered_count >= 4);
+}
+
+/**
+ * Pure: context in, ranked candidates out. No DB, no clock, no model — every
+ * time-dependent input arrives on `ctx`, which is what makes the contextual
+ * ranking testable (`pnpm --filter api test:tips`).
+ */
+export function buildCandidates(ctx: TipContext): Candidate[] {
+  const { profile, today, hourIst, progress, plan, weakNodeCa, drillRecommendation, improvementProof } = ctx;
   const out: Candidate[] = [];
 
-  // 1. Weakest section with enough evidence → a targeted drill. Scan for the
-  // first node that clears the evidence bar (≥4 answers), not just weak[0] —
-  // the very weakest may have too few answers to nudge on honestly.
-  const weak = profile.weak_nodes.find((n) => n.accuracy_pct < 55 && n.answered_count >= 4);
+  const daysToExam = profile.days_to_exam;
+  const morning = hourIst >= 4 && hourIst < 12;
+  const afternoonOrEvening = hourIst >= 12 && hourIst < 22;
+  const lateNight = hourIst >= 22 || hourIst < 4;
+  // Within the last month before Prelims, a Mains answer-writing nudge is the
+  // wrong ask — the marginal hour belongs to recall and revision. These tips
+  // aren't suppressed (the user may be writing Mains deliberately), just ranked
+  // below the recall ones for that window.
+  const endgame = daysToExam != null && daysToExam <= PRELIMS_ENDGAME_DAYS;
+
+  // 1. Weakest section with enough evidence → a targeted drill.
+  const weak = pickWeakNode(profile);
   if (weak) {
     out.push({
       kind: "weak_node",
@@ -66,6 +170,9 @@ function buildCandidates(
       // to leaf nodes, so a /practice?node=<section> filter would be empty. This
       // matches the dashboard weakness-card convention.
       cta_link: `/learn/${weak.paper_code}/${weak.node_id}`,
+      // The strongest all-day tip: it names a measured deficit, and closing it
+      // is worth more the closer the exam gets.
+      priority: 80 + (daysToExam != null && daysToExam <= PRELIMS_REVISION_DAYS ? 10 : 0),
     });
   }
 
@@ -89,6 +196,7 @@ function buildCandidates(
         hi: `आपके उत्तर संरचना और प्रवाह में अंक गँवा रहे हैं। एक छोटा ${label.hi} अभ्यास (80 शब्द, 2 मिनट) इसे सुधारने का सबसे तेज़ तरीका है — अभी एक आज़माएँ।`,
       },
       cta_link: `/profile`,
+      priority: 75 + (afternoonOrEvening ? 6 : 0) - (endgame ? 25 : 0),
     });
   } else if (profile.evaluation.count >= 2 && dim && DIMENSION_LABELS[dim]) {
     const label = DIMENSION_LABELS[dim];
@@ -100,13 +208,13 @@ function buildCandidates(
         hi: `आपके उत्तर ${label.hi} में अंक गँवा रहे हैं। आज एक उत्तर उसी पर ध्यान देकर लिखें।`,
       },
       cta_link: `/answers`,
+      priority: 58 + (afternoonOrEvening ? 6 : 0) - (endgame ? 25 : 0),
     });
   }
 
   // 3. Real, meaningful average score gain across the user's own rewritten
   // answers (same question, later attempt) — a concrete, motivating number
-  // rather than a generic nudge. Sits after the corrective weakness cards
-  // (more urgent) and before the generic exam-proximity momentum card.
+  // rather than a generic nudge.
   if (
     improvementProof &&
     improvementProof.avg_delta_pct != null &&
@@ -122,56 +230,258 @@ function buildCandidates(
         hi: `जब आप किसी उत्तर को फिर से लिखते हैं, तो औसतन ${deltaStr} अंक बढ़ते हैं। कोई पुराना कमज़ोर उत्तर चुनें और उसे दोबारा लिखें।`,
       },
       cta_link: `/profile`,
+      // Encouragement, not a correction — it should never outrank something the
+      // user has to act on today.
+      priority: 48 - (endgame ? 20 : 0),
     });
   }
 
-  // 4. Exam is close and streak alive → keep momentum.
-  if (profile.days_to_exam != null && profile.days_to_exam <= 45 && profile.days_to_exam > 0) {
+  // 4. Streak about to break. The one genuinely time-of-day-gated tip: it is
+  // meaningless at 9 AM (the day has barely started) and the most urgent thing
+  // on the dashboard at 9 PM. Only fires for a streak that actually exists —
+  // there is nothing to rescue at 0, and inventing urgency would be dishonest.
+  if (progress && profile.streak_count >= 1 && hourIst >= STREAK_RISK_HOUR_IST && !hadActivity(progress)) {
+    out.push({
+      kind: "streak_risk",
+      dedupe_key: `streak_risk:${today}`,
+      insight_i18n: {
+        en: `Your ${profile.streak_count}-day streak has nothing logged against it today. One quiz, one answer, or ${SRS_ACTIVITY_THRESHOLD} revisions keeps it alive.`,
+        hi: `आज आपकी ${profile.streak_count} दिन की स्ट्रीक के लिए कुछ भी दर्ज नहीं हुआ है। एक क्विज़, एक उत्तर, या ${SRS_ACTIVITY_THRESHOLD} रिवीजन इसे बचा लेंगे।`,
+      },
+      cta_link: `/dashboard`,
+      priority: 95,
+    });
+  }
+
+  // 5. Revision backlog. Real due-card count from the same day-progress source
+  // the Today checklist and the streak engine read, so the three never disagree.
+  if (progress && progress.srs_due >= SRS_BACKLOG_MIN) {
+    out.push({
+      kind: "srs_backlog",
+      dedupe_key: `srs_backlog:${today}`,
+      insight_i18n: {
+        en: `${progress.srs_due} revision cards are due. Clearing a due card is the cheapest recall you'll buy today.`,
+        hi: `${progress.srs_due} रिवीजन कार्ड बकाया हैं। बकाया कार्ड निपटाना आज की सबसे सस्ती दोहराई है।`,
+      },
+      cta_link: `/revision`,
+      // A large backlog compounds daily, so it outranks most things; and
+      // revision is a morning habit, so it climbs further before noon.
+      priority: 70 + (progress.srs_due >= SRS_BACKLOG_LARGE ? 12 : 0) + (morning ? 8 : 0),
+    });
+  }
+
+  // 6. Today's own study-plan day, if the user has generated a plan and hasn't
+  // finished it. Reads the persisted plan — never re-generates or invents one.
+  const planDay = plan?.days.find((d) => d.date === today);
+  const planRemaining = planDay ? planDay.tasks.filter((task) => !task.done).length : 0;
+  if (planDay && planRemaining > 0) {
+    const focus = planDay.focus_i18n;
+    out.push({
+      kind: "plan_today",
+      dedupe_key: `plan_today:${today}`,
+      insight_i18n: {
+        en: focus.en
+          ? `${planRemaining} of ${planDay.tasks.length} tasks left in today's plan — today's focus is ${focus.en}.`
+          : `${planRemaining} of ${planDay.tasks.length} tasks left in today's study plan.`,
+        hi: focus.hi
+          ? `आज की योजना में ${planDay.tasks.length} में से ${planRemaining} काम बाकी हैं — आज का फोकस है ${focus.hi}।`
+          : `आज की अध्ययन योजना में ${planDay.tasks.length} में से ${planRemaining} काम बाकी हैं।`,
+      },
+      cta_link: `/dashboard`,
+      // Worth most when the day is still ahead of the user; pointless to open a
+      // multi-task plan at midnight, so it drops out of contention late.
+      priority: 72 + (morning ? 12 : 0) - (lateNight ? 30 : 0),
+    });
+  }
+
+  // 7. Fresh current affairs that actually land on a section the user is weak
+  // in — the one tip that connects two otherwise separate surfaces. Skipped
+  // entirely unless a genuinely recent, published, exam-visible item exists.
+  if (weakNodeCa) {
+    const hot = weakNodeCa.date >= shiftDate(today, -CA_HOT_DAYS);
+    const section = weakNodeCa.section_title_i18n;
+    out.push({
+      kind: "ca_weak_node",
+      dedupe_key: `ca_weak_node:${weakNodeCa.id}:${today}`,
+      insight_i18n: {
+        en: `New current affairs in ${section.en || section.hi}, one of your weaker sections: "${weakNodeCa.title_i18n.en || weakNodeCa.title_i18n.hi}".`,
+        hi: `${section.hi || section.en} में नई करेंट अफेयर्स — यह आपके कमज़ोर खंडों में से एक है: "${weakNodeCa.title_i18n.hi || weakNodeCa.title_i18n.en}"।`,
+      },
+      cta_link: `/current-affairs?item=${weakNodeCa.id}`,
+      priority: 52 + (hot ? 10 : 0),
+    });
+  }
+
+  // 8. Exam proximity, tiered — the same countdown means a different instruction
+  // at 5 days than at 80, so the copy and the rank both move with the bucket.
+  if (daysToExam != null && daysToExam > 0 && daysToExam <= 90) {
+    const tier =
+      daysToExam <= 7
+        ? {
+            priority: 78,
+            en: `Prelims is ${daysToExam} days away. Revision and full mocks only now — a new topic this late costs more than it returns.`,
+            hi: `प्रीलिम्स में ${daysToExam} दिन बचे हैं। अब सिर्फ़ दोहराई और पूरे मॉक — इतनी देर से नया विषय शुरू करना नुक़सान का सौदा है।`,
+          }
+        : daysToExam <= PRELIMS_ENDGAME_DAYS
+          ? {
+              priority: 62,
+              en: `Prelims is ${daysToExam} days away. A daily quiz plus your due revision cards is the highest-yield hour left in the day.`,
+              hi: `प्रीलिम्स में ${daysToExam} दिन बचे हैं। रोज़ाना क्विज़ और बकाया रिवीजन कार्ड — दिन का सबसे फ़ायदेमंद घंटा यही है।`,
+            }
+          : {
+              priority: 45,
+              en: `Prelims is ${daysToExam} days away — a daily quiz keeps your recall sharp while you're still covering ground.`,
+              hi: `प्रीलिम्स में ${daysToExam} दिन बचे हैं — सिलेबस पूरा करते हुए भी रोज़ाना क्विज़ आपकी स्मृति तेज़ रखती है।`,
+            };
     out.push({
       kind: "exam_proximity",
       dedupe_key: `exam_close:${today}`,
+      insight_i18n: { en: tier.en, hi: tier.hi },
+      cta_link: `/practice`,
+      priority: tier.priority,
+    });
+  }
+
+  // 9. Nothing to personalise from yet. Every tip above is derived from the
+  // user's own measured data, so a brand-new account qualifies for none of them
+  // — and an empty mentor card is the worst first impression the feature can
+  // make. This says the honest thing (there IS no read yet) and names the one
+  // action that produces one. Ranked last so it can never mask a real signal.
+  const noSignal =
+    profile.weak_nodes.length === 0 &&
+    profile.evaluation.count === 0 &&
+    profile.activity_last_7d.answers_written +
+      profile.activity_last_7d.mcqs_attempted +
+      profile.activity_last_7d.srs_reviews ===
+      0;
+  if (noSignal) {
+    out.push({
+      kind: "get_started",
+      dedupe_key: `get_started:${today}`,
       insight_i18n: {
-        en: `Prelims is ${profile.days_to_exam} days away — a daily quiz keeps your recall sharp.`,
-        hi: `प्रीलिम्स में ${profile.days_to_exam} दिन बचे हैं — रोज़ाना क्विज़ आपकी स्मृति तेज़ रखती है।`,
+        en: `Take today's quiz — it's what gives the mentor its first read on which sections are weak. Every tip after this one builds on it.`,
+        hi: `आज की क्विज़ हल करें — इसी से मेंटर को पहली बार पता चलेगा कि कौन-से खंड कमज़ोर हैं। इसके बाद के सारे सुझाव इसी पर बनते हैं।`,
       },
       cta_link: `/practice`,
+      priority: 20,
     });
   }
 
   return out;
 }
 
-/** Generate today's insights idempotently. Safe to call repeatedly. */
-export async function generateMentorInsights(userId: string): Promise<void> {
+/**
+ * The freshest published current-affairs item mapped anywhere into the weakest
+ * qualifying section's subtree.
+ *
+ * Filters mirror `getCurrentAffairsItemById` exactly — `status='published'` plus
+ * an `exam_codes` overlap — because the tip's CTA opens that very endpoint. A
+ * looser filter here would produce a card whose link 404s. Subtree rather than
+ * the section id alone: weak nodes are depth-1 sections while CA triage maps to
+ * depth 1-2, so an exact match would miss most real links.
+ */
+async function loadWeakNodeCa(
+  userId: string,
+  weakNode: LearnerProfile["weak_nodes"][number],
+  today: string,
+): Promise<WeakNodeCa | null> {
+  const [examCode, subtreeIds] = await Promise.all([
+    getUserExam(userId),
+    resolveSubtreeNodeIds(weakNode.node_id),
+  ]);
+  if (subtreeIds.length === 0) return null;
+
+  const { data, error } = await supabase()
+    .from("current_affairs_items")
+    .select("id, date, title_i18n")
+    .eq("status", "published")
+    .overlaps("exam_codes", [examCode])
+    .overlaps("syllabus_node_ids", subtreeIds)
+    .gte("date", shiftDate(today, -CA_RECENT_DAYS))
+    .order("date", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new HttpError(500, `weak-node current affairs lookup failed: ${error.message}`);
+  if (!data) return null;
+  return {
+    id: data.id as string,
+    date: data.date as string,
+    title_i18n: data.title_i18n as BilingualText,
+    section_title_i18n: weakNode.title_i18n,
+  };
+}
+
+/**
+ * Load every signal the catalogue reads, concurrently and best-effort.
+ *
+ * COST NOTE: this runs on every `GET /mentor/insights`, i.e. every dashboard
+ * load. Each branch is skipped when it provably cannot produce a candidate (no
+ * evaluations → no drill/improvement tips; no weak node → no CA tip), and every
+ * one degrades to null rather than throwing, so a single slow or failing table
+ * can never take out the dashboard's mentor card.
+ *
+ * `getDailyProgress` is the one deliberately expensive call: the dashboard
+ * summary pays for it separately on the same page load. It is used anyway
+ * rather than re-deriving "did anything happen today" locally, because
+ * daily-progress is the single source of truth the Today checklist and the
+ * streak engine both read — a second, cheaper definition of activity here is
+ * exactly the drift that file exists to prevent.
+ */
+async function loadSignals(
+  userId: string,
+  profile: LearnerProfile,
+  today: string,
+): Promise<Omit<TipContext, "profile" | "today" | "hourIst">> {
+  const hasEvaluations = profile.evaluation.count > 0;
+  const weakNode = pickWeakNode(profile);
+  const warn = (what: string) => (err: unknown) => {
+    logger.warn({ err }, `mentor-insights: ${what} load failed`);
+    return null;
+  };
+
+  const [progress, plan, weakNodeCa, drillRecommendation, improvementProof] = await Promise.all([
+    getDailyProgress(userId).catch(warn("daily progress")),
+    getActivePlan(userId)
+      .then((state) => state.plan)
+      .catch(warn("study plan")),
+    weakNode ? loadWeakNodeCa(userId, weakNode, today).catch(warn("weak-node current affairs")) : null,
+    hasEvaluations ? getRecommendation(userId).catch(warn("drill recommendation")) : null,
+    hasEvaluations ? getImprovementProof(userId).catch(warn("improvement proof")) : null,
+  ]);
+
+  return { progress, plan, weakNodeCa, drillRecommendation, improvementProof };
+}
+
+/**
+ * Generate today's insights idempotently. Safe to call repeatedly.
+ *
+ * Returns dedupe_key → priority for the candidates that qualify RIGHT NOW, so
+ * `listInsights` can rank the stored rows by present relevance rather than by
+ * the arbitrary order a single batched upsert happens to write them in.
+ */
+export async function generateMentorInsights(userId: string): Promise<Map<string, number>> {
   let profile;
   try {
     profile = await getLearnerProfile(userId);
   } catch (err) {
     logger.warn({ err }, "mentor-insights: profile load failed");
-    return;
+    return new Map();
   }
-  // This self-heals on EVERY `GET /mentor/insights` call, i.e. every dashboard
-  // load (see routes/doubts.ts) — unlike `profile`, neither of these two has a
-  // cache. Both are provably no-ops for a user with zero evaluations
-  // (getRecommendation's own trend window and the improvement-pairs RPC are
-  // both scoped to `evaluations` rows), so skip the two extra round trips for
-  // that large, common cohort rather than paying them on every single load.
-  const [drillRecommendation, improvementProof] =
-    profile.evaluation.count === 0
-      ? [null, null]
-      : await Promise.all([
-          getRecommendation(userId).catch((err) => {
-            logger.warn({ err }, "mentor-insights: drill recommendation load failed");
-            return null;
-          }),
-          getImprovementProof(userId).catch((err) => {
-            logger.warn({ err }, "mentor-insights: improvement proof load failed");
-            return null;
-          }),
-        ]);
 
-  const candidates = buildCandidates(profile, istToday(), drillRecommendation, improvementProof);
-  if (candidates.length === 0) return;
+  const today = istToday();
+  const signals = await loadSignals(userId, profile, today);
+  const candidates = buildCandidates({
+    profile,
+    today,
+    // IST wall-clock hour. Derived the same way as lib/ist.ts's own date
+    // helpers (shift into IST, then read a UTC field) so the hour and the
+    // `today` boundary can never disagree across midnight.
+    hourIst: new Date(Date.now() + IST_OFFSET_MS).getUTCHours(),
+    ...signals,
+  });
+
+  const priorityByKey = new Map(candidates.map((c) => [c.dedupe_key, c.priority]));
+  if (candidates.length === 0) return priorityByKey;
 
   const rows = candidates.map((c) => ({
     user_id: userId,
@@ -179,6 +489,10 @@ export async function generateMentorInsights(userId: string): Promise<void> {
     dedupe_key: c.dedupe_key,
     insight_i18n: c.insight_i18n,
     cta_link: c.cta_link,
+    // Persisted for inspection only — ranking always uses the value recomputed
+    // for the CURRENT request, since `ignoreDuplicates` means an existing row's
+    // meta is never refreshed and would go stale within the day.
+    meta: { priority: c.priority },
   }));
   // ignoreDuplicates so a re-run never resurfaces a dismissed card (unique on
   // (user_id, dedupe_key); a dismissed row keeps its key for the day).
@@ -186,20 +500,59 @@ export async function generateMentorInsights(userId: string): Promise<void> {
     .from("mentor_insights")
     .upsert(rows, { onConflict: "user_id,dedupe_key", ignoreDuplicates: true });
   if (error) logger.warn({ err: error }, "mentor-insights: upsert failed");
+
+  return priorityByKey;
 }
 
-/** Undismissed insights, newest first (dashboard shows the first). */
+interface InsightRow extends MentorInsight {
+  dedupe_key: string;
+}
+
+/**
+ * Undismissed insights, MOST RELEVANT FIRST — the dashboard renders [0].
+ *
+ * The database can only order by `created_at`, and a day's candidates are all
+ * written in one upsert, so their stored order is arbitrary. Ranking therefore
+ * happens here, against the priorities just computed for this request. Rows
+ * whose dedupe_key is not among today's candidates (yesterday's undismissed
+ * card, or a tip whose condition has since stopped holding) sort last, newest
+ * first — still available, so dismissing every fresh tip reveals the next one
+ * rather than an empty card, but never ahead of something true right now.
+ */
 export async function listInsights(userId: string, selfHeal = true): Promise<MentorInsight[]> {
-  if (selfHeal) await generateMentorInsights(userId);
+  const priorityByKey = selfHeal ? await generateMentorInsights(userId) : new Map<string, number>();
   const { data, error } = await supabase()
     .from("mentor_insights")
-    .select("id, kind, insight_i18n, cta_link, created_at")
+    .select("id, kind, insight_i18n, cta_link, created_at, dedupe_key")
     .eq("user_id", userId)
     .eq("dismissed", false)
     .order("created_at", { ascending: false })
-    .limit(3);
+    .limit(INSIGHT_FETCH_LIMIT);
   if (error) throw new HttpError(500, `insights lookup failed: ${error.message}`);
-  return (data ?? []) as MentorInsight[];
+
+  const rows = (data ?? []) as InsightRow[];
+  rows.sort((a, b) => {
+    const pa = priorityByKey.get(a.dedupe_key);
+    const pb = priorityByKey.get(b.dedupe_key);
+    if (pa != null && pb != null && pa !== pb) return pb - pa;
+    if (pa != null && pb == null) return -1;
+    if (pa == null && pb != null) return 1;
+    const byRecency = Date.parse(b.created_at) - Date.parse(a.created_at);
+    if (byRecency !== 0) return byRecency;
+    // Two tips can legitimately tie on priority, and a day's candidates all
+    // share one upsert timestamp — so without a stable final key the card would
+    // pick a different one on each reload and visibly flicker. `id` is unique
+    // and unchanging, which makes the choice arbitrary but CONSISTENT.
+    return a.id.localeCompare(b.id);
+  });
+
+  return rows.slice(0, INSIGHT_RETURN_LIMIT).map(({ id, kind, insight_i18n, cta_link, created_at }) => ({
+    id,
+    kind,
+    insight_i18n,
+    cta_link,
+    created_at,
+  }));
 }
 
 export async function dismissInsight(userId: string, id: string): Promise<MentorInsight> {

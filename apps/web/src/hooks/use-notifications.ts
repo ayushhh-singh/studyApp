@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { notificationListResponseSchema, notificationResponseSchema } from "@neev/shared";
+import {
+  notificationClearAllResponseSchema,
+  notificationListResponseSchema,
+  notificationResponseSchema,
+} from "@neev/shared";
 import { api } from "@/lib/api";
 import { queryKeys } from "@/lib/query-keys";
 
@@ -16,6 +20,15 @@ export function useNotificationAction() {
   return useMutation({
     mutationFn: ({ id, action }: { id: string; action: "read" | "dismiss" }) =>
       api.post(`/api/v1/notifications/${id}/${action}`, notificationResponseSchema),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications() }),
+  });
+}
+
+/** Dismiss every nudge currently in the bell in one action. */
+export function useClearNotifications() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.post("/api/v1/notifications/clear-all", notificationClearAllResponseSchema),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.notifications() }),
   });
 }

@@ -142,6 +142,30 @@ export async function listActive(userId: string, now: number = Date.now()): Prom
   return { items, unread_count: items.length };
 }
 
+/**
+ * "Clear all" — dismiss every nudge the bell is CURRENTLY showing.
+ *
+ * Deliberately bounded by the same `scheduled_for <= now` cut-off `listActive`
+ * uses, not "every pending row": a nudge scheduled for 8 PM that the user has
+ * never seen must not be silently suppressed by a 10 AM clear. So this clears
+ * exactly what was on screen, and this evening's nudge still arrives.
+ *
+ * The clear sticks: `generateForUser`'s enqueue upserts with
+ * `ignoreDuplicates`, so re-running it (every GET /notifications) leaves a
+ * dismissed row alone rather than resurrecting it for the same dedupe_key.
+ */
+export async function dismissAllActive(userId: string, now: number = Date.now()): Promise<number> {
+  const { data, error } = await supabase()
+    .from("notification_schedule")
+    .update({ status: "dismissed" })
+    .eq("user_id", userId)
+    .eq("status", "pending")
+    .lte("scheduled_for", new Date(now).toISOString())
+    .select("id");
+  if (error) throw new HttpError(500, `notification clear-all failed: ${error.message}`);
+  return (data ?? []).length;
+}
+
 export async function setStatus(
   userId: string,
   id: string,

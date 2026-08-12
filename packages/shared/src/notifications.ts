@@ -35,3 +35,10 @@ export type NotificationListResponse = z.infer<typeof notificationListResponseSc
 
 export const notificationResponseSchema = apiEnvelopeSchema(notificationSchema);
 export type NotificationResponse = z.infer<typeof notificationResponseSchema>;
+
+/** How many nudges the "Clear all" action actually dismissed. */
+export const notificationClearAllSchema = z.object({ cleared: z.number().int() });
+export type NotificationClearAll = z.infer<typeof notificationClearAllSchema>;
+
+export const notificationClearAllResponseSchema = apiEnvelopeSchema(notificationClearAllSchema);
+export type NotificationClearAllResponse = z.infer<typeof notificationClearAllResponseSchema>;

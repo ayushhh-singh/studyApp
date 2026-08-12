@@ -15,6 +15,16 @@ import { Button } from "@/components/ui/button";
  */
 const POSITIVE_KINDS = new Set(["rewrite_improvement"]);
 
+/**
+ * Momentum/opportunity tips — real and worth acting on, but NOT a measured
+ * deficit. They take the neutral primary accent rather than falling through to
+ * the marigold "something to fix" default, which would read as a problem the
+ * user doesn't actually have (an unfinished plan for the day is not a failing).
+ * Corrective kinds (weak_node, drill_ready, eval_dimension, streak_risk,
+ * srs_backlog) keep the marigold default.
+ */
+const NEUTRAL_KINDS = new Set(["exam_proximity", "plan_today", "ca_weak_node", "get_started"]);
+
 /** The rail color is applied via inline style (not a `border-l-*` class) so it
  * can never lose a Tailwind cascade tie-break against the card's own
  * `border-border` — inline style always wins unambiguously. */
@@ -22,7 +32,7 @@ function accentFor(kind: string): { rail: string; iconBg: string; iconFg: string
   if (POSITIVE_KINDS.has(kind)) {
     return { rail: "var(--tulsi)", iconBg: "bg-tulsi/15", iconFg: "text-tulsi", label: "text-tulsi", Icon: TrendingUp };
   }
-  if (kind === "exam_proximity") {
+  if (NEUTRAL_KINDS.has(kind)) {
     return { rail: "var(--primary)", iconBg: "bg-primary/15", iconFg: "text-primary", label: "text-primary", Icon: Sparkles };
   }
   return { rail: "var(--marigold)", iconBg: "bg-marigold/15", iconFg: "text-marigold", label: "text-marigold", Icon: Sparkles };

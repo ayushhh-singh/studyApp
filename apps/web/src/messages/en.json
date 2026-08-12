@@ -1065,7 +1065,8 @@
   "Notifications": {
     "title": "Notifications",
     "empty": "You're all caught up.",
-    "dismiss": "Dismiss"
+    "dismiss": "Dismiss",
+    "clearAll": "Clear all"
   },
   "Digest": {
     "title": "This week",
