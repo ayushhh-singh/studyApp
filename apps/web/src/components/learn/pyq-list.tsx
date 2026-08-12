@@ -57,8 +57,10 @@ function QuestionCard({
               key={option.key}
               className={cn(
                 "flex gap-1.5",
+                // tulsi-FOREGROUND: this is body text on the card, and raw
+                // --tulsi measures 2.5:1 there. The pair is 7.7:1 / 12:1.
                 option.key === question.correct_option_key
-                  ? "font-semibold text-tulsi"
+                  ? "font-semibold text-tulsi-foreground"
                   : "text-muted-foreground",
               )}
             >

@@ -50,9 +50,13 @@ export function Component() {
               key={n.id}
               className="group flex items-center gap-1 rounded-xl border border-border bg-card pe-2 transition-colors hover:border-primary/40"
             >
-              <Link to={`/${locale}/my-notes/${n.id}`} className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3">
-                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-tulsi/15 text-tulsi">
-                  <StickyNote className="size-4.5" aria-hidden />
+              <Link to={`/${locale}/my-notes/${n.id}`} className="flex min-h-11 min-w-0 flex-1 items-center gap-3 px-4 py-3">
+                {/* Rounded SQUARE tile, per docs/design/reference-1's notes
+                    page — its rows lead with a tinted square, not a circle.
+                    tulsi-FOREGROUND, never raw --tulsi: this is an icon colour
+                    and raw tulsi measures 2.5:1 on a light card. */}
+                <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-tulsi/15 text-tulsi-foreground">
+                  <StickyNote className="size-5" aria-hidden />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate font-medium">{n.title}</span>
@@ -69,7 +73,11 @@ export function Component() {
                 disabled={remove.isPending}
                 aria-label={t("MyNotes.delete")}
                 title={t("MyNotes.delete")}
-                className="flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-coral/10 hover:text-coral focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100"
+                // --destructive, not raw --coral: white-on-coral is 3.7:1 and
+                // the reference's own red is --destructive. size-9 keeps the
+                // delete reachable on a phone, where the md:opacity-0 reveal
+                // never applies and this is always visible.
+                className="flex size-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-ring md:opacity-0 md:group-hover:opacity-100"
               >
                 <Trash2 className="size-4" aria-hidden />
               </button>

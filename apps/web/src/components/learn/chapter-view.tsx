@@ -315,16 +315,21 @@ export function ChapterView({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Chapter header */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted-foreground">
-        <span className="flex items-center gap-1.5">
-          <Clock className="size-4" aria-hidden /> {c.minRead(sc.est_read_minutes)}
+      {/* Chapter header — docs/design/reference-1's course-detail meta strip:
+          a bordered band rather than loose text, each fact its own pill so the
+          fact-checked badge sits in a row of peers instead of alone. */}
+      <div className="flex flex-wrap items-center gap-2 rounded-xl border border-border bg-card p-3">
+        <span className="flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          <Clock className="size-3.5" aria-hidden /> {c.minRead(sc.est_read_minutes)}
         </span>
-        <span className="flex items-center gap-1.5">
-          <FileText className="size-4" aria-hidden /> {c.words(sc.word_count)}
+        <span className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+          <FileText className="size-3.5" aria-hidden /> {c.words(sc.word_count)}
+        </span>
+        <span className="flex items-center gap-1.5 rounded-full bg-muted px-3 py-1 text-xs font-medium text-muted-foreground">
+          <ListTree className="size-3.5" aria-hidden /> {c.sections}: {toc.length}
         </span>
         {note.fact_audit_ok && (
-          <span className="flex items-center gap-1 rounded-full border border-tulsi/30 bg-tulsi/10 px-2 py-0.5 text-xs font-medium text-tulsi-foreground">
+          <span className="flex items-center gap-1.5 rounded-full border border-tulsi/30 bg-tulsi/15 px-3 py-1 text-xs font-medium text-tulsi-foreground">
             <BadgeCheck className="size-3.5" aria-hidden /> {c.factChecked}
           </span>
         )}
@@ -359,13 +364,20 @@ export function ChapterView({
         </aside>
 
         <article className="min-w-0 flex-1">
-          {/* mobile section chips */}
+          {/* mobile section chips — min-h-11 so each is a real tap target on a
+              phone, which a 24px-tall pill was not. */}
           <div className="mb-4 flex gap-2 overflow-x-auto scrollbar-hide pb-1 lg:hidden">
             {toc.map((s) => (
               <a
                 key={s.id}
                 href={`#chapter-${s.id}`}
-                className="shrink-0 rounded-full border border-border px-3 py-1 text-xs font-medium text-muted-foreground"
+                aria-current={activeId === s.id ? "true" : undefined}
+                className={cn(
+                  "flex min-h-11 shrink-0 items-center rounded-xl px-4 text-xs font-medium transition-colors",
+                  activeId === s.id
+                    ? "bg-action text-action-foreground"
+                    : "bg-secondary text-secondary-foreground/80",
+                )}
               >
                 {s.label}
               </a>

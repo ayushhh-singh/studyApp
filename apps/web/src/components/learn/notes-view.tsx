@@ -285,8 +285,10 @@ export function NotesView({
               fact/the whole deck) just silently returned the button to its
               normal enabled state with no feedback — indistinguishable from
               never having clicked it. */}
+          {/* --destructive, not raw --coral: this is small error text and coral
+              measures 3.7:1 on a light card. */}
           {(addBlock.isError || addDeck.isError) && (
-            <p className="text-xs text-coral">{t("Notes.addToRevisionFailed")}</p>
+            <p className="text-xs text-destructive">{t("Notes.addToRevisionFailed")}</p>
           )}
         </div>
       </aside>
