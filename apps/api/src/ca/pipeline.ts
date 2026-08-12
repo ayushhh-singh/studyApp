@@ -88,6 +88,7 @@ import type {
   CurrentAffairsPossibleQuestions,
 } from "@neev/shared";
 import { CA_SOURCES } from "./sources.js";
+import { interleaveBySource } from "./source-rotation.js";
 import { getPrelimsCurrentAffairsNodeId } from "./prelims-node.js";
 import { classifyPrelimsMcqNode } from "./mcq-node-classify.js";
 import {
@@ -911,11 +912,30 @@ export async function runPipeline(
    */
   const totalTaken = () => (mode === "batch" ? submissions.length : result.processed);
 
+  // ---------------------------------------------------------------------------
+  // PHASE 1 — fetch every feed and collect the LOCALLY eligible items.
+  //
+  // Nothing here costs a model call or an embedding: these are the same cheap,
+  // purely-local filters the loop always applied (has a link and title, not
+  // already seen, has a usable date, inside the freshness window). Hoisting them
+  // is what lets PHASE 2 rotate fairly — you cannot round-robin over sources
+  // until you know what each one is actually offering.
+  // ---------------------------------------------------------------------------
+  interface EligibleItem {
+    link: string;
+    title: string;
+    snippet: string;
+    dateStr: string;
+    hash: string;
+  }
+  const eligibleBySource: { source: (typeof CA_SOURCES)[number]; items: EligibleItem[] }[] = [];
+  // Guards the case the sequential loop used to handle for free: the SAME link
+  // carried by two different feeds. Previously the second occurrence hit
+  // `seenHashes`, which is only populated as items are processed — so with the
+  // pre-pass it has to be tracked here, or one story would be triaged twice.
+  const stagedHashes = new Set<string>();
+
   for (const source of CA_SOURCES) {
-    if (totalTaken() >= opts.maxTotal) {
-      result.cappedTotal++;
-      continue;
-    }
     let feed;
     try {
       feed = await parser.parseURL(source.feedUrl);
@@ -926,20 +946,14 @@ export async function runPipeline(
       continue;
     }
 
-    let takenFromSource = 0;
+    const items: EligibleItem[] = [];
     for (const item of feed.items ?? []) {
-      if (totalTaken() >= opts.maxTotal) {
-        result.cappedTotal++;
-        break;
-      }
-      if (takenFromSource >= opts.maxPerSource) break;
-
       const link = item.link ?? item.guid;
       const title = (item.title ?? "").trim();
       if (!link || !title) continue;
 
       const hash = sha256(link);
-      if (seenHashes.has(hash)) {
+      if (seenHashes.has(hash) || stagedHashes.has(hash)) {
         result.skippedDuplicate++;
         continue;
       }
@@ -956,9 +970,44 @@ export async function runPipeline(
         continue;
       }
 
-      const snippet = (item.contentSnippet ?? item.content ?? "").slice(0, 1200);
-      const dateStr = istDateString(pubDate);
+      stagedHashes.add(hash);
+      items.push({
+        link,
+        title,
+        snippet: (item.contentSnippet ?? item.content ?? "").slice(0, 1200),
+        dateStr: istDateString(pubDate),
+        hash,
+      });
+    }
+    eligibleBySource.push({ source, items });
+  }
+  log(
+    `eligible after local filters: ${eligibleBySource.reduce((s, x) => s + x.items.length, 0)} across ${eligibleBySource.length} source(s) — ` +
+      eligibleBySource.map((x) => `${x.source.id}:${x.items.length}`).join(" "),
+  );
 
+  // ---------------------------------------------------------------------------
+  // PHASE 2 — spend the run's budget in ROUND-ROBIN order across sources.
+  //
+  // Ordering only; every budget check below is exactly the one that was here
+  // before. See ./source-rotation.ts for why array order was not a fair way to
+  // ration `maxTotal` (short version: with the shipped 40/15 defaults the first
+  // three feeds consumed the entire run, so a newly added desk would have been
+  // starved by construction and adding one would have changed nothing).
+  // ---------------------------------------------------------------------------
+  const takenBySource = new Map<number, number>();
+  const consumedBySource = new Map<number, number>();
+  for (const { sourceIndex, item: eligible } of interleaveBySource(eligibleBySource.map((x) => x.items))) {
+    if (totalTaken() >= opts.maxTotal) break;
+    // Per-source cap keeps its original meaning: it counts items SUCCESSFULLY
+    // taken, so a source whose items keep failing does not silently monopolise
+    // the run by burning its whole allowance on errors.
+    if ((takenBySource.get(sourceIndex) ?? 0) >= opts.maxPerSource) continue;
+
+    const source = eligibleBySource[sourceIndex].source;
+    const { link, title, snippet, dateStr, hash } = eligible;
+    consumedBySource.set(sourceIndex, (consumedBySource.get(sourceIndex) ?? 0) + 1);
+    {
       // ONE PLAN PER LIVE EXAM, built the same way in both modes — the narrowing
       // is per exam because the pre-filter is per exam. `prefilter.narrow` fails
       // open internally and never throws.
@@ -1001,7 +1050,7 @@ export async function runPipeline(
             });
           }
           seenHashes.add(hash); // never re-triage this link again, kept or archived
-          takenFromSource++;
+          takenBySource.set(sourceIndex, (takenBySource.get(sourceIndex) ?? 0) + 1);
           // --- 2-5. Shared downstream (verbatim the same code the batch-collect
           // path runs — see processTriagedItem). ------------------------------
           await processTriagedItem(
@@ -1054,8 +1103,22 @@ export async function runPipeline(
       // Mirrors the sync path exactly: the hash is banked so the same link is
       // never queued twice within a run, and the per-source cap advances.
       seenHashes.add(hash);
-      takenFromSource++;
+      takenBySource.set(sourceIndex, (takenBySource.get(sourceIndex) ?? 0) + 1);
     }
+  }
+
+  // `cappedTotal` keeps its reported meaning — "N source(s) had remaining items
+  // left unprocessed" — but is now COUNTED rather than incremented mid-loop,
+  // because with rotation the run stops once, globally, instead of once per
+  // source it never reached.
+  result.cappedTotal = eligibleBySource.filter(
+    (x, i) => (consumedBySource.get(i) ?? 0) < x.items.length,
+  ).length;
+  if (result.cappedTotal > 0) {
+    log(
+      `budget spent (max-total=${opts.maxTotal}); per-source taken: ` +
+        eligibleBySource.map((x, i) => `${x.source.id}:${takenBySource.get(i) ?? 0}/${x.items.length}`).join(" "),
+    );
   }
 
   // -------------------------------------------------------------------------
