@@ -41,7 +41,7 @@
   },
   "CommandPalette": {
     "label": "कमांड पैलेट",
-    "placeholder": "विभाग और पाठ्यक्रम विषय खोजें...",
+    "placeholder": "विषय, अध्याय, प्रश्न, नोट्स खोजें…",
     "empty": "कोई परिणाम नहीं मिला।",
     "navigate": "जाएँ",
     "groupSyllabus": "पाठ्यक्रम विषय",
@@ -55,7 +55,8 @@
     "resultCount_other": "{{count}} परिणाम",
     "groupQuestion": "पिछले प्रश्न",
     "groupChapter": "अध्ययन अध्याय",
-    "groupUserNote": "मेरे नोट्स"
+    "groupUserNote": "मेरे नोट्स",
+    "groupCurrentAffairs": "समसामयिकी"
   },
   "Dashboard": {
     "title": "डैशबोर्ड",

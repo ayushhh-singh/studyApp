@@ -23,6 +23,7 @@ const TYPE_HEADING: Record<SearchResultType, string> = {
   chapter: "CommandPalette.groupChapter",
   user_note: "CommandPalette.groupUserNote",
   question: "CommandPalette.groupQuestion",
+  current_affairs: "CommandPalette.groupCurrentAffairs",
 };
 
 export function CommandPalette() {

@@ -348,6 +348,53 @@ const searchUserNotes: Searcher = {
   },
 };
 
+interface CurrentAffairsRow {
+  id: string;
+  date: string;
+  title_i18n: BilingualText;
+}
+
+const searchCurrentAffairs: Searcher = {
+  examScope:
+    "`current_affairs_items.exam_codes` with `.overlaps`, NEVER equality — the column is " +
+    "an ARRAY on purpose: a national story is deliberately ONE row shared across several " +
+    "exams rather than duplicated per exam (0106 §11), so equality would hide every " +
+    "multi-exam item from everyone. Plus `status = 'published'`, matching " +
+    "`listCurrentAffairs` exactly so search can never surface a draft or archived item " +
+    "the feed itself would not show.",
+  async run(ctx) {
+    const { data, error } = await supabase()
+      .from("current_affairs_items")
+      // Deliberately a NARROW select: the two curation columns
+      // (`is_up_specific`, `gs_papers_by_exam`) are whichever commission(s)
+      // triaged the shared row and must be RESOLVED per reading exam before
+      // they can be shown — which is why `toWireItem` exists. Search needs
+      // none of them, so the safest thing is not to fetch them at all.
+      .select("id, date, title_i18n")
+      .overlaps("exam_codes", [ctx.examCode])
+      .eq("status", "published")
+      .or(`${bilingualIlike("title_i18n", ctx.like)},${bilingualIlike("summary_i18n", ctx.like)}`)
+      // Newest first — currency is most of the point of a current-affairs item.
+      .order("date", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(ctx.limit);
+    if (error) throw new Error(`current affairs search failed: ${error.message}`);
+
+    return ((data ?? []) as unknown as CurrentAffairsRow[]).map((r) => ({
+      type: "current_affairs" as const,
+      id: r.id,
+      title: pickLocale(r.title_i18n, ctx.locale),
+      // The ISO date, deliberately unformatted: it is unambiguous in both
+      // locales, and a server-side localised date would be a second, drifting
+      // copy of formatting the client already owns.
+      subtitle: r.date,
+      // `?item=` opens the detail sheet, which fetches by id independently of
+      // the feed's pagination — so a result from six months back opens fine.
+      to: `current-affairs?item=${r.id}`,
+    }));
+  },
+};
+
 /**
  * ⚑ A `Record`, not a partial map: adding a member to `searchResultTypeSchema`
  * is a compile error until its searcher exists here.
@@ -357,6 +404,7 @@ const SEARCHERS: Record<SearchResultType, Searcher> = {
   question: searchQuestions,
   chapter: searchChapters,
   user_note: searchUserNotes,
+  current_affairs: searchCurrentAffairs,
 };
 
 // ---------------------------------------------------------------------------
