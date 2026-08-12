@@ -7,9 +7,13 @@ import { cn } from "@/lib/utils";
  * the same source into every favicon/PWA icon size; this reuses the 192px copy
  * rather than shipping a duplicate file.
  *
- * As of the 2026-08 brand refresh that icon is a CIRCLE (navy badge, gold rim
- * — docs/design/reference-3's NAVIGATION panels), so the mark is self-contained
- * and needs no wrapper chip: it reads correctly on a light and a dark surface
+ * The icon is a rounded SQUARE plate (navy, gold rim), NOT a circle — this
+ * comment used to say circle, describing docs/design/reference-3's NAVIGATION
+ * badge rather than our own artwork; the circle-mask that would have matched it
+ * was tried during the 2026-08 refresh and reverted, because masking a rounded
+ * square to a circle clips its corners and cuts through the rim (see
+ * scripts/generate-pwa-icons.mjs). Either way the mark is self-contained and
+ * needs no wrapper chip: it reads correctly on a light and a dark surface
  * alike, which is why nothing here is theme-conditional.
  *
  * The wordmark stays "Neev", not the reference images' "NeevStudy" — the

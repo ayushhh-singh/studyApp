@@ -180,7 +180,7 @@ export function Component() {
               Rubric Dial floating off its lower edge — our own signature
               element rather than stock art in the illustration slot. */}
           <div className="relative mx-auto w-full max-w-md pb-24 sm:pb-28 lg:max-w-none lg:pb-16">
-            <BrandPanel className="py-6 sm:py-8" imageClassName="max-w-[19rem] sm:max-w-[24rem] lg:max-w-[26rem]" />
+            <BrandPanel className="py-5 sm:py-7" />
             <div className="absolute inset-x-4 bottom-0 rounded-2xl border border-border bg-card p-4 shadow-xl shadow-primary/10 sm:inset-x-8 sm:p-5 lg:inset-x-auto lg:right-2 lg:w-72">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("Landing.heroCardLabel")}

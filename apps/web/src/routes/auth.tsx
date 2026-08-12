@@ -214,7 +214,7 @@ export function Component() {
     // admired. Everything inside the form column is unchanged.
     <div className="grid min-h-svh bg-background lg:grid-cols-2">
       <aside className="hidden p-6 lg:block">
-        <BrandPanel className="flex h-full flex-col items-center justify-center gap-6 py-12" imageClassName="max-w-[20rem]">
+        <BrandPanel className="flex h-full flex-col items-center justify-center gap-6 py-12">
           <div className="text-center">
             <p className="font-heading text-3xl font-extrabold leading-[1.2] tracking-tight text-white">
               {t("Landing.heroLine1")}
