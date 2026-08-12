@@ -18,7 +18,17 @@ export function PageHeader({
       className="flex flex-col gap-1 border-b border-border pb-4 sm:flex-row sm:items-end sm:justify-between sm:gap-4"
     >
       <div className="flex min-w-0 flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-balance">{title}</h1>
+        {/* break-words: title is untrusted dynamic content in several callers
+            (a syllabus node/paper title, a test title, a display name up to
+            120 chars with no space requirement) — a single unbreakable "word"
+            wider than the container overflows the whole PAGE horizontally
+            otherwise (confirmed: identical overflow with or without this
+            session's shrink-0 fix, since text overflow here is independent of
+            the sibling action's flex-shrink settings). break-words only ever
+            activates once normal space-based wrapping is exhausted, so a
+            real multi-word title is unaffected — text-balance still drives
+            the common case. */}
+        <h1 className="text-2xl font-bold tracking-tight text-balance break-words">{title}</h1>
         {description && <p className="text-sm whitespace-pre-line text-muted-foreground">{description}</p>}
       </div>
       {/* No shrink-0: an action that's itself a `flex flex-wrap` row of several
