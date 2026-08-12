@@ -170,10 +170,18 @@ export const CA_SOURCES: CaSource[] = [
     isUpSource: false,
     syllabusFocus: "Economic Development; Economic & Social Development; Poverty and Inclusion",
   },
-  // Economy, deepest of the candidates tested (200 items) and the only one
-  // carrying monetary-policy reporting specifically ("RBI policy panel likely to
-  // keep interest rates unchanged … amid oil, inflation risks") — the single
-  // emptiest topic in the sweep at 0 items of 5,178.
+  // Economy. Carries monetary-policy reporting specifically ("RBI policy panel
+  // likely to keep interest rates unchanged … amid oil, inflation risks") — the
+  // single emptiest topic in the sweep, at 0 items of 5,178.
+  //
+  // ⚑ DEEP BUT SLOW, measured 2026-08-13: the feed holds 200 items, but they
+  // span MONTHS (newest Aug 2, then Jul 31, Jul 22, Jul 13 …), so under the
+  // default `--days 3` freshness window it contributes ZERO on most runs. That
+  // is not a broken feed and not a reason to drop it — with rotation an empty
+  // source costs nothing and yields its share to the others — but do not read
+  // "200 items" as a daily firehose. `the-hindu-economy` (13 fresh items in the
+  // same 3-day window) is the economy workhorse; this one is the specialist that
+  // shows up when it publishes.
   {
     id: "indian-express-economy",
     name: "The Indian Express — Business / Economy",
