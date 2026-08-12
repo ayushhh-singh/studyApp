@@ -120,9 +120,12 @@ function TaskRow({ task, date }: { task: PlanTask; date: string }) {
       initial={false}
       exit={{ opacity: 0, height: 0, marginBottom: 0 }}
       transition={{ duration: 0.2 }}
-      className="flex min-w-0 items-center gap-1 rounded-lg border border-border bg-card pe-1 transition-colors"
+      className="flex min-w-0 flex-col gap-1 rounded-lg border border-border bg-card px-3 py-2 transition-colors"
     >
-      <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-center gap-2.5 px-3 py-2 text-sm">
+      {/* Row 1: checkbox + icon chip + title. The title wraps to 2 lines
+          (line-clamp-2) rather than hard-truncating, so a long task name is
+          actually readable instead of ending in "…". */}
+      <label className="flex min-h-11 min-w-0 cursor-pointer items-start gap-2.5 py-1 text-sm">
         <input
           type="checkbox"
           checked={task.done}
@@ -132,20 +135,28 @@ function TaskRow({ task, date }: { task: PlanTask; date: string }) {
         />
         <TaskChip done={task.done} Icon={Icon} />
         <span
-          className={cn("min-w-0 flex-1 truncate", task.done && "text-muted-foreground line-through")}
+          className={cn(
+            "line-clamp-2 min-w-0 flex-1 break-words pt-1",
+            task.done && "text-muted-foreground line-through",
+          )}
           lang={locale}
           title={task.title_i18n[locale]}
         >
           {task.title_i18n[locale]}
         </span>
-        <span className="shrink-0 text-xs text-muted-foreground">{task.duration_min}m</span>
       </label>
-      <ConfirmDeleteButton
-        pending={deleteTask.isPending}
-        ariaLabel={t("StudyPlan.deleteTask")}
-        ariaLabelConfirm={t("StudyPlan.deleteTaskConfirm")}
-        onConfirm={() => deleteTask.mutate({ date, taskId: task.id })}
-      />
+      {/* Row 2: duration + delete, on their own row so they never fight the
+          title for width on narrow viewports. Indented to align under the
+          title (chip width + its gap: size-8 + gap-2.5). */}
+      <div className="flex items-center justify-end gap-1 ps-[2.625rem]">
+        <span className="me-auto shrink-0 text-xs text-muted-foreground">{task.duration_min}m</span>
+        <ConfirmDeleteButton
+          pending={deleteTask.isPending}
+          ariaLabel={t("StudyPlan.deleteTask")}
+          ariaLabelConfirm={t("StudyPlan.deleteTaskConfirm")}
+          onConfirm={() => deleteTask.mutate({ date, taskId: task.id })}
+        />
+      </div>
     </motion.div>
   );
 }
