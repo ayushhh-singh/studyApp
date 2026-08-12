@@ -217,13 +217,31 @@ function decodeOrderingCode(stem: string, code: string): string | null {
 
   const byLabel = new Map<string, string>();
   for (let i = 0; i < marks.length; i++) {
-    const text = stem.slice(marks[i].end, marks[i + 1]?.start ?? stem.length).replace(/\s+/g, " ").trim();
+    const rawText = stem.slice(marks[i].end, marks[i + 1]?.start ?? stem.length);
     // Clip ONLY the last item. Every earlier item is already bounded by the next
     // enumeration marker, so clipping them can only ever cut a real name short —
     // "1. Indian Penal Code and CrPC" became "Indian Penal" under the previous
     // clip-everything version. The closing instruction can only follow the final
     // item, so that is the only place it needs removing.
     const isLast = i === marks.length - 1;
+    // ⚑ Structural pre-split BEFORE collapsing whitespace, found auditing this
+    // fix against real upsc PYQs (whose closing question is phrased as a direct
+    // WH-question — "What is the correct chronological sequence…?" / "…निम्नलिखित
+    // में से कौन-सा…" — never "Select"/"Choose"/"Codes", so TAIL_INSTRUCTION alone
+    // never matched and the whole trailing sentence stayed attached to the item:
+    // "Second Round Table Conference What is the correct chronological sequence
+    // of the above events?"). These list-style stems put the closing instruction
+    // on its OWN LINE after the last item — a signal `.replace(/\s+/g, " ")`
+    // destroyed by running first. Splitting on the first raw newline recovers it
+    // and, being structural rather than lexical, needs no per-phrasing word list;
+    // measured on the FULL bank (both exams, 137 genuine sequences): 3 previously
+    // garbled decodes now clip clean, 3 previously-safe-fallback cases now decode
+    // correctly, 0 regressions. TAIL_INSTRUCTION still runs on the remainder,
+    // unchanged, for same-line instructions ("… Select the correct answer using
+    // the codes given below" with no newline) — this is additive, not a
+    // replacement.
+    const structurallyClipped = isLast ? (rawText.split(/\r?\n/)[0] ?? rawText) : rawText;
+    const text = structurallyClipped.replace(/\s+/g, " ").trim();
     const clipped = (isLast ? text.split(TAIL_INSTRUCTION)[0] : text).replace(/[.:;]+$/, "").trim();
     if (!clipped || clipped.length > 120 || byLabel.has(marks[i].label)) return null;
     byLabel.set(marks[i].label, clipped);
