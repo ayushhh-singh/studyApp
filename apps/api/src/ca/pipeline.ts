@@ -1245,6 +1245,11 @@ export async function processTriagedItem(
           content_hash: hash,
           source_id: sourceId,
           source_urls: [link],
+          // G2 — the evidence. Retained on the ARCHIVE path too, not just the
+          // published one: "why was this dropped?" is exactly the question the
+          // gate diagnosis needs to answer, and a rejected item with no source
+          // text is unauditable in the same way a published one is.
+          source_snippet: snippet,
         }),
       );
     if (archiveError) {
@@ -1322,6 +1327,15 @@ export async function processTriagedItem(
         mcq_question_ids: [],
         content_hash: hash,
         source_id: sourceId,
+        // G2 — the raw text every string on this row was derived from. MUST be
+        // the ORIGINAL snippet, never anything reconstructed: `summary_i18n` is
+        // the model's own paraphrase of it, so storing a summary-derived
+        // pseudo-snippet here would make the column circular and any A/B run
+        // against it invalid (the exact harness defect recorded in §9 G6).
+        // That is why `ca/backfill.ts` and `ca/widen-exam.ts` — which only ever
+        // hold such a reconstruction — deliberately leave this column alone in
+        // their `.update()`s rather than writing their `snippet` local into it.
+        source_snippet: snippet,
       }),
     )
     .select("id")
