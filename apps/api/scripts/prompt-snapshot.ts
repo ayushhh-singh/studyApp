@@ -1351,6 +1351,29 @@ async function checkMentorPersonaCacheFloor(): Promise<string[]> {
             `Verify with messages.countTokens before shortening anything.`,
         );
       }
+
+      // The TEACHER persona is index.ts:670's `cache: true` segment and faces
+      // the identical 1024-token cliff — but was never checked here, so its
+      // being under the floor has been invisible. Measured 2026-08-12: uppsc
+      // 2896/2907 chars, i.e. the teacher cache has been a silent no-op and
+      // every teacher doubt re-bills the full persona. Teacher is the DOMINANT
+      // mode (11 of the 15 G4 panel replies). Reported as a WARN rather than an
+      // error because it is pre-existing, and the fix — lengthening the persona
+      // with genuinely useful instruction, never padding — is a deliberate
+      // decision, not something an audit should force. See OUTSTANDING §9b/B14.
+      let teacher: string;
+      try {
+        teacher = prompts.buildTeacherPersona(examCode, locale);
+      } catch {
+        continue;
+      }
+      if (teacher.length < MENTOR_PERSONA_MIN_CHARS) {
+        console.warn(
+          `WARN  TEACHER persona ${examCode}/${locale} is ${teacher.length} chars — under the ` +
+            `${MENTOR_PERSONA_MIN_CHARS}-char floor, so its cache:true segment is a SILENT no-op ` +
+            `and every teacher doubt re-bills it. Pre-existing; see OUTSTANDING §9b/B14.`,
+        );
+      }
     }
   }
   return errors;

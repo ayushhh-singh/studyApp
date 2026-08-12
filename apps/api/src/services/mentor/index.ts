@@ -703,10 +703,10 @@ async function executeTeacherStream(userId: string, plan: DoubtPlan, emit: Mento
   // Facts for the quick-check: retrieved context + a slice of what was just
   // taught, so the questions test the lesson (not generic trivia).
   const proseText = answer.replace(/[#*`>_~]/g, " ").replace(/\s+/g, " ").trim().slice(0, 2400);
-  const contextFacts = context.contextText
-    .split("\n\n")
-    .map((line) => line.replace(/^\[\d+\]\s*/, "").trim())
-    .filter(Boolean);
+  // Raw chunk texts, NOT a re-parse of `contextText` — that string is formatted
+  // for the model and now carries a `(past exam question; verified correct
+  // option: …)` label the old `^\[\d+\]\s*` strip left glued to every fact.
+  const contextFacts = context.chunkTexts.filter(Boolean);
 
   const [relatedPyqs, quickCheck, continueWith] = await Promise.all([
     lessonNodeId ? loadRelatedPyqs(lessonNodeId) : Promise.resolve([]),

@@ -47,6 +47,17 @@ export interface MentorContext {
   citations: MentorCitation[];
   /** Numbered context block for the model, "" when nothing was retrieved. */
   contextText: string;
+  /**
+   * The retrieved chunk texts, raw and unlabelled, in the same order.
+   *
+   * `contextText` is formatted FOR THE MODEL and its shape is not a parsing
+   * contract: teacher mode used to rebuild facts from it by regex-stripping the
+   * leading "[n] ", which silently started leaving the whole
+   * "(past exam question; verified correct option: …)" label glued to every
+   * fact the moment labelling shipped. Anything that needs the content rather
+   * than the prompt should read this instead of re-parsing that string.
+   */
+  chunkTexts: string[];
   weak: boolean;
 }
 
@@ -123,6 +134,59 @@ function looksLikeOrderingCode(text: string): boolean {
   return /^[IVXLCivxlc\d]+(\s*[,;–—-]\s*[IVXLCivxlc\d]+){1,}$/.test(text.trim());
 }
 
+const ROMAN: Record<string, number> = { I: 1, V: 5, X: 10, L: 50 };
+function ordinalOf(token: string): number {
+  if (/^\d+$/.test(token)) return Number(token);
+  if (!/^[IVXL]+$/.test(token)) return NaN;
+  let n = 0;
+  for (let i = 0; i < token.length; i++) {
+    const v = ROMAN[token[i]];
+    n += v < (ROMAN[token[i + 1]] ?? 0) ? -v : v;
+  }
+  return n;
+}
+
+/** Stems that actually pose a SEQUENCE (not a pairing, not a set). */
+const SEQUENCE_CUE =
+  /arrange|chronolog|sequence|ascending|descending|correct order|in order|क्रम|व्यवस्थित|कालानुक्रम/i;
+
+/**
+ * Is this really an ordering code for THIS stem — a permutation of 1..n paired
+ * with a stem that asks for a sequence?
+ *
+ * `looksLikeOrderingCode` alone is far too loose, measured over all 5,321
+ * published MCQs: of 232 correct-options matching it, **38 are not ordering
+ * codes at all** — a year range ("2021-22"), a money value ("55,550"), a pair
+ * of unknowns ("8, 7"), a set of correct statements ("2, 3, 5, 7") — and a
+ * further 57 are Match-List codes, where the answer is a PAIRING and rendering
+ * it as `A → B → C` would be nonsense. Both classes were being handed the
+ * "this is a CODE, map each numeral…" note, which is actively misleading for
+ * them. They now get the plain option text instead.
+ */
+function isOrderingSequence(stem: string, code: string): boolean {
+  const tokens = code.split(/[,;–—-]/).map((t) => t.trim().toUpperCase()).filter(Boolean);
+  if (tokens.length < 3) return false;
+  const vals = tokens.map(ordinalOf);
+  if (vals.some((v) => !Number.isFinite(v))) return false;
+  const distinct = new Set(vals);
+  if (distinct.size !== vals.length) return false;
+  if (![...distinct].every((v) => v >= 1 && v <= vals.length)) return false;
+  return SEQUENCE_CUE.test(stem);
+}
+
+/**
+ * Trailing instruction that runs into the LAST enumerated item ("… IV. Battle
+ * of Jajau Select the correct answer from the codes given below").
+ *
+ * ⚑ The lookahead is `(?![\p{L}\p{M}])` with the `u` flag, NOT `\b`. JavaScript's
+ * `\b` is ASCII-word-based, so after a Devanagari keyword like `कूट` it does not
+ * match and the whole clip silently no-ops — measured: 52 Hindi decodes were
+ * carrying the full instruction inside the item name ("केशवानंद भारती बनाम केरल
+ * राज्य नीचे दिए गए कूट में से सही उत्तर चुनिए") while English clipped correctly.
+ * The same Hindi-blind-spot class as §9a's A9, in this fix.
+ */
+const TAIL_INSTRUCTION = /\s*(?:Select|Choose|Codes?|कूट|उपर्युक्त|नीचे|सूचियों)(?![\p{L}\p{M}])/iu;
+
 /**
  * Turn an ordering code into the actual named sequence, by mapping each token
  * onto the correspondingly-numbered item enumerated in the stem.
@@ -154,8 +218,13 @@ function decodeOrderingCode(stem: string, code: string): string | null {
   const byLabel = new Map<string, string>();
   for (let i = 0; i < marks.length; i++) {
     const text = stem.slice(marks[i].end, marks[i + 1]?.start ?? stem.length).replace(/\s+/g, " ").trim();
-    // A trailing item can run into the question's closing instruction.
-    const clipped = text.split(/\s+(?:Select|Choose|Code|Codes|कूट|उपर्युक्त)\b/i)[0].replace(/[.:;]+$/, "").trim();
+    // Clip ONLY the last item. Every earlier item is already bounded by the next
+    // enumeration marker, so clipping them can only ever cut a real name short —
+    // "1. Indian Penal Code and CrPC" became "Indian Penal" under the previous
+    // clip-everything version. The closing instruction can only follow the final
+    // item, so that is the only place it needs removing.
+    const isLast = i === marks.length - 1;
+    const clipped = (isLast ? text.split(TAIL_INSTRUCTION)[0] : text).replace(/[.:;]+$/, "").trim();
     if (!clipped || clipped.length > 120 || byLabel.has(marks[i].label)) return null;
     byLabel.set(marks[i].label, clipped);
   }
@@ -249,15 +318,20 @@ async function resolveCitations(chunks: MatchRow[], locale: Locale): Promise<Res
         const correct = options.find((o) => o?.key === optionKey);
         const text = (correct?.text_i18n?.[locale] ?? correct?.text_i18n?.en ?? "").trim();
         const clean = text.replace(/\s+/g, " ").slice(0, 200);
+        // Decode against the stem in the SAME language as the option text, so a
+        // Hindi code never resolves to English item names (or vice versa).
         const stemText = (stem[locale] ?? stem.en ?? "").trim();
-        const decoded = clean && looksLikeOrderingCode(clean) ? decodeOrderingCode(stemText, clean) : null;
+        // The ordering branches apply only to a genuine sequence code; a
+        // Match-List pairing, a year range or a money value takes the plain note.
+        const isSequence = clean.length > 0 && looksLikeOrderingCode(clean) && isOrderingSequence(stemText, clean);
+        const decoded = isSequence ? decodeOrderingCode(stemText, clean) : null;
         answerNotes.set(
           q.id as string,
           !clean
             ? `verified correct option: ${optionKey}`
             : decoded
               ? `verified correct option: ${optionKey} — "${clean}", i.e. ${decoded}`
-              : looksLikeOrderingCode(clean)
+              : isSequence
                 ? `verified correct option: ${optionKey} — "${clean}", which is a CODE, not a sequence of names: ` +
                   `map each numeral to the item numbered the same way in the stem above, in exactly this left-to-right order`
                 : `verified correct option: ${optionKey} — "${clean}"`,
@@ -330,7 +404,7 @@ export async function retrieveContext(opts: {
   nodeId?: string;
 }): Promise<MentorContext> {
   if (!opts.vectorLiteral) {
-    return { vectorLiteral: null, citations: [], contextText: "", weak: true };
+    return { vectorLiteral: null, citations: [], contextText: "", chunkTexts: [], weak: true };
   }
   try {
     const nodeRows = opts.nodeId
@@ -375,10 +449,11 @@ export async function retrieveContext(opts: {
       })
       .join("\n\n");
 
-    return { vectorLiteral: opts.vectorLiteral, citations, contextText, weak };
+    const chunkTexts = merged.map((c) => c.chunk_text.replace(/\s+/g, " ").trim());
+    return { vectorLiteral: opts.vectorLiteral, citations, contextText, chunkTexts, weak };
   } catch (err) {
     logger.warn({ err }, "mentor: retrieval failed; answering ungrounded");
-    return { vectorLiteral: opts.vectorLiteral, citations: [], contextText: "", weak: true };
+    return { vectorLiteral: opts.vectorLiteral, citations: [], contextText: "", chunkTexts: [], weak: true };
   }
 }
 
@@ -482,3 +557,4 @@ export async function upsertFaqCache(opts: {
     logger.warn({ err }, "mentor: FAQ cache write failed");
   }
 }
+
