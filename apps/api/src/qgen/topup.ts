@@ -10,17 +10,28 @@
  * derived from the exam registry rather than pattern-matched; see
  * `paperCodesForStage`.
  *
- * The per-node floor is WEIGHTAGE-SCALED, not flat: it scales with how often
- * the commission actually asks that topic (recency-weighted `hotness` from
- * mv_node_weightage), within a sane [min..max] band. So a high-frequency section
- * (History, Polity) carries a higher minimum than a rarely-asked one (a niche
- * CSAT sub-skill), instead of a blunt "40 of everything". A flat floor's failure
- * mode only shows WHEN it fires (a content purge/re-gate drops a section below
- * floor, or a brand-new syllabus node starts at zero): flat-40 would then over-
- * generate low-value topics and under-provision key ones. A weightage floor is
- * self-damping on a mature bank — high-weight topics are exactly the ones already
- * richest in real PYQs — so at today's bank size it generates 0; its value is
- * doing the RIGHT thing the next time the floor actually fires.
+ * TWO INDEPENDENT FLOORS RUN EACH NIGHT, measuring two different quantities.
+ * Both are weightage-scaled, both feed one plan list, and both are bounded by the
+ * single shared budget cap.
+ *
+ *  1. COVERAGE (`MCQ_FLOOR` / `DESCRIPTIVE_FLOOR`, per depth-1 SECTION, counts
+ *     every published+approved question). "Does this section have enough
+ *     questions at all?" A cold-start / content-purge safety net. Weightage-
+ *     scaled rather than flat so a high-frequency section (History, Polity)
+ *     carries a higher minimum than a niche CSAT sub-skill, instead of a blunt
+ *     "40 of everything" that would over-generate low-value topics and under-
+ *     provision key ones when it does fire.
+ *
+ *  2. FRESH SUPPLY (`FRESH_MCQ_FLOOR` / `FRESH_DESCRIPTIVE_FLOOR`, per LEAF
+ *     topic, counts GENERATED questions only). "Does this topic have anything
+ *     new to practise on?" Read `FRESH_MCQ_FLOOR`'s note before changing either
+ *     band: floor (1) is self-damping on a mature bank — its `have` and its floor
+ *     are monotone functions of the same PYQ frequency, with `have` rising ~2x
+ *     faster — so it is not merely inert but ANTI-CORRELATED with need, and
+ *     measured 2026-08-13 it fired on 1 of 110 nodes. Floor (2) exists because
+ *     that is a real product gap, not a tuning problem: a topic can hold 189 real
+ *     PYQs, satisfy floor (1) several times over, and still offer a student who
+ *     has worked the PYQ archive nothing they have not already seen.
  */
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
@@ -41,6 +52,50 @@ export interface FloorBand {
 export const MCQ_FLOOR: FloorBand = { min: 25, max: 80 };
 /** Mains descriptive floor band (was a flat 8). */
 export const DESCRIPTIVE_FLOOR: FloorBand = { min: 5, max: 20 };
+
+/**
+ * ⚑ THE FRESH-SUPPLY FLOOR — why a SECOND floor exists rather than a bigger first one.
+ *
+ * The coverage floor above asks "does this section have enough questions?" and
+ * counts every published+approved question, which on a mature bank is dominated
+ * by real PYQs. Both sides of that comparison are then monotone functions of the
+ * SAME quantity — `have` rises with how often the commission asks a topic, and
+ * `scaledFloor` rises with the recency-weighted count of those same asks — but
+ * `have` rises far faster. MEASURED 2026-08-13 across both live exams: the
+ * have/floor ratio is 1.75 at the 25th hotness percentile and 3.65 at the 100th,
+ * i.e. the floor is furthest from binding exactly where the commission asks
+ * most, and **1 of 110 depth-1 nodes was in shortfall**. So the coverage floor is
+ * not merely inert (its own docblock says so) — it is ANTI-CORRELATED with need,
+ * and no change to its band can fix that, because widening the band raises the
+ * floor on the busy nodes and the thin ones together.
+ *
+ * The quantity a student actually experiences is different: real PYQs are the
+ * questions they have already worked through in the PYQ archive, so a topic with
+ * 189 real PYQs and zero generated ones offers them nothing NEW to practise on.
+ * That is the reported symptom — no generated question had ever appeared on
+ * high-yield topics like History or the Economy — and it is why this floor
+ * measures GENERATED supply only. It is a floor, not a rate: once a node reaches
+ * it, it stops, so this cannot become an unbounded generator.
+ *
+ * Evaluated at LEAF granularity (a node with no children), not depth-1, for two
+ * reasons. It is the grain a student browses, so "Ancient India" gets its own
+ * supply instead of being averaged into "History of India and Indian National
+ * Movement"; and it is the grain the real PYQ corpus is attached to, so
+ * `loadFewShot` conditions the generation on that leaf's OWN past questions
+ * rather than a paper-wide pool (see its docblock — the two defects are the same
+ * depth-1-vs-depth-2 mismatch seen from opposite sides).
+ *
+ * The bands are much smaller than the coverage bands because they are per-LEAF,
+ * not per-section. Sized against the real tree: ~980 questions across both exams
+ * to satisfy from cold, which the existing shared $5 cap drains over ~3 nights.
+ * `have` deliberately counts ANY generated question on the leaf, current-affairs
+ * MCQs included — those are genuinely fresh practice the student can see, so
+ * topping up past them would be waste.
+ */
+export const FRESH_MCQ_FLOOR: FloorBand = { min: 3, max: 12 };
+/** Mains descriptive fresh-supply floor, per leaf. See `FRESH_MCQ_FLOOR`. */
+export const FRESH_DESCRIPTIVE_FLOOR: FloorBand = { min: 2, max: 6 };
+
 /** Never generate more than this per node in one nightly run (a safety cap on a cold-start deficit). */
 const MAX_PER_NODE = 20;
 
@@ -339,6 +394,135 @@ async function shortfallsFor(opts: {
   return plans;
 }
 
+/** One leaf's fresh-supply position: how many GENERATED questions it has vs its weightage-scaled floor. */
+export interface FreshTarget {
+  node: NodeRow;
+  /** Generated (published+approved) questions on this leaf — real PYQs deliberately excluded. */
+  haveGenerated: number;
+  hot: number;
+  floor: number;
+}
+
+/**
+ * Per-LEAF fresh-supply targets for one exam + stage + question type. See
+ * `FRESH_MCQ_FLOOR` for why this measures generated supply rather than total
+ * coverage, and why it runs at leaf rather than section granularity.
+ *
+ * Exported so the position can be inspected without generating — the same
+ * reason `reserveTargetsFor` exists, and what the post-fix coverage verification
+ * reads.
+ */
+export async function freshTargetsFor(opts: {
+  /** REQUIRED — never defaulted, for the same reason as `computeNodeTargets` (M24). */
+  examCode: string;
+  stage: TopupStage;
+  kind: "mcq" | "descriptive";
+  band: FloorBand;
+  log?: (msg: string) => void;
+}): Promise<FreshTarget[]> {
+  const { examCode, stage, kind, band } = opts;
+  const log = opts.log ?? (() => {});
+  const paperCodes = withoutSkillDimensionPapers(examCode, paperCodesForStage(examCode, stage), log);
+  if (paperCodes.length === 0) return [];
+
+  // Paged for the same reason every other read here is: a truncated node list
+  // silently drops leaves, which reads exactly like "already covered".
+  const rows = await selectAll<NodeRow & { parent_id: string | null }>(() =>
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, path, depth, paper_code, title_i18n, parent_id")
+      .eq("exam_code", examCode)
+      .in("paper_code", paperCodes)
+      .order("id", { ascending: true }),
+  );
+
+  // Generated supply per node. Scoped by the node set rather than by paper code,
+  // because a current-affairs MCQ is stamped `paper_code = CURRENT_AFFAIRS` while
+  // hanging off a real syllabus node — it is still fresh practice on that leaf,
+  // so a paper-code filter here would under-count it and over-generate.
+  const nodeIds = new Set(rows.map((r) => r.id));
+  const generated = await selectAll<{ syllabus_node_id: string }>(() =>
+    supabase()
+      .from("questions")
+      .select("syllabus_node_id")
+      .eq("exam_code", examCode)
+      .eq("type", kind)
+      .eq("source", "generated")
+      .eq("is_published", true)
+      .eq("review_state", "approved")
+      .not("syllabus_node_id", "is", null)
+      .order("id", { ascending: true }),
+  );
+  const genByNode = new Map<string, number>();
+  for (const q of generated) {
+    if (!nodeIds.has(q.syllabus_node_id)) continue;
+    genByNode.set(q.syllabus_node_id, (genByNode.get(q.syllabus_node_id) ?? 0) + 1);
+  }
+
+  const hasChild = new Set(rows.map((r) => r.parent_id).filter((p): p is string => !!p));
+  // A leaf is a real topic; depth 0 is the paper root, which is not one.
+  const leaves = rows.filter((r) => r.depth >= 1 && !hasChild.has(r.id));
+
+  const weightage = await loadNodeWeightage();
+  const currentYear = currentExamYear();
+  const hotOf = (n: NodeRow) => {
+    const w = weightage.get(n.id);
+    return w ? hotnessRaw(w.byYear, currentYear) : 0;
+  };
+  const hots = leaves.map(hotOf);
+  const maxHot = Math.max(0, ...hots);
+  log(
+    `${examCode} ${stage} ${kind} fresh-supply: ${leaves.length} leaf topic(s), band [${band.min}..${band.max}], ` +
+      `maxHotness=${maxHot.toFixed(1)}`,
+  );
+
+  return leaves.map((node, i) => ({
+    node,
+    haveGenerated: genByNode.get(node.id) ?? 0,
+    hot: hots[i],
+    floor: scaledFloor(hots[i], maxHot, band),
+  }));
+}
+
+/** Fresh-supply shortfall plans for one exam + stage + type. */
+async function freshShortfallsFor(opts: {
+  examCode: string;
+  stage: TopupStage;
+  kind: "mcq" | "descriptive";
+  band: FloorBand;
+  log: (msg: string) => void;
+}): Promise<GeneratePlan[]> {
+  const { kind, log } = opts;
+  const plans: GeneratePlan[] = [];
+  for (const t of await freshTargetsFor(opts)) {
+    const shortfall = Math.min(MAX_PER_NODE, Math.max(0, t.floor - t.haveGenerated));
+    if (shortfall <= 0) continue;
+    log(
+      `  ↳ fresh "${(t.node.title_i18n as { en: string }).en}": floor=${t.floor} generated=${t.haveGenerated} ` +
+        `(hotness=${t.hot.toFixed(1)}) → generate ${shortfall}`,
+    );
+    plans.push({ node: await loadNodeContext(t.node.id), count: shortfall, kind });
+  }
+  return plans;
+}
+
+/**
+ * Merge the coverage and fresh-supply plan lists. A childless depth-1 node is a
+ * leaf, so it can legitimately appear in BOTH passes; without this it would be
+ * planned twice and generated twice in one night. Takes the larger count, which
+ * satisfies whichever floor asked for more and therefore both.
+ */
+function mergePlans(plans: GeneratePlan[]): GeneratePlan[] {
+  const byNode = new Map<string, GeneratePlan>();
+  for (const p of plans) {
+    const key = `${p.node.id}|${p.kind}`;
+    const hit = byNode.get(key);
+    if (!hit) byNode.set(key, p);
+    else if (p.count > hit.count) byNode.set(key, p);
+  }
+  return [...byNode.values()];
+}
+
 /**
  * Inspect per-node targets (baseline floor + on-demand reserve) WITHOUT
  * generating — used by the on-demand reserve verification/reporting so the
@@ -452,6 +636,10 @@ export async function runTopup(
     if (opts.only !== "descriptive") {
       plans.push(
         ...(await shortfallsFor({ examCode, stage: "prelims", kind: "mcq", band: MCQ_FLOOR, demand, log })),
+        // Second, independent guarantee — see `FRESH_MCQ_FLOOR`. Additive: when
+        // every leaf is already at its fresh floor this contributes nothing and
+        // the run is byte-identical to the coverage-only behaviour.
+        ...(await freshShortfallsFor({ examCode, stage: "prelims", kind: "mcq", band: FRESH_MCQ_FLOOR, log })),
       );
     }
     if (opts.only !== "mcq") {
@@ -464,19 +652,32 @@ export async function runTopup(
           demand,
           log,
         })),
+        ...(await freshShortfallsFor({
+          examCode,
+          stage: "mains",
+          kind: "descriptive",
+          band: FRESH_DESCRIPTIVE_FLOOR,
+          log,
+        })),
       );
     }
     const mine = plans.slice(before);
     log(`  ${examCode}: ${mine.length} node(s) in shortfall (${mine.reduce((s, p) => s + p.count, 0)} questions).`);
   }
 
-  const totalRequested = plans.reduce((s, p) => s + p.count, 0);
-  log(`Shortfall: ${plans.length} nodes need generation (${totalRequested} questions total).`);
+  // De-duplicate before costing: a childless depth-1 node is a leaf, so the
+  // coverage and fresh-supply passes can both name it.
+  const merged = mergePlans(plans);
+  if (merged.length !== plans.length) {
+    log(`  ${plans.length - merged.length} node(s) named by both the coverage and fresh-supply passes — merged.`);
+  }
+  const totalRequested = merged.reduce((s, p) => s + p.count, 0);
+  log(`Shortfall: ${merged.length} nodes need generation (${totalRequested} questions total).`);
 
   // Trim to budget: ONE ceiling for every exam's plans together (see
   // `trimToBudget`). Log what was dropped — never silently.
   const budget = opts.maxUsd;
-  const { kept, dropped } = trimToBudget(plans, budget);
+  const { kept, dropped } = trimToBudget(merged, budget);
   if (dropped > 0) {
     log(`Budget $${budget.toFixed(2)} (est. per-q ~$${estCostPerQuestion("mcq").toFixed(4)} mcq): running ${kept.length} nodes, DEFERRING ${dropped} to a later run.`);
   }
@@ -501,9 +702,9 @@ export async function runTopup(
     for (const p of kept) {
       log(`  would generate ${p.count} ${p.kind} for "${(p.node.title_i18n as { en: string }).en}" (${p.node.examCode})`);
     }
-    return { planned: plans.length, requested, dropped, results: [] };
+    return { planned: merged.length, requested, dropped, results: [] };
   }
 
   const results = kept.length ? await generateBatch(kept, log) : [];
-  return { planned: plans.length, requested, dropped, results };
+  return { planned: merged.length, requested, dropped, results };
 }
