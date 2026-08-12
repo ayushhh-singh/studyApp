@@ -807,7 +807,18 @@
     "helpRefund": "रिफ़ंड नीति",
     "helpRefundHint": "भुगतान, रद्दीकरण और रिफ़ंड।",
     "helpOpen": "खोलें",
-    "helpEmail": "ईमेल करें"
+    "helpEmail": "ईमेल करें",
+    "yourStatsTitle": "आपके आँकड़े",
+    "statStreak": "अध्ययन शृंखला",
+    "statFreezes": "संचित शृंखला-फ़्रीज़",
+    "statDaysToExam": "परीक्षा में शेष दिन",
+    "statTargetYear": "लक्ष्य वर्ष",
+    "statDays_one": "{{count}} दिन",
+    "statDays_other": "{{count}} दिन",
+    "badgesTitle": "बैज",
+    "badgesDescription": "अब तक अर्जित उपलब्धियाँ।",
+    "badgesEmptyTitle": "अभी कोई बैज नहीं",
+    "badgesEmptyDescription": "उत्तर लिखें, परीक्षा दें या शृंखला बनाएँ — बैज यहाँ जुड़ते जाएँगे।"
   },
   "Review": {
     "title": "समीक्षा सूची",

@@ -807,7 +807,18 @@
     "helpRefund": "Refund policy",
     "helpRefundHint": "Payments, cancellation, and refunds.",
     "helpOpen": "Open",
-    "helpEmail": "Email us"
+    "helpEmail": "Email us",
+    "yourStatsTitle": "Your stats",
+    "statStreak": "Study streak",
+    "statFreezes": "Streak freezes banked",
+    "statDaysToExam": "Days to your exam",
+    "statTargetYear": "Target year",
+    "statDays_one": "{{count}} day",
+    "statDays_other": "{{count}} days",
+    "badgesTitle": "Badges",
+    "badgesDescription": "Milestones you've earned so far.",
+    "badgesEmptyTitle": "No badges yet",
+    "badgesEmptyDescription": "Write an answer, take a test or build a streak — badges land here as you go."
   },
   "Review": {
     "title": "Review Queue",

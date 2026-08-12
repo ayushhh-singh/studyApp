@@ -33,6 +33,14 @@ export function useMilestones() {
   });
 }
 
+/** Every earned badge, seen or not — the profile's badge case. */
+export function useEarnedMilestones() {
+  return useQuery({
+    queryKey: queryKeys.earnedMilestones(),
+    queryFn: () => api.get("/api/v1/milestones/earned", milestoneListResponseSchema),
+  });
+}
+
 export function useMarkMilestoneSeen() {
   const queryClient = useQueryClient();
   return useMutation({

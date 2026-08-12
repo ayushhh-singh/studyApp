@@ -2,6 +2,8 @@ import { useTranslation } from "react-i18next";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { ActivityHeatmapCard } from "@/components/dashboard/activity-heatmap-card";
 import { ProfileCard } from "@/components/profile/profile-card";
+import { YourStatsCard } from "@/components/profile/your-stats-card";
+import { BadgesCard } from "@/components/profile/badges-card";
 import { ScoreTrajectoryCard } from "@/components/profile/score-trajectory-card";
 import { AccuracyTimeCard } from "@/components/profile/accuracy-time-card";
 import { StrengthWeaknessCard } from "@/components/profile/strength-weakness-card";
@@ -33,6 +35,13 @@ export function Component() {
       <PageHeader title={t("Profile.title")} description={t("Profile.description")} />
 
       <ProfileCard profile={profile} isLoading={profileLoading} />
+
+      {/* docs/design/reference-1 panel 7 pairs "Your Stats" with "Badges"
+          directly under the profile header. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <YourStatsCard profile={profile} isLoading={profileLoading} />
+        <BadgesCard />
+      </div>
 
       <PlanBanner />
 

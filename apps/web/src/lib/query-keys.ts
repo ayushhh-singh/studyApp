@@ -85,6 +85,11 @@ export const queryKeys = {
   cutoffs: (exam: string) => ["mocks", "cutoffs", exam] as const,
   mastery: (paper?: string, exam?: ExamCode) => ["mastery", paper ?? "all", exam ?? "all"] as const,
   milestones: () => ["milestones"] as const,
+  // A CHILD of `milestones` on purpose: TanStack matches by prefix, so marking
+  // a toast seen invalidates this too — which is right, since `seen` is a field
+  // on these rows. The data itself is unaffected: /milestones/earned returns
+  // every earned badge regardless of seen, unlike the unseen-only toast feed.
+  earnedMilestones: () => ["milestones", "earned"] as const,
   weeklyDigest: () => ["digest", "weekly"] as const,
   activityHeatmap: (weeks: number) => ["engagement", "heatmap", weeks] as const,
   timeAttackTopics: (paper: string) => ["time-attack", "topics", paper] as const,

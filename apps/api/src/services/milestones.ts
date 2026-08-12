@@ -161,6 +161,29 @@ export async function listUnseenMilestones(userId: string): Promise<Milestone[]>
     .filter((m): m is Milestone => m !== null);
 }
 
+/**
+ * Every milestone this user has EARNED, seen or not — the profile's badge case.
+ *
+ * Deliberately separate from listUnseenMilestones rather than a flag on it:
+ * that one drives the one-time toasts and must stay unseen-only, and a badge
+ * case built on it would show a badge exactly once and then lose it forever
+ * the moment the toast was dismissed.
+ *
+ * Newest first, since a badge case is read top-down and the most recent
+ * achievement is the one worth seeing.
+ */
+export async function listEarnedMilestones(userId: string): Promise<Milestone[]> {
+  const { data, error } = await supabase()
+    .from("milestones")
+    .select("id, key, achieved_at, seen")
+    .eq("user_id", userId)
+    .order("achieved_at", { ascending: false });
+  if (error) throw new HttpError(500, `milestone list failed: ${error.message}`);
+  return ((data ?? []) as { id: string; key: string; achieved_at: string; seen: boolean }[])
+    .map(mapMilestone)
+    .filter((m): m is Milestone => m !== null);
+}
+
 export async function markMilestoneSeen(userId: string, id: string): Promise<Milestone> {
   const { data, error } = await supabase()
     .from("milestones")

@@ -12,7 +12,12 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
-import { evaluateMilestones, listUnseenMilestones, markMilestoneSeen } from "../services/milestones.js";
+import {
+  evaluateMilestones,
+  listEarnedMilestones,
+  listUnseenMilestones,
+  markMilestoneSeen,
+} from "../services/milestones.js";
 import { getLeaderboard, getWeeklyDigest } from "../services/digest.js";
 import { getActivityHeatmap } from "../services/daily-stats.js";
 import { renderWeeklyDigestPng } from "../services/share-image.js";
@@ -27,6 +32,19 @@ engagementRouter.get(
     const userId = currentUserId();
     await evaluateMilestones(userId); // award anything newly crossed before listing
     const items = await listUnseenMilestones(userId);
+    res.json(milestoneListResponseSchema.parse({ data: items, error: null }));
+  }),
+);
+
+// Registered BEFORE /milestones/:id/seen is irrelevant (different verb), but it
+// must stay above nothing else — /milestones/earned is a GET and :id is a POST,
+// so there is no shadowing here.
+engagementRouter.get(
+  "/milestones/earned",
+  asyncHandler(async (_req, res) => {
+    const userId = currentUserId();
+    await evaluateMilestones(userId); // award anything newly crossed before listing
+    const items = await listEarnedMilestones(userId);
     res.json(milestoneListResponseSchema.parse({ data: items, error: null }));
   }),
 );
