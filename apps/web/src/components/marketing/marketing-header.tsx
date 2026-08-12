@@ -36,17 +36,33 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
   ];
   const isActive = (to: string) => location.pathname === to || location.pathname === `${to}/`;
 
+  // Active marker is a filled RULE under the label plus a bolder weight —
+  // never colour alone (docs/design/reference-1's header).
+  //
+  // The bar is --action (navy in light, gold in dark), matching `ui/tabs.tsx`'s
+  // `variant="underline"` exactly, NOT the sidebar's raw --marigold. The
+  // sidebar's gold bar sits on a filled active row; here it would sit straight
+  // on --background, where #F7C873 measures 1.48:1 — an underline nobody can
+  // see. --action is the token that stays a legible filled surface in both
+  // themes, and it still lands gold in dark, which is where the reference's
+  // dark sheet shows gold.
   const navLink = (to: string, label: string) => (
     <Link
       key={to}
       to={to}
       aria-current={isActive(to) ? "page" : undefined}
       className={cn(
-        "text-sm font-medium transition-colors hover:text-foreground",
-        isActive(to) ? "text-foreground" : "text-muted-foreground",
+        "relative py-1 text-sm transition-colors hover:text-foreground",
+        isActive(to) ? "font-semibold text-foreground" : "font-medium text-muted-foreground",
       )}
     >
       {label}
+      {isActive(to) ? (
+        <span
+          aria-hidden
+          className="absolute inset-x-0 -bottom-0.5 h-0.5 rounded-full bg-action"
+        />
+      ) : null}
     </Link>
   );
 
@@ -78,11 +94,26 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
               </button>
             ))}
           </div>
-          <Button asChild size="sm">
-            <Link to={session ? `/${locale}/dashboard` : `/${locale}/auth`}>
-              {session ? t("Landing.goToApp") : t("Landing.signIn")}
-            </Link>
-          </Button>
+          {session ? (
+            <Button asChild size="sm">
+              <Link to={`/${locale}/dashboard`}>{t("Landing.goToApp")}</Link>
+            </Button>
+          ) : (
+            <>
+              {/* The reference's Login + Sign Up pair. Both land on the one
+                  combined /auth screen; `?mode=signup` opens it on the
+                  create-account side so the two buttons aren't the same click
+                  wearing different labels. Log-in is hidden below `sm` — at
+                  390px the row already carries the brand, the locale toggle
+                  and the primary CTA, and /auth's own toggle is one tap away. */}
+              <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+                <Link to={`/${locale}/auth`}>{t("Landing.signIn")}</Link>
+              </Button>
+              <Button asChild size="sm">
+                <Link to={`/${locale}/auth?mode=signup`}>{t("Landing.signUp")}</Link>
+              </Button>
+            </>
+          )}
         </div>
       </div>
 

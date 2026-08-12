@@ -63,8 +63,14 @@ export function Component() {
 
   const [step, setStep] = useState<Step>("options");
   // A guest is here to CONVERT (save progress) — default to the create-account
-  // form rather than sign-in.
-  const [mode, setMode] = useState<Mode>(isGuest ? "signup" : "signin");
+  // form rather than sign-in. `?mode=signup` (the marketing header's Sign-up
+  // button) does the same for a fresh visitor, so Log in and Sign up are two
+  // different destinations rather than one screen with two labels. Read once as
+  // the initial value: this is the form's own state afterwards, so the in-page
+  // toggle must not be overridden on every render by a stale URL.
+  const [mode, setMode] = useState<Mode>(() =>
+    isGuest || params.get("mode") === "signup" ? "signup" : "signin",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otp, setOtp] = useState("");

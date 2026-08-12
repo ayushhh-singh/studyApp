@@ -1,18 +1,42 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, PenLine, Target, BookOpen, BarChart3, Check, Sparkles, ChevronRight } from "lucide-react";
+import {
+  ArrowRight,
+  PenLine,
+  Target,
+  BookOpen,
+  BarChart3,
+  Check,
+  ChevronRight,
+  ClipboardCheck,
+  Layers,
+  ListChecks,
+  Newspaper,
+  CalendarRange,
+  TrendingUp,
+} from "lucide-react";
+import { paiseToRupeeString } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
+import { usePlans } from "@/hooks/use-billing";
+import { planMonths } from "@/lib/billing-copy";
 import { Button } from "@/components/ui/button";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { GuestEntryButton } from "@/components/marketing/guest-entry-button";
+import { LiveExamChips } from "@/components/marketing/live-exam-chips";
+import { BrandPanel } from "@/components/marketing/brand-panel";
 import { Footer } from "@/components/marketing/footer";
 import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { PageSeo } from "@/components/seo/page-seo";
+import { CONTENT_STATS } from "@/lib/content-stats";
 import { cn } from "@/lib/utils";
 
 const FEATURE_ICONS = [PenLine, Target, BookOpen, BarChart3] as const;
+/** The reference's four-card bar: Learn / Revise / Practice / Improve. */
+const PILLAR_ICONS = [BookOpen, Layers, ClipboardCheck, TrendingUp] as const;
+/** Icons for the stat strip, in the same order as CONTENT_STATS. */
+const STAT_ICONS = [ListChecks, BookOpen, Newspaper, CalendarRange] as const;
 // Matches lib/features.ts's slugs for these same four features — kept as a
 // small local list (not importing FEATURES) since this teaser's order/copy
 // is landing-page-specific, not driven by the feature config.
@@ -24,6 +48,27 @@ export function Component() {
   const { session } = useAuth();
 
   const primaryHref = session ? `/${locale}/dashboard` : `/${locale}/auth`;
+
+  // The teaser's Pro price comes from the REAL plan ladder (GET /billing/plans
+  // is public, same source the /pricing page renders) — it used to be a
+  // hardcoded "Coming soon" string that went stale the day the ladder shipped.
+  //
+  // Deliberately the cheapest ONE-MONTH tier, not the cheapest tier outright:
+  // this teaser prints a "/month" suffix, and the ladder's multi-month tiers
+  // (quarterly/half-yearly/yearly) carry a whole-period price, so labelling
+  // ₹999-per-quarter as "/month" would overstate the price by 3x. If no
+  // monthly tier exists the teaser links to /pricing instead of guessing.
+  const plans = usePlans();
+  const monthlyPlan =
+    (plans.data?.plans ?? [])
+      .filter((p) => p.price_paise > 0 && planMonths(p) === 1)
+      .sort((a, b) => a.price_paise - b.price_paise)[0] ?? null;
+
+  const pillars = [1, 2, 3, 4].map((n) => ({
+    Icon: PILLAR_ICONS[n - 1],
+    title: t(`Landing.pillar${n}Title`),
+    body: t(`Landing.pillar${n}Body`),
+  }));
 
   const features = [0, 1, 2, 3].map((i) => ({
     Icon: FEATURE_ICONS[i],
@@ -56,7 +101,7 @@ export function Component() {
       <PageSeo
         locale={locale}
         path=""
-        title={`${t("Landing.brand")} — ${locale === "hi" ? t("Landing.heroTitleHi") : t("Landing.heroTitleEn")}`}
+        title={`${t("Landing.brand")} — ${t("Landing.heroLine1")} ${t("Landing.heroAccent")} ${t("Landing.heroLine2")}`}
         description={t("Landing.heroSub")}
         structuredData={organizationStructuredData}
       />
@@ -68,19 +113,24 @@ export function Component() {
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_0%,var(--primary)/8%,transparent)]"
         />
-        <div className="mx-auto grid max-w-6xl gap-10 px-4 pb-16 pt-12 sm:px-6 sm:pt-16 lg:grid-cols-2 lg:items-center lg:gap-12 lg:pb-24 lg:pt-20">
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 pb-12 pt-12 sm:px-6 sm:pt-16 lg:grid-cols-2 lg:items-center lg:gap-12 lg:pb-16 lg:pt-20">
           <div>
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
-              <Sparkles className="size-3.5" /> {t("Landing.badge")}
-            </span>
-            {/* Bilingual, Hindi-first headline (shown in both locales — Devanagari
-                is the star of this product, not a fallback). */}
-            <h1 className="mt-5 text-balance text-4xl font-extrabold leading-[1.2] tracking-tight sm:text-5xl lg:text-[3.35rem]">
-              <span lang="hi" className="block">
-                {t("Landing.heroTitleHi")}
-              </span>
-              <span lang="en" className="mt-2 block text-2xl font-bold text-primary sm:text-3xl">
-                {t("Landing.heroTitleEn")}
+            {/* ONE language per heading. This used to stack the Hindi and the
+                English headline inside a single <h1> in BOTH locales, so an
+                English reader's primary heading opened in Devanagari and the
+                element had no single `lang`. Hindi is still first-class — it
+                just gets its own headline in its own locale, rather than being
+                bolted onto the English one. */}
+            <h1 className="text-balance font-heading text-4xl font-extrabold leading-[1.2] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+              {t("Landing.heroLine1")}{" "}
+              <span className="whitespace-nowrap">
+                {/* --marigold-foreground, NOT the raw brand gold the mockup
+                    paints here: #F7C873 on this page measures 1.48:1, far
+                    under AA, and this is the codebase's single most-repeated
+                    defect. The paired token is a deep amber in light (7.6:1)
+                    and a pale gold in dark (14.6:1) — reads gold in both,
+                    legible in both. */}
+                <span className="text-marigold-foreground">{t("Landing.heroAccent")}</span> {t("Landing.heroLine2")}
               </span>
             </h1>
             <p className="mt-5 max-w-xl text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
@@ -89,41 +139,91 @@ export function Component() {
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Button asChild size="lg" className="h-12 gap-2 px-6 text-base">
                 <Link to={primaryHref}>
-                  {session ? t("Landing.goToApp") : t("Landing.startFree")} <ArrowRight className="size-5" />
+                  {session ? t("Landing.goToApp") : t("Landing.startPreparing")} <ArrowRight className="size-5" />
                 </Link>
               </Button>
-              {!session ? <GuestEntryButton className="sm:flex-none" /> : null}
+              <Button asChild size="lg" variant="outline" className="h-12 px-6 text-base">
+                <Link to={`/${locale}/features`}>{t("Landing.exploreFeatures")}</Link>
+              </Button>
+            </div>
+            <div className="mt-5 flex flex-col gap-3">
+              {!session ? <GuestEntryButton className="w-fit" /> : null}
               <p className="text-sm text-muted-foreground">{t("Landing.heroCtaption")}</p>
+              <LiveExamChips />
             </div>
           </div>
 
-          {/* Hero visual: the flagship evaluation, anchored by the Rubric Dial */}
-          <div className="relative">
-            <div className="mx-auto flex max-w-md flex-col items-center gap-4 rounded-3xl border border-border bg-card p-6 shadow-2xl shadow-primary/10 sm:p-8">
-              <p className="self-start text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+          {/* Hero visual: the reference's navy brand panel, with the flagship
+              Rubric Dial floating off its lower edge — our own signature
+              element rather than stock art in the illustration slot. */}
+          <div className="relative mx-auto w-full max-w-md pb-24 sm:pb-28 lg:max-w-none lg:pb-16">
+            <BrandPanel className="py-10 sm:py-14" imageClassName="w-44 sm:w-60 lg:w-64" />
+            <div className="absolute inset-x-4 bottom-0 rounded-2xl border border-border bg-card p-4 shadow-xl shadow-primary/10 sm:inset-x-8 sm:p-5 lg:inset-x-auto lg:right-2 lg:w-72">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("Landing.heroCardLabel")}
               </p>
-              <ScoreGauge value={78} label={t("Landing.heroCardScore")} size={196} />
-              <div className="grid w-full grid-cols-3 gap-2 text-center">
-                {[
-                  { k: "Landing.dimStructure", v: 8, c: "tulsi" },
-                  { k: "Landing.dimContent", v: 7, c: "marigold" },
-                  { k: "Landing.dimExamples", v: 6, c: "coral" },
-                ].map((d) => (
-                  <div key={d.k} className="rounded-xl border border-border bg-background p-2.5">
-                    <div
-                      className="text-lg font-extrabold tabular-nums"
-                      style={{ color: `var(--${d.c})` }}
-                    >
-                      {d.v}
-                      <span className="text-xs font-semibold text-muted-foreground">/10</span>
-                    </div>
-                    <div className="mt-0.5 text-[11px] leading-tight text-muted-foreground">{t(d.k)}</div>
-                  </div>
-                ))}
+              <div className="mt-2 flex items-center gap-4">
+                <ScoreGauge value={78} label={t("Landing.heroCardScore")} size={104} />
+                <ul className="flex flex-1 flex-col gap-1.5 text-xs">
+                  {[
+                    { k: "Landing.dimStructure", v: 8 },
+                    { k: "Landing.dimContent", v: 7 },
+                    { k: "Landing.dimExamples", v: 6 },
+                  ].map((d) => (
+                    <li key={d.k} className="flex items-center justify-between gap-2">
+                      <span className="text-muted-foreground">{t(d.k)}</span>
+                      <span className="font-display font-bold tabular-nums">{d.v}/10</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </div>
+        </div>
+      </section>
+
+      {/* Four-pillar bar — Learn / Revise / Practice / Improve */}
+      <section className="mx-auto max-w-6xl px-4 pb-4 sm:px-6">
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {pillars.map((p) => (
+            <li key={p.title} className="flex items-start gap-3 rounded-2xl border border-border bg-card p-4">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                <p.Icon className="size-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <h2 className="font-heading text-base font-bold tracking-tight">{p.title}</h2>
+                <p className="mt-0.5 text-sm leading-relaxed text-muted-foreground">{p.body}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {/* Stat strip — real measured content counts (see lib/content-stats.ts) */}
+      <section className="mx-auto max-w-6xl px-4 pb-12 pt-4 sm:px-6 lg:pb-16">
+        <div className="rounded-2xl border border-border bg-card p-5 sm:p-6">
+          <dl className="grid grid-cols-2 gap-x-4 gap-y-6 lg:grid-cols-4 lg:divide-x lg:divide-border">
+            {CONTENT_STATS.map((stat, i) => {
+              const Icon = STAT_ICONS[i];
+              return (
+                <div key={stat.labelKey} className="flex items-center gap-3 lg:justify-center lg:px-2">
+                  <Icon className="size-7 shrink-0 text-primary" aria-hidden />
+                  <div className="min-w-0">
+                    <dt className="sr-only">{t(stat.labelKey)}</dt>
+                    <dd>
+                      <span className="block font-display text-2xl font-extrabold leading-tight tracking-tight sm:text-3xl">
+                        {stat.value}
+                      </span>
+                      <span aria-hidden className="block text-xs leading-snug text-muted-foreground sm:text-sm">
+                        {t(stat.labelKey)}
+                      </span>
+                    </dd>
+                  </div>
+                </div>
+              );
+            })}
+          </dl>
+          <p className="mt-5 border-t border-border pt-3 text-xs text-muted-foreground">{t("Landing.statsNote")}</p>
         </div>
       </section>
 
@@ -192,7 +292,20 @@ export function Component() {
                     </span>
                   ) : null}
                 </div>
-                <p className="mt-1 text-2xl font-extrabold tabular-nums">{t(`Landing.plan_${plan}_price`)}</p>
+                <p className="mt-1 font-display text-2xl font-extrabold tabular-nums">
+                  {plan === "free" ? (
+                    t("Landing.plan_free_price")
+                  ) : monthlyPlan ? (
+                    <>
+                      ₹{paiseToRupeeString(monthlyPlan.price_paise)}
+                      <span className="text-sm font-medium text-muted-foreground">{t("Landing.planPerMonth")}</span>
+                    </>
+                  ) : (
+                    // Registry not loaded (or failed): link out rather than
+                    // print a number we don't have. Never a hardcoded price.
+                    <span className="text-base font-semibold text-primary">{t("Landing.plan_pro_priceFallback")}</span>
+                  )}
+                </p>
                 <p className="mt-1 text-sm text-muted-foreground">{t(`Landing.plan_${plan}_tag`)}</p>
                 <ul className="mt-5 space-y-2.5">
                   {[0, 1, 2, 3].map((n) => {
