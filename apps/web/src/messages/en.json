@@ -34,7 +34,9 @@
     "toggleTheme": "Toggle theme",
     "toggleLanguage": "Toggle language",
     "account": "Account",
-    "signOut": "Sign out"
+    "signOut": "Sign out",
+    "examSwitcherLabel": "Exam: {{exam}} — change your target exam",
+    "examSwitcherHint": "Change your target exam"
   },
   "CommandPalette": {
     "label": "Command palette",

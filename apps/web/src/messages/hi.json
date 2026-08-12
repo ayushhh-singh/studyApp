@@ -34,7 +34,9 @@
     "toggleTheme": "थीम बदलें",
     "toggleLanguage": "भाषा बदलें",
     "account": "खाता",
-    "signOut": "साइन आउट"
+    "signOut": "साइन आउट",
+    "examSwitcherLabel": "परीक्षा: {{exam}} — अपनी लक्ष्य परीक्षा बदलें",
+    "examSwitcherHint": "अपनी लक्ष्य परीक्षा बदलें"
   },
   "CommandPalette": {
     "label": "कमांड पैलेट",

@@ -7,6 +7,7 @@ import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { PwaInstallButton } from "@/components/app-shell/pwa-install-button";
 import { AccountMenu } from "@/components/app-shell/account-menu";
+import { ExamSwitcherChip } from "@/components/app-shell/exam-switcher-chip";
 import { useLocale } from "@/hooks/use-locale";
 import { useProfile, useUpdateProfile } from "@/hooks/use-profile";
 import { LOCALE_STORAGE_KEY, SUPPORTED_LOCALES, switchLocale, type Locale } from "@/lib/locale";
@@ -57,6 +58,8 @@ export function TopBar({ title }: { title: string }) {
       </Link>
 
       <h1 className="min-w-0 flex-1 truncate text-base font-semibold lg:text-lg">{title}</h1>
+
+      <ExamSwitcherChip />
 
       {/* The "wide" controls below (search-with-kbd, streak count, full
           locale pill) switch on at `lg`, not `sm` — the sidebar

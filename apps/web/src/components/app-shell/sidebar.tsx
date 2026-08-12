@@ -39,21 +39,35 @@ export function Sidebar() {
       </div>
       <div className="flex flex-1 flex-col gap-1">
         {navItems.map((item) => (
+          // The active marker is a GOLD leading bar, not a blue fill: every
+          // NAVIGATION panel in docs/design/reference-3 marks the current item
+          // with a gold rule in BOTH themes (a gold underline under the label
+          // in the horizontal nav; here it runs vertically down the item's
+          // leading edge, which is the same idea rotated for a sidebar).
+          // Gold is one constant value across themes, so this reads identically
+          // in light and dark. The flagship keeps a marigold TINT behind it so
+          // it still stands out when it isn't the active item.
           <NavLink
             key={item.id}
             to={`/${locale}/${item.to}`}
             className={({ isActive }: NavLinkRenderProps) =>
               cn(
-                "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
-                isActive &&
-                  (item.flagship
-                    ? "bg-marigold/15 text-marigold-foreground"
-                    : "bg-sidebar-accent text-sidebar-accent-foreground"),
+                "relative flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+                "before:absolute before:inset-y-1.5 before:start-0 before:w-0.5 before:rounded-full before:bg-transparent",
+                item.flagship && !isActive && "bg-marigold/10",
+                isActive && "bg-sidebar-accent font-semibold text-sidebar-accent-foreground before:bg-marigold",
               )
             }
           >
-            <item.icon className={cn("size-4", item.flagship && "text-marigold")} aria-hidden />
-            {t(item.labelKey)}
+            {({ isActive }: NavLinkRenderProps) => (
+              <>
+                <item.icon
+                  className={cn("size-4", isActive ? "text-marigold-foreground" : item.flagship && "text-marigold-foreground")}
+                  aria-hidden
+                />
+                {t(item.labelKey)}
+              </>
+            )}
           </NavLink>
         ))}
       </div>

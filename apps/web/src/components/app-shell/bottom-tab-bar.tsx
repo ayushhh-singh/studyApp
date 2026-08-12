@@ -49,6 +49,13 @@ export function BottomTabBar() {
       {MOBILE_PRIMARY_NAV.map((item) => {
         const dueCount = item.id === "revision" ? (srsStats?.due_today ?? 0) : 0;
         return (
+          // Active state matches the rest of the chrome: a GOLD rule on the
+          // bar's own edge (top, since this bar is anchored to the bottom of
+          // the viewport) plus a bolder label — the same marker the sidebar and
+          // reference-3's NAVIGATION panels use. The label itself goes to
+          // --foreground rather than a colour, because gold text on a light
+          // card measures 1.6:1; the gold does the signalling, the weight does
+          // the rest.
           <NavLink
             key={item.id}
             to={`/${locale}/${item.to}`}
@@ -56,7 +63,8 @@ export function BottomTabBar() {
             className={({ isActive }: NavLinkRenderProps) =>
               cn(
                 "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                isActive && (item.flagship ? "text-marigold" : "text-primary"),
+                "before:absolute before:inset-x-3 before:top-0 before:h-0.5 before:rounded-full before:bg-transparent",
+                isActive && "font-semibold text-foreground before:bg-marigold",
               )
             }
           >
@@ -73,8 +81,9 @@ export function BottomTabBar() {
           <button
             type="button"
             className={cn(
-              "flex min-w-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-              moreActive && "text-primary",
+              "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              "before:absolute before:inset-x-3 before:top-0 before:h-0.5 before:rounded-full before:bg-transparent",
+              moreActive && "font-semibold text-foreground before:bg-marigold",
             )}
           >
             <MoreHorizontal className="size-5" aria-hidden />
