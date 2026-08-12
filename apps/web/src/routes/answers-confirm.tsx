@@ -14,7 +14,7 @@ import { useAnswerImageUrls } from "@/hooks/use-answer-image-urls";
 import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
-import { scoreBandTextColor } from "@/lib/score-band";
+import { scoreBandColor, scoreBandTextColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export const handle = { titleKey: "Nav.answers" };
@@ -85,6 +85,13 @@ export function Component() {
   }
 
   const confidence = stream.done?.ocr_confidence ?? 0;
+  // This badge is the one place that needs BOTH halves of the band: the raw
+  // token for its 15% tint, and the paired -foreground for the label sitting on
+  // that tint. Using one value for both is precisely the pairing the design
+  // skill forbids — raw-on-its-own-tint was the original bug here, and a
+  // blanket swap to the -foreground shade would have fixed the text by muddying
+  // the tint into a brown wash.
+  const confidenceFill = scoreBandColor(confidence * 100);
   const confidenceColor = scoreBandTextColor(confidence * 100);
   const isLowConfidence = !!stream.done && confidence < LOW_CONFIDENCE_THRESHOLD;
 
@@ -150,7 +157,7 @@ export function Component() {
           action={
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
-              style={{ backgroundColor: `color-mix(in oklch, ${confidenceColor} 15%, transparent)`, color: confidenceColor }}
+              style={{ backgroundColor: `color-mix(in oklch, ${confidenceFill} 15%, transparent)`, color: confidenceColor }}
             >
               {isLowConfidence ? <AlertTriangle className="size-3.5" aria-hidden /> : <CheckCircle2 className="size-3.5" aria-hidden />}
               {t("Answers.confirmConfidence", { pct: Math.round(confidence * 100) })}
