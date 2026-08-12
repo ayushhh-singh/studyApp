@@ -31,18 +31,40 @@ function el(type: string, style: Record<string, any>, children?: (El | string)[]
   return { type, props: { style, children } };
 }
 
+/**
+ * ⚑ This card is the FIRST thing anyone sees when a Neev link is pasted into
+ * WhatsApp, X or LinkedIn, which makes it the highest-leverage stale asset in
+ * the repo. It previously said "AI Answer Evaluation for UPPSC" — false since
+ * upsc went live on 2026-08-11 — over a plain blue rounded SQUARE standing in
+ * for the logo, on the pre-refresh palette. Keep this in step with the
+ * landing page's own headline.
+ */
 const COPY = {
   en: {
-    title: "AI Answer Evaluation for UPPSC",
-    subtitle: "PYQ practice, syllabus-mapped notes, and spaced revision — bilingual, exam-focused.",
+    title: "Strong roots. Bright future.",
+    subtitle: "AI-evaluated Mains answers, 7,400+ past-year questions and fact-checked study chapters — bilingual, built for civil-services aspirants.",
     brand: "Neev",
   },
   hi: {
-    title: "UPPSC के लिए AI उत्तर मूल्यांकन",
-    subtitle: "PYQ अभ्यास, पाठ्यक्रम-आधारित नोट्स, और स्पेस्ड रिवीजन — द्विभाषी, परीक्षा-केंद्रित।",
+    title: "मज़बूत नींव। उज्ज्वल भविष्य।",
+    subtitle: "AI-जाँचित मुख्य परीक्षा उत्तर, 7,400+ पिछले वर्षों के प्रश्न और तथ्य-जाँचे अध्ययन अध्याय — द्विभाषी, सिविल सेवा अभ्यर्थियों के लिए।",
     brand: "नींव",
   },
 } as const;
+
+/**
+ * The real brand mark, inlined as a data URI. satori cannot fetch a URL and
+ * cannot read CSS variables, so both the artwork and every colour here are
+ * literals that must be kept in step with `apps/web/src/index.css` by hand —
+ * which is exactly how the old card drifted a whole rebrand behind.
+ */
+const BRAND_MARK_DATA_URI = (() => {
+  const p = path.resolve(import.meta.dirname, "../../web/public/pwa/icon-512.png");
+  return `data:image/png;base64,${readFileSync(p).toString("base64")}`;
+})();
+
+/** Literal copies of the current brand tokens (see index.css). */
+const BRAND = { navy: "#0B1D3B", deep: "#061225", gold: "#F7C873", ink: "#F7F9FC", muted: "#AEBBD0" } as const;
 
 function cardElement(locale: "en" | "hi"): El {
   const c = COPY[locale];
@@ -55,8 +77,8 @@ function cardElement(locale: "en" | "hi"): El {
       width: "1200px",
       height: "630px",
       padding: "80px",
-      backgroundColor: "#0D1526",
-      backgroundImage: "linear-gradient(135deg, #0D1526 0%, #131B33 60%, #1B1440 100%)",
+      backgroundColor: BRAND.deep,
+      backgroundImage: `linear-gradient(135deg, ${BRAND.deep} 0%, ${BRAND.navy} 55%, #12305C 100%)`,
       fontFamily: FONT_STACK,
     },
     [
@@ -64,18 +86,14 @@ function cardElement(locale: "en" | "hi"): El {
         "div",
         { display: "flex", alignItems: "center", gap: "16px", marginBottom: "48px" },
         [
-          el("div", {
-            display: "flex",
-            width: "56px",
-            height: "56px",
-            borderRadius: "16px",
-            backgroundColor: "#2563EB",
-          }, ""),
-          el("div", { display: "flex", fontSize: "36px", fontWeight: 700, color: "#F7F9FC" }, c.brand),
+          { type: "img", props: { src: BRAND_MARK_DATA_URI, width: 72, height: 72, style: { borderRadius: "18px" } } },
+          el("div", { display: "flex", fontSize: "38px", fontWeight: 700, color: BRAND.ink }, c.brand),
         ],
       ),
-      el("div", { display: "flex", fontSize: "58px", fontWeight: 700, color: "#F7F9FC", lineHeight: 1.2, maxWidth: "980px" }, c.title),
-      el("div", { display: "flex", fontSize: "30px", color: "#9AA5B8", marginTop: "24px", maxWidth: "900px", lineHeight: 1.5 }, c.subtitle),
+      el("div", { display: "flex", fontSize: "62px", fontWeight: 700, color: BRAND.ink, lineHeight: 1.25, maxWidth: "980px" }, c.title),
+      el("div", { display: "flex", fontSize: "28px", color: BRAND.muted, marginTop: "24px", maxWidth: "940px", lineHeight: 1.5 }, c.subtitle),
+      // A gold rule ties the card to the brand's one constant accent.
+      el("div", { display: "flex", width: "120px", height: "6px", borderRadius: "3px", backgroundColor: BRAND.gold, marginTop: "40px" }, ""),
     ],
   );
 }

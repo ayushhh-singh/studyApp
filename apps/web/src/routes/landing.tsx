@@ -30,6 +30,7 @@ import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { PageSeo } from "@/components/seo/page-seo";
 import { CONTENT_STATS } from "@/lib/content-stats";
+import { FEATURES } from "@/lib/features";
 import { accentSolid, type Accent } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 
@@ -179,7 +180,7 @@ export function Component() {
               Rubric Dial floating off its lower edge — our own signature
               element rather than stock art in the illustration slot. */}
           <div className="relative mx-auto w-full max-w-md pb-24 sm:pb-28 lg:max-w-none lg:pb-16">
-            <BrandPanel className="py-10 sm:py-14" imageClassName="w-44 sm:w-60 lg:w-64" />
+            <BrandPanel className="py-6 sm:py-8" imageClassName="max-w-[19rem] sm:max-w-[24rem] lg:max-w-[26rem]" />
             <div className="absolute inset-x-4 bottom-0 rounded-2xl border border-border bg-card p-4 shadow-xl shadow-primary/10 sm:inset-x-8 sm:p-5 lg:inset-x-auto lg:right-2 lg:w-72">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                 {t("Landing.heroCardLabel")}
@@ -287,6 +288,48 @@ export function Component() {
               </div>
             ))}
           </div>
+        </div>
+      </section>
+
+      {/* The other four features, compact. The deep-dive sections above cover
+          the four flagship surfaces with screenshots; without this row the
+          homepage silently implies the product IS those four, when it also has
+          current affairs, a grounded AI mentor, a mastery/streak layer and a
+          peer-review community. Driven off FEATURES so it cannot drift from
+          the feature pages it links to. */}
+      <section className="border-t border-border/60">
+        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 lg:py-20">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="font-heading text-2xl font-extrabold tracking-tight sm:text-3xl">{t("Landing.moreTitle")}</h2>
+            <p className="mt-3 text-base leading-relaxed text-muted-foreground">{t("Landing.moreSub")}</p>
+          </div>
+          <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {FEATURES.filter((f) => !FEATURE_SLUGS.includes(f.slug as (typeof FEATURE_SLUGS)[number])).map((f) => (
+              <li key={f.slug}>
+                <Link
+                  to={`/${locale}/features/${f.slug}`}
+                  className="flex h-full flex-col gap-3 rounded-2xl border border-border bg-card p-5 transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span
+                    className="flex size-10 shrink-0 items-center justify-center rounded-xl"
+                    style={accentSolid(f.tint as Accent)}
+                  >
+                    <f.icon className="size-5" aria-hidden />
+                  </span>
+                  <h3 className="font-heading text-base font-bold tracking-tight">
+                    {t(`Features.${f.i18nKey}.heroEyebrow`)}
+                  </h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">
+                    {t(`Features.${f.i18nKey}.hubTeaser`)}
+                  </p>
+                  <span className="mt-auto inline-flex items-center gap-1 pt-1 text-sm font-semibold text-primary">
+                    {t("Common.learnMore")}
+                    <ChevronRight className="size-4" aria-hidden />
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 

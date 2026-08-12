@@ -30,21 +30,25 @@ export function BrandPanel({
   return (
     <div
       className={cn(
-        "relative isolate overflow-hidden rounded-3xl bg-brand-navy p-6 sm:p-8",
+        "relative isolate overflow-hidden rounded-3xl bg-brand-navy p-4 sm:p-6",
         className,
       )}
     >
       <div
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[28rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,var(--brand-gold)/22%,transparent_65%)]"
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 size-[34rem] -translate-x-1/2 -translate-y-1/2 rounded-full bg-[radial-gradient(circle,var(--brand-gold)/22%,transparent_65%)]"
       />
+      {/* The mark FILLS the panel rather than sitting in it as a badge — in
+          docs/design/reference-1 the tree is the illustration, not a logo
+          dropped on a field. Its own plate is the same navy family as the
+          panel, so at this scale the two read as one piece of artwork. */}
       <img
         src="/pwa/icon-512.png"
         alt=""
         aria-hidden
         width={512}
         height={512}
-        className={cn("mx-auto w-40 max-w-full object-contain sm:w-56", imageClassName)}
+        className={cn("mx-auto w-full max-w-[20rem] object-contain sm:max-w-[24rem]", imageClassName)}
       />
       {children}
     </div>

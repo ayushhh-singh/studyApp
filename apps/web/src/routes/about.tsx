@@ -59,7 +59,7 @@ export function Component() {
             </ul>
             <LiveExamChips className="mt-6" />
           </div>
-          <BrandPanel className="mx-auto w-full max-w-sm py-10 lg:max-w-none" />
+          <BrandPanel className="mx-auto w-full max-w-sm py-6 lg:max-w-none" />
         </div>
       </section>
 
