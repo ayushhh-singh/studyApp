@@ -140,6 +140,18 @@
     --sidebar-ring: #1E4FD9;
 }
 
+/*
+ * Dark surfaces are the reference's own DARK THEME swatches, used literally:
+ * #061225 for the page field and #102542 for cards (reference-3, read at 11x
+ * zoom — the labels render "#06122S"/"#102S42", and hex has no S).
+ *
+ * The reference's RENDERED dark mockups sit a little deeper than its swatches
+ * (~#020F23 page, ~#081830 cards). That was tried and reverted: the swatches
+ * are the stated spec, and matching the renders instead made the whole theme
+ * read darker than the palette the design hands us. Chrome sits between the
+ * two swatches, cards lift off the page field, and every pair clears AA
+ * (foreground 13.3:1 on card, muted 7.7:1, primary 5.8:1, gold 10.0:1).
+ */
 .dark {
     --background: #061225;
     --foreground: #E8EDF5;
@@ -176,7 +188,7 @@
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
     --chart-5: var(--violet);
-    --sidebar: #081A33;
+    --sidebar: #0A1B31;
     --sidebar-foreground: #E8EDF5;
     --sidebar-primary: #6E9BFF;
     --sidebar-primary-foreground: #061225;

@@ -9,13 +9,24 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        // The reference's "Primary Button": navy in light, GOLD in dark
+        // (docs/design/reference-2's light vs dark COMPONENTS panels — navy on
+        // a navy page background is invisible). Both come from the one
+        // theme-inverting token, --action; see index.css.
+        default: "bg-action text-action-foreground hover:bg-action/90",
         destructive:
-          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40",
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:text-brand-navy dark:focus-visible:ring-destructive/40",
         outline:
           "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+        // The reference's "Secondary Button". Light: solid brand gold — gold is
+        // the SAME value in both themes, so its text is always --brand-navy
+        // (10.9:1), never white, which measures 1.6:1 on this gold.
+        // Dark: gold OUTLINE, not another gold fill. In dark the primary button
+        // is itself gold (--action inverts), so a solid-gold secondary is
+        // indistinguishable from it — which is exactly why reference-2's dark
+        // COMPONENTS panel outlines this one while its light panel fills it.
         secondary:
-          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+          "bg-marigold text-brand-navy hover:bg-marigold/90 dark:border dark:border-marigold dark:bg-transparent dark:text-foreground dark:hover:bg-marigold/15",
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
