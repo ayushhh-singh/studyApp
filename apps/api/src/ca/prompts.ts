@@ -199,8 +199,33 @@ export function triageParams(opts: {
       "report/index (+rank), appointment, place/monument/river/park, organisation/institution, species, book/award, " +
       "day/theme, treaty, or a specific number/first/location? Prelims tests 'what/where/who' identification, so a " +
       "clearly NAMED entity in the news usually rates 2 EVEN IF the story's angle is analytical (e.g. a temple, an " +
-      "organisation, a scheme, a report). 0 = no nameable fact (pure opinion/procedure/crime with no examable " +
-      "entity); 1 = a fact too generic/ephemeral to test; 2 = a solid, testable named fact; 3 = a high-yield fact " +
+      "organisation, a scheme, a report). " +
+      // Added 2026-08-13. The named-entity rule above, unqualified, was the
+      // single biggest source of let-through: a blind 3-judge panel over real
+      // rejected output attributed 25% of corroborated failures to this gate,
+      // and EVERY one was the same shape — a transient story that happens to
+      // contain a name (a day-three diplomatic status update, a flood bulletin,
+      // a convocation address, a hunger strike ending, a speed-warning
+      // procedure, a missing-person case). A named person or place appears in
+      // essentially every political and human-interest story, so "a name is
+      // present" cannot be the test; the FACT has to survive the news cycle.
+      "BUT A NAME BEING PRESENT IS NOT ENOUGH — the durable fact must be what the item is ABOUT. Apply this test: " +
+      "will the fact still be true, and still worth knowing, SIX MONTHS from now? Judge the FACT, not the event that " +
+      "carried it into the news. Transient state FAILS the test however prominent the names in it are — the current " +
+      "status of a negotiation, who is mediating today, which areas a river is rising in, what an official SAID in a " +
+      "speech, a protest/strike beginning or ending, a routine court order citing no provision, a procedural notice, " +
+      "an ongoing investigation, a missing or accused private individual. " +
+      "Score those 1, not 2, even though you can name someone in them.\n" +
+      "  BUT DO NOT over-apply this. The named-entity categories listed above are DURABLE BY DEFINITION and still " +
+      "rate 2 even though a news event is what surfaced them: who was APPOINTED to head a named body/office/" +
+      "committee, who WON a named award or a medal at a named games, a newly launched or amended SCHEME, a REPORT/" +
+      "INDEX and India's rank in it, a newly designated place/park/site, a newly discovered SPECIES, a signed TREATY " +
+      "or MoU, a named organisation's creation or mandate. 'The chair of X is Y' and 'Y won the Z medal' remain true " +
+      "and askable long after the story; 'Y said this at a convocation' does not. The line is whether the FACT " +
+      "survives the news cycle, not whether the office-holder could change some day.\n" +
+      "0 = no nameable fact (pure opinion/procedure/crime with no examable " +
+      "entity); 1 = a fact too generic/ephemeral to test, or a named entity carried only by transient news; 2 = a " +
+      "solid, testable named fact that outlives the story; 3 = a high-yield fact " +
       "very likely to be asked.\n" +
       "- mains_relevance: is it an ISSUE worth analysing in a descriptive answer (a policy debate, governance/economy/" +
       "IR/environment/ethics theme with arguments on multiple sides)? 0 = no analytical substance; 1 = thin; 2 = a " +
@@ -566,6 +591,45 @@ export function mcqsParams(opts: McqsParamsOpts): StructuredParams {
       "merely appeared in the story (a headcount, a date mentioned in passing, an unremarkable statistic, " +
       "who-said-what) — those are NOT examinable, however factually accurate. Match the difficulty, framing, and " +
       "trap patterns of the real examples below, not a generic quiz.\n" +
+      // ⚑ 2026-08-13 — A CONSTRUCTION-VALIDITY RULE BLOCK WAS TRIED HERE AND
+      // REVERTED ON EVIDENCE. Do not re-add it as prompt text without new data.
+      //
+      // The 2026-08-13 blind panel over real REJECTED output attributed the
+      // largest single share of corroborated failures to GENERATION, and its
+      // defects were construction defects: two defensibly-correct options, an
+      // inverted key, a garbled proper noun ("Neeesh Nilekali"), a stem stating
+      // its own answer, duplicate options. The obvious response — spell each out
+      // as an explicit drop-check here — was implemented and measured, and it
+      // did not work:
+      //
+      //   panel 1 (15 items, blind 3 judges, 0% inter-judge disagreement)
+      //     old  11 questions, 36% rejection-worthy, 7 acceptable
+      //     new   7 questions, 43% rejection-worthy, 4 acceptable
+      //   panel 2 (same items, rules-only variant, fresh blind 3 judges, 0%)
+      //     old       11 questions, 36% rejection-worthy, 7 acceptable
+      //     new_trim  13 questions, 38% rejection-worthy, 8 acceptable
+      //
+      // No measurable improvement in either variant, and the full version cost
+      // real yield. Decisively, panel 2's treatment arm still produced a
+      // MULTIPLE_CORRECT item (a cashless medical scheme keyed "health
+      // insurance" when "welfare scheme" is equally defensible) — the exact
+      // class rule (i) targets, unanimously flagged, with the rule live.
+      //
+      // TWO REASONS IT FAILS, both worth knowing before trying again:
+      //  1. The dominant defect in BOTH arms is NOT_DURABLE (9 votes old, 9
+      //     new_trim), and those are items that should never have reached
+      //     generation — a convocation speech, a protest foot-march, a wartime
+      //     status update. No wording here turns them into good prelims
+      //     questions. Durability is the TRIAGE gate's job and is now enforced
+      //     there against a measured control set.
+      //  2. "Check that no distractor is also correct" asks the model to detect
+      //     its own error in the same pass that made it. The instrument that
+      //     actually catches MULTIPLE_CORRECT and WRONG_KEY is a BLIND RE-SOLVE
+      //     — answer the question with the key hidden and compare — which this
+      //     pipeline already runs out-of-band as `ca:verify-mcqs` (qgen's
+      //     buildVerifyParams). Extending THAT is the right fix, and it is the
+      //     same lesson as G3's model-answer verifier: add the verification
+      //     stage, do not tune the prompt. Tracked in docs/OUTSTANDING.md §9.
       "- QUANTITY IS NOT A TARGET: return 0, 1, or 2 questions — ONLY for facts that clear the filter above. If none " +
       "of the facts is genuinely exam-worthy, return an EMPTY `questions` array. Never pad with a weak question to " +
       "reach a count: one strong question beats two mediocre ones, and zero beats one a real paper would never ask.",
