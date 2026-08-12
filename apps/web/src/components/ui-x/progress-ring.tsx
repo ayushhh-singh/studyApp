@@ -72,7 +72,11 @@ export function ProgressRing({
       className={cn("relative inline-flex shrink-0 items-center justify-center", className)}
       style={{ width: size, height: size }}
       role="img"
-      aria-label={label ?? `${rounded}%`}
+      // Label AND value. `label ?? pct` would have meant that passing a label
+      // silently removed the number from the accessible name — a screen reader
+      // would hear "Today's plan" and never learn how much of it is done, while
+      // the visible numeral inside is aria-hidden to avoid a double read.
+      aria-label={label ? `${label}: ${rounded}%` : `${rounded}%`}
     >
       <svg width={size} height={size} aria-hidden>
         <defs>
