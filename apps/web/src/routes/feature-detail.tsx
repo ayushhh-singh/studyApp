@@ -10,6 +10,7 @@ import { Screenshot } from "@/components/marketing/screenshot";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { PageSeo } from "@/components/seo/page-seo";
 import { FEATURES, getFeatureBySlug } from "@/lib/features";
+import { accentSolid, accentTint, type Accent } from "@/lib/accent";
 
 export function loader({ params }: LoaderFunctionArgs) {
   if (!getFeatureBySlug(params.slug)) {
@@ -72,7 +73,7 @@ export function Component() {
           <div>
             <span
               className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ backgroundColor: `var(--${feature.tint})`, color: `var(--${feature.tint}-foreground)` }}
+              style={accentSolid(feature.tint as Accent)}
             >
               <feature.icon className="size-3.5" aria-hidden />
               {t(`${k}.heroEyebrow`)}
@@ -103,8 +104,8 @@ export function Component() {
             {steps.map((s, i) => (
               <div key={s.title} className="rounded-2xl border border-border bg-card p-5">
                 <span
-                  className="flex size-8 items-center justify-center rounded-full text-sm font-extrabold tabular-nums"
-                  style={{ backgroundColor: `var(--${feature.tint})`, color: `var(--${feature.tint}-foreground)` }}
+                  className="flex size-8 items-center justify-center rounded-full font-display text-sm font-extrabold tabular-nums"
+                  style={accentSolid(feature.tint as Accent)}
                 >
                   {i + 1}
                 </span>
@@ -125,7 +126,7 @@ export function Component() {
               <div key={h.title} className="flex gap-3 rounded-2xl border border-border bg-card p-5">
                 <span
                   className="flex size-9 shrink-0 items-center justify-center rounded-lg"
-                  style={{ backgroundColor: `color-mix(in oklch, var(--${feature.tint}) 15%, transparent)`, color: `var(--${feature.tint}-foreground)` }}
+                  style={accentTint(feature.tint as Accent)}
                 >
                   <Check className="size-4.5" aria-hidden />
                 </span>

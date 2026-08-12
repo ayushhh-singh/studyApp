@@ -136,7 +136,7 @@ export function Component() {
         </span>
         <div>
           <p className="text-sm font-semibold text-tulsi-foreground">{pick(locale, c.upiFirst)}</p>
-          <p className="text-xs text-muted-foreground">{pick(locale, c.upiNote)}</p>
+          <p className="text-xs leading-[1.75] text-muted-foreground">{pick(locale, c.upiNote)}</p>
         </div>
       </div>
 
@@ -272,7 +272,7 @@ function ComparisonTable({ locale }: { locale: ReturnType<typeof useLocale> }) {
   const cell = (v: { en: string; hi: string } | boolean) => {
     if (v === true) return <Check className="mx-auto size-4 text-tulsi" aria-hidden />;
     if (v === false) return <X className="mx-auto size-4 text-muted-foreground/50" aria-hidden />;
-    return <span className="text-xs">{pick(locale, v)}</span>;
+    return <span className="block text-xs leading-[1.75]">{pick(locale, v)}</span>;
   };
   return (
     <div className="overflow-x-auto rounded-xl border border-border">

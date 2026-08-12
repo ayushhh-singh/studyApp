@@ -30,6 +30,7 @@ import { Screenshot } from "@/components/marketing/screenshot";
 import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { PageSeo } from "@/components/seo/page-seo";
 import { CONTENT_STATS } from "@/lib/content-stats";
+import { accentSolid, type Accent } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 
 const FEATURE_ICONS = [PenLine, Target, BookOpen, BarChart3] as const;
@@ -268,7 +269,7 @@ export function Component() {
                 <div>
                   <span
                     className="inline-flex size-11 items-center justify-center rounded-xl"
-                    style={{ backgroundColor: `var(--${f.tint})`, color: `var(--${f.tint}-foreground)` }}
+                    style={accentSolid(f.tint as Accent)}
                   >
                     <f.Icon className="size-5" />
                   </span>

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
 import { PageSeo } from "@/components/seo/page-seo";
+import { accentSolid, type Accent } from "@/lib/accent";
 import { FEATURES } from "@/lib/features";
 
 export function Component() {
@@ -55,7 +56,7 @@ export function Component() {
               >
                 <span
                   className="inline-flex size-10 items-center justify-center rounded-xl"
-                  style={{ backgroundColor: `var(--${f.tint})`, color: `var(--${f.tint}-foreground)` }}
+                  style={accentSolid(f.tint as Accent)}
                 >
                   <f.icon className="size-4.5" aria-hidden />
                 </span>
