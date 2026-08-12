@@ -11,7 +11,7 @@ import type {
   SrsStats,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
-import { getUserExam } from "../lib/exams.js";
+import { getUserExam, questionExamScopeFilter } from "../lib/exams.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from "../lib/fsrs.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
@@ -91,11 +91,24 @@ interface QuestionForRevisionRow {
  * unique index as addNodeToRevision, keyed by source_type='question'.
  */
 export async function addQuestionToRevision(userId: string, questionId: string): Promise<SrsCard> {
+  // `questionId` is UNTRUSTED (a path param). Exam-scoped for the same reason
+  // `addNodeToRevision` above is: another exam's ids are internally consistent,
+  // so a published-only check passes happily on a question from a syllabus this
+  // user is not sitting. 404 rather than 403, per convention.
+  //
+  // The CARD stays exam-agnostic on purpose (0106 §13 — switching exams must not
+  // cost you your deck); it is the SOURCE that is scoped.
+  //
+  // Scoped via paper_code (globally unique across exams), NOT questions.exam_code
+  // — that column is PROVENANCE and its domain includes exams nobody can select
+  // (up_ro_aro, upsssc_pet) whose PYQs legitimately belong to the default exam's
+  // bank, so filtering on it would wrongly refuse them.
   const { data: question, error: questionError } = await supabase()
     .from("questions")
     .select("stem_i18n, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
     .eq("is_published", true)
+    .or(await questionExamScopeFilter(await getUserExam(userId)))
     .maybeSingle();
   if (questionError) throw new HttpError(500, `question lookup failed: ${questionError.message}`);
   if (!question) throw notFound("Question not found");
@@ -545,10 +558,16 @@ export async function deleteCard(userId: string, cardId: string): Promise<void> 
  * wrong before seeding from that set.
  */
 export async function seedWrongAnswers(userId: string, limit = 15): Promise<{ added: number; already: number }> {
+  // Exam-scoped through `tests` (the same join listAttempts uses). Not merely
+  // cosmetic: addQuestionToRevision now refuses another exam's question, and the
+  // catch below swallows that — so without this filter a switched user's `limit`
+  // would be spent on questions that are silently skipped, and the seed would
+  // report scanning 15 while adding none.
   const { data: attemptIdRows, error: attemptIdsError } = await supabase()
     .from("attempts")
-    .select("id")
+    .select("id, tests!inner(exam_code)")
     .eq("user_id", userId)
+    .eq("tests.exam_code", await getUserExam(userId))
     .not("submitted_at", "is", null);
   if (attemptIdsError) throw new HttpError(500, `attempt lookup failed: ${attemptIdsError.message}`);
   const attemptIds = (attemptIdRows ?? []).map((r) => r.id as string);
@@ -611,11 +630,34 @@ export async function seedNoteFacts(userId: string, limit = 5): Promise<{ added:
     .limit(limit * 4);
   if (error) throw new HttpError(500, `note-read event lookup failed: ${error.message}`);
 
-  const noteIds: string[] = [];
+  const candidateIds: string[] = [];
   for (const row of (eventRows ?? []) as { props: { note_id?: string } }[]) {
     const noteId = row.props?.note_id;
-    if (noteId && !noteIds.includes(noteId)) noteIds.push(noteId);
-    if (noteIds.length >= limit) break;
+    if (noteId && !candidateIds.includes(noteId)) candidateIds.push(noteId);
+  }
+
+  // Keep only notes in the user's own exam, BEFORE applying `limit`. A
+  // `note_read` event is not proof of exam: the chapter reader reaches a node
+  // through unscoped public-reference reads (docs/multi-exam.md §0a), so a user
+  // can legitimately have read another exam's chapter. addNoteDeckToRevision now
+  // refuses those and the catch below swallows it, so filtering first is what
+  // stops `limit` being consumed by notes that are silently skipped.
+  const noteIds: string[] = [];
+  if (candidateIds.length > 0) {
+    const { data: scoped, error: scopeErr } = await supabase()
+      .from("notes")
+      .select("id, syllabus_nodes!inner(exam_code)")
+      .in("id", candidateIds)
+      .eq("status", "published")
+      .eq("syllabus_nodes.exam_code", await getUserExam(userId));
+    if (scopeErr) throw new HttpError(500, `note exam lookup failed: ${scopeErr.message}`);
+    const allowed = new Set((scoped ?? []).map((n) => n.id as string));
+    // Preserve most-recently-read order, which `candidateIds` already carries.
+    for (const id of candidateIds) {
+      if (!allowed.has(id)) continue;
+      noteIds.push(id);
+      if (noteIds.length >= limit) break;
+    }
   }
 
   let added = 0;

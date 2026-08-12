@@ -15,6 +15,7 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { logger } from "../lib/logger.js";
 import { canReadFullNote, paywall } from "./entitlements.js";
+import { getUserExam } from "../lib/exams.js";
 
 /**
  * Drop a note's RAG chunks when it leaves `published` (rejected or regenerated),
@@ -145,11 +146,18 @@ export async function addNoteDeckToRevision(
   userId: string,
   noteId: string,
 ): Promise<{ added: number; already: number }> {
+  // `noteId` is UNTRUSTED. Exam-scoped through the note's own syllabus node, for
+  // the same reason srs.ts's addNodeToRevision/addQuestionToRevision are: the
+  // published + paywall checks below both pass on another exam's chapter, so
+  // without this a user could seed their deck from a syllabus they are not
+  // sitting. 404 per convention. The CARD stays exam-agnostic (0106 §13) — it is
+  // the SOURCE that is scoped.
   const { data: note, error } = await supabase()
     .from("notes")
-    .select("id, syllabus_node_id, srs_candidates")
+    .select("id, syllabus_node_id, srs_candidates, syllabus_nodes!inner(exam_code)")
     .eq("id", noteId)
     .eq("status", "published")
+    .eq("syllabus_nodes.exam_code", await getUserExam(userId))
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
   const row = note as unknown as (PublishedNoteForDeck & { syllabus_node_id: string }) | null;
@@ -193,11 +201,15 @@ export async function addNoteBlockToRevision(
   noteId: string,
   body: { block: string; index: number; front_i18n: BilingualText; back_i18n: BilingualText },
 ): Promise<{ id: string; created: boolean }> {
+  // Same untrusted-id exam scoping as addNoteDeckToRevision above. The front/back
+  // text is client-supplied here (so there is nothing to harvest), but the CARD's
+  // recorded source would still point at another exam's chapter.
   const { data: note, error } = await supabase()
     .from("notes")
-    .select("id")
+    .select("id, syllabus_nodes!inner(exam_code)")
     .eq("id", noteId)
     .eq("status", "published")
+    .eq("syllabus_nodes.exam_code", await getUserExam(userId))
     .maybeSingle();
   if (error) throw new HttpError(500, `note lookup failed: ${error.message}`);
   if (!note) throw notFound("Note not found");
