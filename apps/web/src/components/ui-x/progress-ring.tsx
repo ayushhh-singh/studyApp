@@ -58,8 +58,13 @@ export function ProgressRing({
   const gradientId = useId();
   const radius = (size - stroke) / 2;
   const circumference = 2 * Math.PI * radius;
-  const pct = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
-  const complete = max > 0 && value >= max;
+  // Non-finite input must never reach strokeDashoffset — NaN there silently
+  // renders no arc at all, and Infinity renders a full one. A caller dividing
+  // by a nullable-numeric denominator (an evaluation's max_score can be 0) is
+  // the realistic source.
+  const safe = Number.isFinite(value) && Number.isFinite(max) && max > 0;
+  const pct = safe ? Math.min(1, Math.max(0, value / max)) : 0;
+  const complete = safe && value >= max;
   const rounded = Math.round(pct * 100);
 
   return (

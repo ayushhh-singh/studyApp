@@ -1,3 +1,17 @@
+import { scoreBandTextColor } from "@/lib/score-band";
+
+/**
+ * ARC/NEEDLE colours only — the raw vivid tokens, matching lib/score-band.ts's
+ * fill set at the same 40/70 thresholds. The centred numeral must NOT use
+ * these: it is text, and raw tulsi measures 2.54:1 on a light card (caught live
+ * at 89% on the dashboard). It reads scoreBandTextColor instead, so the band
+ * signal survives while the number stays legible.
+ *
+ * The arc keeps the raw tokens deliberately. It is the Rubric Dial's defined
+ * identity (see the design skill), and the value it encodes is stated
+ * redundantly as a numeral directly beneath it, so it is not a lone
+ * meaning-bearing graphic.
+ */
 const BANDS = [
   { from: 0, to: 40, color: "var(--coral)" },
   { from: 40, to: 70, color: "var(--marigold)" },
@@ -105,7 +119,7 @@ export function ScoreGauge({
             // byte-identical to before. Never leading-none: a 1.0 line box is
             // shorter than the glyphs it holds (see 2cf046a).
             lineHeight: 1.2,
-            color: value === null ? "var(--muted-foreground)" : activeColor,
+            color: value === null ? "var(--muted-foreground)" : scoreBandTextColor(clamped),
           }}
         >
           {value === null ? "—" : `${Math.round(value)}%`}

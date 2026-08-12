@@ -68,7 +68,9 @@ export function Component() {
                 to={`/${locale}/community/shared-answers/${shared.id}`}
                 className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {shared.overall_score !== null && shared.max_score !== null && (
+                {/* Truthy, not `!== null`: max_score is numeric-nullable, and a
+                    0 divides to Infinity — which renders as "Infinity%". */}
+                {shared.overall_score !== null && !!shared.max_score && (
                   <ProgressRing
                     value={Math.round((shared.overall_score / shared.max_score) * 100)}
                     max={100}

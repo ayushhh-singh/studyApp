@@ -34,8 +34,12 @@ export function Component() {
       ) : (
         <div className="flex flex-col gap-2">
           {items.map((shared) => {
+            // `max_score` is nullable AND numeric, so 0 is representable — and
+            // 0 divides to Infinity, which the old ScoreGauge silently clamped
+            // to 100 but a ring would render as "Infinity%". Guard on truthiness
+            // rather than null.
             const scorePct =
-              shared.overall_score !== null && shared.max_score !== null
+              shared.overall_score !== null && shared.max_score
                 ? Math.round((shared.overall_score / shared.max_score) * 100)
                 : null;
             return (

@@ -44,7 +44,12 @@ export function PlanBanner() {
         <div className="text-sm">
           <p className="font-semibold text-primary">{pick(locale, c.youArePro)}</p>
           {data.plan_expires_at && (
-            <p className="text-muted-foreground">
+            <p
+              // --muted-foreground is calibrated for the card, and on this
+              // primary/10 plate it measures 4.02:1 — under the 4.5 floor.
+              // Measured live on the profile page.
+              className="text-foreground/80"
+            >
               {pick(locale, c.proUntil)}{" "}
               {new Date(data.plan_expires_at).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", {
                 day: "numeric",

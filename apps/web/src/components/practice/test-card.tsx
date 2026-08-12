@@ -29,7 +29,10 @@ export function TestCard({
       <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
         <FileText className="size-5" aria-hidden />
       </span>
-      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+      {/* div, not span: this wraps block-level children, and a <div> inside a
+          <span> is invalid phrasing content. The parent is an <a>, which takes
+          flow content, so a div here is correct. */}
+      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-sm font-medium">{test.title_i18n[locale]}</span>
         <span className="text-xs text-muted-foreground">{test.paper_code ?? t("Practice.mixed")}</span>
@@ -61,7 +64,7 @@ export function TestCard({
           </span>
         )}
       </div>
-      </span>
+      </div>
     </Link>
   );
 }
