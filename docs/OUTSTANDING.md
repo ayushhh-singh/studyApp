@@ -116,7 +116,7 @@ Also verified: no cross-branch object dependency (the sukoon migrations touch on
 ## 2. Known bugs / limitations with a workaround in place  *(category b)*
 
 > ⚑ **The `B` prefix is NOT globally unique in this file.** This table is the category-b series (B1-B9, B30-B32);
-> §9b keeps its OWN independent B-series for the mentor G4 findings (B1-B17). New rows here start at B30 to stay
+> §9b keeps its OWN independent B-series for the mentor G4 findings (B1-B20). New rows here start at B30 to stay
 > clear of it — always cite a B-number together with its section.
 
 | # | Item | Provenance | Severity | Verified |
