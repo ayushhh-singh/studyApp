@@ -89,8 +89,25 @@ export function ScoreGauge({
           <circle cx={needle.x} cy={needle.y} r={7} fill={activeColor} stroke="var(--card)" strokeWidth={2.5} />
         )}
       </svg>
-      <div className="-mt-7 flex flex-col items-center gap-0.5">
-        <span className="font-display text-3xl" style={{ color: value === null ? "var(--muted-foreground)" : activeColor }}>
+      {/* Both the numeral and the pull-up are scaled from `size`. They used to
+          be a fixed text-3xl (30px) and -mt-7 (28px), calibrated for the 168px
+          default — so a 120px dial wore an oversized numeral and a 48px one in
+          a list row overflowed its own box horizontally while -mt-7 erased the
+          arc entirely. The ratios below reproduce the 168px rendering exactly
+          (30/168, 28/168); every other size is now proportionate instead of
+          wrong in one direction or the other. */}
+      <div className="flex flex-col items-center gap-0.5" style={{ marginTop: -size * (28 / 168) }}>
+        <span
+          className="font-display"
+          style={{
+            fontSize: size * (30 / 168),
+            // 1.2 is text-3xl's own ratio (36px/30px), so the default size is
+            // byte-identical to before. Never leading-none: a 1.0 line box is
+            // shorter than the glyphs it holds (see 2cf046a).
+            lineHeight: 1.2,
+            color: value === null ? "var(--muted-foreground)" : activeColor,
+          }}
+        >
           {value === null ? "—" : `${Math.round(value)}%`}
         </span>
         {label && <span className="text-xs text-muted-foreground">{label}</span>}

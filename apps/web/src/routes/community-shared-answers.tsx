@@ -4,7 +4,7 @@ import { Link } from "react-router";
 import { Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
-import { ScoreGauge } from "@/components/ui-x/score-gauge";
+import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { useLocale } from "@/hooks/use-locale";
@@ -44,7 +44,17 @@ export function Component() {
                 to={`/${locale}/community/shared-answers/${shared.id}`}
                 className="flex items-center gap-3 rounded-lg border border-border px-3 py-3 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
-                {scorePct !== null && <ScoreGauge value={scorePct} size={56} />}
+                {scorePct !== null && (
+                  <ProgressRing
+                    value={scorePct}
+                    max={100}
+                    size={52}
+                    stroke={5}
+                    label={t("Community.overallScore")}
+                  >
+                    {scorePct}%
+                  </ProgressRing>
+                )}
                 <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                   <span className="truncate text-sm font-medium">{shared.question_text_i18n[locale]}</span>
                   <span className="text-xs text-muted-foreground">

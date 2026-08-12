@@ -4,7 +4,7 @@ import { MessageSquare, Sparkles } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
-import { ScoreGauge } from "@/components/ui-x/score-gauge";
+import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { useLocale } from "@/hooks/use-locale";
 import { useCommunityHub } from "@/hooks/use-community";
 
@@ -69,7 +69,15 @@ export function Component() {
                 className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5 hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {shared.overall_score !== null && shared.max_score !== null && (
-                  <ScoreGauge value={Math.round((shared.overall_score / shared.max_score) * 100)} size={48} label="" />
+                  <ProgressRing
+                    value={Math.round((shared.overall_score / shared.max_score) * 100)}
+                    max={100}
+                    size={48}
+                    stroke={5}
+                    label={t("Community.overallScore")}
+                  >
+                    {Math.round((shared.overall_score / shared.max_score) * 100)}%
+                  </ProgressRing>
                 )}
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{shared.question_text_i18n[locale]}</span>
                 <span className="shrink-0 text-xs text-muted-foreground">
