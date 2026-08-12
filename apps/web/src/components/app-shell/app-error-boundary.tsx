@@ -58,7 +58,7 @@ export function Component() {
             // error would be a lie about what happened.
             <span
               aria-hidden
-              className="font-display text-7xl font-extrabold leading-none tracking-tight text-muted-foreground/40 sm:text-8xl"
+              className="font-display text-7xl font-extrabold leading-none tracking-tight text-muted-foreground sm:text-8xl"
             >
               404
             </span>

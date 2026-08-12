@@ -90,7 +90,7 @@ export function Component() {
                   <button
                     type="button"
                     onClick={copyEmail}
-                    className="inline-flex min-h-8 items-center gap-1 rounded-lg px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+                    className="inline-flex min-h-8 shrink-0 items-center gap-1 whitespace-nowrap rounded-lg px-1.5 text-xs font-medium text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
                     {copied ? t("Contact.copied") : t("Contact.copy")}

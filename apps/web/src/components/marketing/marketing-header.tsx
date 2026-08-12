@@ -74,7 +74,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
           <BrandMark />
         </Link>
 
-        <nav className="hidden items-center gap-6 sm:flex" aria-label={t("Footer.navLabel")}>
+        <nav className="hidden items-center gap-6 md:flex" aria-label={t("Footer.navLabel")}>
           {links.map((l) => navLink(l.to, l.label))}
         </nav>
 
@@ -107,7 +107,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
                   wearing different labels. Log-in is hidden below `sm` — at
                   390px the row already carries the brand, the locale toggle
                   and the primary CTA, and /auth's own toggle is one tap away. */}
-              <Button asChild size="sm" variant="ghost" className="hidden sm:inline-flex">
+              <Button asChild size="sm" variant="ghost" className="hidden md:inline-flex">
                 <Link to={`/${locale}/auth`}>{t("Landing.signIn")}</Link>
               </Button>
               <Button asChild size="sm">
@@ -121,9 +121,14 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
       {/* Mobile-only nav row — keeps the section links reachable at 390px
           without overflowing the top bar or forcing a scroll to the footer.
           Scrolls rather than wraps: five links at 390px do not fit, and the
-          same fix the five-tab Practice bar needed applies here. */}
+          same fix the five-tab Practice bar needed applies here.
+
+          The switch is at `md`, not `sm`: with five links AND the Log in +
+          Sign up pair, the single-row layout needs 704px in English, so it
+          overflowed the viewport between 640 and 703px. Hindi's labels are
+          shorter and fit, which is why this only showed up in one locale. */}
       <nav
-        className="flex items-center gap-5 overflow-x-auto border-t border-border/60 px-4 py-2 sm:hidden"
+        className="flex items-center gap-5 overflow-x-auto border-t border-border/60 px-4 py-2 md:hidden"
         aria-label={t("Footer.navLabel")}
       >
         {links.map((l) => navLink(l.to, l.label))}

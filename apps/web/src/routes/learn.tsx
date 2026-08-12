@@ -105,12 +105,19 @@ function PaperCard({ paper }: { paper: PaperSummary }) {
 
 /** Radio-style filter group — the reference's checkbox rail, as single-select rows. */
 function FilterGroup<T extends string>({
+  name,
   label,
   options,
   value,
   onChange,
   optionLabel,
 }: {
+  /**
+   * Radio-group name. A stable ASCII id, NOT the translated label: two groups
+   * that happened to translate to the same string would silently merge into
+   * one radio group, and that failure would appear in one locale only.
+   */
+  name: string;
   label: string;
   options: T[];
   value: T;
@@ -127,7 +134,7 @@ function FilterGroup<T extends string>({
         >
           <input
             type="radio"
-            name={label}
+            name={name}
             checked={value === opt}
             onChange={() => onChange(opt)}
             className="size-4 accent-[var(--action)] outline-none"
@@ -198,6 +205,7 @@ export function Component() {
   const filterRail = (
     <div className="flex flex-col gap-6">
       <FilterGroup
+        name="stage"
         label={t("Learn.filterStage")}
         options={STAGE_FILTERS}
         value={stage}
@@ -205,6 +213,7 @@ export function Component() {
         optionLabel={(o) => t(`Learn.stage_${o}`)}
       />
       <FilterGroup
+        name="status"
         label={t("Learn.filterStatus")}
         options={STATUS_FILTERS}
         value={status}
