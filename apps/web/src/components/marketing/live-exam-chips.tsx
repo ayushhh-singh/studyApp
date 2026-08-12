@@ -22,7 +22,14 @@ import { cn } from "@/lib/utils";
  * prose rather than a dangling "Built for" label. Never add a hardcoded
  * fallback list here — that would reintroduce exactly the drift this removes.
  */
-export function LiveExamChips({ className }: { className?: string }) {
+export function LiveExamChips({
+  className,
+  /** Off where the surrounding sentence already introduces the list (the FAQ's "these are live today:"). */
+  showLabel = true,
+}: {
+  className?: string;
+  showLabel?: boolean;
+}) {
   const { t } = useTranslation();
   const locale = useLocale();
   const { data: exams } = useExams();
@@ -32,7 +39,7 @@ export function LiveExamChips({ className }: { className?: string }) {
 
   return (
     <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1.5 text-sm", className)}>
-      <span className="text-muted-foreground">{t("Landing.builtFor")}</span>
+      {showLabel ? <span className="text-muted-foreground">{t("Landing.builtFor")}</span> : null}
       {live.map((exam) => (
         <span
           key={exam.exam_code}
