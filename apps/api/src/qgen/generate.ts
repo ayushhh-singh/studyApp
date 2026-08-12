@@ -25,7 +25,7 @@ import {
 import { embeddings } from "../lib/embeddings.js";
 import { CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { retrieveGrounding, type GroundingResult } from "../services/evaluation/grounding.js";
-import { dedupCandidates, type DedupResult } from "./dedup.js";
+import { dedupCandidates, type DedupCandidate, type DedupResult } from "./dedup.js";
 import {
   QGEN_PROMPT_VERSION,
   csatQgenConfigFor,
@@ -93,6 +93,15 @@ interface Candidate {
 
 function stemEn(c: Candidate): string {
   return (c.mcq?.stem_i18n.en ?? c.desc?.stem_i18n.en ?? "").trim();
+}
+/**
+ * A candidate as Stage D compares it. The options travel with the stem because a
+ * match-list MCQ's stem is boilerplate and all its content is in the options —
+ * see `dedup.ts`'s `dedupTextOf`. A descriptive candidate has none, so this is
+ * exactly the stem for that kind.
+ */
+function dedupCandidateOf(c: Candidate): DedupCandidate {
+  return { stem: stemEn(c), options: c.mcq?.options };
 }
 function stemI18n(c: Candidate): BilingualText {
   return c.mcq?.stem_i18n ?? c.desc?.stem_i18n ?? { hi: "", en: "" };
@@ -458,7 +467,7 @@ async function finalizeNode(
 
   // Stage D — dedup only the candidates still alive after critic + verify.
   const preDedup = candidates.filter((c) => !c.reject);
-  const dedup = await dedupCandidates(node.id, preDedup.map(stemEn), plan.kind);
+  const dedup = await dedupCandidates(node.id, preDedup.map(dedupCandidateOf), plan.kind);
   preDedup.forEach((c, i) => (c.dedup = dedup[i]));
   markRejections(candidates); // re-run so dedup rejects are counted
 
