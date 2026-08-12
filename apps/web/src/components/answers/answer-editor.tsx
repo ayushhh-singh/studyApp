@@ -28,7 +28,7 @@ export function AnswerEditor({
       : ratio > 1
         ? "text-coral"
         : ratio >= 0.9
-          ? "text-marigold"
+          ? "text-marigold-foreground"
           : "text-muted-foreground";
 
   return (

@@ -42,7 +42,7 @@ function Shell({ children, onExit }: { children: React.ReactNode; onExit: () => 
           <X aria-hidden />
         </Button>
         <span className="flex items-center gap-1.5 text-sm font-semibold">
-          <Zap className="size-4 text-marigold" aria-hidden />
+          <Zap className="size-4 text-marigold-foreground" aria-hidden />
           {t("TimeAttack.title")}
         </span>
       </header>
@@ -196,11 +196,11 @@ function EndScreen({
           {mins}:{String(secs).padStart(2, "0")}
         </span>
         <span className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm">
-          <Flame className="size-4 text-marigold" aria-hidden />
+          <Flame className="size-4 text-marigold-foreground" aria-hidden />
           {t("TimeAttack.bestCombo", { count: result.this_combo })}
         </span>
         <span className="flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-sm">
-          <Trophy className="size-4 text-marigold" aria-hidden />
+          <Trophy className="size-4 text-marigold-foreground" aria-hidden />
           {t("TimeAttack.yourBest", { correct: result.personal_best.best_correct, total: result.personal_best.best_total })}
         </span>
       </div>

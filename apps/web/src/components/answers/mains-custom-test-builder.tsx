@@ -153,7 +153,7 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
                 <span className="min-w-0 flex-1 truncate">
                   {node.title_i18n[locale]} ({t("Learn.pyqCount", { count: node.own_pyq_count })}
                   {node.own_generated_count > 0 && (
-                    <span className="text-marigold"> · {t("Practice.customTopicAi", { count: node.own_generated_count })}</span>
+                    <span className="text-marigold-foreground"> · {t("Practice.customTopicAi", { count: node.own_generated_count })}</span>
                   )}
                   )
                 </span>
@@ -185,9 +185,9 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
       {selectedNodes.length > 0 && (
         <p className="-mt-1 text-xs text-muted-foreground">
           {count > availableInBank ? (
-            <span className="font-medium text-marigold">{t("OnDemand.aboveBank", { available: availableInBank })}</span>
+            <span className="font-medium text-marigold-foreground">{t("OnDemand.aboveBank", { available: availableInBank })}</span>
           ) : count > selectedPyq ? (
-            <span className="font-medium text-marigold">
+            <span className="font-medium text-marigold-foreground">
               {t("Practice.customFillMix", { pyq: selectedPyq, ai: count - selectedPyq })}
             </span>
           ) : (
@@ -220,7 +220,7 @@ export function MainsCustomTestBuilder({ locale }: { locale: Locale }) {
       {createFresh.isError && <p className="text-sm text-destructive">{createFresh.error.message}</p>}
       {preparing && (
         <div className="flex items-start gap-2 rounded-lg border border-marigold/30 bg-marigold/15 px-3 py-2 text-sm text-marigold-foreground">
-          <Sparkles className="mt-0.5 size-4 shrink-0 text-marigold" />
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-marigold-foreground" />
           <span>{t("OnDemand.preparing")}</span>
         </div>
       )}

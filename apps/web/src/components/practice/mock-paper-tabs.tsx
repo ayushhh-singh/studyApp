@@ -70,7 +70,7 @@ function FreshMockButton({
       {fresh.isError && <p className="text-sm text-destructive">{fresh.error.message}</p>}
       {preparing && (
         <div className="flex items-start gap-2 rounded-lg border border-marigold/30 bg-marigold/15 px-3 py-2 text-sm text-marigold-foreground">
-          <Sparkles className="mt-0.5 size-4 shrink-0 text-marigold" />
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-marigold-foreground" />
           <span>{t("OnDemand.preparingMock")}</span>
         </div>
       )}

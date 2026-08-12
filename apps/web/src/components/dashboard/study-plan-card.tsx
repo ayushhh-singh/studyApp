@@ -88,7 +88,7 @@ function TaskChip({ done, Icon }: { done: boolean; Icon: typeof BookOpen }) {
     <span
       className={cn(
         "flex size-8 shrink-0 items-center justify-center rounded-full transition-colors peer-focus-visible:ring-2 peer-focus-visible:ring-ring",
-        done ? "bg-tulsi/15 text-tulsi" : "bg-primary/10 text-primary",
+        done ? "bg-tulsi/15 text-tulsi-foreground" : "bg-primary/10 text-primary",
       )}
     >
       <AnimatePresence mode="wait" initial={false}>
@@ -199,18 +199,18 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {complete && <CheckCircle2 className="size-4 shrink-0 text-tulsi" aria-hidden />}
+          {complete && <CheckCircle2 className="size-4 shrink-0 text-tulsi-foreground" aria-hidden />}
           <span className="text-sm font-semibold" lang={locale}>
             {day.day_label_i18n[locale]}
           </span>
           {isToday && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
               {t("StudyPlan.today")}
             </span>
           )}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
-          <span className={cn("text-xs font-medium tabular-nums", complete ? "text-tulsi" : "text-muted-foreground")}>
+          <span className={cn("text-xs font-medium tabular-nums", complete ? "text-tulsi-foreground" : "text-muted-foreground")}>
             {doneCount}/{day.tasks.length}
           </span>
           {complete && (
@@ -221,7 +221,7 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
               aria-label={expanded ? t("StudyPlan.collapseDay") : t("StudyPlan.reviewDay")}
               aria-expanded={expanded}
               onClick={() => setExpanded((e) => !e)}
-              className="text-tulsi hover:text-tulsi"
+              className="text-tulsi-foreground hover:text-tulsi-foreground"
             >
               <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} aria-hidden />
             </Button>
@@ -366,7 +366,7 @@ export function StudyPlanCard() {
                 </div>
               )}
               {weekComplete && (
-                <div className="flex items-center gap-2 rounded-lg border border-tulsi/30 bg-tulsi/10 px-3 py-2 text-sm font-medium text-tulsi">
+                <div className="flex items-center gap-2 rounded-lg border border-tulsi/30 bg-tulsi/10 px-3 py-2 text-sm font-medium text-tulsi-foreground">
                   <PartyPopper className="size-4 shrink-0" aria-hidden />
                   {t("StudyPlan.weekComplete")}
                 </div>

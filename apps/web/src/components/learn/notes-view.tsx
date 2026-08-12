@@ -240,7 +240,7 @@ export function NotesView({
               size="sm"
               variant={quick ? "default" : "outline"}
               onClick={() => setQuick((q) => !q)}
-              className={quick ? "bg-marigold text-marigold-foreground hover:bg-marigold/90" : ""}
+              className={quick ? "bg-marigold text-brand-navy hover:bg-marigold/90" : ""}
             >
               <Zap className="size-4" /> {t("Notes.quickMode")}
             </Button>

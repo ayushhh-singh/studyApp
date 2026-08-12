@@ -185,7 +185,7 @@ export function HandwrittenUpload({
           <ImagePlus aria-hidden />
           {t("Answers.handwrittenChooseFiles")}
         </Button>
-        <span className={cn("self-center text-xs text-muted-foreground", atLimit && "text-marigold")}>
+        <span className={cn("self-center text-xs text-muted-foreground", atLimit && "text-marigold-foreground")}>
           {t("Answers.handwrittenPageCount", { count: pages.length, max: MAX_ANSWER_IMAGES })}
         </span>
       </div>

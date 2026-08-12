@@ -297,7 +297,7 @@ function CutoffYears({
               <span className="text-sm font-medium">
                 {c.year}
                 {!c.is_official && (
-                  <span className="ml-1 text-[10px] font-semibold uppercase text-marigold">
+                  <span className="ml-1 text-[10px] font-semibold uppercase text-marigold-foreground">
                     {t("Practice.cutoffProvisional")}
                   </span>
                 )}

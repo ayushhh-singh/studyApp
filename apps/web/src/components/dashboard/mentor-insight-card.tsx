@@ -35,7 +35,7 @@ function accentFor(kind: string): { rail: string; iconBg: string; iconFg: string
   if (NEUTRAL_KINDS.has(kind)) {
     return { rail: "var(--primary)", iconBg: "bg-primary/15", iconFg: "text-primary", label: "text-primary", Icon: Sparkles };
   }
-  return { rail: "var(--marigold)", iconBg: "bg-marigold/15", iconFg: "text-marigold", label: "text-marigold", Icon: Sparkles };
+  return { rail: "var(--marigold)", iconBg: "bg-marigold/15", iconFg: "text-marigold-foreground", label: "text-marigold-foreground", Icon: Sparkles };
 }
 
 /**

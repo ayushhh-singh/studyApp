@@ -181,7 +181,7 @@ function TimeAttackPanel() {
   const locale = useLocale();
   return (
     <div className="flex flex-col items-start gap-4 rounded-xl border border-border bg-card p-5 shadow-sm">
-      <span className="flex size-12 items-center justify-center rounded-xl bg-marigold/15 text-marigold">
+      <span className="flex size-12 items-center justify-center rounded-xl bg-marigold/15 text-marigold-foreground">
         <Zap className="size-6" aria-hidden />
       </span>
       <div className="flex flex-col gap-1.5">
@@ -194,7 +194,7 @@ function TimeAttackPanel() {
           {t("TimeAttack.chipTimer")}
         </span>
         <span className="flex items-center gap-1.5">
-          <Trophy className="size-4 text-marigold" aria-hidden />
+          <Trophy className="size-4 text-marigold-foreground" aria-hidden />
           {t("TimeAttack.chipBest")}
         </span>
       </div>

@@ -29,7 +29,7 @@ export function ComboFlame({ combo }: { combo: number }) {
             transition={{ duration: 0.25 }}
             className="inline-flex items-center gap-1"
           >
-            <Flame className="size-4 text-marigold" aria-hidden />
+            <Flame className="size-4 text-marigold-foreground" aria-hidden />
             {combo}
           </motion.span>
         </motion.span>

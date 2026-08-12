@@ -48,7 +48,7 @@ export function AnswerSpotlightCard({ data }: { data: DashboardAnswerSpotlight }
         </div>
       ) : (
         <div className="flex flex-col items-center gap-3 py-4 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full bg-marigold/15 text-marigold">
+          <span className="flex size-12 items-center justify-center rounded-full bg-marigold/15 text-marigold-foreground">
             <NotebookPen className="size-6" aria-hidden />
           </span>
           <p className="text-sm font-semibold">{t("Dashboard.spotlightEmptyTitle")}</p>

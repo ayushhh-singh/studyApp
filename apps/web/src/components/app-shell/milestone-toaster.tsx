@@ -49,7 +49,7 @@ export function MilestoneToaster() {
       <AnimatePresence>
         {items.map((m) => (
           <MilestoneToast key={m.id} id={m.id} onDismiss={() => markSeen.mutate(m.id)}>
-            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-marigold/15 text-marigold">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-marigold/15 text-marigold-foreground">
               <Trophy className="size-4" aria-hidden />
             </span>
             <div className="flex min-w-0 flex-col gap-0.5">

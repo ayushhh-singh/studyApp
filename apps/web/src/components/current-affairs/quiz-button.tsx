@@ -78,7 +78,7 @@ function ActionButton({
         "text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         tone === "prelims"
           ? "bg-primary text-primary-foreground hover:bg-primary/90"
-          : "bg-marigold text-marigold-foreground hover:bg-marigold/90",
+          : "bg-marigold text-brand-navy hover:bg-marigold/90",
       )}
     >
       <span className="inline-flex min-w-0 items-center gap-2">

@@ -183,7 +183,7 @@ export function Component() {
             <SectionCard
               title={
                 <span className="flex items-center gap-1.5">
-                  <Moon className="size-4 text-marigold" aria-hidden />
+                  <Moon className="size-4 text-marigold-foreground" aria-hidden />
                   {t("Trends.dormantTitle")}
                 </span>
               }

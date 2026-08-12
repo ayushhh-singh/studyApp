@@ -28,7 +28,7 @@ export function StreakFlame({
         className,
       )}
     >
-      <Flame className={cn("size-4", active ? "fill-marigold text-marigold" : "text-muted-foreground")} aria-hidden />
+      <Flame className={cn("size-4", active ? "fill-marigold text-marigold-foreground" : "text-muted-foreground")} aria-hidden />
       <span className="font-display text-sm">{count}</span>
     </motion.div>
   );

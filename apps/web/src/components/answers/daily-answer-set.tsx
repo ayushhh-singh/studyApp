@@ -37,7 +37,7 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
           {paperLabel(item.paper_code)}
         </span>
         {item.kind === "essay" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-marigold/15 px-2 py-0.5 text-[11px] font-semibold text-marigold">
+          <span className="inline-flex items-center gap-1 rounded-full bg-marigold/15 px-2 py-0.5 text-[11px] font-semibold text-marigold-foreground">
             <ScrollText className="size-3" aria-hidden />
             {t("Answers.dailySetEssayBadge")}
           </span>
