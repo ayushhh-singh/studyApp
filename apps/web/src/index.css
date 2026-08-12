@@ -38,6 +38,11 @@
     --color-coral-foreground: var(--coral-foreground);
     --color-violet: var(--violet);
     --color-violet-foreground: var(--violet-foreground);
+    --color-action: var(--action);
+    --color-action-foreground: var(--action-foreground);
+    --color-brand-navy: var(--brand-navy);
+    --color-brand-blue: var(--brand-blue);
+    --color-brand-gold: var(--brand-gold);
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
     --color-chart-3: var(--chart-3);
@@ -52,38 +57,68 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
     --font-sans: "InterVariable", "Noto Sans Devanagari", system-ui, sans-serif;
+    /* Headings. Poppins carries no Devanagari, so Noto Sans Devanagari sits
+       directly behind it — a Hindi heading falls through glyph-by-glyph and
+       renders in Noto, never in a system fallback. */
+    --font-heading: "Poppins", "Noto Sans Devanagari", system-ui, sans-serif;
+    /* Scoreboard numerals stay Inter + tabular-nums (see `.font-display`) —
+       Poppins has no tabular figures, so streak/score digits would jitter as
+       they count. Deliberately NOT switched to the heading face. */
     --font-display: "InterVariable", system-ui, sans-serif;
 }
 
 /*
- * Neev palette — see .claude/skills/frontend-design/SKILL.md.
- * Light is the default mode. Bg/foreground/card/primary carry the
- * Ink/Chalk/Rajdhani-Blue concept through shadcn's standard slot names;
- * --marigold/--tulsi/--coral are the Rubric Dial score bands, kept vivid
- * (not pastel) for contrast against both a white card and a dark card.
+ * Neev palette — tree-of-knowledge brand direction, extracted from
+ * docs/design/reference-{2,3}.png. See .claude/skills/frontend-design/SKILL.md.
+ *
+ * Canonical values are reference-2's labelled COLOR PALETTE panel (light) and
+ * reference-3's DARK THEME swatches:
+ *   light  #0B1D3B navy · #1E4FD9 blue · #F7C873 gold · #F7F9FC bg · #667085 muted
+ *   dark   #061225 bg   · #102542 card · #F7C873 gold · #A9B7CC muted
+ * (reference-3's light navy label reads #081038 — a near-duplicate of the same
+ * hue; reference-2's panel is the one that carries all five and is authoritative.)
+ *
+ * --action is the ONE theme-inverting token: the reference deliberately fills
+ * the primary button NAVY in light and GOLD in dark, because navy on a navy
+ * page background is invisible. Everything else keeps its slot meaning across
+ * themes. --primary stays the interactive blue (links, active states, tints,
+ * focus ring) — that role is unchanged from before, so existing usages carry
+ * over; only the hue shifts #2563EB -> #1E4FD9.
+ *
+ * --marigold is now the brand gold and is the SAME value in both themes (the
+ * reference uses one gold throughout); its -foreground partner still differs
+ * per theme because it's the text colour for a marigold/15 TINT, not for the
+ * solid surface. Text on SOLID gold is always --brand-navy (10.9:1) — never
+ * white, which measures 1.6:1.
+ *
+ * --tulsi/--coral are deliberately untouched: they're the Rubric Dial's
+ * semantic score bands, not brand colours, and the reference doesn't define
+ * a success/error pair.
  */
 :root {
     --radius: 0.75rem;
     --background: #F7F9FC;
-    --foreground: #0F172A;
+    --foreground: #0B1D3B;
     --card: #FFFFFF;
-    --card-foreground: #0F172A;
+    --card-foreground: #0B1D3B;
     --popover: #FFFFFF;
-    --popover-foreground: #0F172A;
-    --primary: #2563EB;
+    --popover-foreground: #0B1D3B;
+    --primary: #1E4FD9;
     --primary-foreground: #FFFFFF;
-    --secondary: #EEF2FA;
-    --secondary-foreground: #1E293B;
-    --muted: #F1F5F9;
-    --muted-foreground: #5B6B84;
-    --accent: #DBE7FF;
-    --accent-foreground: #1E3A8A;
-    --destructive: #E11D48;
-    --border: #E2E8F0;
-    --input: #E2E8F0;
-    --ring: #2563EB;
-    --marigold: #F59E0B;
-    --marigold-foreground: #7C4A03;
+    --secondary: #E4EAF4;
+    --secondary-foreground: #0B1D3B;
+    --muted: #EEF2F8;
+    --muted-foreground: #667085;
+    --accent: #DBE4F8;
+    --accent-foreground: #123086;
+    --destructive: #DA3125;
+    --border: #DFE5EF;
+    --input: #DFE5EF;
+    --ring: #1E4FD9;
+    --action: #0B1D3B;
+    --action-foreground: #FFFFFF;
+    --marigold: #F7C873;
+    --marigold-foreground: #6B4A05;
     --tulsi: #10B981;
     --tulsi-foreground: #06603F;
     --coral: #F43F5E;
@@ -95,37 +130,41 @@
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
     --chart-5: var(--violet);
-    --sidebar: #EEF2F9;
-    --sidebar-foreground: #0F172A;
-    --sidebar-primary: #2563EB;
+    --sidebar: #EFF3FA;
+    --sidebar-foreground: #0B1D3B;
+    --sidebar-primary: #1E4FD9;
     --sidebar-primary-foreground: #FFFFFF;
-    --sidebar-accent: #DBE7FF;
-    --sidebar-accent-foreground: #1E3A8A;
-    --sidebar-border: #E2E8F0;
-    --sidebar-ring: #2563EB;
+    --sidebar-accent: #DBE4F8;
+    --sidebar-accent-foreground: #123086;
+    --sidebar-border: #DFE5EF;
+    --sidebar-ring: #1E4FD9;
 }
 
 .dark {
-    --background: #0D1526;
-    --foreground: #F1F5F9;
-    --card: #16213A;
-    --card-foreground: #F1F5F9;
-    --popover: #16213A;
-    --popover-foreground: #F1F5F9;
-    --primary: #60A5FA;
-    --primary-foreground: #0B1220;
-    --secondary: #1B2540;
-    --secondary-foreground: #F1F5F9;
-    --muted: #1B2540;
-    --muted-foreground: #94A3B8;
-    --accent: #22314F;
-    --accent-foreground: #BFD7FF;
-    --destructive: #FB7185;
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: #60A5FA;
-    --marigold: #FBBF24;
-    --marigold-foreground: #FDE68A;
+    --background: #061225;
+    --foreground: #E8EDF5;
+    --card: #102542;
+    --card-foreground: #E8EDF5;
+    --popover: #102542;
+    --popover-foreground: #E8EDF5;
+    /* Lightened from the #1E4FD9 brand blue: the literal value measures
+       2.4:1 on the #102542 card. #6E9BFF is 5.8:1. */
+    --primary: #6E9BFF;
+    --primary-foreground: #061225;
+    --secondary: #17304F;
+    --secondary-foreground: #E8EDF5;
+    --muted: #17304F;
+    --muted-foreground: #A9B7CC;
+    --accent: #1D3A63;
+    --accent-foreground: #C7DAFF;
+    --destructive: #F2685C;
+    --border: oklch(1 0 0 / 12%);
+    --input: oklch(1 0 0 / 16%);
+    --ring: #6E9BFF;
+    --action: #F7C873;
+    --action-foreground: #0B1D3B;
+    --marigold: #F7C873;
+    --marigold-foreground: #FBE0AE;
     --tulsi: #34D399;
     --tulsi-foreground: #A7F3D0;
     --coral: #FB7185;
@@ -137,14 +176,24 @@
     --chart-3: var(--tulsi);
     --chart-4: var(--primary);
     --chart-5: var(--violet);
-    --sidebar: #0F1728;
-    --sidebar-foreground: #F1F5F9;
-    --sidebar-primary: #60A5FA;
-    --sidebar-primary-foreground: #0B1220;
-    --sidebar-accent: #22314F;
-    --sidebar-accent-foreground: #BFD7FF;
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: #60A5FA;
+    --sidebar: #081A33;
+    --sidebar-foreground: #E8EDF5;
+    --sidebar-primary: #6E9BFF;
+    --sidebar-primary-foreground: #061225;
+    --sidebar-accent: #1D3A63;
+    --sidebar-accent-foreground: #C7DAFF;
+    --sidebar-border: oklch(1 0 0 / 12%);
+    --sidebar-ring: #6E9BFF;
+}
+
+/* Literal brand colours — identical in both themes. Use these when the value
+   must NOT flip with the theme: the logo mark, text sitting on solid gold,
+   and marketing panels that are navy by design even in light mode. */
+:root,
+.dark {
+    --brand-navy: #0B1D3B;
+    --brand-blue: #1E4FD9;
+    --brand-gold: #F7C873;
 }
 
 @layer base {
@@ -155,10 +204,32 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
     }
+  /* Poppins for headings, Inter for body (reference-3's LIGHT/DARK THEME
+     typography cards). Applied at the element level so every existing h1-h6
+     picks it up with no per-component change. Anything that needs the body
+     face inside a heading can opt out with `font-sans`. */
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.01em;
+    }
 }
 
 :root[data-locale="hi"] body {
   line-height: 1.75;
+}
+
+/* Devanagari headings render in Noto Sans Devanagari (Poppins has no
+   Devanagari coverage), which sits taller than Poppins at the same size —
+   the design system's >=1.75 line-height floor applies to headings too. */
+:root[data-locale="hi"] :is(h1, h2, h3, h4, h5, h6) {
+  line-height: 1.45;
+}
+
+/* Opt-in heading face for text that is a heading in role but not in tag
+   (card titles rendered as <p>/<span>, marketing eyebrow lines). */
+.font-heading {
+  font-family: var(--font-heading);
+  letter-spacing: -0.01em;
 }
 
 .font-display {

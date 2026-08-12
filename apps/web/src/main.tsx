@@ -16,6 +16,15 @@ import "@fontsource-variable/inter";
 import "@fontsource/noto-sans-devanagari/devanagari-400.css";
 import "@fontsource/noto-sans-devanagari/devanagari-500.css";
 import "@fontsource/noto-sans-devanagari/devanagari-700.css";
+// Poppins = the heading face (--font-heading). LATIN SUBSET ONLY, and only
+// the three weights headings actually use (semibold/bold/extrabold, measured
+// across every <h1>-<h6> in src) — Poppins also ships a Devanagari subset,
+// deliberately NOT imported: Devanagari stays on Noto Sans Devanagari, which
+// this design system treats as a first-class face rather than a fallback, so
+// a Hindi heading falls through to Noto glyph-by-glyph.
+import "@fontsource/poppins/latin-600.css";
+import "@fontsource/poppins/latin-700.css";
+import "@fontsource/poppins/latin-800.css";
 import "@/lib/i18n";
 import "@/index.css";
 // Side-effect import: applies the persisted dark-mode preference to <html>
