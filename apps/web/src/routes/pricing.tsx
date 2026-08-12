@@ -9,7 +9,6 @@ import { useProfile } from "@/hooks/use-profile";
 import { usePlans, useBillingSubscription, useCreateOrder, useRefreshBilling } from "@/hooks/use-billing";
 import { openRazorpayCheckout } from "@/lib/razorpay-checkout";
 import { Button } from "@/components/ui/button";
-import { PageHeader } from "@/components/ui-x/page-header";
 import { PageSeo } from "@/components/seo/page-seo";
 import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
@@ -116,10 +115,18 @@ export function Component() {
         description={pick(locale, c.pricingSubtitle)}
       />
 
-      <MarketingHeader maxWidthClass="max-w-4xl" />
+      <MarketingHeader maxWidthClass="max-w-5xl" />
 
-      <div className="mx-auto flex max-w-4xl flex-col gap-8 px-4 py-8 pb-16 sm:px-6">
-        <PageHeader title={pick(locale, c.pricingTitle)} description={pick(locale, c.pricingSubtitle)} />
+      <div className="mx-auto flex max-w-5xl flex-col gap-8 px-4 py-10 pb-16 sm:px-6 sm:py-14">
+        {/* Centred title block — docs/design/reference-1's PRICING panel.
+            PageHeader is the in-app left-aligned header and reads wrong on a
+            marketing page that has no surrounding app chrome. */}
+        <div className="mx-auto max-w-2xl text-center">
+          <h1 className="font-heading text-3xl font-extrabold tracking-tight sm:text-4xl">
+            {pick(locale, c.pricingTitle)}
+          </h1>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">{pick(locale, c.pricingSubtitle)}</p>
+        </div>
 
       {/* UPI-first assurance */}
       <div className="flex flex-col gap-1 rounded-xl border border-tulsi/30 bg-tulsi/10 p-4 sm:flex-row sm:items-center sm:gap-3">
@@ -172,21 +179,31 @@ export function Component() {
               key={plan.id}
               className={cn(
                 "relative flex flex-col gap-4 rounded-2xl border p-5",
-                highlight ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" : "border-border bg-card",
+                highlight
+                  ? "border-marigold bg-card shadow-lg shadow-marigold/20 sm:-mt-2 sm:pt-7"
+                  : "border-border bg-card",
               )}
             >
               {highlight && (
-                <span className="absolute -top-3 left-5 rounded-full bg-primary px-3 py-0.5 text-xs font-semibold text-primary-foreground">
+                // The reference's "Most Popular" pill: gold, centred, riding
+                // the card's top edge. Text is --brand-navy, never white —
+                // white on this gold measures 1.6:1.
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-marigold px-3 py-1 text-xs font-semibold text-brand-navy shadow-sm">
                   {pick(locale, c.bestValue)}
                 </span>
               )}
               <div>
-                <h3 className="text-base font-semibold">{pick(locale, plan.name_i18n)}</h3>
-                <p className="text-sm text-muted-foreground">{pick(locale, plan.description_i18n)}</p>
+                <h3 className="font-heading text-lg font-bold tracking-tight">{pick(locale, plan.name_i18n)}</h3>
+                <p className="mt-0.5 text-sm text-muted-foreground">{pick(locale, plan.description_i18n)}</p>
               </div>
               <div>
-                <div className="flex items-end gap-1">
-                  <span className="text-4xl font-[800] tabular-nums tracking-tight">₹{paiseToRupeeString(plan.price_paise)}</span>
+                {/* wrap + nowrap on the numeral: at lg the 4-up card is ~220px
+                    and "₹1,799 /6 months" does not fit on one line, which
+                    otherwise breaks INSIDE the price itself ("₹ 1,799"). */}
+                <div className="flex flex-wrap items-end gap-x-1">
+                  <span className="font-display text-4xl font-extrabold tabular-nums tracking-tight whitespace-nowrap">
+                    ₹{paiseToRupeeString(plan.price_paise)}
+                  </span>
                   <span className="pb-1 text-sm text-muted-foreground">{pick(locale, per)}</span>
                 </div>
                 {effPerMonth !== null && (
@@ -216,7 +233,10 @@ export function Component() {
       </div>
 
       {/* Free vs Pro comparison */}
-      <ComparisonTable locale={locale} />
+      <div className="flex flex-col gap-3">
+        <h2 className="font-heading text-xl font-bold tracking-tight">{pick(locale, c.compareTitle)}</h2>
+        <ComparisonTable locale={locale} />
+      </div>
       </div>
 
       <Footer />

@@ -36,6 +36,11 @@ export const billingCopy = {
   per6Months: { en: "/6 months", hi: "/6 माह" } as T,
   perMonthShort: { en: "/mo", hi: "/माह" } as T,
   bestValue: { en: "Best value", hi: "सर्वोत्तम मूल्य" } as T,
+  // Deliberately "Compare plans", not the mockup's implied social proof: the
+  // highlighted tier is flagged is_intro (best value per month), which is an
+  // arithmetic fact, whereas "Most popular" would be a claim about what other
+  // people bought that we have no data for.
+  compareTitle: { en: "Compare plans", hi: "प्लान की तुलना" } as T,
   introPrice: { en: "Launch price", hi: "लॉन्च मूल्य" } as T,
   choosePlan: { en: "Choose this plan", hi: "यह प्लान चुनें" } as T,
   currentPlan: { en: "Your current plan", hi: "आपका वर्तमान प्लान" } as T,
