@@ -169,12 +169,15 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
   const pct = day.tasks.length > 0 ? (doneCount / day.tasks.length) * 100 : 0;
   const complete = day.tasks.length > 0 && doneCount === day.tasks.length;
 
-  // A finished day auto-collapses to a compact "done" summary — decluttering
-  // without deleting anything (the data, and the ability to review or
-  // explicitly remove it, both stay). A brief pause after the LAST checkbox
-  // lands lets the user actually see it complete before it tucks away;
-  // un-checking a task on an already-collapsed day re-expands it immediately,
-  // since editing a "done" day is exactly when you need to see it again.
+  // Any day is manually collapsible via the chevron below — useful to tuck
+  // away a day you're not working on right now without deleting it. A
+  // finished day ALSO auto-collapses to a compact "done" summary on its own;
+  // a brief pause after the LAST checkbox lands lets the user actually see
+  // it complete before it tucks away. Un-checking a task on an
+  // already-collapsed day re-expands it immediately, since editing a "done"
+  // day is exactly when you need to see it again — this only fires on a
+  // complete->incomplete transition, so it never fights a manual collapse
+  // the user chose on a day that's still in progress.
   const [expanded, setExpanded] = useState(!complete);
   const wasComplete = useRef(complete);
   useEffect(() => {
@@ -186,7 +189,7 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
     }
     setExpanded(true);
   }, [complete]);
-  const showBody = expanded || !complete;
+  const showBody = expanded;
 
   return (
     <motion.div
@@ -224,19 +227,17 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
           <span className={cn("text-xs font-medium tabular-nums", complete ? "text-tulsi-foreground" : "text-muted-foreground")}>
             {doneCount}/{day.tasks.length}
           </span>
-          {complete && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={expanded ? t("StudyPlan.collapseDay") : t("StudyPlan.reviewDay")}
-              aria-expanded={expanded}
-              onClick={() => setExpanded((e) => !e)}
-              className="text-tulsi-foreground hover:text-tulsi-foreground"
-            >
-              <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} aria-hidden />
-            </Button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            aria-label={expanded ? t("StudyPlan.collapseDay") : t("StudyPlan.reviewDay")}
+            aria-expanded={expanded}
+            onClick={() => setExpanded((e) => !e)}
+            className={complete ? "text-tulsi-foreground hover:text-tulsi-foreground" : "text-muted-foreground hover:text-foreground"}
+          >
+            <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} aria-hidden />
+          </Button>
           <ConfirmDeleteButton
             pending={deleteDay.isPending}
             ariaLabel={t("StudyPlan.deleteDay")}
