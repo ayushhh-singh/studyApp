@@ -211,40 +211,53 @@ function PlanDayCard({ day, isToday }: { day: PlanDay; isToday: boolean }) {
         complete && !expanded ? "bg-tulsi/5" : "bg-card/50",
       )}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-          {complete && <CheckCircle2 className="size-4 shrink-0 text-tulsi-foreground" aria-hidden />}
-          <span className="text-sm font-semibold" lang={locale}>
-            {day.day_label_i18n[locale]}
-          </span>
-          {isToday && (
-            <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
-              {t("StudyPlan.today")}
+      <div className="flex items-start gap-1">
+        {/* The WHOLE header (not just the small chevron) toggles collapse —
+            a real <button>, so it stays keyboard-accessible, sized for a
+            comfortable tap target (min-h-11). Kept as a sibling of the
+            delete button rather than nesting it (invalid — a button can't
+            contain another interactive control) and generously separated
+            from it, so collapsing a day and deleting one are never a
+            mis-tap apart (a bare 2px gap between two 32px icon buttons
+            previously made that easy to do by accident). */}
+        <button
+          type="button"
+          onClick={() => setExpanded((e) => !e)}
+          aria-expanded={expanded}
+          aria-label={expanded ? t("StudyPlan.collapseDay") : t("StudyPlan.reviewDay")}
+          className="flex min-h-11 min-w-0 flex-1 items-center justify-between gap-2 rounded-md py-1 ps-0.5 pe-2 text-left outline-none transition-colors hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          <span className="flex min-w-0 flex-wrap items-center gap-1.5">
+            {complete && <CheckCircle2 className="size-4 shrink-0 text-tulsi-foreground" aria-hidden />}
+            <span className="text-sm font-semibold" lang={locale}>
+              {day.day_label_i18n[locale]}
             </span>
-          )}
-        </div>
-        <div className="flex shrink-0 items-center gap-0.5">
-          <span className={cn("text-xs font-medium tabular-nums", complete ? "text-tulsi-foreground" : "text-muted-foreground")}>
-            {doneCount}/{day.tasks.length}
+            {isToday && (
+              <span className="rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">
+                {t("StudyPlan.today")}
+              </span>
+            )}
           </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            aria-label={expanded ? t("StudyPlan.collapseDay") : t("StudyPlan.reviewDay")}
-            aria-expanded={expanded}
-            onClick={() => setExpanded((e) => !e)}
-            className={complete ? "text-tulsi-foreground hover:text-tulsi-foreground" : "text-muted-foreground hover:text-foreground"}
-          >
-            <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} aria-hidden />
-          </Button>
-          <ConfirmDeleteButton
-            pending={deleteDay.isPending}
-            ariaLabel={t("StudyPlan.deleteDay")}
-            ariaLabelConfirm={t("StudyPlan.deleteDayConfirm")}
-            onConfirm={() => deleteDay.mutate(day.date)}
-          />
-        </div>
+          <span className="flex shrink-0 items-center gap-1.5">
+            <span className={cn("text-xs font-medium tabular-nums", complete ? "text-tulsi-foreground" : "text-muted-foreground")}>
+              {doneCount}/{day.tasks.length}
+            </span>
+            <ChevronDown
+              className={cn(
+                "size-3.5 shrink-0 transition-transform",
+                expanded && "rotate-180",
+                complete ? "text-tulsi-foreground" : "text-muted-foreground",
+              )}
+              aria-hidden
+            />
+          </span>
+        </button>
+        <ConfirmDeleteButton
+          pending={deleteDay.isPending}
+          ariaLabel={t("StudyPlan.deleteDay")}
+          ariaLabelConfirm={t("StudyPlan.deleteDayConfirm")}
+          onConfirm={() => deleteDay.mutate(day.date)}
+        />
       </div>
       {showBody && (
         <>
