@@ -1392,7 +1392,11 @@
     "retry": "Retry",
     "guestTitle": "Create your account",
     "guestSubtitle": "Save your progress and unlock AI evaluation, the mentor, and more.",
-    "guestPreserveNote": "You're browsing as a guest. Create an account to keep your progress — you'll also start your 7-day Pro trial, no card needed."
+    "guestPreserveNote": "You're browsing as a guest. Create an account to keep your progress — you'll also start your 7-day Pro trial, no card needed.",
+    "welcomeBack": "Welcome back",
+    "signupTitle": "Create your account",
+    "signupSubtitle": "Free to start — no card needed.",
+    "panelTagline": "Your journey to success starts here."
   },
   "Onboarding": {
     "step1Title": "Welcome! Let's set you up",

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FullScreenLoader } from "@/routes/require-auth";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { BrandPanel } from "@/components/marketing/brand-panel";
 import { GuestEntryButton } from "@/components/marketing/guest-entry-button";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { cn } from "@/lib/utils";
@@ -207,7 +208,33 @@ export function Component() {
   }
 
   return (
-    <div className="flex min-h-svh flex-col bg-background px-4 py-10">
+    // docs/design/reference-1's LOGIN / SIGNUP page: the navy brand panel
+    // beside the form. The panel is lg-only — at 390px it would push the
+    // fields below the fold, and this screen exists to be filled in, not
+    // admired. Everything inside the form column is unchanged.
+    <div className="grid min-h-svh bg-background lg:grid-cols-2">
+      <aside className="hidden p-6 lg:block">
+        <BrandPanel className="flex h-full flex-col items-center justify-center gap-6 py-12" imageClassName="w-52">
+          <div className="text-center">
+            <p className="font-heading text-3xl font-extrabold leading-[1.2] tracking-tight text-white">
+              {t("Landing.heroLine1")}
+              <br />
+              {/* On this fixed navy field the raw brand gold is the RIGHT
+                  choice — 12:1 — unlike the light page, where the same value
+                  is 1.5:1. The panel never flips, so neither does this. */}
+              <span className="text-brand-gold">{t("Landing.heroAccent")}</span> {t("Landing.heroLine2")}
+            </p>
+            <p className="mt-4 text-base leading-relaxed text-white/75">{t("Auth.panelTagline")}</p>
+          </div>
+        </BrandPanel>
+      </aside>
+
+      {/* min-w-0: a grid item defaults to min-width:auto, so it refuses to
+          shrink below its content's min-content width — without this the page
+          scrolled 3px wide at 390px, in English only (its longest unbreakable
+          token is wider than the Hindi one, which is why a Hindi-only check
+          would have missed it). */}
+      <div className="flex min-h-svh min-w-0 flex-col bg-background px-4 py-10 lg:min-h-0">
       <div className="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center">
         <div className="mb-8 flex items-center justify-between gap-3">
           <Link to={`/${locale}`} className="inline-flex" aria-label={t("Landing.brand")}>
@@ -232,11 +259,13 @@ export function Component() {
         </div>
 
         <div className="rounded-2xl border border-border bg-card p-6 shadow-sm sm:p-8">
-          <h1 className="text-center text-xl font-bold tracking-tight sm:text-2xl">
-            {isGuest ? t("Auth.guestTitle") : t("Auth.title")}
+          {/* The heading follows the MODE, so arriving via the header's
+              "Sign up" doesn't greet a brand-new visitor with "Welcome back". */}
+          <h1 className="text-center font-heading text-2xl font-bold tracking-tight">
+            {isGuest ? t("Auth.guestTitle") : mode === "signup" ? t("Auth.signupTitle") : t("Auth.welcomeBack")}
           </h1>
           <p className="mt-2 text-center text-sm leading-relaxed text-muted-foreground">
-            {isGuest ? t("Auth.guestSubtitle") : t("Auth.subtitle")}
+            {isGuest ? t("Auth.guestSubtitle") : mode === "signup" ? t("Auth.signupSubtitle") : t("Auth.subtitle")}
           </p>
           {isGuest ? (
             <p className="mt-4 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-center text-xs leading-relaxed text-foreground">
@@ -448,6 +477,7 @@ export function Component() {
         </div>
 
         <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">{t("Auth.terms")}</p>
+      </div>
       </div>
     </div>
   );
