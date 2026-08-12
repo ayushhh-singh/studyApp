@@ -1,7 +1,8 @@
 import { Languages, Search, Sun, Moon } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import { Button } from "@/components/ui/button";
+import { BrandMark } from "@/components/marketing/brand-mark";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { NotificationBell } from "@/components/app-shell/notification-bell";
 import { PwaInstallButton } from "@/components/app-shell/pwa-install-button";
@@ -39,6 +40,22 @@ export function TopBar({ title }: { title: string }) {
   // 8px of padding) clears 8 characters with room to spare, confirmed live.
   return (
     <header className="sticky top-0 z-30 flex h-14 items-center gap-0.5 border-b border-border bg-background/95 px-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 sm:gap-3 sm:px-6">
+      {/* Logo, mobile only. The app shell puts Sidebar and TopBar side by side,
+          so on desktop the sidebar's own BrandMark already sits at the top-left
+          of the same header band — rendering a second one here would duplicate
+          it a few pixels to the right rather than close a gap. Below `md` the
+          sidebar is hidden entirely (sidebar.tsx `md:flex`), which is where the
+          logo was genuinely missing: every mobile screen showed only a page
+          title with no brand anywhere. Links to the public landing page, the
+          same destination the sidebar's mark and the marketing header use. */}
+      <Link
+        to={`/${locale}`}
+        aria-label={t("Landing.brand")}
+        className="-ms-0.5 me-1 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+      >
+        <BrandMark showText={false} size="sm" />
+      </Link>
+
       <h1 className="min-w-0 flex-1 truncate text-base font-semibold lg:text-lg">{title}</h1>
 
       {/* The "wide" controls below (search-with-kbd, streak count, full

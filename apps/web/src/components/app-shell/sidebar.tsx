@@ -23,7 +23,10 @@ export function Sidebar() {
       // exceeds a short viewport's height.
       className="hidden w-60 shrink-0 flex-col gap-1 overflow-y-auto border-r border-sidebar-border bg-sidebar p-3 md:sticky md:top-0 md:flex md:h-svh"
     >
-      <div className="flex items-center gap-2 px-2 py-3">
+      {/* h-14 matches TopBar exactly, so the sidebar's brand block and the top
+          bar read as one continuous header band across the top of the app
+          rather than two rows at slightly different heights. */}
+      <div className="flex h-14 shrink-0 items-center gap-2 px-2">
         {/* BrandMark always renders "Neev" in Latin — matches landing/auth/
             onboarding/pricing, unlike the old hardcoded Devanagari literal that
             ignored the active locale. Wrapped in a Link to the public landing
