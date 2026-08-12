@@ -128,18 +128,31 @@ interface NotificationRow {
   created_at: string;
 }
 
-/** Active notifications: pending + due (scheduled_for has passed), newest first. */
+/**
+ * Active notifications: pending + due (scheduled_for has passed), newest first.
+ *
+ * Bounded, and the badge count comes from an exact COUNT rather than from
+ * `items.length`. Previously this was an unranged select whose length WAS the
+ * count, so a long-lived account would have silently truncated at PostgREST's
+ * 1000-row cap and then under-reported its own badge — and nothing about the
+ * response would have looked wrong. The list is capped because a bell sheet is
+ * not a paginated archive; "Clear all" still clears every due row, not just the
+ * page, which is what the label promises.
+ */
+const NOTIFICATION_LIST_LIMIT = 50;
+
 export async function listActive(userId: string, now: number = Date.now()): Promise<{ items: Notification[]; unread_count: number }> {
-  const { data, error } = await supabase()
+  const { data, error, count } = await supabase()
     .from("notification_schedule")
-    .select(NOTIFICATION_COLUMNS)
+    .select(NOTIFICATION_COLUMNS, { count: "exact" })
     .eq("user_id", userId)
     .eq("status", "pending")
     .lte("scheduled_for", new Date(now).toISOString())
-    .order("scheduled_for", { ascending: false });
+    .order("scheduled_for", { ascending: false })
+    .limit(NOTIFICATION_LIST_LIMIT);
   if (error) throw new HttpError(500, `notification list failed: ${error.message}`);
   const items = (data ?? []) as NotificationRow[];
-  return { items, unread_count: items.length };
+  return { items, unread_count: count ?? items.length };
 }
 
 /**
@@ -155,15 +168,19 @@ export async function listActive(userId: string, now: number = Date.now()): Prom
  * dismissed row alone rather than resurrecting it for the same dedupe_key.
  */
 export async function dismissAllActive(userId: string, now: number = Date.now()): Promise<number> {
-  const { data, error } = await supabase()
+  // `count: "exact"` with NO `.select()` — so PostgREST returns no
+  // representation at all, just the affected-row count. Asking for the rows
+  // back instead would silently cap the number reported at PostgREST's
+  // 1000-row response limit; nudges accumulate ~3/day, so a long-lived account
+  // reaches that in under a year (the heaviest account today is already at 106).
+  const { count, error } = await supabase()
     .from("notification_schedule")
-    .update({ status: "dismissed" })
+    .update({ status: "dismissed" }, { count: "exact" })
     .eq("user_id", userId)
     .eq("status", "pending")
-    .lte("scheduled_for", new Date(now).toISOString())
-    .select("id");
+    .lte("scheduled_for", new Date(now).toISOString());
   if (error) throw new HttpError(500, `notification clear-all failed: ${error.message}`);
-  return (data ?? []).length;
+  return count ?? 0;
 }
 
 export async function setStatus(

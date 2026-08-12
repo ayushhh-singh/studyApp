@@ -53,6 +53,23 @@ async function headCount(build: () => PromiseLike<{ count: number | null; error:
   return count ?? 0;
 }
 
+/**
+ * SRS cards due right now. Extracted so a caller that needs ONLY this number
+ * doesn't have to pay for the whole of `getDailyProgress` (~10 counts plus the
+ * day's answer set) — while still sharing one definition of "due", so the
+ * Today checklist, the streak engine and the mentor's backlog tip can never
+ * drift apart on what counts as a due card.
+ */
+export async function countSrsDue(userId: string, nowIso: string = new Date().toISOString()): Promise<number> {
+  return headCount(() =>
+    supabase()
+      .from("srs_cards")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .lte("fsrs_state->>due_at", nowIso),
+  );
+}
+
 export async function getDailyProgress(userId: string, date: string = istToday()): Promise<DailyProgress> {
   const { startUtc, endUtc } = istDayRangeUtc(date);
   const nowIso = new Date().toISOString();
@@ -137,13 +154,7 @@ export async function getDailyProgress(userId: string, date: string = istToday()
         .lt("created_at", endUtc),
     ),
     getDailyAnswerSet(userId, date, examCode),
-    headCount(() =>
-      supabase()
-        .from("srs_cards")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", userId)
-        .lte("fsrs_state->>due_at", nowIso),
-    ),
+    countSrsDue(userId, nowIso),
     headCount(() =>
       supabase()
         .from("discussion_posts")

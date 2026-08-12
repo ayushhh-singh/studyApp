@@ -31,7 +31,7 @@ import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { getLearnerProfile } from "./learner-profile.js";
 import { getRecommendation } from "./micro-drills.js";
 import { getImprovementProof } from "./profile-analytics.js";
-import { getDailyProgress, hadActivity, SRS_ACTIVITY_THRESHOLD, type DailyProgress } from "./daily-progress.js";
+import { countSrsDue, getDailyProgress, hadActivity, SRS_ACTIVITY_THRESHOLD } from "./daily-progress.js";
 import { getActivePlan } from "./study-plan.js";
 
 /** A meaningfully positive average rewrite-improvement bar — matches this file's
@@ -117,7 +117,15 @@ export interface TipContext {
   today: string;
   /** IST wall-clock hour, 0-23 — the time-of-day input to the ranking. */
   hourIst: number;
-  progress: DailyProgress | null;
+  /** SRS cards due right now; null when the count couldn't be loaded. */
+  srsDue: number | null;
+  /**
+   * True when the day has NO qualifying study activity yet, by the streak
+   * engine's own `hadActivity` rule. Null when not evaluated — it is only
+   * computed late in the day, when a streak can actually break, because
+   * deriving it costs a full `getDailyProgress`.
+   */
+  dayIsBlank: boolean | null;
   plan: StudyPlan | null;
   weakNodeCa: WeakNodeCa | null;
   drillRecommendation: DrillRecommendation | null;
@@ -143,7 +151,7 @@ function pickWeakNode(profile: LearnerProfile): LearnerProfile["weak_nodes"][num
  * ranking testable (`pnpm --filter api test:tips`).
  */
 export function buildCandidates(ctx: TipContext): Candidate[] {
-  const { profile, today, hourIst, progress, plan, weakNodeCa, drillRecommendation, improvementProof } = ctx;
+  const { profile, today, hourIst, srsDue, dayIsBlank, plan, weakNodeCa, drillRecommendation, improvementProof } = ctx;
   const out: Candidate[] = [];
 
   const daysToExam = profile.days_to_exam;
@@ -240,7 +248,7 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
   // meaningless at 9 AM (the day has barely started) and the most urgent thing
   // on the dashboard at 9 PM. Only fires for a streak that actually exists —
   // there is nothing to rescue at 0, and inventing urgency would be dishonest.
-  if (progress && profile.streak_count >= 1 && hourIst >= STREAK_RISK_HOUR_IST && !hadActivity(progress)) {
+  if (dayIsBlank === true && profile.streak_count >= 1 && hourIst >= STREAK_RISK_HOUR_IST) {
     out.push({
       kind: "streak_risk",
       dedupe_key: `streak_risk:${today}`,
@@ -248,25 +256,28 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
         en: `Your ${profile.streak_count}-day streak has nothing logged against it today. One quiz, one answer, or ${SRS_ACTIVITY_THRESHOLD} revisions keeps it alive.`,
         hi: `आज आपकी ${profile.streak_count} दिन की स्ट्रीक के लिए कुछ भी दर्ज नहीं हुआ है। एक क्विज़, एक उत्तर, या ${SRS_ACTIVITY_THRESHOLD} रिवीजन इसे बचा लेंगे।`,
       },
-      cta_link: `/dashboard`,
+      // NOT /dashboard: this card is only ever rendered ON the dashboard, so
+      // linking there is a button that goes nowhere. A quiz is the fastest of
+      // the three qualifying actions the copy names.
+      cta_link: `/practice`,
       priority: 95,
     });
   }
 
   // 5. Revision backlog. Real due-card count from the same day-progress source
   // the Today checklist and the streak engine read, so the three never disagree.
-  if (progress && progress.srs_due >= SRS_BACKLOG_MIN) {
+  if (srsDue != null && srsDue >= SRS_BACKLOG_MIN) {
     out.push({
       kind: "srs_backlog",
       dedupe_key: `srs_backlog:${today}`,
       insight_i18n: {
-        en: `${progress.srs_due} revision cards are due. Clearing a due card is the cheapest recall you'll buy today.`,
-        hi: `${progress.srs_due} रिवीजन कार्ड बकाया हैं। बकाया कार्ड निपटाना आज की सबसे सस्ती दोहराई है।`,
+        en: `${srsDue} revision cards are due. Clearing a due card is the cheapest recall you'll buy today.`,
+        hi: `${srsDue} रिवीजन कार्ड बकाया हैं। बकाया कार्ड निपटाना आज की सबसे सस्ती दोहराई है।`,
       },
       cta_link: `/revision`,
       // A large backlog compounds daily, so it outranks most things; and
       // revision is a morning habit, so it climbs further before noon.
-      priority: 70 + (progress.srs_due >= SRS_BACKLOG_LARGE ? 12 : 0) + (morning ? 8 : 0),
+      priority: 70 + (srsDue >= SRS_BACKLOG_LARGE ? 12 : 0) + (morning ? 8 : 0),
     });
   }
 
@@ -287,7 +298,11 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
           ? `आज की योजना में ${planDay.tasks.length} में से ${planRemaining} काम बाकी हैं — आज का फोकस है ${focus.hi}।`
           : `आज की अध्ययन योजना में ${planDay.tasks.length} में से ${planRemaining} काम बाकी हैं।`,
       },
-      cta_link: `/dashboard`,
+      // Deliberately NO cta_link. The plan lives on the dashboard, which is the
+      // only page this card renders on — a button linking there would go
+      // nowhere. The card renders fine without one (the CTA is conditional),
+      // and the tip is informational: the plan itself is further down the page.
+      cta_link: null,
       // Worth most when the day is still ahead of the user; pointless to open a
       // multi-task plan at midnight, so it drops out of contention late.
       priority: 72 + (morning ? 12 : 0) - (lateNight ? 30 : 0),
@@ -302,7 +317,12 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
     const section = weakNodeCa.section_title_i18n;
     out.push({
       kind: "ca_weak_node",
-      dedupe_key: `ca_weak_node:${weakNodeCa.id}:${today}`,
+      // Keyed by DAY, not by item id: `ca:run` publishes every 6h, so keying on
+      // the item would mint a fresh card each time a newer item landed and the
+      // learner could face three CA cards in one day. Every other tip is
+      // one-per-day; this one now matches. The row stores the item it was built
+      // from, so the link stays consistent with the text all day.
+      dedupe_key: `ca_weak_node:${today}`,
       insight_i18n: {
         en: `New current affairs in ${section.en || section.hi}, one of your weaker sections: "${weakNodeCa.title_i18n.en || weakNodeCa.title_i18n.hi}".`,
         hi: `${section.hi || section.en} में नई करेंट अफेयर्स — यह आपके कमज़ोर खंडों में से एक है: "${weakNodeCa.title_i18n.hi || weakNodeCa.title_i18n.en}"।`,
@@ -415,32 +435,45 @@ async function loadWeakNodeCa(
  * Load every signal the catalogue reads, concurrently and best-effort.
  *
  * COST NOTE: this runs on every `GET /mentor/insights`, i.e. every dashboard
- * load. Each branch is skipped when it provably cannot produce a candidate (no
- * evaluations → no drill/improvement tips; no weak node → no CA tip), and every
- * one degrades to null rather than throwing, so a single slow or failing table
- * can never take out the dashboard's mentor card.
+ * load, so every branch is skipped when it provably cannot produce a candidate
+ * — no evaluations → no drill/improvement tips; no weak node → no CA tip — and
+ * every one degrades to null rather than throwing, so a single slow or failing
+ * table can never take out the dashboard's mentor card.
  *
- * `getDailyProgress` is the one deliberately expensive call: the dashboard
- * summary pays for it separately on the same page load. It is used anyway
- * rather than re-deriving "did anything happen today" locally, because
- * daily-progress is the single source of truth the Today checklist and the
- * streak engine both read — a second, cheaper definition of activity here is
- * exactly the drift that file exists to prevent.
+ * The one genuinely expensive signal is `hadActivity`, which needs a full
+ * `getDailyProgress` (~10 counts plus the day's answer set) that the dashboard
+ * summary is ALREADY paying for separately on the same page load. It is
+ * therefore fetched only when the streak tip could actually fire — late in the
+ * day, for a learner who has a streak to lose — which is a small slice of real
+ * traffic. The rest of the day needs only the due-card count, so that comes
+ * from the shared `countSrsDue` instead: one indexed count rather than ten.
+ *
+ * Note this does NOT introduce a second definition of "did anything happen
+ * today". When the answer matters it still comes from `hadActivity`, the same
+ * rule the streak engine and the Today checklist use; what's avoided is paying
+ * for it at 9 AM, when no streak can break for another eleven hours.
  */
 async function loadSignals(
   userId: string,
   profile: LearnerProfile,
   today: string,
+  hourIst: number,
 ): Promise<Omit<TipContext, "profile" | "today" | "hourIst">> {
   const hasEvaluations = profile.evaluation.count > 0;
   const weakNode = pickWeakNode(profile);
+  const streakCouldBreak = profile.streak_count >= 1 && hourIst >= STREAK_RISK_HOUR_IST;
   const warn = (what: string) => (err: unknown) => {
     logger.warn({ err }, `mentor-insights: ${what} load failed`);
     return null;
   };
 
-  const [progress, plan, weakNodeCa, drillRecommendation, improvementProof] = await Promise.all([
-    getDailyProgress(userId).catch(warn("daily progress")),
+  const [srsDue, dayIsBlank, plan, weakNodeCa, drillRecommendation, improvementProof] = await Promise.all([
+    countSrsDue(userId).catch(warn("due-card count")),
+    streakCouldBreak
+      ? getDailyProgress(userId)
+          .then((p) => !hadActivity(p))
+          .catch(warn("daily progress"))
+      : null,
     getActivePlan(userId)
       .then((state) => state.plan)
       .catch(warn("study plan")),
@@ -449,7 +482,7 @@ async function loadSignals(
     hasEvaluations ? getImprovementProof(userId).catch(warn("improvement proof")) : null,
   ]);
 
-  return { progress, plan, weakNodeCa, drillRecommendation, improvementProof };
+  return { srsDue, dayIsBlank, plan, weakNodeCa, drillRecommendation, improvementProof };
 }
 
 /**
@@ -469,16 +502,12 @@ export async function generateMentorInsights(userId: string): Promise<Map<string
   }
 
   const today = istToday();
-  const signals = await loadSignals(userId, profile, today);
-  const candidates = buildCandidates({
-    profile,
-    today,
-    // IST wall-clock hour. Derived the same way as lib/ist.ts's own date
-    // helpers (shift into IST, then read a UTC field) so the hour and the
-    // `today` boundary can never disagree across midnight.
-    hourIst: new Date(Date.now() + IST_OFFSET_MS).getUTCHours(),
-    ...signals,
-  });
+  // IST wall-clock hour. Derived the same way as lib/ist.ts's own date helpers
+  // (shift into IST, then read a UTC field) so the hour and the `today`
+  // boundary can never disagree across midnight.
+  const hourIst = new Date(Date.now() + IST_OFFSET_MS).getUTCHours();
+  const signals = await loadSignals(userId, profile, today, hourIst);
+  const candidates = buildCandidates({ profile, today, hourIst, ...signals });
 
   const priorityByKey = new Map(candidates.map((c) => [c.dedupe_key, c.priority]));
   if (candidates.length === 0) return priorityByKey;

@@ -49,10 +49,12 @@ export function NotificationBell() {
           ) : (
             <>
               <div className="mb-2 flex justify-end">
+                {/* Default size, not `sm`: a 32px control is under the design
+                    system's tap-target floor, and this repo already reverted
+                    exactly that on the revision Quick-add buttons. */}
                 <Button
                   type="button"
                   variant="ghost"
-                  size="sm"
                   disabled={clearAll.isPending}
                   onClick={() => clearAll.mutate()}
                 >

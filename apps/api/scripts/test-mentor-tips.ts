@@ -13,7 +13,6 @@
 import assert from "node:assert/strict";
 import type { LearnerProfile, StudyPlan } from "@neev/shared";
 import { buildCandidates, type TipContext } from "../src/services/mentor-insights.js";
-import type { DailyProgress } from "../src/services/daily-progress.js";
 
 let passed = 0;
 function check(label: string, actual: unknown, expected: unknown): void {
@@ -57,19 +56,6 @@ function profile(over: Partial<LearnerProfile> = {}): LearnerProfile {
   };
 }
 
-/** Day progress with nothing done yet; override to simulate an active day. */
-function progress(over: Partial<DailyProgress> = {}): DailyProgress {
-  return {
-    daily_quiz_test_id: "t", daily_quiz_done: false,
-    gs_quiz_test_id: "t", gs_quiz_done: false,
-    csat_quiz_test_id: null, csat_quiz_done: false,
-    attempts_today: 0, answer_completed: 0, answer_total: 4,
-    srs_due: 0, srs_reviews_today: 0, answer_submissions_today: 0,
-    read_today: false, community_activity_today: false,
-    ...over,
-  };
-}
-
 function plan(remaining: number, total: number): StudyPlan {
   return {
     id: "22222222-2222-4222-8222-222222222222",
@@ -97,7 +83,10 @@ function ctx(over: Partial<TipContext> = {}): TipContext {
     profile: profile(),
     today: TODAY,
     hourIst: 10,
-    progress: progress(),
+    srsDue: 0,
+    // null = "not evaluated", which is what the loader really passes outside the
+    // late-evening window where a streak can break.
+    dayIsBlank: null,
     plan: null,
     weakNodeCa: null,
     drillRecommendation: null,
@@ -114,37 +103,43 @@ function ranked(c: TipContext): string[] {
 }
 const top = (c: TipContext) => ranked(c)[0];
 const kinds = (c: TipContext) => new Set(buildCandidates(c).map((k) => k.kind));
+const pr = (c: TipContext, kind: string) => buildCandidates(c).find((x) => x.kind === kind)!.priority;
+const tip = (c: TipContext, kind: string) => buildCandidates(c).find((x) => x.kind === kind)!;
 
 // --- TIME OF DAY changes the answer, on identical learner data ---------------
 // The single strongest demonstration that picking is contextual: same learner,
 // same day, same everything — only the clock moves.
-const idleDay = { progress: progress(), plan: plan(3, 5) };
-check("10 AM on an untouched day → plan, not streak panic", top(ctx({ ...idleDay, hourIst: 10 })), "plan_today");
-check("9 PM on that same untouched day → streak rescue", top(ctx({ ...idleDay, hourIst: 21 })), "streak_risk");
-ok("streak_risk is absent in the morning", !kinds(ctx({ ...idleDay, hourIst: 10 })).has("streak_risk"));
-
-// …and it must not fire when the day HAS been used, however late it is.
-ok(
-  "9 PM but the quiz is done → no streak_risk",
-  !kinds(ctx({ hourIst: 21, progress: progress({ daily_quiz_done: true, attempts_today: 1 }) })).has("streak_risk"),
+check("10 AM on an untouched day → plan, not streak panic", top(ctx({ plan: plan(3, 5), hourIst: 10 })), "plan_today");
+check(
+  "9 PM on that same untouched day → streak rescue",
+  top(ctx({ plan: plan(3, 5), hourIst: 21, dayIsBlank: true })),
+  "streak_risk",
 );
+// The hour gate is real, not just an artefact of the loader not computing it.
+ok(
+  "streak_risk cannot fire in the morning even on a blank day",
+  !kinds(ctx({ hourIst: 10, dayIsBlank: true })).has("streak_risk"),
+);
+// …and it must not fire when the day HAS been used, however late it is.
+ok("9 PM but the day has activity → no streak_risk", !kinds(ctx({ hourIst: 21, dayIsBlank: false })).has("streak_risk"));
+// …nor when activity is simply unknown (the loader skipped the expensive read).
+ok("9 PM with activity unknown → no streak_risk", !kinds(ctx({ hourIst: 21, dayIsBlank: null })).has("streak_risk"));
 // …nor for someone with no streak to lose (inventing urgency would be dishonest).
 ok(
   "9 PM with a 0-day streak → no streak_risk",
-  !kinds(ctx({ hourIst: 21, profile: profile({ streak_count: 0 }) })).has("streak_risk"),
+  !kinds(ctx({ hourIst: 21, dayIsBlank: true, profile: profile({ streak_count: 0 }) })).has("streak_risk"),
 );
 
 // --- SIGNAL SIZE moves rank -------------------------------------------------
-const small = ctx({ hourIst: 14, progress: progress({ srs_due: 12 }) });
-const large = ctx({ hourIst: 14, progress: progress({ srs_due: 60 }) });
-const pr = (c: TipContext, kind: string) => buildCandidates(c).find((x) => x.kind === kind)!.priority;
+const small = ctx({ hourIst: 14, srsDue: 12 });
+const large = ctx({ hourIst: 14, srsDue: 60 });
 ok("a bigger revision backlog outranks a smaller one", pr(large, "srs_backlog") > pr(small, "srs_backlog"));
+ok("a backlog below one study day's worth isn't a card at all", !kinds(ctx({ srsDue: 4 })).has("srs_backlog"));
+ok("an unknown backlog isn't a card either", !kinds(ctx({ srsDue: null })).has("srs_backlog"));
 ok(
-  "a backlog below one study day's worth isn't a card at all",
-  !kinds(ctx({ progress: progress({ srs_due: 4 }) })).has("srs_backlog"),
+  "revision ranks higher in the morning than mid-afternoon",
+  pr(ctx({ hourIst: 7, srsDue: 12 }), "srs_backlog") > pr(small, "srs_backlog"),
 );
-ok("revision ranks higher in the morning than mid-afternoon",
-  pr(ctx({ hourIst: 7, progress: progress({ srs_due: 12 }) }), "srs_backlog") > pr(small, "srs_backlog"));
 
 // --- DAYS TO EXAM re-orders the same candidates -----------------------------
 // Far out, Mains answer-writing is a fine ask. Inside the last month, recall
@@ -156,8 +151,7 @@ ok("…and is outranked by it inside the last month", pr(endgame, "exam_proximit
 ok("the weak section outranks everything 10 days out", top(endgame) === "weak_node");
 
 // Exam copy is tiered, not one sentence with a number swapped in.
-const copyFor = (days: number) =>
-  buildCandidates(ctx({ profile: profile({ days_to_exam: days }) })).find((c) => c.kind === "exam_proximity")!;
+const copyFor = (days: number) => tip(ctx({ profile: profile({ days_to_exam: days }) }), "exam_proximity");
 ok("5 days out says revision-and-mocks-only", /mocks only/i.test(copyFor(5).insight_i18n.en));
 ok("20 days out names the daily quiz + due cards", /daily quiz/i.test(copyFor(20).insight_i18n.en));
 ok("all three tiers carry real Devanagari, not a fallback", [5, 20, 80].every((d) => /[ऀ-ॿ]/.test(copyFor(d).insight_i18n.hi)));
@@ -175,13 +169,16 @@ const withCa = ctx({
     section_title_i18n: { en: "Indian Polity", hi: "भारतीय राजव्यवस्था" },
   },
 });
-const caTip = buildCandidates(withCa).find((c) => c.kind === "ca_weak_node")!;
+const caTip = tip(withCa, "ca_weak_node");
 check("CA tip deep-links the exact item", caTip.cta_link, "/current-affairs?item=33333333-3333-4333-8333-333333333333");
 ok("CA tip names the weak section it belongs to", caTip.insight_i18n.en.includes("Indian Polity"));
 ok("no CA tip without a real recent item", !kinds(ctx()).has("ca_weak_node"));
+// One CA card per day: keying on the item id would mint a fresh card every time
+// `ca:run` published a newer one, so the key must NOT contain the item id.
+check("CA tip is keyed by day, not by item", caTip.dedupe_key, `ca_weak_node:${TODAY}`);
 
 // --- The plan tip reads the real plan, and steps aside at night -------------
-const planTip = buildCandidates(ctx({ plan: plan(3, 5) })).find((c) => c.kind === "plan_today")!;
+const planTip = tip(ctx({ plan: plan(3, 5) }), "plan_today");
 ok("plan tip reports real remaining/total", /3 of 5/.test(planTip.insight_i18n.en));
 ok("plan tip names the day's own focus", planTip.insight_i18n.en.includes("Polity revision"));
 ok("a finished plan produces no tip", !kinds(ctx({ plan: plan(0, 5) })).has("plan_today"));
@@ -190,6 +187,24 @@ ok(
   "the plan tip drops down the order at midnight",
   pr(ctx({ hourIst: 23, plan: plan(3, 5) }), "plan_today") < pr(ctx({ hourIst: 10, plan: plan(3, 5) }), "plan_today"),
 );
+
+// --- No tip may link to the page it is rendered on --------------------------
+// The card renders ONLY on the dashboard (routes/dashboard.tsx), so a
+// `/dashboard` CTA is a button that goes nowhere.
+const everyTip = buildCandidates(
+  ctx({
+    hourIst: 21,
+    dayIsBlank: true,
+    srsDue: 40,
+    plan: plan(2, 6),
+    weakNodeCa: withCa.weakNodeCa,
+    profile: profile({ days_to_exam: 45 }),
+    improvementProof: { items: [{} as never], avg_delta_pct: 12 },
+  }),
+);
+ok(`no tip links to /dashboard (${everyTip.length} tips checked)`, everyTip.every((c) => c.cta_link !== "/dashboard"));
+check("the plan tip has no CTA at all, rather than a dead one", planTip.cta_link, null);
+check("the streak rescue sends you somewhere you can act", tip(ctx({ hourIst: 21, dayIsBlank: true }), "streak_risk").cta_link, "/practice");
 
 // --- Never nothing: a brand-new account still gets an honest card -----------
 const blank = ctx({
@@ -200,21 +215,17 @@ const blank = ctx({
     days_to_exam: null,
     activity_last_7d: { answers_written: 0, mcqs_attempted: 0, srs_reviews: 0 },
   }),
-  progress: progress(),
 });
 check("a learner with no data still has exactly one tip", ranked(blank), ["get_started"]);
-ok(
-  "…and it disappears the moment there IS a signal",
-  !kinds(ctx()).has("get_started"),
-);
+ok("…and it disappears the moment there IS a signal", !kinds(ctx()).has("get_started"));
 
 // --- Dismissing the top tip must reveal a next one --------------------------
-const rich = ranked(ctx({ hourIst: 21, progress: progress({ srs_due: 40 }), plan: plan(2, 6) }));
-ok(`a real learner has several tips to fall through (${rich.length})`, rich.length >= 4);
-ok("every tip kind in a run is distinct", new Set(rich).size === rich.length);
+ok(`a real learner has several tips to fall through (${everyTip.length})`, everyTip.length >= 4);
+const allKinds = everyTip.map((c) => c.kind);
+ok("every tip kind in a run is distinct", new Set(allKinds).size === allKinds.length);
 
 // --- Every candidate is well-formed ----------------------------------------
-for (const c of buildCandidates(ctx({ hourIst: 21, progress: progress({ srs_due: 40 }), plan: plan(2, 6) }))) {
+for (const c of everyTip) {
   ok(`${c.kind}: dedupe_key is day-scoped`, c.dedupe_key.includes(TODAY));
   ok(`${c.kind}: has both locales`, c.insight_i18n.en.length > 0 && c.insight_i18n.hi.length > 0);
   ok(`${c.kind}: Hindi is Devanagari, not an English fallback`, /[ऀ-ॿ]/.test(c.insight_i18n.hi));
