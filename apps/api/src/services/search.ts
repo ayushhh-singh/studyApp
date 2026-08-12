@@ -11,6 +11,7 @@ import { supabase } from "../lib/supabase.js";
 import { questionExamScopeFilter } from "../lib/exams.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { logger } from "../lib/logger.js";
+import { examVisibilityFilter } from "./user-notes.js";
 
 /**
  * CENTRAL SEARCH — one query across every kind of content, for the command
@@ -296,6 +297,57 @@ const searchChapters: Searcher = {
   },
 };
 
+interface UserNoteRow {
+  id: string;
+  title: string;
+  syllabus_nodes: { paper_code: string } | { paper_code: string }[] | null;
+}
+
+const searchUserNotes: Searcher = {
+  examScope:
+    "`user_notes.exam_code`, via the SAME `examVisibilityFilter` the My-notes list uses — " +
+    "imported, not restated, so the two readers cannot drift on what belongs to an exam. " +
+    "NULL means 'exam unknown' and stays visible under every exam (0123), never hidden " +
+    "under all of them. ⚑ AND, more importantly, `.eq('user_id')`: these are PRIVATE " +
+    "rows, so ownership is the primary scope here and exam is only a decluttering one.",
+  async run(ctx) {
+    const l = ctx.like;
+    const { data, error } = await supabase()
+      .from("user_notes")
+      .select("id, title, syllabus_nodes(paper_code)")
+      // ⚑ Ownership first. A missing exam filter shows you another exam's own
+      // notes; a missing user filter shows you SOMEONE ELSE'S. Both matter,
+      // but only one of them is a privacy breach.
+      .eq("user_id", ctx.userId)
+      .or(examVisibilityFilter(ctx.examCode))
+      // `title` is a plain text column here, not jsonb — a personal note is
+      // written in one language and stores no bilingual title.
+      .or(
+        [
+          `title.ilike.${l}`,
+          `content_i18n->en->>overview.ilike.${l}`,
+          `content_i18n->hi->>overview.ilike.${l}`,
+        ].join(","),
+      )
+      .order("created_at", { ascending: false })
+      .limit(ctx.limit);
+    if (error) throw new Error(`user note search failed: ${error.message}`);
+
+    return ((data ?? []) as unknown as UserNoteRow[]).map((r) => {
+      // A personal note need not be linked to a topic, so this join is NOT
+      // `!inner` and the paper code is genuinely optional.
+      const node = Array.isArray(r.syllabus_nodes) ? r.syllabus_nodes[0] : r.syllabus_nodes;
+      return {
+        type: "user_note" as const,
+        id: r.id,
+        title: r.title,
+        subtitle: node?.paper_code ?? null,
+        to: `my-notes/${r.id}`,
+      };
+    });
+  },
+};
+
 /**
  * ⚑ A `Record`, not a partial map: adding a member to `searchResultTypeSchema`
  * is a compile error until its searcher exists here.
@@ -304,6 +356,7 @@ const SEARCHERS: Record<SearchResultType, Searcher> = {
   syllabus: searchSyllabus,
   question: searchQuestions,
   chapter: searchChapters,
+  user_note: searchUserNotes,
 };
 
 // ---------------------------------------------------------------------------

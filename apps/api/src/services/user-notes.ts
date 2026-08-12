@@ -115,7 +115,7 @@ const LIST_COLUMNS =
  * path that forgets the column producing a *visible* note and producing one the
  * owner can never reach again.
  */
-function examVisibilityFilter(examCode: string): string {
+export function examVisibilityFilter(examCode: string): string {
   return `exam_code.eq.${examCode},exam_code.is.null`;
 }
 

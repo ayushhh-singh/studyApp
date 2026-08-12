@@ -21,6 +21,7 @@ const RESULT_ITEM_CLASS =
 const TYPE_HEADING: Record<SearchResultType, string> = {
   syllabus: "CommandPalette.groupSyllabus",
   chapter: "CommandPalette.groupChapter",
+  user_note: "CommandPalette.groupUserNote",
   question: "CommandPalette.groupQuestion",
 };
 

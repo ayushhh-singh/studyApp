@@ -54,7 +54,8 @@
     "resultCount_one": "{{count}} result",
     "resultCount_other": "{{count}} results",
     "groupQuestion": "Past questions",
-    "groupChapter": "Study chapters"
+    "groupChapter": "Study chapters",
+    "groupUserNote": "My notes"
   },
   "Dashboard": {
     "title": "Dashboard",
