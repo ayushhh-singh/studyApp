@@ -1,10 +1,13 @@
 import { DropdownMenu } from "radix-ui";
 import { useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
-import { LogOut, User as UserIcon, Sparkles } from "lucide-react";
+import { Languages, LogOut, Moon, Sparkles, Sun, User as UserIcon } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useProfile } from "@/hooks/use-profile";
 import { useLocale } from "@/hooks/use-locale";
+import { useUpdateProfile } from "@/hooks/use-profile";
+import { LOCALE_STORAGE_KEY, switchLocale, type Locale } from "@/lib/locale";
+import { useThemeStore } from "@/stores/theme-store";
 
 function initialOf(name: string | null | undefined, email: string | null | undefined): string {
   const source = name?.trim() || email?.trim() || "?";
@@ -18,6 +21,18 @@ export function AccountMenu() {
   const location = useLocation();
   const { user, signOut, isGuest } = useAuth();
   const { data: profile } = useProfile();
+  const updateProfile = useUpdateProfile();
+  const theme = useThemeStore((st) => st.theme);
+  const toggleTheme = useThemeStore((st) => st.toggleTheme);
+
+  // Mirrors TopBar's own handler — same three writes (localStorage, profile,
+  // URL) so the two entry points can't drift.
+  function handleLocaleSwitch(next: Locale) {
+    if (next === locale) return;
+    localStorage.setItem(LOCALE_STORAGE_KEY, next);
+    updateProfile.mutate({ preferred_locale: next });
+    navigate(switchLocale(location.pathname, location.search, next, location.hash));
+  }
 
   async function handleSignOut() {
     await signOut();
@@ -65,6 +80,35 @@ export function AccountMenu() {
               >
                 <UserIcon className="size-4" /> {t("Nav.profile")}
               </DropdownMenu.Item>
+              {/* Language and theme live here BELOW sm only — see TopBar, where
+                  the matching buttons are hidden at the same breakpoint. At
+                  320px the header cannot hold the brand mark, the page title,
+                  the exam chip and seven icon controls at once: measured, the
+                  title box collapsed to 0px and even the avatar was being
+                  squeezed from 36px to 20px. Folding the two preference
+                  toggles into the menu they conventionally belong in returns
+                  ~76px, which restores the title to the ~8-character floor
+                  TopBar documents. Both stay one tap away. */}
+              <DropdownMenu.Separator className="my-1 h-px bg-border sm:hidden" />
+              <DropdownMenu.Item
+                onSelect={(e) => {
+                  e.preventDefault();
+                  handleLocaleSwitch(locale === "hi" ? "en" : "hi");
+                }}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none focus:bg-accent sm:hidden"
+              >
+                <Languages className="size-4" /> {t("TopBar.toggleLanguage")}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={(e) => {
+                  e.preventDefault();
+                  toggleTheme();
+                }}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none focus:bg-accent sm:hidden"
+              >
+                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}{" "}
+                {t("TopBar.toggleTheme")}
+              </DropdownMenu.Item>
               <DropdownMenu.Item
                 onSelect={() => void handleSignOut()}
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-coral outline-none focus:bg-coral/10"
@@ -84,6 +128,35 @@ export function AccountMenu() {
                 className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none focus:bg-accent"
               >
                 <UserIcon className="size-4" /> {t("Nav.profile")}
+              </DropdownMenu.Item>
+              {/* Language and theme live here BELOW sm only — see TopBar, where
+                  the matching buttons are hidden at the same breakpoint. At
+                  320px the header cannot hold the brand mark, the page title,
+                  the exam chip and seven icon controls at once: measured, the
+                  title box collapsed to 0px and even the avatar was being
+                  squeezed from 36px to 20px. Folding the two preference
+                  toggles into the menu they conventionally belong in returns
+                  ~76px, which restores the title to the ~8-character floor
+                  TopBar documents. Both stay one tap away. */}
+              <DropdownMenu.Separator className="my-1 h-px bg-border sm:hidden" />
+              <DropdownMenu.Item
+                onSelect={(e) => {
+                  e.preventDefault();
+                  handleLocaleSwitch(locale === "hi" ? "en" : "hi");
+                }}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none focus:bg-accent sm:hidden"
+              >
+                <Languages className="size-4" /> {t("TopBar.toggleLanguage")}
+              </DropdownMenu.Item>
+              <DropdownMenu.Item
+                onSelect={(e) => {
+                  e.preventDefault();
+                  toggleTheme();
+                }}
+                className="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm outline-none focus:bg-accent sm:hidden"
+              >
+                {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}{" "}
+                {t("TopBar.toggleTheme")}
               </DropdownMenu.Item>
               <DropdownMenu.Item
                 onSelect={() => void handleSignOut()}

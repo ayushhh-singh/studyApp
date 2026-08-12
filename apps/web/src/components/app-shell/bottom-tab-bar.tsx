@@ -11,14 +11,17 @@ import { MOBILE_MORE_NAV, MOBILE_PRIMARY_NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 // Same badge convention as NotificationBell (components/app-shell/notification-bell.tsx)
-// — a small coral count pill, capped at "9+". Only Revision has a genuine,
+// — a small red count pill (--destructive; white on --coral was 3.7:1),
+// capped at "9+". White clears 4.5:1 on the light red but only 3.0:1 on the
+// lighter dark-theme one, so dark flips the label to navy (5.6:1) — the same
+// pairing components/ui-x/badge.tsx's "hot" variant uses. Only Revision has a genuine,
 // already-computed "needs attention" number (SRS due count); Learn/Current
 // Affairs/Mentor/Community have no per-user "unread"/"new" tracking in the
 // schema today, so they intentionally don't get a fabricated badge.
 function TabBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
-    <span className="absolute right-1.5 top-1 flex min-w-4 items-center justify-center rounded-full bg-coral px-1 text-[10px] font-bold leading-4 text-white">
+    <span className="absolute right-1.5 top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-4 text-white dark:text-brand-navy">
       {count > 9 ? "9+" : count}
     </span>
   );

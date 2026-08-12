@@ -52,7 +52,7 @@ export function TopBar({ title }: { title: string }) {
       <Link
         to={`/${locale}`}
         aria-label={t("Landing.brand")}
-        className="-ms-0.5 me-1 shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        className="-ms-0.5 me-1 flex size-9 shrink-0 items-center justify-center rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
       >
         <BrandMark showText={false} size="sm" />
       </Link>
@@ -123,14 +123,24 @@ export function TopBar({ title }: { title: string }) {
         type="button"
         variant="ghost"
         size="icon"
-        className="lg:hidden"
+        className="hidden sm:inline-flex lg:hidden"
         aria-label={t("TopBar.toggleLanguage")}
         onClick={() => handleLocaleSwitch(locale === "hi" ? "en" : "hi")}
       >
         <Languages className="size-4" aria-hidden />
       </Button>
 
-      <Button type="button" variant="ghost" size="icon" aria-label={t("TopBar.toggleTheme")} onClick={toggleTheme}>
+      {/* Language + theme drop out below sm and reappear in the account menu
+          — see the note there. The brand mark and exam chip added to this row
+          left no width for the page title at 320px. */}
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="hidden sm:inline-flex"
+        aria-label={t("TopBar.toggleTheme")}
+        onClick={toggleTheme}
+      >
         {theme === "dark" ? <Sun className="size-4" aria-hidden /> : <Moon className="size-4" aria-hidden />}
       </Button>
 

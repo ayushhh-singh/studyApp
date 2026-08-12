@@ -15,6 +15,10 @@ import { cn } from "@/lib/utils";
  *         only manages 3.0:1 on the lighter dark-theme red, so dark switches to
  *         navy text (5.6:1) instead of quietly failing.
  */
+// Not exported: nothing consumes the variant map yet, and exporting a
+// non-component from a component file trips oxlint's only-export-components
+// (see button.tsx, which accepts that warning because buttonVariants IS
+// consumed elsewhere). Export it the day something needs it.
 const badgeVariants = cva(
   "inline-flex shrink-0 items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-3",
   {
@@ -35,5 +39,3 @@ export function Badge({
 }: ComponentProps<"span"> & VariantProps<typeof badgeVariants>) {
   return <span data-slot="badge" className={cn(badgeVariants({ variant, className }))} {...props} />;
 }
-
-export { badgeVariants };

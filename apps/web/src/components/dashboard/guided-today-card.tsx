@@ -64,7 +64,7 @@ function ChecklistRow({
       <span
         className={cn(
           "flex size-9 shrink-0 items-center justify-center rounded-full",
-          item.done ? "bg-tulsi/15 text-tulsi" : "bg-primary/10 text-primary",
+          item.done ? "bg-tulsi/15 text-tulsi-foreground" : "bg-primary/10 text-primary",
         )}
       >
         {item.done ? <CheckCircle2 className="size-4" aria-hidden /> : <Icon className="size-4" aria-hidden />}
@@ -73,7 +73,7 @@ function ChecklistRow({
         {t(`Dashboard.guidedItem_${item.key}`)}
       </span>
       {progress && (
-        <span className={cn("shrink-0 text-xs font-medium tabular-nums", item.done ? "text-tulsi" : "text-muted-foreground")}>
+        <span className={cn("shrink-0 text-xs font-medium tabular-nums", item.done ? "text-tulsi-foreground" : "text-muted-foreground")}>
           {progress}
         </span>
       )}

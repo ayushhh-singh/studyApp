@@ -79,10 +79,10 @@ export function WeeklyDigestCard() {
           <Stat
             value={data.accuracy_pct !== null ? `${Math.round(data.accuracy_pct)}%` : "—"}
             label={t("Digest.accuracy")}
-            color="var(--tulsi)"
+            color="var(--tulsi-foreground)"
           />
-          <Stat value={String(data.answers_evaluated)} label={t("Digest.answers")} color="var(--marigold)" />
-          <Stat value={String(data.streak_count)} label={t("Digest.streak")} color="var(--coral)" />
+          <Stat value={String(data.answers_evaluated)} label={t("Digest.answers")} color="var(--marigold-foreground)" />
+          <Stat value={String(data.streak_count)} label={t("Digest.streak")} color="var(--coral-foreground)" />
         </div>
       )}
     </SectionCard>

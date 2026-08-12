@@ -107,7 +107,12 @@
     --primary-foreground: #FFFFFF;
     --secondary: #E4EAF4;
     --secondary-foreground: #0B1D3B;
-    --muted: #EEF2F8;
+    /* Lightened from #EEF2F8: --muted-foreground (#667085, a reference
+       value that must not move) measured 4.43:1 on it — a hair under the
+       floor, and it surfaced on the kbd chip, the pill tabs and the
+       current-affairs category chips at once. 4.57:1 here, and still
+       visibly a step down from --background. */
+    --muted: #F2F5FA;
     --muted-foreground: #667085;
     --accent: #DBE4F8;
     --accent-foreground: #123086;

@@ -44,18 +44,26 @@ export function ExamSwitcherChip({ className }: { className?: string }) {
       onClick={() => navigate(`/${locale}/profile`)}
       title={t("TopBar.examSwitcherHint")}
       className={cn(
-        "inline-flex min-h-8 shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2.5 text-xs font-semibold text-secondary-foreground transition-colors hover:bg-secondary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+        "inline-flex min-h-9 shrink-0 items-center gap-1 rounded-full border border-border bg-secondary px-2 text-xs font-semibold text-secondary-foreground transition-colors hover:bg-secondary/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:px-2.5",
         className,
       )}
     >
-      {/* shortExamName, not display_name_i18n: the registry's formal name is
-          "UPPSC (UP PCS)", which is right for a picker and far too wide for a
-          row that at 390px also carries the page title and six icon controls.
-          `sr-only` keeps the fact that this is a switcher available to screen
-          readers, since the visible text is only the exam's short name. */}
+      {/* The visible label is the LATIN code in both locales, and the chevron
+          is desktop-only. Both are width decisions, measured: this row also
+          carries the page title and six icon controls, and the title has a
+          documented ~8-character floor at 320px (see TopBar). The Hindi short
+          name is 10 Devanagari characters ("यूपीपीएससी") against 5 in Latin —
+          rendering it here pushed the Hindi title down to ~4 characters.
+          Latin-in-both-locales for a compact abbreviation is this app's own
+          established convention (hooks/use-paper-catalog.ts's `latinLabel`,
+          lib/exam-label.ts's `stateFocusCode`).
+
+          The full localized name goes to screen readers instead, along with
+          the fact that this is a switcher — shortExamName() rather than the
+          registry's formal "UPPSC (UP PCS)", which is a picker label. */}
       <span className="sr-only">{t("TopBar.examSwitcherLabel", { exam: name })}</span>
-      <span aria-hidden>{name}</span>
-      <ChevronDown className="size-3 opacity-70" aria-hidden />
+      <span aria-hidden>{current.exam_code.toUpperCase()}</span>
+      <ChevronDown className="hidden size-3 opacity-70 sm:block" aria-hidden />
     </button>
   );
 }
