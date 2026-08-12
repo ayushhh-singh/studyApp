@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { Clock, ListChecks, Award } from "lucide-react";
 import type { TestSummary, Locale } from "@neev/shared";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { formatScoreValue } from "@/lib/format-score";
 
 export function TestCard({
@@ -45,7 +45,7 @@ export function TestCard({
         {bestPct !== null && (
           <span
             className="flex items-center gap-1 font-semibold tabular-nums"
-            style={{ color: scoreBandColor(bestPct) }}
+            style={{ color: scoreBandTextColor(bestPct) }}
           >
             <Award className="size-3.5" aria-hidden />
             {t("Practice.bestScore", {

@@ -12,7 +12,7 @@ import { useLocale } from "@/hooks/use-locale";
 import { DIMENSION_LABEL_KEYS } from "@/lib/rubric-labels";
 import { useDrillSessionStore } from "@/stores/drill-session-store";
 import { usePaywallStore, toPaywallFeature } from "@/stores/paywall-store";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { cn } from "@/lib/utils";
 
 const DRILL_TYPES: DrillType[] = ["intro", "conclusion"];
@@ -118,7 +118,7 @@ export function MicroDrillsCard() {
                   <span className="flex items-center gap-1">
                     <span
                       className={cn("font-display text-lg")}
-                      style={{ color: session.overall_pct !== null ? scoreBandColor(session.overall_pct) : undefined }}
+                      style={{ color: session.overall_pct !== null ? scoreBandTextColor(session.overall_pct) : undefined }}
                     >
                       {session.overall_pct !== null ? `${Math.round(session.overall_pct)}%` : "—"}
                     </span>

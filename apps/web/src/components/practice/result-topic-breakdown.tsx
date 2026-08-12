@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import { ListChecks } from "lucide-react";
 import type { AttemptTopicBreakdownItem, Locale } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 
 function TopicRow({ item, locale }: { item: AttemptTopicBreakdownItem; locale: Locale }) {
   const { t } = useTranslation();
@@ -32,7 +32,7 @@ function TopicRow({ item, locale }: { item: AttemptTopicBreakdownItem; locale: L
       <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
         <span>{t("Practice.resultTopicAttempted", { attempted: item.attempted, correct: item.correct })}</span>
         {item.accuracy_pct !== null && (
-          <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(item.accuracy_pct) }}>
+          <span className="font-semibold tabular-nums" style={{ color: scoreBandTextColor(item.accuracy_pct) }}>
             {Math.round(item.accuracy_pct)}%
           </span>
         )}

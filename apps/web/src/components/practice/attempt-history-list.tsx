@@ -12,7 +12,7 @@ import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { useAttempts } from "@/hooks/use-attempt";
 import { useLocale } from "@/hooks/use-locale";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { formatScoreValue } from "@/lib/format-score";
 
 /**
@@ -46,7 +46,7 @@ function AttemptRow({ item, showPaper }: { item: AttemptListItem; showPaper: boo
             already selected, since repeating it under its own tab is noise. */}
         {showPaper && item.paper_code && <span>{latinLabel(item.paper_code)}</span>}
         {pct !== null && (
-          <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(pct) }}>
+          <span className="font-semibold tabular-nums" style={{ color: scoreBandTextColor(pct) }}>
             {formatScoreValue(item.score ?? 0)}/{formatScoreValue(item.total ?? 0)}
           </span>
         )}

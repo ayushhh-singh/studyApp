@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useAddToRevision } from "@/hooks/use-add-to-revision";
 import { useLocale } from "@/hooks/use-locale";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { cn } from "@/lib/utils";
 
 export const handle = { titleKey: "Nav.learn" };
@@ -85,7 +85,7 @@ function NodeRow({
           {node.accuracy_pct !== null && (
             <span
               className="shrink-0 font-semibold tabular-nums"
-              style={{ color: scoreBandColor(node.accuracy_pct) }}
+              style={{ color: scoreBandTextColor(node.accuracy_pct) }}
             >
               {Math.round(node.accuracy_pct)}%
             </span>

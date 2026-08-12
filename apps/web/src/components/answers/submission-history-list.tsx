@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SubmissionStatusChip } from "@/components/answers/submission-status-chip";
 import { useSubmissions } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { formatScoreValue } from "@/lib/format-score";
 
@@ -52,7 +52,7 @@ export function SubmissionHistoryList() {
                     <span>{new Date(item.created_at).toLocaleDateString(locale)}</span>
                     <SubmissionStatusChip status={item.status} />
                     {pct !== null && (
-                      <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(pct) }}>
+                      <span className="font-semibold tabular-nums" style={{ color: scoreBandTextColor(pct) }}>
                         {formatScoreValue(item.overall_score ?? 0)}/{formatScoreValue(item.max_score ?? 0)}
                       </span>
                     )}

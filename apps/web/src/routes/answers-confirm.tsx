@@ -14,7 +14,7 @@ import { useAnswerImageUrls } from "@/hooks/use-answer-image-urls";
 import { useQuestion } from "@/hooks/use-questions";
 import { useLocale } from "@/hooks/use-locale";
 import { cn } from "@/lib/utils";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 
 export const handle = { titleKey: "Nav.answers" };
@@ -85,7 +85,7 @@ export function Component() {
   }
 
   const confidence = stream.done?.ocr_confidence ?? 0;
-  const confidenceColor = scoreBandColor(confidence * 100);
+  const confidenceColor = scoreBandTextColor(confidence * 100);
   const isLowConfidence = !!stream.done && confidence < LOW_CONFIDENCE_THRESHOLD;
 
   return (

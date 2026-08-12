@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SubmissionStatusChip } from "@/components/answers/submission-status-chip";
 import { useAnswerSessionResult } from "@/hooks/use-answer-sessions";
 import { useLocale } from "@/hooks/use-locale";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 import { formatScoreValue } from "@/lib/format-score";
 
@@ -63,7 +63,7 @@ export function Component() {
             {t("Answers.sessionAttempted", { attempted: result.attempted_count, total: result.total_count })}
           </span>
           {pct !== null && (
-            <span className="font-semibold tabular-nums" style={{ color: scoreBandColor(pct) }}>
+            <span className="font-semibold tabular-nums" style={{ color: scoreBandTextColor(pct) }}>
               {formatScoreValue(result.total_score ?? 0)}/{formatScoreValue(result.total_max_score ?? 0)}
             </span>
           )}
@@ -90,7 +90,7 @@ export function Component() {
                   {s?.overall_score !== null && s?.overall_score !== undefined && (
                     <span
                       className="font-semibold tabular-nums"
-                      style={{ color: scoreBandColor(((s.overall_score ?? 0) / (s.max_score || 1)) * 100) }}
+                      style={{ color: scoreBandTextColor(((s.overall_score ?? 0) / (s.max_score || 1)) * 100) }}
                     >
                       {formatScoreValue(s.overall_score ?? 0)}/{formatScoreValue(s.max_score ?? 0)}
                     </span>

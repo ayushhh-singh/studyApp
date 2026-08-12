@@ -9,7 +9,7 @@ import { StatCardSkeleton } from "@/components/ui-x/skeleton";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { useLocale } from "@/hooks/use-locale";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 
 export const handle = { titleKey: "Nav.learn" };
 
@@ -29,7 +29,7 @@ function PaperCard({ paper }: { paper: PaperSummary }) {
         {paper.accuracy_pct !== null && (
           <span
             className="shrink-0 text-sm font-semibold tabular-nums"
-            style={{ color: scoreBandColor(paper.accuracy_pct) }}
+            style={{ color: scoreBandTextColor(paper.accuracy_pct) }}
           >
             {Math.round(paper.accuracy_pct)}%
           </span>

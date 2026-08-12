@@ -5,7 +5,7 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { Skeleton } from "@/components/ui-x/skeleton";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { useLocale } from "@/hooks/use-locale";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { formatQuestionStem } from "@/lib/format-question-stem";
 
 function ProofRow({ item }: { item: ImprovementProofItem }) {
@@ -18,11 +18,11 @@ function ProofRow({ item }: { item: ImprovementProofItem }) {
         {formatQuestionStem(item.question_stem_i18n[locale])}
       </p>
       <div className="flex flex-wrap items-center gap-3 text-sm">
-        <span className="font-display" style={{ color: scoreBandColor(item.before_pct) }}>
+        <span className="font-display" style={{ color: scoreBandTextColor(item.before_pct) }}>
           {Math.round(item.before_pct)}%
         </span>
         <span className="text-muted-foreground">→</span>
-        <span className="font-display" style={{ color: scoreBandColor(item.after_pct) }}>
+        <span className="font-display" style={{ color: scoreBandTextColor(item.after_pct) }}>
           {Math.round(item.after_pct)}%
         </span>
         <span className="ml-auto rounded-full bg-tulsi/15 px-2 py-0.5 text-xs font-bold text-tulsi-foreground">

@@ -21,7 +21,7 @@ import { useSyllabusNode } from "@/hooks/use-syllabus-node";
 import { useRecordEvent } from "@/hooks/use-record-event";
 import { useCreateCustomTest } from "@/hooks/use-create-custom-test";
 import { useLocale } from "@/hooks/use-locale";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 
 export const handle = { titleKey: "Nav.learn" };
 
@@ -174,7 +174,7 @@ export function Component() {
         {node.accuracy_pct !== null && (
           <span
             className="font-semibold tabular-nums"
-            style={{ color: scoreBandColor(node.accuracy_pct) }}
+            style={{ color: scoreBandTextColor(node.accuracy_pct) }}
           >
             {t("Learn.yourAccuracy", { pct: Math.round(node.accuracy_pct) })}
           </span>

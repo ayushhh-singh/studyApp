@@ -5,7 +5,7 @@ import type { DailyAnswerItem } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
-import { scoreBandColor } from "@/lib/score-band";
+import { scoreBandTextColor } from "@/lib/score-band";
 import { useDailyAnswerSet } from "@/hooks/use-answers";
 import { useLocale } from "@/hooks/use-locale";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
@@ -51,7 +51,7 @@ function AnswerRow({ item }: { item: DailyAnswerItem }) {
         {evaluated ? (
           <span
             className="inline-flex items-center gap-1 text-xs font-semibold tabular-nums"
-            style={{ color: pct !== null ? scoreBandColor(pct) : undefined }}
+            style={{ color: pct !== null ? scoreBandTextColor(pct) : undefined }}
           >
             <CheckCircle2 className="size-3.5" aria-hidden />
             {item.overall_score != null && item.max_score != null
