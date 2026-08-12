@@ -71,11 +71,21 @@ export async function countSrsDue(
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       // Exam-scoped (0124), and REQUIRED rather than defaulted so no caller can
-      // keep the cross-exam count by doing nothing. This must stay definitionally
-      // identical to getDueQueue's filter: this number drives the Today
-      // checklist, the streak engine and the mentor's backlog tip, and the
-      // "N due" promise vs an empty session is the exact mismatch Session 16
-      // had to chase down once already.
+      // keep the cross-exam count by doing nothing. This number drives the Today
+      // checklist, the streak engine and the mentor's backlog tip, so the EXAM
+      // predicate must stay identical to getDueQueue's — a filtered session
+      // beside an unfiltered count is the "N due -> empty session" mismatch
+      // Session 16 had to chase down once already.
+      //
+      // ⚑ The DUE CUTOFF, by contrast, is deliberately NOT the same and must not
+      // be "aligned": this is `<= now` ("due right now", per this function's own
+      // name and docblock) while getDueQueue/getStats use `< end of the IST day`
+      // ("due today", so a card that becomes due this evening is already offered
+      // in a session started this morning). Measured on a seeded deck: 2 here vs
+      // 3 there, on the same cards. That is safe in one direction only, and it is
+      // the safe one — `now` is always before the end of the IST day, so this
+      // count is a SUBSET of the session's and can never promise more cards than
+      // the session delivers, which is the failure Session 16 was about.
       .or(`exam_code.eq.${examCode},exam_code.is.null`)
       .lte("fsrs_state->>due_at", nowIso),
   );

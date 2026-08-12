@@ -544,7 +544,13 @@ export async function addUserNoteDeckToRevision(userId: string, id: string): Pro
   // exam the note was authored against, so a deck materialised from a note
   // written before an exam switch is filed where it belongs rather than under
   // whatever exam the user happens to be on when they click.
-  const deckExam = row.exam_code ?? (await getUserExam(userId));
+  //
+  // A note whose own exam is unknown (NULL) yields NULL cards rather than a guess
+  // from the caller: the card ids are sha256(note:card:i) with no exam in them, so
+  // guessing would let a re-add after a switch upsert onto the same rows and move
+  // the whole deck. NULL means "due under every exam", which is the honest answer
+  // when the source's exam genuinely is not known.
+  const deckExam = row.exam_code;
 
   const rows = candidates.map((c, i) => ({
     user_id: userId,

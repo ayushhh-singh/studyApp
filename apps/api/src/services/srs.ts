@@ -203,7 +203,7 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
 
   const { data: evaluation, error: evalError } = await supabase()
     .from("evaluations")
-    .select("raw_response")
+    .select("raw_response, exam_code")
     .eq("submission_id", submissionId)
     .maybeSingle();
   if (evalError) throw new HttpError(500, `evaluation lookup failed: ${evalError.message}`);
@@ -212,9 +212,15 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
 
   // Ownership-scoped, not exam-scoped: this is the user's OWN past answer, so
   // there is no cross-exam content to leak and refusing it would strand them
-  // from saving their own work. The CARD still records which exam it is revision
-  // for (0124), taken from the caller's exam.
-  const submissionExam = await getUserExam(userId);
+  // from saving their own work.
+  //
+  // The CARD's exam comes from the EVALUATION's own `exam_code` (0109) rather
+  // than the caller's current exam. Same reason as the CA path above: source_id
+  // here is the submission id, so re-adding the same submission after an exam
+  // switch upserts onto the same row — keyed off the caller it would move the
+  // card, keyed off the evaluation it is stable and correct.
+  const evalExam = (evaluation as unknown as { exam_code?: string | null } | null)?.exam_code ?? null;
+  const submissionExam = evalExam ?? (await getUserExam(userId));
   const front_i18n = row.questions?.stem_i18n ?? row.custom_question_text_i18n ?? { hi: "", en: "" };
   const points = [...analysis.reference_points, ...analysis.missed_key_points];
   const backText = points.length ? points.map((p) => `- ${p}`).join("\n") : "";
@@ -274,12 +280,18 @@ export async function addCurrentAffairsFactToRevision(
   // `itemId` is untrusted request body, and the CA feed is exam-scoped, so an
   // item outside the caller's exam is not something they can legitimately have
   // reached — same check (and same 404, not 403) as the other untrusted-id
-  // sites. The CARD is stamped with the same exam (0124, which reverses
-  // 0106 §13's shared-deck decision — see that header).
+  // sites. The CARD is stamped from the ITEM's own scope, not blindly from the
+  // caller (0124): a CA item legitimately spans several exams (measured: 116 of
+  // 5,178 carry both), and its fact's source_id is sha256(item:index) with NO
+  // exam in the key — so stamping the caller's exam would let the SAME fact,
+  // re-added after an exam switch, upsert onto the same row and silently MOVE the
+  // card out of the first exam's deck. A multi-exam item therefore yields a NULL
+  // (= due under every exam) card, matching ca/embed-exam.ts's rule for the
+  // identical situation and matching how 0124's own backfill treated them.
   const caExam = await getUserExam(userId);
   const { data: item, error: itemError } = await supabase()
     .from("current_affairs_items")
-    .select("title_i18n, prelims_facts, detail_i18n->key_facts_i18n")
+    .select("title_i18n, prelims_facts, detail_i18n->key_facts_i18n, exam_codes")
     .eq("id", itemId)
     .overlaps("exam_codes", [caExam])
     .eq("is_published", true)
@@ -287,6 +299,10 @@ export async function addCurrentAffairsFactToRevision(
   if (itemError) throw new HttpError(500, `current affairs item lookup failed: ${itemError.message}`);
   const row = item as unknown as CurrentAffairsItemForFactRow | null;
   if (!row) throw notFound("Current affairs item not found");
+
+  // Single-exam item -> that exam. Multi-exam -> NULL, i.e. genuinely shared.
+  const itemExams = ((row as unknown as { exam_codes: string[] | null }).exam_codes ?? []) as string[];
+  const cardExam = itemExams.length === 1 ? itemExams[0]! : null;
 
   // New items store boxed facts in `prelims_facts`; un-backfilled legacy items
   // still carry the flat `detail_i18n.key_facts_i18n` — read whichever exists.
@@ -311,7 +327,7 @@ export async function addCurrentAffairsFactToRevision(
         back_i18n: { hi: hi ?? "", en: en ?? "" },
         source_type: "current_affairs",
         source_id: currentAffairsFactSourceId(itemId, factIndex),
-        exam_code: caExam,
+        exam_code: cardExam,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
