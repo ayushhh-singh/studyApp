@@ -8,8 +8,8 @@ import { BrandMark } from "@/components/marketing/brand-mark";
 import { cn } from "@/lib/utils";
 
 /**
- * Shared header for the public marketing pages (landing, pricing, about, faq).
- * Carries the primary top-nav links (About / FAQ / Pricing) so a signed-out
+ * Shared header for the public marketing pages (landing, pricing, about, faq,
+ * contact). Carries the primary top-nav links so a signed-out
  * visitor can reach them without scrolling to the footer — visible in the bar
  * on desktop, and on a compact second row on mobile (the header is too tight
  * at 390px to fit them inline alongside the locale toggle + auth CTA). The
@@ -33,6 +33,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
     { to: `/${locale}/about`, label: t("Footer.about") },
     { to: `/${locale}/faq`, label: t("Footer.faq") },
     { to: `/${locale}/pricing`, label: t("Footer.pricing") },
+    { to: `/${locale}/contact`, label: t("Footer.contact") },
   ];
   const isActive = (to: string) => location.pathname === to || location.pathname === `${to}/`;
 
@@ -52,7 +53,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
       to={to}
       aria-current={isActive(to) ? "page" : undefined}
       className={cn(
-        "relative py-1 text-sm transition-colors hover:text-foreground",
+        "relative shrink-0 py-1 text-sm transition-colors hover:text-foreground",
         isActive(to) ? "font-semibold text-foreground" : "font-medium text-muted-foreground",
       )}
     >
@@ -117,10 +118,12 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
         </div>
       </div>
 
-      {/* Mobile-only nav row — keeps About/FAQ/Pricing reachable at 390px without
-          overflowing the top bar or forcing a scroll to the footer. */}
+      {/* Mobile-only nav row — keeps the section links reachable at 390px
+          without overflowing the top bar or forcing a scroll to the footer.
+          Scrolls rather than wraps: five links at 390px do not fit, and the
+          same fix the five-tab Practice bar needed applies here. */}
       <nav
-        className="flex items-center justify-center gap-6 border-t border-border/60 px-4 py-2 sm:hidden"
+        className="flex items-center gap-5 overflow-x-auto border-t border-border/60 px-4 py-2 sm:hidden"
         aria-label={t("Footer.navLabel")}
       >
         {links.map((l) => navLink(l.to, l.label))}

@@ -9,7 +9,7 @@
  *
  * Public routes today: /:locale (the landing page), /:locale/pricing (moved
  * out of requireAuth so it's reachable signed-out — see router.tsx and
- * CLAUDE.md's TODO history), /:locale/about + /:locale/faq (the trust/
+ * CLAUDE.md's TODO history), /:locale/about + /:locale/faq + /:locale/contact (the trust/
  * accuracy story and support surfaces), and the legal pages /:locale/terms,
  * /:locale/privacy, /:locale/refund. Every other route stays behind
  * requireAuth and has no reason to be indexed or snapshotted.
@@ -34,6 +34,8 @@ const ROUTES = [
   "/hi/about",
   "/en/faq",
   "/hi/faq",
+  "/en/contact",
+  "/hi/contact",
   "/en/terms",
   "/hi/terms",
   "/en/privacy",

@@ -1900,7 +1900,8 @@
     "privacy": "Privacy",
     "refund": "Refunds",
     "support": "Support",
-    "features": "Features"
+    "features": "Features",
+    "contact": "Contact"
   },
   "Features": {
     "hub": {
@@ -2214,5 +2215,22 @@
     "MAINS_GS6": "GS-VI (UP)",
     "MAINS_ESSAY": "Essay",
     "MAINS_GH": "General Hindi"
+  },
+  "Contact": {
+    "title": "We're here to help you.",
+    "subtitle": "Have a question, hit a bug, or need a hand with your account? Write to us and we'll get back to you.",
+    "emailTitle": "Email",
+    "emailBody": "Account, billing, bugs, or anything that isn't about a specific question.",
+    "copy": "Copy",
+    "copied": "Copied",
+    "reportTitle": "Wrong answer or explanation?",
+    "reportBody": "Use \"Report this question\" on the question itself — it goes straight to the review queue every question passes before publishing, which is faster than email.",
+    "faqHint": "Many questions are already answered in the",
+    "fieldName": "Name",
+    "fieldEmail": "Email",
+    "fieldSubject": "Subject",
+    "fieldMessage": "Your message",
+    "submit": "Compose email",
+    "mailtoNote": "This opens your own email app with the message filled in — nothing is sent from this page. If it doesn't open, write to the address on the left instead."
   }
 }

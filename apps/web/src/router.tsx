@@ -44,6 +44,7 @@ export const router = createBrowserRouter([
       // reachable signed-out from the landing/app-shell footer.
       { path: "about", lazy: () => import("@/routes/about") },
       { path: "faq", lazy: () => import("@/routes/faq") },
+      { path: "contact", lazy: () => import("@/routes/contact") },
       // Legal pages — public, footer-linked; required for Razorpay live-mode review.
       { path: "terms", lazy: () => import("@/routes/terms") },
       { path: "privacy", lazy: () => import("@/routes/privacy") },

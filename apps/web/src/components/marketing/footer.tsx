@@ -36,6 +36,9 @@ export function Footer() {
             <Link to={`/${locale}/pricing`} className="transition-colors hover:text-foreground">
               {t("Footer.pricing")}
             </Link>
+            <Link to={`/${locale}/contact`} className="transition-colors hover:text-foreground">
+              {t("Footer.contact")}
+            </Link>
             <Link to={`/${locale}/terms`} className="transition-colors hover:text-foreground">
               {t("Footer.terms")}
             </Link>
