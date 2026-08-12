@@ -73,8 +73,17 @@ function ActionButton({
     <Link
       to={to}
       className={cn(
-        // h-11 = 44px, the tap-target floor.
-        "group inline-flex h-11 flex-1 items-center justify-between gap-2 rounded-[10px] px-3.5",
+        // min-h-11 = 44px, the tap-target floor. MIN-height, never a fixed
+        // h-11, and the distinction is load-bearing here: the row below is
+        // `flex-col` under sm and `sm:flex-row` above it, so on a phone the
+        // MAIN AXIS IS VERTICAL — and `flex-1` (flex: 1 1 0%) sets flex-basis
+        // on the main axis, which overrides `height`. Measured: these buttons
+        // rendered 20px tall at 390px and 44px at 1440px, i.e. under half the
+        // tap floor on exactly the devices this app is built for. `min-height`
+        // is not overridden by flex-basis, which is why the EmptySlot beside
+        // this one (already min-h-11) never collapsed and looked correct while
+        // the real button did not.
+        "group inline-flex min-h-11 flex-1 items-center justify-between gap-2 rounded-[10px] px-3.5",
         "text-sm font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card",
         tone === "prelims"
           ? "bg-primary text-primary-foreground hover:bg-primary/90"
@@ -143,8 +152,12 @@ function CadencePanel({ cadence }: { cadence: Cadence }) {
       <div className="flex flex-col gap-2 sm:flex-row">
         {cadence.isLoading ? (
           <>
-            <span className="h-11 flex-1 animate-pulse rounded-[10px] bg-muted" aria-hidden />
-            <span className="h-11 flex-1 animate-pulse rounded-[10px] bg-muted" aria-hidden />
+            {/* min-h-11 for the same reason as ActionButton — and it matters
+                more here: these spans have NO content, so under sm a
+                flex-basis-0 height collapsed them to 0px and the loading state
+                was invisible on a phone rather than merely short. */}
+            <span className="min-h-11 flex-1 animate-pulse rounded-[10px] bg-muted" aria-hidden />
+            <span className="min-h-11 flex-1 animate-pulse rounded-[10px] bg-muted" aria-hidden />
             <span className="sr-only">{t("CurrentAffairs.weeklyLoading")}</span>
           </>
         ) : cadence.isError ? (
