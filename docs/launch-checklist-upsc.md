@@ -10,19 +10,32 @@ Supabase project (the same one used for dev and prod), per
 `docs/OUTSTANDING.md` §8f's **U7** finding and §8's overall multi-exam
 tracking.
 
-**Status as of this writing: 2 of 9 items need action before flipping.**
-
-> **UPDATE 2026-08-11 — all three outstanding items are now DONE; `is_live` is still `false`.**
-> Item 5 needed nothing: the 3 upsc CA MCQs were **already actioned** (2 approved+published,
-> 1 deliberately rejected) — 0 were left pending, so nothing was approved by this pass and the
-> rejection was left standing rather than overridden. Item 6 is done: **42 mock sets built**
-> (6 each for `UPSC_PRE_GS1`, `UPSC_PRE_CSAT`, `UPSC_MAINS_GS1-GS4`, `UPSC_MAINS_ESSAY`), all
-> published with membership rows and **0 cross-exam question leak**. The `launch_scope_i18n` copy
-> is rewritten against measured coverage and re-validated through `listExamsDetailed()`. **The flip
-> itself was deliberately NOT run — it is the one launch action and is left for founder sign-off
-> (§4).**
-Everything else passed real, live verification. See the summary table, then
-the per-item detail below it.
+> ## ✅ **`upsc.is_live` FLIPPED TO `true` ON 2026-08-11 — THE FLIP HAS HAPPENED.**
+> This document (including §4's sign-off SQL below) predates the flip and
+> reads, in places, as if it's still pending. **It is not.** `exams.upsc.is_live`
+> was confirmed `true` via a live DB query on 2026-08-12 (`updated_at:
+> 2026-08-11T05:49:05Z`). Full write-up of the flip itself, the real
+> user-facing bug it exposed, and its fix: `CLAUDE.md` → "`upsc` is LIVE
+> (2026-08-11)"; tracked index: `docs/OUTSTANDING.md` §8l.
+>
+> **Post-launch re-verification, 2026-08-12 (this pass):** all three items
+> below that needed action (5, 6, and the `launch_scope_i18n` copy) are
+> confirmed still correctly in place ~1 day into live traffic, and a fresh
+> 11-check smoke pass against a real throwaway `upsc`-targeted account (plus
+> a `uppsc`-targeted control) confirms `getUserExam()` resolution, the papers
+> grid, the PYQ archive, the syllabus/paper trees, and `getNoteForNode` are
+> all correctly exam-scoped with zero cross-exam leak in either direction.
+> One number moved since 2026-08-08 and is worth knowing: the CA
+> Review-Queue backlog for `upsc` grew from 3 questions (0 pending) to 14 (9
+> now `needs_review`) — expected, ordinary editorial backlog from the CA
+> pipeline now running for a live exam, not a launch blocker (the 3
+> originally-approved MCQs are still approved+published, so "Quiz me on this
+> week" still has real content). Everything else is unchanged from the
+> 2026-08-11 state this document already describes below.
+>
+> The rest of this document is left as the **historical record** of the
+> pre-flip verification pass — read it for what was checked and how, not as
+> a statement of current pending status.
 
 ---
 
@@ -182,7 +195,7 @@ first time something needed today's quiz during this session's live UI
 testing, not an external cron. Either way: the real end-to-end mechanism that
 "daily quiz assembles" is asking about works correctly for UPSC.
 
-### 2.5 CA quiz ("Quiz me on this week") — 🔴 BLOCKED, needs action
+### 2.5 CA quiz ("Quiz me on this week") — 🔴 BLOCKED, needs action *(as of 2026-08-08 — RESOLVED 2026-08-11, see the banner at the top)*
 
 `createCustomTestFromCurrentAffairs`-equivalent needs at least one
 **approved** `is_published=true` CA MCQ for the exam. Right now: **3** upsc
@@ -194,7 +207,7 @@ review, same as UPPSC's own MCQs are). **Action: approve at least a few real
 upsc CA MCQs in the admin Review Queue before flipping `is_live`** — otherwise
 a fresh UPSC user's "Quiz me on this week" button 400s on day one.
 
-### 2.6 Mocks per paper type — 🔴 BLOCKED, needs action
+### 2.6 Mocks per paper type — 🔴 BLOCKED, needs action *(as of 2026-08-08 — RESOLVED 2026-08-11, see the banner at the top)*
 
 **Zero** `tests` rows with `exam_code='upsc'` and `kind='mock'` exist. This
 contradicts how `docs/OUTSTANDING.md` §8k (U8g) reads at a glance — tracing
@@ -267,7 +280,7 @@ errors, zero horizontal overflow, correct Devanagari. `PATCH /profile
 exam. Real exam-scoped downstream data confirmed flowing (the Strength/
 Weakness matrix showed real UPSC topics, not empty/UPPSC data).
 
-### 2.11 `launch_scope_i18n` — 🟡 STALE, recommended fix
+### 2.11 `launch_scope_i18n` — 🟡 STALE, recommended fix *(as of 2026-08-08 — RESOLVED 2026-08-11, see the banner at the top)*
 
 **Found by the UI verification, not assumed.** `exams.upsc.launch_scope_i18n`
 in the DB still reads, in substance, *"we have not yet ingested any UPSC
@@ -326,15 +339,20 @@ relative to the fixes; it no longer is).
 
 ---
 
-## 4. Sign-off
+## 4. Sign-off — ✅ DONE, 2026-08-11
 
-Once you've reviewed this, and once items 2.5/2.6 above are closed (Review
-Queue approvals + the two `mocks:build` runs) and 2.11 is updated if you want
-it — the actual flip is a one-line, easily-reversible DB write:
+Items 2.5/2.6 were closed (Review Queue approvals + the two `mocks:build`
+runs) and 2.11 was updated, then the actual flip — the same one-line,
+easily-reversible DB write this section originally proposed — was run:
 
 ```sql
 update exams set is_live = true where exam_code = 'upsc';
 ```
 
-I have **not** done this — per your instruction, it happens only after you
-confirm.
+**This has been done.** `exams.upsc.is_live` was confirmed `true` via a live
+DB query on 2026-08-12, `updated_at: 2026-08-11T05:49:05Z`, and remains `true`
+as of that same date. If `is_live` is ever flipped back to `false` (rollback,
+maintenance window) and this SQL is needed again to re-launch, re-run the
+verification pass first — start from the top banner of this document, then
+`docs/OUTSTANDING.md` §8l for the live bug the flip exposed and its fix,
+before re-flipping.
