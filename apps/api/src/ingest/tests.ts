@@ -172,6 +172,18 @@ async function main(): Promise<void> {
     const stage = qs[0].stage;
     const isPrelims = stage === "prelims";
     const prelimsMarking = PRELIMS_MARKING[paperCode];
+    // A prelims (MCQ) paper with no PRELIMS_MARKING entry is a configuration
+    // gap, not a paper this platform actually understands the scoring for —
+    // never silently build it as if it were "descriptive" with zero negative
+    // marking (that would ship a real MCQ test with the wrong marking scheme
+    // the moment a new exam's prelims paper lands in PAPERS a step ahead of
+    // its PRELIMS_MARKING entry). Unreachable today — every current prelims
+    // paper code has one — but this loop now spans every product exam, so a
+    // future exam's own prelims paper is exactly the way this gets hit.
+    if (isPrelims && !prelimsMarking) {
+      report.warn(`${paperCode}::${year}: prelims paper has no PRELIMS_MARKING entry — skipped, not mislabeled descriptive`);
+      continue;
+    }
     const totalMarks = roundMarks(qs.reduce((s, q) => s + (q.marks ?? prelimsMarking?.marksPerQuestion ?? 0), 0)) || null;
     const slug = `pyq:${paperCode}:${year}`;
     // The paper's OWN product exam (PaperDef.exam), not a hardcoded name — the
@@ -189,8 +201,8 @@ async function main(): Promise<void> {
       source: "pyq",
       year,
       marking_scheme:
-        isPrelims && prelimsMarking
-          ? { type: "uppsc_prelims", negative_marking: prelimsMarking.negativeMarking, note: "one-third (1/3) negative marking" }
+        isPrelims
+          ? { type: `${paper.exam}_prelims`, negative_marking: prelimsMarking!.negativeMarking, note: "one-third (1/3) negative marking" }
           : { type: "descriptive", negative_marking: 0 },
     };
     const testId = await upsertTest({
@@ -253,13 +265,23 @@ async function main(): Promise<void> {
     const s = bySection.get(key)!;
     const paper = paperByCode(s.paperCode);
     if (!paper) continue;
+    const slug = `sectional:${s.paperCode}:${s.top}`;
+    // Same reasoning as the pyq_full loop above: an MCQ section with no
+    // PRELIMS_MARKING entry must never silently borrow another exam's
+    // negative-marking number (the old `?? -0.33` fallback) — skip it.
+    // Unreachable today (every current MCQ paper code is configured), but
+    // this loop now spans every product exam.
+    const sectionMarking = s.type === "mcq" ? PRELIMS_MARKING[s.paperCode] : undefined;
+    if (s.type === "mcq" && !sectionMarking) {
+      report.warn(`${slug}: MCQ section has no PRELIMS_MARKING entry — skipped`);
+      continue;
+    }
     // Gentle within-section ordering: node weightage (hotness) desc, then more
     // recent year first, then id — surface the heavily-tested topics/years up
     // top; every question stays in the set.
     const orderedIds = [...s.qs]
       .sort((a, b) => hotOf(b.syllabus_node_id) - hotOf(a.syllabus_node_id) || (b.year ?? 0) - (a.year ?? 0) || a.id.localeCompare(b.id))
       .map((q) => q.id);
-    const slug = `sectional:${s.paperCode}:${s.top}`;
     const testId = await upsertTest({
       slug,
       title_i18n: {
@@ -277,7 +299,7 @@ async function main(): Promise<void> {
         section_path: s.top,
         marking_scheme:
           s.type === "mcq"
-            ? { type: "uppsc_prelims", negative_marking: PRELIMS_MARKING[s.paperCode]?.negativeMarking ?? -0.33 }
+            ? { type: `${paper.exam}_prelims`, negative_marking: sectionMarking!.negativeMarking }
             : { type: "descriptive", negative_marking: 0 },
       },
     });
