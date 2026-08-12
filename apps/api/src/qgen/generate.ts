@@ -127,30 +127,42 @@ export async function loadNodeContext(nodeId: string): Promise<NodeContext> {
  * Exported (also used by ca/pipeline.ts to style CA practice MCQs on real UPPSC
  * questions instead of an abstract "write UPPSC-style" instruction).
  *
- * The node-level query EXCLUDES CURRENT_AFFAIRS-coded rows so few-shot examples
- * are always real PYQs (or the vetted PYQ bank), never our own ca:run-generated
- * MCQs. This matters most when the node IS the pooled "Current Events" node,
- * whose only questions are prior CA MCQs — without the guard, CA generation would
- * few-shot on its own output (circular, and the whole reason it drifts off UPPSC
- * style). The paper-level fallback already excludes CA (it filters
- * `paper_code = <a PRE_/MAINS_ paper>`, never CURRENT_AFFAIRS).
+ * ⚑ EXEMPLARS ARE `source = 'pyq'` ONLY, AND THAT IS LOAD-BEARING, NOT TIDINESS.
+ * The block this feeds is headed "REAL <EXAM> PAST-YEAR QUESTIONS FOR THIS TOPIC
+ * (match their stem length, option style, and trap patterns)", so anything this
+ * returns is asserted to the model as a real past paper. Before 2026-08-13 the
+ * filter was `paper_code != CURRENT_AFFAIRS`, which excludes ca:run's output but
+ * NOT qgen's own: an approved generated question is published under a real paper
+ * code and was therefore served back as a "past-year question" on its next run.
+ * MEASURED at the time: of the 80 depth-1 nodes with a non-empty exemplar pool,
+ * 29 contained generated rows and **15 were 100% self-generated** — including
+ * both nodes the 2026-08-08 quality panel scored 2.50, `UPSC_MAINS_GS4`
+ * "Attitude" (6 of 6 generated, 0 real) and `UPSC_MAINS_ESSAY` "Orderly
+ * Arrangement of Ideas" (6 of 7). That is a closed loop: each run's output
+ * becomes the next run's definition of house style, and it is why five of the
+ * seven generated GS4 questions restate one textbook trichotomy. `source` is the
+ * only predicate that makes the header's claim true, so it is the one used.
  *
- * ⚑ THE EXACT-NODE MATCH IS A REAL, GENERAL MISMATCH WITH THE PLANNER, and only
- * part of it is fixed here. `topup.ts` always generates for DEPTH-1 nodes and
- * counts coverage over the whole SUBTREE, but this function matches
- * `syllabus_node_id` exactly — so a depth-1 node whose PYQs all sit on its
- * children retrieves ZERO on-topic examples and silently falls through to the
- * paper-wide pool. MEASURED 2026-08-01 on UPSC CSAT: "Decision Making and
- * Problem Solving" has 0 own PYQs and 30 across its two children; "Basic
- * Numeracy and Data Interpretation" has 0 own and 292 across its children. The
- * fallback then served the first of those eight train-route, cube and percentage
- * puzzles as style exemplars for a decision-making topic.
+ * ⚑ THE SUBTREE WALK IS NOW GENERAL, not CSAT-only. `topup.ts` targets nodes
+ * whose real PYQs mostly sit on their CHILDREN, while this function matched
+ * `syllabus_node_id` exactly — so the node's own corpus was invisible and the
+ * query fell through to a paper-wide pool. MEASURED 2026-08-13 across both
+ * exams: 55 of 88 depth-1 Mains nodes fell through, stranding **1,215
+ * topically-matched real PYQs**, and for `upsc` it was every single Mains node
+ * (its PYQ ingest attached questions at depth 2). Because the paper-wide query
+ * was an UNORDERED `.limit(8)`, the fallback returned the SAME arbitrary eight
+ * stems for every node in the paper — 5 of the 7 `UPSC_MAINS_GS3` sections were
+ * conditioned on one identical set spanning capital budgets, land reforms,
+ * airports and stem-cell therapy. This was known and deliberately deferred as
+ * "a separate, validated change"; this is that change, panel-validated below.
  *
- * The subtree lookup below is therefore scoped to exams that have authored a
- * CSAT norm, NOT applied generally — the same mismatch exists for GS papers on
- * the LIVE exam, where changing which real PYQs condition generation is an
- * unvalidated change to UPPSC's output. Generalising it is a separate, validated
- * change; it is written up in the commit rather than done silently here.
+ * Order of preference, most specific first: the node itself → its descendants →
+ * the paper. Each step is ORDERED (most recent year first, `id` as a stable
+ * tiebreak) so a run is reproducible and recent papers condition style; the
+ * previous unordered `.limit(8)` made "which eight" an artifact of physical row
+ * order. CURRENT_AFFAIRS rows stay excluded on top of the `source` filter: it is
+ * cheap, and it keeps the pooled "Current Events" node honest for ca/pipeline.ts,
+ * which shares this function.
  */
 export async function loadFewShot(node: NodeContext, type: QuestionType): Promise<FewShotQuestion[]> {
   const cols = "stem_i18n, options_i18n, correct_option_key, year, difficulty";
@@ -162,21 +174,21 @@ export async function loadFewShot(node: NodeContext, type: QuestionType): Promis
       options_i18n: r.options_i18n,
       correct_option_key: r.correct_option_key,
     }));
+  // The predicates every tier shares. `source = 'pyq'` is the one that makes the
+  // "REAL PAST-YEAR QUESTIONS" header true — see the note above.
+  const realPyqs = () =>
+    supabase()
+      .from("questions")
+      .select(cols)
+      .eq("type", type)
+      .eq("is_published", true)
+      .eq("source", "pyq")
+      .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
+      .order("year", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true })
+      .limit(8);
   const byNodeIds = async (ids: string[]) =>
-    ids.length === 0
-      ? []
-      : map(
-          (
-            await supabase()
-              .from("questions")
-              .select(cols)
-              .in("syllabus_node_id", ids)
-              .eq("type", type)
-              .eq("is_published", true)
-              .neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE)
-              .limit(8)
-          ).data ?? [],
-        );
+    ids.length === 0 ? [] : map((await realPyqs().in("syllabus_node_id", ids)).data ?? []);
 
   const examples = await byNodeIds([node.id]);
   const seen = new Set(examples.map((e) => e.stem_i18n.en));
@@ -190,31 +202,29 @@ export async function loadFewShot(node: NodeContext, type: QuestionType): Promis
     }
   };
 
+  // Tier 2 — the node's own descendants. The tree is at most two deep, so one
+  // query on `parent_id` reaches every one of them.
+  const descendants = async () => {
+    const { data: kids } = await supabase().from("syllabus_nodes").select("id").eq("parent_id", node.id);
+    return byNodeIds((kids ?? []).map((k) => k.id as string));
+  };
+
   // An exam that has authored an aptitude-paper norm has declared its CSAT
-  // topics to be distinct SKILLS. Top such a node up from its OWN CHILDREN (the
-  // same skill, one level finer) and then STOP — a paper-wide filler on an
-  // aptitude paper is a different skill entirely, which is strictly worse than
-  // having fewer examples. The tree is at most two deep, so one query on
-  // `parent_id` reaches every descendant.
+  // topics to be distinct SKILLS, so it takes tier 2 and then STOPS — a
+  // paper-wide filler on an aptitude paper is a different skill entirely, which
+  // is strictly worse than having fewer examples.
   const csat = csatQgenConfigFor(node.examCode, node.paperCode);
   if (csat) {
-    if (examples.length < 5) {
-      const { data: kids } = await supabase().from("syllabus_nodes").select("id").eq("parent_id", node.id);
-      merge(await byNodeIds((kids ?? []).map((k) => k.id as string)));
-    }
+    if (examples.length < 5) merge(await descendants());
     return examples.slice(0, 8);
   }
 
+  if (examples.length < 5) merge(await descendants());
+  // Tier 3 — paper-wide. Still reachable (a node whose whole subtree is
+  // unrepresented in the PYQ bank), but now genuinely a last resort rather than
+  // the common case it had become.
   if (examples.length < 5) {
-    const { data: paperRows } = await supabase()
-      .from("questions")
-      .select(cols)
-      .eq("paper_code", node.paperCode)
-      .eq("type", type)
-      .eq("is_published", true)
-      .limit(8);
-    // Merge, de-dup by stem, cap at 8.
-    merge(map(paperRows ?? []));
+    merge(map((await realPyqs().eq("paper_code", node.paperCode)).data ?? []));
   }
   return examples.slice(0, 8);
 }
@@ -448,7 +458,7 @@ async function finalizeNode(
 
   // Stage D — dedup only the candidates still alive after critic + verify.
   const preDedup = candidates.filter((c) => !c.reject);
-  const dedup = await dedupCandidates(node.id, preDedup.map(stemEn));
+  const dedup = await dedupCandidates(node.id, preDedup.map(stemEn), plan.kind);
   preDedup.forEach((c, i) => (c.dedup = dedup[i]));
   markRejections(candidates); // re-run so dedup rejects are counted
 

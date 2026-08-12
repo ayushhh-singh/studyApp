@@ -14,8 +14,37 @@ import { supabase } from "../lib/supabase.js";
 import { embeddings } from "../lib/embeddings.js";
 import { logger } from "../lib/logger.js";
 
-/** Cosine at/above which two stems are treated as the same question. */
-export const DEDUP_THRESHOLD = 0.9;
+/**
+ * Cosine at/above which two stems are treated as the same question.
+ *
+ * ⚑ PER KIND, AND THE DESCRIPTIVE VALUE IS MEASURED, NOT CHOSEN. The reference
+ * population is real PYQ pairs sitting on the SAME syllabus node: the commission
+ * set both, so they are distinct BY CONSTRUCTION, and no gate should ever reject
+ * a pair that resembles each other less than those do. Measured 2026-08-13 over
+ * 12 nodes per kind:
+ *
+ *   real same-node DESCRIPTIVE pairs (n=431): median 0.359, p99 0.754, max 0.835
+ *   real same-node MCQ pairs        (n=540): median 0.288, p99 0.612, max 0.645
+ *
+ * So 0.9 sat far above anything real, and three generated GS4 questions restating
+ * one textbook trichotomy measured 0.847 / 0.875 / 0.880 — all admitted as
+ * "distinct". A generated GS3 question also near-duplicated an EXISTING real PYQ
+ * at 0.842 and passed. 0.84 sits just above the real descriptive maximum, so it
+ * catches every one of those while remaining incapable of rejecting a pair as
+ * dissimilar as the most-similar real pair.
+ *
+ * ⚑ MCQ DELIBERATELY STAYS AT 0.9 even though its real max is far lower, and
+ * lowering it would be a BUG rather than a tightening: this stage embeds the STEM
+ * ONLY, and a match-list MCQ's stem is boilerplate — the content lives in the
+ * options. Two real published PYQs share the exact stem "Which one of the
+ * following is not correctly matched?" (cosine 1.0) while being entirely
+ * different questions, so any threshold that would tighten MCQ would reject them.
+ * The real MCQ fix is to embed stem+options; until then a permissive threshold is
+ * the safe failure direction. Recorded in `docs/OUTSTANDING.md` §9.
+ */
+export const DEDUP_THRESHOLD_BY_KIND = { mcq: 0.9, descriptive: 0.84 } as const;
+/** Back-compat alias — the MCQ value, which is the historical global threshold. */
+export const DEDUP_THRESHOLD = DEDUP_THRESHOLD_BY_KIND.mcq;
 
 export interface DedupHit {
   question_id: string;
@@ -57,7 +86,18 @@ async function embedAll(texts: string[]): Promise<number[][]> {
   return out;
 }
 
-export async function dedupCandidates(nodeId: string | null, candidateStems: string[]): Promise<DedupResult[]> {
+/**
+ * @param kind REQUIRED — the two kinds have measurably different similarity
+ *   distributions (see `DEDUP_THRESHOLD_BY_KIND`), and a defaulted trailing
+ *   parameter is how a caller silently keeps the old behaviour (this repo's M24
+ *   lesson). Making it required forces every call site to state which it is.
+ */
+export async function dedupCandidates(
+  nodeId: string | null,
+  candidateStems: string[],
+  kind: keyof typeof DEDUP_THRESHOLD_BY_KIND,
+): Promise<DedupResult[]> {
+  const threshold = DEDUP_THRESHOLD_BY_KIND[kind];
   const clean = candidateStems.map((s) => s.replace(/\s+/g, " ").trim());
   const empty = (): DedupResult[] => clean.map(() => ({ isDuplicate: false, maxSimilarity: 0, nearest: [] }));
   if (clean.length === 0) return [];
@@ -99,7 +139,7 @@ export async function dedupCandidates(nodeId: string | null, candidateStems: str
       let maxRun = 0;
       for (let j = 0; j < i; j++) maxRun = Math.max(maxRun, dot(cand, candidateVecs[j]));
       const maxSimilarity = Math.max(maxExisting, maxRun);
-      return { isDuplicate: maxSimilarity >= DEDUP_THRESHOLD, maxSimilarity, nearest: hits };
+      return { isDuplicate: maxSimilarity >= threshold, maxSimilarity, nearest: hits };
     });
   } catch (err) {
     logger.warn({ err, nodeId }, "qgen dedup failed; treating all candidates as unique");
