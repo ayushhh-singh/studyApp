@@ -52,7 +52,8 @@
     "degraded": "कुछ परिणाम लोड नहीं हो सके। थोड़ी देर बाद पुनः प्रयास करें।",
     "resultCount_zero": "कोई परिणाम नहीं",
     "resultCount_one": "{{count}} परिणाम",
-    "resultCount_other": "{{count}} परिणाम"
+    "resultCount_other": "{{count}} परिणाम",
+    "groupQuestion": "पिछले प्रश्न"
   },
   "Dashboard": {
     "title": "डैशबोर्ड",

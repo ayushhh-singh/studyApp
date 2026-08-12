@@ -8,6 +8,8 @@ import {
   type SearchResultType,
 } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
+import { questionExamScopeFilter } from "../lib/exams.js";
+import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { logger } from "../lib/logger.js";
 
 /**
@@ -178,12 +180,72 @@ const searchSyllabus: Searcher = {
   },
 };
 
+interface QuestionRow {
+  id: string;
+  paper_code: string;
+  year: number | null;
+  stem_i18n: BilingualText;
+  syllabus_node_id: string | null;
+  syllabus_nodes: { paper_code: string } | { paper_code: string }[] | null;
+}
+
+const searchQuestions: Searcher = {
+  examScope:
+    "`questionExamScopeFilter` — this exam's syllabus PAPER CODES, plus current-affairs " +
+    "questions generated for this exam. NOT `questions.exam_code`, which is PROVENANCE " +
+    "(its domain includes up_ro_aro / upsssc_pet, papers deliberately mapped onto the " +
+    "default exam's tree that must stay visible). Composed with the catalog visibility " +
+    "filter, so a qgen survivor or an unapproved CA MCQ can never surface here.",
+  async run(ctx) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select("id, paper_code, year, stem_i18n, syllabus_node_id, syllabus_nodes(paper_code)")
+      // Three stacked `.or()` calls AND together — verified live (33 scoped vs
+      // 41 unscoped rows for the same needle), not assumed.
+      .or(await questionExamScopeFilter(ctx.examCode))
+      .or(questionVisibilityOrFilter("catalog"))
+      .or(bilingualIlike("stem_i18n", ctx.like))
+      // Recent papers first, matching `listQuestions`' own ordering. `id` breaks
+      // ties so the set is stable across identical calls.
+      .order("year", { ascending: false })
+      .order("id", { ascending: true })
+      .limit(ctx.limit);
+    if (error) throw new Error(`question search failed: ${error.message}`);
+
+    return ((data ?? []) as unknown as QuestionRow[]).map((r) => {
+      // ⚑ The NODE's paper code, never the question's. A current-affairs MCQ has
+      // `paper_code = 'CURRENT_AFFAIRS'` — a synthetic code with no syllabus
+      // paper behind it — while hanging off a real node in a real paper. Linking
+      // with the question's own code would produce `learn/CURRENT_AFFAIRS/<id>`,
+      // which 404s.
+      const node = Array.isArray(r.syllabus_nodes) ? r.syllabus_nodes[0] : r.syllabus_nodes;
+      const nodePaper = node?.paper_code ?? null;
+      const to =
+        r.syllabus_node_id && nodePaper
+          ? `learn/${nodePaper}/${r.syllabus_node_id}?tab=pyqs`
+          : // Unmapped question (no node): the archive, filtered to its paper —
+            // still a real destination rather than a dead row.
+            `pyq-archive?paper=${encodeURIComponent(r.paper_code)}`;
+      return {
+        type: "question" as const,
+        id: r.id,
+        // The stem IS the title here — a PYQ has no name. Truncated, because a
+        // full Mains stem is a paragraph and would blow out the palette row.
+        title: toSnippet(pickLocale(r.stem_i18n, ctx.locale)),
+        subtitle: r.year ? `${r.paper_code} · ${r.year}` : r.paper_code,
+        to,
+      };
+    });
+  },
+};
+
 /**
  * ⚑ A `Record`, not a partial map: adding a member to `searchResultTypeSchema`
  * is a compile error until its searcher exists here.
  */
 const SEARCHERS: Record<SearchResultType, Searcher> = {
   syllabus: searchSyllabus,
+  question: searchQuestions,
 };
 
 // ---------------------------------------------------------------------------

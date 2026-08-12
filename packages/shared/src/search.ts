@@ -25,7 +25,7 @@ import { apiEnvelopeSchema, localeSchema } from "./types";
  * `Record<SearchResultType, Searcher>`), so a new content type cannot be
  * half-added and silently return nothing.
  */
-export const searchResultTypeSchema = z.enum(["syllabus"]);
+export const searchResultTypeSchema = z.enum(["syllabus", "question"]);
 export type SearchResultType = z.infer<typeof searchResultTypeSchema>;
 
 /**
@@ -35,7 +35,7 @@ export type SearchResultType = z.infer<typeof searchResultTypeSchema>;
  * then the long-tail corpora. Server-side so the client renders whatever order
  * the server sends rather than keeping a second copy that can drift.
  */
-export const SEARCH_TYPE_ORDER: SearchResultType[] = ["syllabus"];
+export const SEARCH_TYPE_ORDER: SearchResultType[] = ["syllabus", "question"];
 
 export const searchResultSchema = z.object({
   type: searchResultTypeSchema,

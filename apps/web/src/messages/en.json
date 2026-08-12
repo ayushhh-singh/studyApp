@@ -52,7 +52,8 @@
     "degraded": "Some results could not be loaded. Try again in a moment.",
     "resultCount_zero": "No results",
     "resultCount_one": "{{count}} result",
-    "resultCount_other": "{{count}} results"
+    "resultCount_other": "{{count}} results",
+    "groupQuestion": "Past questions"
   },
   "Dashboard": {
     "title": "Dashboard",
