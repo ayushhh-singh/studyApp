@@ -53,6 +53,15 @@ function userNoteSourceId(noteId: string, key: string): string {
 interface UserNoteRow {
   id: string;
   title: string;
+  /**
+   * Which exam this note was written under (0123). Deliberately NOT carried out
+   * to the client `UserNote` shape: nothing in the UI needs it, and a raw exam
+   * column reaching the client is exactly how the U7-residual display mismatch
+   * arose (docs/OUTSTANDING.md §8f). Server-internal, read via `getUserNoteRow`.
+   *
+   * NULL on a pre-0123 row whose exam could not be derived — see the 0123 header.
+   */
+  exam_code: string | null;
   syllabus_node_id: string | null;
   source_thread_id: string | null;
   source_message_id: string | null;
@@ -91,9 +100,24 @@ function toUserNote(r: UserNoteRow): UserNote {
 }
 
 const DETAIL_COLUMNS =
-  "id, title, syllabus_node_id, source_thread_id, source_message_id, content_i18n, srs_candidates, meta, created_at, updated_at, syllabus_nodes(paper_code, title_i18n)";
+  "id, title, exam_code, syllabus_node_id, source_thread_id, source_message_id, content_i18n, srs_candidates, meta, created_at, updated_at, syllabus_nodes(paper_code, title_i18n)";
 const LIST_COLUMNS =
   "id, title, syllabus_node_id, content_i18n, created_at, syllabus_nodes(paper_code, title_i18n)";
+
+/**
+ * "Notes belonging to this exam" — the same predicate shape community.ts uses
+ * for `discussion_threads` (`examVisibilityFilter`), for the same reason: a NULL
+ * `exam_code` means "exam unknown / not exam-specific" and must stay visible
+ * under every exam rather than becoming invisible under all of them (0123).
+ *
+ * Only three rows in the whole table-pair are NULL today (see the 0123 header),
+ * so this arm is nearly dead — but it is the difference between a future write
+ * path that forgets the column producing a *visible* note and producing one the
+ * owner can never reach again.
+ */
+function examVisibilityFilter(examCode: string): string {
+  return `exam_code.eq.${examCode},exam_code.is.null`;
+}
 
 // ---------------------------------------------------------------------------
 // Conversion — mentor answer → note blocks (one structured call)
@@ -297,6 +321,11 @@ export async function saveMessageAsNote(
     .from("user_notes")
     .insert({
       user_id: userId,
+      // The exam this note was authored against (0123). Stamped once, at save
+      // time, and never rewritten — it records which syllabus the content was
+      // framed for (`convertAnswerToBody` above is prompted with this very
+      // exam), so it stays correct after the user switches exams.
+      exam_code: examCode,
       syllabus_node_id: nodeId,
       source_thread_id: msg.thread_id,
       source_message_id: msg.id,
@@ -314,7 +343,17 @@ export async function saveMessageAsNote(
 // ---------------------------------------------------------------------------
 // Read / list / update / delete
 // ---------------------------------------------------------------------------
-export async function getUserNote(userId: string, id: string): Promise<UserNote> {
+/**
+ * The raw row, ownership-scoped. Internal — the only way to read `exam_code`.
+ *
+ * DELIBERATELY NOT exam-scoped, unlike `listUserNotes`. This is the user's OWN
+ * private note fetched by its own id: 404ing it because they have since switched
+ * exams would strand them from their own material (a bookmarked URL, a link in a
+ * revision card), and the list is what stops another exam's notes CLUTTERING the
+ * UI. Fail-open on your own private content; the same call the mentor's
+ * `requireThread` makes for the same reason.
+ */
+async function getUserNoteRow(userId: string, id: string): Promise<UserNoteRow> {
   const { data, error } = await supabase()
     .from("user_notes")
     .select(DETAIL_COLUMNS)
@@ -323,14 +362,31 @@ export async function getUserNote(userId: string, id: string): Promise<UserNote>
     .maybeSingle();
   if (error) throw new HttpError(500, `user note lookup failed: ${error.message}`);
   if (!data) throw notFound("Note not found");
-  return toUserNote(data as unknown as UserNoteRow);
+  return data as unknown as UserNoteRow;
 }
 
-export async function listUserNotes(userId: string, opts: { nodeId?: string } = {}): Promise<UserNoteListItem[]> {
+export async function getUserNote(userId: string, id: string): Promise<UserNote> {
+  return toUserNote(await getUserNoteRow(userId, id));
+}
+
+/**
+ * The "My notes" list — scoped to the caller's CURRENT exam (0123).
+ *
+ * `examCode` is REQUIRED, not defaulted. A default would let a caller keep the
+ * pre-0123 cross-exam behaviour by doing nothing, which is precisely the M24
+ * trap this codebase has now hit three times (getMasteryMap, getCutoffs,
+ * computeNodeTargets) — the compiler has to force the decision.
+ */
+export async function listUserNotes(
+  userId: string,
+  examCode: string,
+  opts: { nodeId?: string } = {},
+): Promise<UserNoteListItem[]> {
   let query = supabase()
     .from("user_notes")
     .select(LIST_COLUMNS)
     .eq("user_id", userId)
+    .or(examVisibilityFilter(examCode))
     .order("created_at", { ascending: false });
   if (opts.nodeId) query = query.eq("syllabus_node_id", opts.nodeId);
   const { data, error } = await query;
@@ -354,10 +410,36 @@ export async function updateUserNote(
   id: string,
   body: { title?: string; syllabus_node_id?: string | null },
 ): Promise<UserNote> {
-  await getUserNote(userId, id); // ownership 404
+  const row = await getUserNoteRow(userId, id); // ownership 404
   const patch: Record<string, unknown> = {};
   if (body.title !== undefined) patch.title = body.title;
-  if (body.syllabus_node_id !== undefined) patch.syllabus_node_id = body.syllabus_node_id;
+  if (body.syllabus_node_id !== undefined) {
+    // `syllabus_node_id` is an UNTRUSTED body field and was previously written
+    // with no validation at all — not even existence. With 0123 that matters:
+    // relinking to another exam's node would leave the note's own `exam_code`
+    // disagreeing with its linked node, so the list would render a foreign
+    // paper code (LIST_COLUMNS joins the node) on a note filed under this exam.
+    //
+    // The note's exam is NOT rewritten to follow the node: it records what the
+    // content was authored against, and a relink is a filing correction, not a
+    // re-authoring. So the node must come from the note's own exam instead.
+    // 404 rather than 403, per the M7 convention — a foreign node genuinely is
+    // not part of this note's syllabus, and a distinct error would confirm the
+    // id exists to a caller probing with guessed ids.
+    if (body.syllabus_node_id !== null) {
+      const { data: node, error: nodeErr } = await supabase()
+        .from("syllabus_nodes")
+        .select("id, exam_code")
+        .eq("id", body.syllabus_node_id)
+        .maybeSingle();
+      if (nodeErr) throw new HttpError(500, `syllabus node lookup failed: ${nodeErr.message}`);
+      // A NULL-exam note (pre-0123, exam undeterminable) has no exam to check
+      // against, so fall back to the caller's own — never accept blindly.
+      const noteExam = row.exam_code ?? (await getUserExam(userId));
+      if (!node || (node.exam_code as string) !== noteExam) throw notFound("Syllabus topic not found");
+    }
+    patch.syllabus_node_id = body.syllabus_node_id;
+  }
   if (Object.keys(patch).length > 0) {
     const { error } = await supabase().from("user_notes").update(patch).eq("id", id).eq("user_id", userId);
     if (error) throw new HttpError(500, `user note update failed: ${error.message}`);
@@ -375,7 +457,8 @@ export async function deleteUserNote(userId: string, id: string): Promise<void> 
 // On-demand translate — fill the empty locale (never automatic; costs a call)
 // ---------------------------------------------------------------------------
 export async function translateUserNote(userId: string, id: string): Promise<UserNote> {
-  const note = await getUserNote(userId, id);
+  const row = await getUserNoteRow(userId, id);
+  const note = toUserNote(row);
   const filled = note.filled_locales;
   if (filled.length === 0) throw badRequest("This note has no content to translate");
   if (filled.length === 2) return note; // already bilingual
@@ -400,10 +483,14 @@ export async function translateUserNote(userId: string, id: string): Promise<Use
   // either locale (this fills whichever side is missing), so the hint stays
   // direction-agnostic rather than naming a specific source/target language.
   //
-  // The note is the USER's own material, so its domain hint follows the user's
-  // target exam — the same exam `convertAnswerToBody` framed it under when the
-  // note was first written (not the linked node's exam, which may be absent).
-  const noteExam = await getUserExam(userId);
+  // The domain hint follows the note's OWN exam (0123), not the caller's current
+  // one. Before that column existed this read `getUserExam(userId)` as a stand-in
+  // for "the exam this note was framed under" — which silently stopped being the
+  // same thing once exam switching shipped: translating a UPPSC note after moving
+  // to UPSC would have hinted the wrong commission's domain. `exam_code` is the
+  // exam `convertAnswerToBody` actually framed the note under, so it is exact.
+  // Falls back to the caller's exam only for a pre-0123 NULL row.
+  const noteExam = row.exam_code ?? (await getUserExam(userId));
   const translated = await translateBatch(
     jobs.map((j) => j.text),
     to,

@@ -68,21 +68,43 @@ const HISTORY_LIMIT = 10;
 // ---------------------------------------------------------------------------
 const THREAD_COLUMNS = "id, title, created_at, updated_at";
 
+/**
+ * "Threads belonging to this exam" — the same predicate shape community.ts uses
+ * for `discussion_threads`. A NULL `exam_code` means "exam unknown / not
+ * exam-specific" and stays visible under every exam rather than becoming
+ * invisible under all of them (0123); three real rows depend on that today.
+ */
+function examVisibilityFilter(examCode: string): string {
+  return `exam_code.eq.${examCode},exam_code.is.null`;
+}
+
 export async function createThread(userId: string, title?: string): Promise<DoubtThread> {
   const { data, error } = await supabase()
     .from("doubt_threads")
-    .insert({ user_id: userId, title: title ?? null })
+    // exam_code (0123): a conversation belongs to the syllabus it was opened
+    // against. Stamped here rather than defaulted in SQL, so the exam is a
+    // decision this layer makes explicitly — a `not null default` would silently
+    // file a UPSC candidate's thread under UPPSC and then hide it from them.
+    .insert({ user_id: userId, title: title ?? null, exam_code: await getUserExam(userId) })
     .select(THREAD_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `thread create failed: ${error.message}`);
   return data as DoubtThread;
 }
 
-export async function listThreads(userId: string): Promise<DoubtThreadSummary[]> {
+/**
+ * The mentor sidebar's thread list — scoped to the caller's CURRENT exam (0123).
+ *
+ * `examCode` is REQUIRED rather than resolved inside, for the M24 reason: a
+ * defaulted or internally-defaulted exam lets a caller keep the cross-exam
+ * behaviour by doing nothing. The route resolves it once and passes it.
+ */
+export async function listThreads(userId: string, examCode: string): Promise<DoubtThreadSummary[]> {
   const { data, error } = await supabase()
     .from("doubt_threads")
     .select(`${THREAD_COLUMNS}, doubt_messages(content, created_at)`)
     .eq("user_id", userId)
+    .or(examVisibilityFilter(examCode))
     .order("updated_at", { ascending: false })
     .limit(50);
   if (error) throw new HttpError(500, `thread list failed: ${error.message}`);
@@ -105,6 +127,21 @@ export async function listThreads(userId: string): Promise<DoubtThreadSummary[]>
   });
 }
 
+/**
+ * Ownership check for a thread reached BY ID.
+ *
+ * DELIBERATELY NOT exam-scoped, unlike `listThreads` (0123). This is the user's
+ * own conversation: 404ing it because they have since switched exams would
+ * strand them from their own history, and the list is what stops the other
+ * exam's threads cluttering the sidebar. Fail-open on your own private content.
+ *
+ * KNOWN CONSEQUENCE, accepted: a user who navigates directly to a thread from
+ * their other exam and posts into it gets an answer retrieved under their
+ * CURRENT exam, so the conversation ends up citing both. That is how the
+ * cross-exam citations already in the data most likely arose for users who
+ * switched (see the 0123 header). Rare — the thread is unreachable from the
+ * list — and refusing the post instead is a product decision, not a bug fix.
+ */
 async function requireThread(userId: string, threadId: string): Promise<DoubtThread> {
   const { data, error } = await supabase()
     .from("doubt_threads")

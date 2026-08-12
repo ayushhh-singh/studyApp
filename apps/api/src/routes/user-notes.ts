@@ -12,6 +12,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import {
   addUserNoteDeckToRevision,
   deleteUserNote,
@@ -49,7 +50,8 @@ userNotesRouter.get(
   "/user-notes",
   asyncHandler(async (req, res) => {
     const { node_id } = parse(listQuery, req.query);
-    const items = await listUserNotes(currentUserId(), { nodeId: node_id });
+    const userId = currentUserId();
+    const items = await listUserNotes(userId, await getUserExam(userId), { nodeId: node_id });
     res.json(userNoteListResponseSchema.parse({ data: { items }, error: null }));
   }),
 );

@@ -14,6 +14,7 @@ import { asyncHandler } from "../lib/async-handler.js";
 import { parse } from "../lib/validation.js";
 import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
+import { getUserExam } from "../lib/exams.js";
 import {
   createThread,
   deleteThread,
@@ -47,7 +48,8 @@ doubtsRouter.post(
 doubtsRouter.get(
   "/doubts/threads",
   asyncHandler(async (_req, res) => {
-    const items = await listThreads(currentUserId());
+    const userId = currentUserId();
+    const items = await listThreads(userId, await getUserExam(userId));
     res.json(doubtThreadListResponseSchema.parse({ data: { items }, error: null }));
   }),
 );
