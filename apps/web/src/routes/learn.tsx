@@ -178,7 +178,12 @@ export function Component() {
                   key={opt}
                   active={stage === opt}
                   onClick={() => setParam("stage", opt, "all")}
-                  className="min-h-9 px-3 text-xs"
+                  // Chip's own 44px min-height is kept deliberately. The old
+                  // rail shrank its chips to 36px, but those were secondary
+                  // "remove this filter" affordances; these are now the page's
+                  // PRIMARY control, and 36px is under the design system's tap
+                  // floor. (This was the only min-h-9 Chip in the app.)
+                  className="px-3 text-xs"
                 >
                   {t(`Learn.stage_${opt}`)}
                 </Chip>
@@ -196,7 +201,9 @@ export function Component() {
                 id="learn-sort"
                 value={sort}
                 onChange={(e) => setParam("sort", e.target.value, "syllabus")}
-                className="min-h-9 rounded-xl border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                // 44px, matching the chips beside it and the select this
+                // replaced — the rail's original sort control was h-11.
+                className="min-h-11 rounded-xl border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
               >
                 {SORT_KEYS.map((k) => (
                   <option key={k} value={k}>

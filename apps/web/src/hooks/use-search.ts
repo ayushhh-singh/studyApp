@@ -57,6 +57,21 @@ export function useSearch(rawQuery: string) {
 
   return {
     ...result,
+    /**
+     * ⚑ FORCED TO undefined WHEN THERE IS NO QUERY.
+     *
+     * `keepPreviousData` serves the PREVIOUS key's data while a new one loads —
+     * which is exactly what stops the list blanking as you refine — but it
+     * serves it when the query is DISABLED too. Measured in the browser:
+     * clearing the input left the previous query's syllabus/chapter/question
+     * groups rendered indefinitely underneath the nav list, so an empty search
+     * box showed results for a word that was no longer on screen.
+     *
+     * Fixed here rather than at the call site so every consumer inherits it: the
+     * invariant is "results correspond to the current query", and only the hook
+     * knows whether they still do.
+     */
+    data: enabled ? result.data : undefined,
     /** The query the visible results actually correspond to (debounced, not raw). */
     query,
     /** False while the user is still below the minimum length — not an error, not empty. */
