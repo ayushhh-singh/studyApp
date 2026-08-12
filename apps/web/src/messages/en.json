@@ -370,7 +370,8 @@
     "cutoffMinimumUnknown": "{{paper}} has a minimum qualifying mark, but the Commission does not publish its value.",
     "cutoffByCategoryTitle": "Minimum by category",
     "cutoffByCategoryRow": "{{pct}}% ({{mark}}/{{outOf}})",
-    "cutoffYourScore": "Your score ≈ {{your}}/{{outOf}}."
+    "cutoffYourScore": "Your score ≈ {{your}}/{{outOf}}.",
+    "historyReviewCta": "Review"
   },
   "PyqArchive": {
     "title": "PYQ Archive",

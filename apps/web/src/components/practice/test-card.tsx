@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { Clock, ListChecks, Award } from "lucide-react";
+import { Clock, FileText, ListChecks, Award } from "lucide-react";
 import type { TestSummary, Locale } from "@neev/shared";
 import { scoreBandTextColor } from "@/lib/score-band";
 import { formatScoreValue } from "@/lib/format-score";
@@ -20,10 +20,16 @@ export function TestCard({
     test.best_score !== null && test.total_marks ? Math.max(0, (test.best_score / test.total_marks) * 100) : null;
 
   return (
+    // docs/design/reference-1's tests page leads each row with a tinted tile
+    // and gives the row a real card surface rather than the page background.
     <Link
       to={href ?? `/${locale}/practice/test/${test.id}`}
-      className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-h-11 items-start gap-3 rounded-xl border border-border bg-card px-3 py-3 transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <FileText className="size-5" aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1.5">
       <div className="flex min-w-0 flex-col gap-0.5">
         <span className="truncate text-sm font-medium">{test.title_i18n[locale]}</span>
         <span className="text-xs text-muted-foreground">{test.paper_code ?? t("Practice.mixed")}</span>
@@ -55,6 +61,7 @@ export function TestCard({
           </span>
         )}
       </div>
+      </span>
     </Link>
   );
 }

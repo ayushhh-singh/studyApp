@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { History } from "lucide-react";
+import { ChevronRight, FileText, History } from "lucide-react";
 import type { AttemptListItem } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { PaginationControls } from "@/components/ui-x/pagination-controls";
@@ -32,25 +32,39 @@ function AttemptRow({ item, showPaper }: { item: AttemptListItem; showPaper: boo
   const pct = item.score !== null && item.total ? (item.score / item.total) * 100 : null;
 
   return (
+    // docs/design/reference-1's "Recent Tests" row: tinted tile, title over a
+    // score-and-date sub-line, and the review action at the far right. The
+    // whole row is the link, so the action is presentational — a small
+    // tappable word beside a tappable row is two targets fighting for one tap.
     <Link
       to={`/${locale}/practice/attempt/${item.id}/result`}
-      className="flex flex-col gap-1.5 rounded-lg border border-border bg-background px-3 py-2.5 transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="group flex min-h-11 items-center gap-3 rounded-xl border border-border bg-card px-3 py-3 transition-colors hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
-      <p className="line-clamp-2 text-sm" lang={locale}>
-        {item.test_title_i18n?.[locale] ?? t("Practice.historyUntitled")}
-      </p>
-      <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-        <span>{new Date(item.submitted_at).toLocaleDateString(locale)}</span>
-        {/* The registry's own label, not the raw paper_code this row used to
-            print — "GS-I" rather than "PRE_GS1". Suppressed when a paper tab is
-            already selected, since repeating it under its own tab is noise. */}
-        {showPaper && item.paper_code && <span>{latinLabel(item.paper_code)}</span>}
-        {pct !== null && (
-          <span className="font-semibold tabular-nums" style={{ color: scoreBandTextColor(pct) }}>
-            {formatScoreValue(item.score ?? 0)}/{formatScoreValue(item.total ?? 0)}
-          </span>
-        )}
-      </div>
+      <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+        <FileText className="size-5" aria-hidden />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-1">
+        <span className="line-clamp-2 text-sm font-medium" lang={locale}>
+          {item.test_title_i18n?.[locale] ?? t("Practice.historyUntitled")}
+        </span>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-muted-foreground">
+          {pct !== null && (
+            <span className="font-semibold tabular-nums" style={{ color: scoreBandTextColor(pct) }}>
+              {formatScoreValue(item.score ?? 0)}/{formatScoreValue(item.total ?? 0)}
+            </span>
+          )}
+          <span>{new Date(item.submitted_at).toLocaleDateString(locale)}</span>
+          {/* The registry's own label, not the raw paper_code this row used to
+              print — "GS-I" rather than "PRE_GS1". Suppressed when a paper tab
+              is already selected, since repeating it under its own tab is
+              noise. */}
+          {showPaper && item.paper_code && <span>{latinLabel(item.paper_code)}</span>}
+        </span>
+      </span>
+      <span className="hidden shrink-0 items-center rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-primary transition-colors group-hover:border-primary/40 sm:inline-flex">
+        {t("Practice.historyReviewCta")}
+      </span>
+      <ChevronRight className="size-4 shrink-0 text-muted-foreground sm:hidden" aria-hidden />
     </Link>
   );
 }

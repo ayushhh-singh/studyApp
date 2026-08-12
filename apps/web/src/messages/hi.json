@@ -370,7 +370,8 @@
     "cutoffMinimumUnknown": "{{paper}} में न्यूनतम अर्हक अंक है, पर आयोग उसका मान प्रकाशित नहीं करता।",
     "cutoffByCategoryTitle": "वर्ग अनुसार न्यूनतम",
     "cutoffByCategoryRow": "{{pct}}% ({{mark}}/{{outOf}})",
-    "cutoffYourScore": "आपका स्कोर ≈ {{your}}/{{outOf}}।"
+    "cutoffYourScore": "आपका स्कोर ≈ {{your}}/{{outOf}}।",
+    "historyReviewCta": "समीक्षा"
   },
   "PyqArchive": {
     "title": "पीवाईक्यू अभिलेख",
