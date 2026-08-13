@@ -226,13 +226,28 @@ export function Component() {
                 </Chip>
               ))}
             </div>
-            <div className="ms-auto flex items-center gap-2">
+            {/* ⚑ MOBILE: a FULL-WIDTH row of its own; desktop keeps it inline and
+                right-aligned. At 390px the three stage chips already fill the
+                line, so this wrapped anyway — but as an auto-width island pinned
+                right by `ms-auto`, leaving the chips hard left and the sort hard
+                right with a hole between them. `w-full` makes that wrap
+                deliberate and gives the control the whole line, which is the
+                standard mobile filter-stack shape rather than an orphan.
+
+                The visible "Sort by" text is dropped below `sm` too: a native
+                <select> on mobile opens a full-screen picker whose own header
+                names the field, and the closed state already READS as the
+                answer ("Syllabus order"), so the label was ~70px of the row
+                restating what the value says. It stays as `sr-only` for screen
+                readers — where the `htmlFor` pairing is the whole point — and
+                the icon keeps the affordance visible. */}
+            <div className="flex w-full items-center gap-2 sm:ms-auto sm:w-auto">
               <label
                 htmlFor="learn-sort"
                 className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-muted-foreground"
               >
                 <SlidersHorizontal className="size-3.5" aria-hidden />
-                {t("Learn.sortBy")}
+                <span className="sr-only sm:not-sr-only">{t("Learn.sortBy")}</span>
               </label>
               <select
                 id="learn-sort"
@@ -240,7 +255,10 @@ export function Component() {
                 onChange={(e) => setParam("sort", e.target.value, "syllabus")}
                 // 44px, matching the chips beside it and the select this
                 // replaced — the rail's original sort control was h-11.
-                className="min-h-11 rounded-xl border border-input bg-background px-2 text-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                // `rounded-xl` is --radius, the design system's input radius —
+                // deliberately NOT the chips' pill, because this is a form
+                // control and they are toggles.
+                className="min-h-11 w-full rounded-xl border border-input bg-background px-3 text-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:w-auto sm:px-2"
               >
                 {SORT_KEYS.map((k) => (
                   <option key={k} value={k}>
