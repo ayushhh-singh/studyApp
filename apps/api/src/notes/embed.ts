@@ -23,10 +23,10 @@ import { DEFAULT_EXAM_CODE, hasChapter, type NoteBody, type StudyContent } from 
 import { computeEmbedCoverage } from "../ingest/embed-coverage.js";
 import { parseArgs } from "../ingest/_shared.js";
 import { toVectorLiteral, upsertEmbeddingRows } from "../lib/embed-upsert.js";
+import { chunkWithContext, splitText } from "../ingest/chunk.js";
 
 type Locale = "hi" | "en";
 const LOCALES: Locale[] = ["hi", "en"];
-const MAX_CHARS = 1500;
 
 interface Chunk {
   source_id: string;
@@ -45,24 +45,17 @@ function stripMarkdown(md: string): string {
     .trim();
 }
 
-function splitText(text: string): string[] {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (!clean) return [];
-  if (clean.length <= MAX_CHARS) return [clean];
-  const chunks: string[] = [];
-  const sentences = clean.split(/(?<=[.?!।])\s+/);
-  let cur = "";
-  for (const s of sentences) {
-    if ((cur + " " + s).length > MAX_CHARS && cur) {
-      chunks.push(cur.trim());
-      cur = s;
-    } else {
-      cur = cur ? `${cur} ${s}` : s;
-    }
-  }
-  if (cur.trim()) chunks.push(cur.trim());
-  return chunks;
-}
+// splitText / MAX_CHARS used to be duplicated here, byte-for-byte identical to
+// `ingest/chunk.ts`'s. They were found by an audit of the question-chunking
+// change and unified: two copies of a chunker is exactly the shape that lets one
+// improve while the other silently keeps the old behaviour, which is the same
+// hazard `ingest/_shared.ts`'s redeclared `ExamCode` already demonstrated.
+//
+// VERIFIED A NO-OP before unifying, not assumed: `chunkWithContext` differs from
+// the old local code only in that it normalises and 200-char-caps the prefix,
+// and 0 of the 4,536 real chapter headings in this bank (both locales) are
+// changed by that. `splitText` itself was already identical, including the
+// empty-input case.
 
 /** Digest fallback: flatten a NoteBody into one embeddable blob. */
 function digestText(b: NoteBody): string {
@@ -79,10 +72,11 @@ function chapterSectionTexts(sc: StudyContent, locale: Locale): string[] {
     const body = stripMarkdown(s.body_md_i18n[locale] ?? "");
     const boxes = s.boxes.map((b) => stripMarkdown(b.content_i18n[locale] ?? "")).filter(Boolean).join(" ");
     const blob = `${heading}. ${body} ${boxes}`.trim();
-    // Prefix EVERY resulting chunk with the heading so retrieval keeps section context.
-    for (const piece of splitText(blob)) {
-      out.push(piece.startsWith(heading) ? piece : `${heading}: ${piece}`);
-    }
+    // Prefix EVERY resulting chunk with the heading so retrieval keeps section
+    // context. This is the ORIGINAL of the pattern `ingest/chunk.ts` now shares
+    // with the question chunker — same `startsWith` guard, so chunk 0 (which
+    // already opens with the heading) is untouched.
+    out.push(...chunkWithContext(blob, heading));
   }
   return out;
 }
