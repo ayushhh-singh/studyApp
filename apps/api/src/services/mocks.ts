@@ -427,10 +427,19 @@ async function upsertMockTest(input: {
  * exactly their registry count — so this asserts a property that HOLDS, which is
  * the only time it is cheap to start asserting it.
  *
- * Duplicates are checked too. `weightedSample` cannot produce one (each item is
- * consumed once), but `test_questions` has a (test_id, question_id) unique index,
- * so a duplicate becomes a 23505 at insert time and a confusing 500; failing here
- * names the real problem instead.
+ * Duplicates are checked too. `weightedSample` cannot produce one (`balancedPick`
+ * dedupes by id), but `test_questions` has a (test_id, question_id) unique index,
+ * so a duplicate would become a 23505 at insert time and a confusing 500; failing
+ * here names the real problem instead.
+ *
+ * BLAST RADIUS, stated so it is an informed choice: this THROWS, and
+ * `mocks/build.ts` has no per-paper catch, so a failure stops the whole run and
+ * leaves papers already built in this pass persisted and later ones stale. That
+ * is deliberate — an invariant violation is not "this paper has thin supply"
+ * (which logs and skips, and is what the `available.length < count` pre-check
+ * handles); it means the sampler produced something the commission's own
+ * structure says is not that paper, and continuing to build more of them is
+ * worse than stopping. The message names the paper and set.
  */
 function assertPaperStructure(slug: string, items: AvailQ[], count: number): void {
   if (items.length !== count) {

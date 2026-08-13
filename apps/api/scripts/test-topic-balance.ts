@@ -132,6 +132,30 @@ function countsOf(picked: readonly TopicItem[]): Record<string, number> {
   );
 }
 
+// ------------------------------------------------------------ duplicate ids
+{
+  // THE daily quiz's real shape: its backfill reservoir is
+  // [...random, ...pyq, ...generated, ...ca] and `random` is every catalog MCQ
+  // for the paper, so it is a SUPERSET of the other three — the same question
+  // appears two or three times. The caller stores picks in a Map keyed by id, so
+  // an undeduped pick is not a visible duplicate: it is a silently SHORT paper.
+  const random = [...items("a", 3), ...items("b", 3)];
+  const pyq = [{ id: "a1", top: "a" }, { id: "b1", top: "b" }];
+  const reservoir = [...random, ...pyq];
+  for (const count of [4, 5, 6, 8]) {
+    const picked = balancedPick({ pool: reservoir, count, weightOf: () => 1 });
+    const ids = picked.map((p) => p.id);
+    check(`dupes: count=${count} returns no duplicate id`, new Set(ids).size === ids.length, `[${ids.join(",")}]`);
+  }
+  eq("dupes: a duplicated pool yields at most its DISTINCT size", balancedPick({ pool: reservoir, count: 99, weightOf: () => 1 }).length, 6);
+  // Excluding an id must drop EVERY copy of it, not just the first.
+  const ex = balancedPick({ pool: reservoir, count: 99, weightOf: () => 1, exclude: new Set(["a1"]) });
+  eq("dupes: exclude removes all copies", ex.filter((p) => p.id === "a1").length, 0);
+  // And the section mix must still be right despite the duplication.
+  const balanced = balancedPick({ pool: reservoir, count: 4, weightOf: () => 1 });
+  eq("dupes: mix unaffected by duplication", countsOf(balanced), { a: 2, b: 2 });
+}
+
 // ----------------------------------------------------------------------- exclude
 {
   const pool = [...items("a", 5), ...items("b", 5)];

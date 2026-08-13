@@ -91,7 +91,7 @@ import { assemblyVisibilityOrFilter, CURRENT_AFFAIRS_PAPER_CODE } from "../lib/q
 import { istToday, istWeekStart, shiftDate } from "../lib/ist.js";
 import { selectAll } from "../lib/paginate.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
-import { paperByNode, sectionHotness, sectionOf, topLevelByNode } from "../lib/sections.js";
+import { paperByNode, sectionHotness, sectionOf, topLevelByNode, UNMAPPED_SECTION } from "../lib/sections.js";
 import { balancedPick, maxSectionDeviationPct } from "../lib/topic-balance.js";
 import { getTestDetail } from "../services/tests.js";
 import { prelimsPooledNodeScope } from "./prelims-node.js";
@@ -446,7 +446,13 @@ async function caSectionContext(
 ): Promise<{ topByNode: Map<string, string>; weightOf: (top: string) => number } | null> {
   if (type === "descriptive") {
     const topByNode = await paperByNode(examCode);
-    return { topByNode, weightOf: () => 1 };
+    // Every paper weighted equally — EXCEPT the unmapped bucket, which gets 0 so
+    // it is reachable only through the coverage floor. `() => 1` would have given
+    // "no syllabus node at all" a full paper's share of a 3-question daily
+    // sitting; 0 matches how every other surface treats it (their weights come
+    // from `hot.get(top) ?? 0`, and hotness has no entry for the unmapped bucket).
+    // There is one such row live today, so this is a real case, not a hypothetical.
+    return { topByNode, weightOf: (top: string) => (top === UNMAPPED_SECTION ? 0 : 1) };
   }
   const scope = prelimsPooledNodeScope(examCode);
   if (!scope) return null;
@@ -559,8 +565,20 @@ async function assemble(
         // and these rows are the only artefact a cron run leaves behind — so a
         // regression in the topic mix is inspectable after the fact instead of
         // needing a replay.
+        // ⚑ Measured against the sections the POOL could actually have supplied,
+        // not every section the map knows about. For the descriptive cadence the
+        // map is `paperByNode`, i.e. ALL ten of the exam's papers — including the
+        // two PRELIMS papers, which can never hold a descriptive CA question. A
+        // target computed over those would score the two impossible papers as
+        // ~10pp short each and report a healthy sitting as badly skewed.
         max_section_deviation_pct: section
-          ? Number(maxSectionDeviationPct(selected.map((q) => ({ id: q.id, top: sectionOf(q.syllabus_node_id, section.topByNode) })), section.weightOf, new Set(section.topByNode.values())).toFixed(1))
+          ? Number(
+              maxSectionDeviationPct(
+                selected.map((q) => ({ id: q.id, top: sectionOf(q.syllabus_node_id, section.topByNode) })),
+                section.weightOf,
+                new Set(pool.map((q) => sectionOf(q.syllabus_node_id, section.topByNode))),
+              ).toFixed(1),
+            )
           : null,
       },
     })

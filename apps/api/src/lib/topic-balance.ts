@@ -102,10 +102,24 @@ export function balancedPick<T extends TopicItem>(opts: BalancedPickOptions<T>):
 
   // Group, preserving the caller's order inside each group. A queue index per
   // group rather than splicing keeps this O(n).
+  //
+  // ⚑ DEDUPED BY ID, and that is load-bearing rather than defensive. The daily
+  // quiz's backfill reservoir is `[...random, ...pyq, ...generated, ...ca]`, and
+  // its `random` pool is EVERY catalog MCQ for the paper — a superset of the
+  // other three. So the same question genuinely appears in that pool two or three
+  // times, and without this the same id could be picked twice. The caller stores
+  // picks into a Map keyed by id, so the symptom is not a visibly duplicated
+  // question: it is a SHORT paper, silently, with the backfill count over-
+  // reporting how much it filled. The loop this replaced in daily/quiz.ts was
+  // duplicate-safe by construction (`if (chosen.has(item.id)) continue`), so this
+  // is here to preserve a property that already existed, not to add one.
   const groups = new Map<string, T[]>();
   const cursor = new Map<string, number>();
+  const seenIds = new Set<string>();
   for (const item of pool) {
     if (exclude?.has(item.id)) continue;
+    if (seenIds.has(item.id)) continue;
+    seenIds.add(item.id);
     const arr = groups.get(item.top);
     if (arr) arr.push(item);
     else {
