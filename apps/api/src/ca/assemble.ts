@@ -91,9 +91,41 @@ const MAINS_MAX = 20;
  * DESCRIPTIVE runs only ~1-6 per day, so the mains cap is an upper bound the
  * supply frequently cannot reach; a short mains set is the honest result, not a
  * fault. See `docs`-free note on the exclusion interaction at DAILY_RECENCY_DAYS.
+ *
+ * ---------------------------------------------------------------------------
+ * ⚑ DAILY_MAINS_MAX 5 -> 3 (2026-08-13) — A DAILY-LOAD DECISION, NOT A FIX
+ * ---------------------------------------------------------------------------
+ * The daily mains sitting had never once filled: measured across every set built
+ * since the caps were raised, 1/5, 2/5, 2/5, 1/5, 1/5, 2/5. The cause is upstream
+ * (only 4.1% of triaged items score `mains_relevance == 3`, the only tier that
+ * yields a descriptive question — see ca/volume.ts), and the CA run budget was
+ * raised 40 -> 70 the same day to push on it.
+ *
+ * ⚑ WHAT LOWERING THE CAP DOES AND DOES NOT DO. A cap only binds when supply
+ * REACHES it. Measured against the live pool the moment this shipped, hours
+ * after the budget raise: **uppsc 3 (identical set at either cap — a no-op) but
+ * upsc 7, where a cap of 5 would have built a 5-question sitting and 3 builds a
+ * 3-question one.** So this is NOT the "takes effect later" change an earlier
+ * draft of this comment claimed — it binds immediately for the exam whose
+ * descriptive supply the raise lifted first. Both numbers are up from the 1-2
+ * that every set built before 2026-08-13 shows.
+ *
+ * THE REASON IS STUDENT TIME, which is the only honest one. One UPPSC mains
+ * answer is 7-11 minutes under the app's own timer presets (125w/7min,
+ * 200w/11min), so 5/day is ~35-55 minutes of pure answer writing on top of
+ * everything else, every day. 3 is ~21-33. It also puts the cap inside reach of
+ * the supply, so the sitting is regularly FULL rather than permanently partial.
+ *
+ * ⚑ IT IS NOT A UI FIX, and an earlier draft of this reasoning wrongly said it
+ * was. `components/current-affairs/quiz-button.tsx` renders `question_count` —
+ * the ACTUAL number of questions — never "2 of 5". There is no denominator on
+ * screen for a smaller cap to tidy up. Do not re-justify this change that way.
+ *
+ * The prelims cap is deliberately untouched: it fills (15/15 on most days) and
+ * an MCQ is seconds of work, not minutes.
  */
 const DAILY_PRELIMS_MAX = 15;
-const DAILY_MAINS_MAX = 5;
+const DAILY_MAINS_MAX = 3;
 
 /**
  * The daily window, in days back from the day being built — so the pool is
