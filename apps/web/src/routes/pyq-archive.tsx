@@ -130,12 +130,15 @@ function ArchiveQuestionCard({ question, locale }: { question: Question; locale:
         )}
       </div>
       {showExplanation && question.explanation_i18n && (
-        <div className="flex flex-col gap-2 rounded-md bg-muted/50 p-2.5 text-xs">
-          <p>
+        // Same treatment as learn/pyq-list.tsx and practice/result-review-list.tsx
+        // — this renders the identical content in an identical block, and was
+        // missed in the first pass of that change.
+        <div className="flex flex-col gap-2 rounded-md bg-muted/50 p-2.5 text-sm">
+          <p className="whitespace-pre-line">
             <span className="font-semibold text-foreground">EN — </span>
             {question.explanation_i18n.en}
           </p>
-          <p lang="hi" className="leading-[1.75]">
+          <p lang="hi" className="whitespace-pre-line leading-[1.75]">
             <span className="font-semibold text-foreground">HI — </span>
             {question.explanation_i18n.hi}
           </p>
