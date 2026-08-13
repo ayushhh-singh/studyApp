@@ -27,11 +27,26 @@
  *     new to practise on?" Read `FRESH_MCQ_FLOOR`'s note before changing either
  *     band: floor (1) is self-damping on a mature bank — its `have` and its floor
  *     are monotone functions of the same PYQ frequency, with `have` rising ~2x
- *     faster — so it is not merely inert but ANTI-CORRELATED with need, and
- *     measured 2026-08-13 it fired on 1 of 110 nodes. Floor (2) exists because
- *     that is a real product gap, not a tuning problem: a topic can hold 189 real
- *     PYQs, satisfy floor (1) several times over, and still offer a student who
- *     has worked the PYQ archive nothing they have not already seen.
+ *     faster — so it is not merely inert but ANTI-CORRELATED with need. At its
+ *     pre-2026-08-13 band [25..80] it fired on 1 of 110 depth-1 nodes bank-wide;
+ *     at today's [40..150]/[10..40] it asks for 188 questions in total. Floor (2)
+ *     exists because that is a real product gap, not a tuning problem: a topic
+ *     can hold 189 real PYQs, satisfy floor (1) several times over, and still
+ *     offer a student who has worked the PYQ archive nothing they have not
+ *     already seen.
+ *
+ * ⚑ IF THIS PIPELINE LOOKS "STALLED", CHECK WHICH FLOOR IS ON THE DEFAULT BRANCH
+ * BEFORE LOOKING FOR A FAILURE. A `schedule:` run executes the DEFAULT branch,
+ * and floor (2) was added on a feature branch. Between 2026-08-01 and 2026-08-10
+ * `generation_batches` recorded zero rows against a nightly cron, which
+ * docs/test-series-design.md §6.6 read as an outage — it was not. `main` carried
+ * only floor (1), that floor was satisfied on every uppsc section, so the
+ * planner correctly planned nothing and recorded nothing. It "resumed" on
+ * 2026-08-11 with 7 and then 6 questions purely because `upsc` went live that
+ * day and brought exactly ONE node (UPSC_PRE_CSAT "Interpersonal Skills")
+ * below floor (1). A planner that plans nothing writes no batch row, so silence
+ * here is ambiguous between "nothing to do" and "broken" — resolve it with a
+ * `--dry-run`, which reports both.
  */
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
@@ -48,10 +63,36 @@ export interface FloorBand {
   min: number;
   max: number;
 }
-/** Prelims MCQ floor band (was a flat 40). */
-export const MCQ_FLOOR: FloorBand = { min: 25, max: 80 };
-/** Mains descriptive floor band (was a flat 8). */
-export const DESCRIPTIVE_FLOOR: FloorBand = { min: 5, max: 20 };
+/**
+ * Prelims MCQ COVERAGE floor band (was a flat 40, then [25..80]).
+ *
+ * ⚑ THIS BAND IS A STEP FUNCTION, NOT A DIAL — do not reach for it to raise
+ * supply. Because `have` counts every published+approved question in the
+ * subtree, and a mature section holds 71-292 of them, the band is inert until
+ * it crosses that mass and then floods. MEASURED 2026-08-13 over both live
+ * exams, uppsc prelims (14 sections, have 71..172):
+ *
+ *     [ 25.. 80] →  0 sections short,    0 questions   (the old value)
+ *     [ 40..150] →  3 sections short,   18 questions   (this value)
+ *     [ 60..250] → 11 sections short,  872 questions
+ *     [100..400] → 14 sections short, 2433 questions
+ *
+ * There is no setting between "does nothing" and "floods the sections that are
+ * already richest" — which is the same anti-correlation `FRESH_MCQ_FLOOR`
+ * documents, seen from the tuning side. So this stays sized as what it is: a
+ * COLD-START / content-purge safety net. Raised to [40..150] because that is
+ * still cheap on a mature bank (18 + 56 questions across both exams' prelims)
+ * while giving a newly-ingested exam a materially better starting guarantee.
+ * The supply lever for a test series is `FRESH_MCQ_FLOOR`, not this.
+ */
+export const MCQ_FLOOR: FloorBand = { min: 40, max: 150 };
+/**
+ * Mains descriptive COVERAGE floor band (was a flat 8, then [5..20]). Same
+ * cold-start role and the same cliff as `MCQ_FLOOR` — measured at [10..40] it
+ * asks for 80 (uppsc) + 34 (upsc) questions, where [20..80] would ask 830 + 429
+ * against sections that already hold a median of 18-22.
+ */
+export const DESCRIPTIVE_FLOOR: FloorBand = { min: 10, max: 40 };
 
 /**
  * ⚑ THE FRESH-SUPPLY FLOOR — why a SECOND floor exists rather than a bigger first one.
@@ -86,17 +127,90 @@ export const DESCRIPTIVE_FLOOR: FloorBand = { min: 5, max: 20 };
  * depth-1-vs-depth-2 mismatch seen from opposite sides).
  *
  * The bands are much smaller than the coverage bands because they are per-LEAF,
- * not per-section. Sized against the real tree: ~980 questions across both exams
- * to satisfy from cold, which the existing shared $5 cap drains over ~3 nights.
+ * not per-section.
  * `have` deliberately counts ANY generated question on the leaf, current-affairs
  * MCQs included — those are genuinely fresh practice the student can see, so
  * topping up past them would be waste.
+ *
+ * ── SIZED FOR TEST-SERIES SUPPLY, 2026-08-13 (docs/test-series-design.md §6) ──
+ *
+ * Raised from [3..12] / [2..6]. What that buys, measured against the real tree
+ * (generated pool per exam+stage, before → after a full fill):
+ *
+ *     uppsc prelims mcq   1510 → 1796   (PRE_GS1 1240→1357, PRE_CSAT 270→439)
+ *     upsc  prelims mcq     54 →  657   (UPSC_PRE_GS1 17→430, UPSC_PRE_CSAT 37→227)
+ *     uppsc mains  desc    180 →  991
+ *     upsc  mains  desc      2 →  508
+ *
+ * against a demand of ~900 generated MCQs for a 25-test UPPSC Prelims series
+ * and ~88-120 generated descriptives per Mains series (§6.2's per-entry mix).
+ *
+ * ⚑ THE PRELIMS AND MAINS BANDS ARE DELIBERATELY NOT SCALED BY THE SAME FACTOR
+ * (mcq 4x, descriptive ~1.7x), because the two stages are not equally short.
+ * §6.3 measured Mains as "FULLY FEASIBLE from PYQs alone" while naming the
+ * Prelims CSAT ladder as the one real supply gap — and the tree agrees: the
+ * hottest CSAT leaves carry ZERO generated questions (uppsc `Arithmetic`
+ * hotness 47.3, `English Language Comprehension Skills` 59.4; upsc
+ * `Basic Numeracy` 139.4, `Comprehension` 123.0), because ca:run never maps a
+ * current-affairs item onto an aptitude skill. Scaling Mains as hard as Prelims
+ * would have spent most of the review budget on the stage that is not short.
+ *
+ * ⚑ THE FLOOR SETS THE DESTINATION; `QGEN_BATCH_MAX_USD` SETS THE SPEED. Raising
+ * these bands does NOT raise the weekly review load — `trimToBudget` caps every
+ * night at one shared budget, so the nightly rate is ~355 questions at the $5
+ * default whatever the floor says. Simulated over the real tree, the floor only
+ * changes how many nights the fill takes (current bands: 983-question deficit,
+ * 3 nights; these bands: 2206, ~7 nights) and the weekly inflow is ~1650
+ * requested in BOTH cases. If review throughput cannot absorb that, the lever is
+ * QGEN_BATCH_MAX_USD, not this band — and a deferred node simply returns the
+ * next night (see `trimToBudget`).
  */
-export const FRESH_MCQ_FLOOR: FloorBand = { min: 3, max: 12 };
+export const FRESH_MCQ_FLOOR: FloorBand = { min: 12, max: 48 };
 /** Mains descriptive fresh-supply floor, per leaf. See `FRESH_MCQ_FLOOR`. */
-export const FRESH_DESCRIPTIVE_FLOOR: FloorBand = { min: 2, max: 6 };
+export const FRESH_DESCRIPTIVE_FLOOR: FloorBand = { min: 3, max: 10 };
 
-/** Never generate more than this per node in one nightly run (a safety cap on a cold-start deficit). */
+/**
+ * Never generate more than this per node in one nightly run (a safety cap on a
+ * cold-start deficit).
+ *
+ * ⚑ RAISING THIS TO 48 WAS TRIED, MEASURED, AND REJECTED — 2026-08-13. It stays
+ * at 20. The floor above is the DESTINATION; this is the per-night RATE, and the
+ * two must not be conflated: a leaf whose floor is 48 simply fills over three
+ * nights, and `haveGenerated` counts only what was accepted, so the shortfall
+ * converges on its own.
+ *
+ * The case for raising it was that `trimToBudget` takes plans smallest-first, so
+ * the biggest deficits — the hottest, most-starved leaves — are deferred
+ * longest, and a bigger cap shortens the whole fill. Simulated over the real
+ * tree at the bands above, that is worth exactly ONE NIGHT: cap 48 fills in 7,
+ * cap 20 in 8. A real generation run at the raised counts measured what that
+ * one night costs:
+ *
+ *   count 10  →  10 accepted (100%), dedup rejects 0
+ *   count 26  →  23 accepted  (88%), dedup rejects 3
+ *   count 37  →  24 accepted  (65%), dedup rejects 11
+ *
+ * and the accepted sets, embedded through Stage-D's own `dedupTextOf` and
+ * compared pairwise against an equal-sized sample of the SAME node's real PYQs:
+ *
+ *   count 10  gen mean 0.545 / p95 0.761   vs real 0.555 / 0.682   — as diverse as real
+ *   count 26  gen mean 0.418 / p95 0.761   vs real 0.434 / 0.694   — as diverse as real
+ *   count 37  gen mean 0.432 / p95 0.732   vs real 0.398 / 0.559   — TIGHTER than real
+ *
+ * So a large single-run count does not buy 48 questions; it buys ~24 plus a pile
+ * of dedup-rejected spend, and on a narrow leaf the survivors are measurably
+ * more alike than the real paper is. `GEN_CHUNK` is 5, so count 37 is 8 separate
+ * calls each carrying `variantHint` ("avoid framings likely used in earlier
+ * sets") — an instruction that pushes AWAY from the dominant question form at
+ * exactly the moment `formatGuidance` is asking the generator to stay on it.
+ * Weaker, same-direction signal: PRE_GS1's direct-single share measured 34.8%
+ * at count 26 against 50% in the pre-existing lower-count output (n=23 vs 18,
+ * so indicative only — the dedup and similarity numbers are the solid half).
+ *
+ * Lowering this is cheap (a longer fill) and raising it is not (worse questions,
+ * wasted spend), so the asymmetry decides it. If it is ever revisited, re-run
+ * that measurement rather than reasoning from the fill duration alone.
+ */
 const MAX_PER_NODE = 20;
 
 /** The two passes this planner makes, named by exam stage rather than by a paper-code pattern. */
