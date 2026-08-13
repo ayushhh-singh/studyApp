@@ -20,6 +20,7 @@ import { logger } from "../lib/logger.js";
 import { liveExamCodes } from "../lib/exams.js";
 import { runPipeline } from "./pipeline.js";
 import { assembleWeeklySets } from "./assemble.js";
+import { CA_DEFAULT_DAYS, CA_DEFAULT_MAX_PER_SOURCE, CA_DEFAULT_MAX_TOTAL } from "./volume.js";
 
 const DEV_SCHEDULE = "0 */6 * * *"; // every 6 hours
 // Weekly assemblies: Monday 06:00 IST — after the weekend's items are triaged
@@ -81,7 +82,19 @@ export function startDevCaScheduler(): void {
       // unattended spend the flag's default is designed to prevent.
       liveExamCodes()
         .then((examCodes) =>
-          runPipeline({ days: 3, maxPerSource: 15, maxTotal: 40, examCodes }, (msg) => logger.info(`ca: ${msg}`)),
+          // Budget from ./volume.ts, NOT inline literals. These used to be a
+          // second copy of `ca:run`'s defaults, so raising the CLI alone would
+          // have left a local `pnpm dev` quietly running the old volume against
+          // the same production database.
+          runPipeline(
+            {
+              days: CA_DEFAULT_DAYS,
+              maxPerSource: CA_DEFAULT_MAX_PER_SOURCE,
+              maxTotal: CA_DEFAULT_MAX_TOTAL,
+              examCodes,
+            },
+            (msg) => logger.info(`ca: ${msg}`),
+          ),
         )
         .then((result) => logger.info({ result }, "ca: scheduled pipeline run finished"))
         .catch((err) => logger.error({ err }, "ca: scheduled pipeline run failed"));

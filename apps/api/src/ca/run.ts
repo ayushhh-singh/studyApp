@@ -32,6 +32,7 @@ import { parseArgs, report } from "../ingest/_shared.js";
 import { resolveTargetExams } from "../lib/exams.js";
 import { listPendingBatches } from "./triage-batch-store.js";
 import { runPipeline } from "./pipeline.js";
+import { CA_DEFAULT_DAYS, CA_DEFAULT_MAX_PER_SOURCE, CA_DEFAULT_MAX_TOTAL } from "./volume.js";
 
 async function main(): Promise<void> {
   const args = parseArgs(
@@ -62,9 +63,13 @@ async function main(): Promise<void> {
     action: "ingesting",
     log: (m) => report.warn(m),
   });
-  const days = typeof args.days === "string" ? Number(args.days) : 3;
-  const maxPerSource = typeof args["max-per-source"] === "string" ? Number(args["max-per-source"]) : 15;
-  const maxTotal = typeof args["max-total"] === "string" ? Number(args["max-total"]) : 40;
+  // Defaults live in ./volume.ts — ONE home shared with the dev scheduler, so
+  // the two cannot drift (they were separate literals before). The header there
+  // carries the measurement behind each number.
+  const days = typeof args.days === "string" ? Number(args.days) : CA_DEFAULT_DAYS;
+  const maxPerSource =
+    typeof args["max-per-source"] === "string" ? Number(args["max-per-source"]) : CA_DEFAULT_MAX_PER_SOURCE;
+  const maxTotal = typeof args["max-total"] === "string" ? Number(args["max-total"]) : CA_DEFAULT_MAX_TOTAL;
   const mode = args.mode === "sync" ? "sync" : "batch";
   // No hand-rolled finite/>=0 check here any more — the parser's
   // `nonNegativeNumber` kind enforces exactly that, before anything is spent.

@@ -52,8 +52,10 @@ const UNIQUE_VIOLATION = "23505";
  *    never submitted, and left holding the in-flight lock until the reaper.
  *  - an `.in("id", ids)` update/delete puts every id in the URL, which fails
  *    ("fetch failed") past a few hundred (this repo has hit that at 500+).
- * 200 keeps both well inside their limits; at the default --max-total (40) a
- * whole run is a single chunk, so this is a no-op until an operator raises it.
+ * 200 keeps both well inside their limits; at the default --max-total (70, see
+ * ./volume.ts) a whole run is still a single chunk — the ledger keeps ONE row
+ * per item regardless of how many exams it fans out to, so this stays a no-op
+ * until an operator raises the budget past 200.
  */
 const WRITE_CHUNK = 200;
 
