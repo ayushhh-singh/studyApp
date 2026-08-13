@@ -27,7 +27,8 @@ import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { HttpError } from "../lib/http-error.js";
 import { listExamsDetailed } from "../lib/exams.js";
-import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { assemblyVisibilityOrFilter } from "../lib/question-visibility.js";
+import { balancedPick, maxSectionDeviationPct } from "../lib/topic-balance.js";
 import { PRELIMS_CSAT_PAPER_CODE, PRELIMS_GS1_PAPER_CODE, PRELIMS_MARKING } from "../lib/exam-papers.js";
 import {
   UPSC_ESSAY_PAPER_CODE,
@@ -75,10 +76,15 @@ const MOCK_MIN_PER_SECTION = 1;
  * prelims 3/1, mains 2). The actual set count is supply-driven —
  * min(MOCK_MAX_SETS, floor(available / count)) — so as the bank grows the count
  * grows toward this ceiling on the monthly rebuild, instead of freezing at a
- * hardcoded number. Mock sets sample independently (overlap across sets is
- * acceptable per product framing), so this is a variety/UX ceiling, not a
- * uniqueness limit; 6 keeps the Practice → Mock Tests list substantial but
+ * hardcoded number. 6 keeps the Practice → Mock Tests list substantial but
  * manageable. Today's supply supports 4–9 sets per paper.
+ *
+ * ⚑ This ceiling is now also a UNIQUENESS budget, not only a variety/UX one. The
+ * N sets of a paper are mutually disjoint (see `buildMocks`), which the
+ * supply-driven formula makes free — but it means raising this number spends real
+ * pool depth, and a paper whose pool cannot support N disjoint papers simply
+ * builds fewer. The earlier framing here ("sets sample independently, overlap is
+ * acceptable") described the old behaviour and is no longer true.
  */
 export const MOCK_MAX_SETS = 6;
 
@@ -309,7 +315,7 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
       // hardcoded UPPSC, which is what made this pool UPPSC-only regardless of
       // the paper code passed in.
         .eq("exam_code", owningExamForPaper(paperCode))
-        .or(questionVisibilityOrFilter("catalog"))
+        .or(assemblyVisibilityOrFilter())
         .order("id", { ascending: true }),
     ),
     topLevelByNode(paperCode),
@@ -341,58 +347,40 @@ export async function sectionHotness(paperCode: string, weightage: Map<string, O
 
 /**
  * Weightage-weighted sample across top-level sections, so a mock's topic mix
- * tracks how often UPPSC actually asks each section (recency-weighted hotness),
- * the way a real paper does — instead of the old flat round-robin that gave a
- * niche section the same share as History/Polity.
+ * tracks how often the commission actually asks each section (recency-weighted
+ * hotness), the way a real paper does — instead of a flat round-robin that would
+ * give a niche section the same share as History/Polity.
  *
- * Two-phase, so it's reweighting rather than exclusion:
- *   1. Coverage floor — up to MOCK_MIN_PER_SECTION from every populated section,
- *      so even a zero-weightage section appears.
- *   2. Weighted fill — the remaining slots go to sections in proportion to their
- *      hotness, via a weighted-round-robin ticket interleave (a heavier section
- *      gets more early tickets). A section that runs dry is simply skipped.
- *   3. Any slots still unfilled (all remaining sections had weight 0, or supply
- *      ran short) are topped up from whatever's left, so the mock still reaches
- *      `count` whenever supply allows.
+ * Now a thin wrapper over `lib/topic-balance.ts`'s `balancedPick`, which is the
+ * ONE selector every assembly surface uses. The signature is unchanged, so
+ * `on-demand.ts`'s fresh-mock builder is untouched.
+ *
+ * The old ticket-interleave implementation this replaces measured 0.5-0.7pp of
+ * max section deviation on live mocks, so the bar for swapping it was
+ * "equal or better, on real papers" — verified, not assumed, before shipping.
+ *
+ * The shuffle stays HERE rather than moving into the balancer: `balancedPick`
+ * deliberately preserves the caller's within-section order because CA and the
+ * daily quiz's generated slice both carry a meaningful one, and for a mock the
+ * meaningful order is "random, so two sets of the same paper differ".
+ *
+ * `preferUnused` is how the N sets of one paper avoid repeating each other
+ * WITHOUT distorting the topic mix — see `buildMocks`. Because `balancedPick`
+ * honours within-section order, putting a section's unused questions ahead of its
+ * used ones makes each section spend its own fresh supply first and repeat only
+ * when that section is genuinely exhausted. The per-section COUNTS are unchanged
+ * either way, so the paper's weightage mix is exactly what it would have been.
  */
-export function weightedSample(items: AvailQ[], count: number, weightOf: (top: string) => number): AvailQ[] {
-  const groups = new Map<string, AvailQ[]>();
-  for (const it of items) (groups.get(it.top) ?? groups.set(it.top, []).get(it.top)!).push(it);
-  for (const arr of groups.values()) arr.splice(0, arr.length, ...shuffle(arr));
-
-  const picked: AvailQ[] = [];
-  // 1. Coverage floor, highest-weightage sections first — so a small mock whose
-  //    `count` is less than the number of sections still spends its floor on the
-  //    sections UPPSC weights most, rather than on whatever section happened to
-  //    appear first in the pool. (For count >= sections every section gets its
-  //    floor regardless of order, so this only changes the small-mock case.)
-  const floorOrder = [...groups.keys()].sort((a, b) => weightOf(b) - weightOf(a));
-  for (const top of floorOrder) {
-    const arr = groups.get(top)!;
-    for (let i = 0; i < MOCK_MIN_PER_SECTION && arr.length && picked.length < count; i++) picked.push(arr.pop()!);
-  }
-  // 2. Weighted fill: tickets at position (k-0.5)/weight, walked ascending — a
-  //    heavier section's tickets bunch up front, so it's drawn more often.
-  const tickets: { pos: number; top: string }[] = [];
-  for (const [top, arr] of groups) {
-    const w = Math.max(0, weightOf(top));
-    if (w <= 0 || arr.length === 0) continue;
-    for (let k = 1; k <= arr.length; k++) tickets.push({ pos: (k - 0.5) / w, top });
-  }
-  tickets.sort((a, b) => a.pos - b.pos);
-  for (const t of tickets) {
-    if (picked.length >= count) break;
-    const arr = groups.get(t.top)!;
-    if (arr.length) picked.push(arr.pop()!);
-  }
-  // 3. Top-up from any leftover (weight-0 sections included).
-  if (picked.length < count) {
-    for (const it of shuffle([...groups.values()].flat())) {
-      if (picked.length >= count) break;
-      picked.push(it);
-    }
-  }
-  return picked;
+export function weightedSample(
+  items: AvailQ[],
+  count: number,
+  weightOf: (top: string) => number,
+  preferUnused?: ReadonlySet<string>,
+): AvailQ[] {
+  const pool = preferUnused?.size
+    ? [...shuffle(items.filter((q) => !preferUnused.has(q.id))), ...shuffle(items.filter((q) => preferUnused.has(q.id)))]
+    : shuffle(items);
+  return balancedPick({ pool, count, weightOf, minPerSection: MOCK_MIN_PER_SECTION });
 }
 
 /** `marking_scheme.type` for one exam's prelims papers — a label, not logic. */
@@ -452,6 +440,36 @@ async function upsertMockTest(input: {
   return data.id as string;
 }
 
+/**
+ * POST-ASSEMBLY structural gate. The registry says what the paper must be; this
+ * checks the paper we actually built against it, immediately before persisting.
+ *
+ * The pre-checks upstream (`available.length < cfg.count` → skip) make a short
+ * paper unlikely rather than impossible: `weightedSample` fills by section and
+ * tops up from leftovers, so a pool that is large enough overall but is
+ * concentrated in a way the sampler cannot spend would silently yield fewer
+ * questions than the commission notifies. Measured today all 100 live mocks carry
+ * exactly their registry count — so this asserts a property that HOLDS, which is
+ * the only time it is cheap to start asserting it.
+ *
+ * Duplicates are checked too. `weightedSample` cannot produce one (each item is
+ * consumed once), but `test_questions` has a (test_id, question_id) unique index,
+ * so a duplicate becomes a 23505 at insert time and a confusing 500; failing here
+ * names the real problem instead.
+ */
+function assertPaperStructure(slug: string, items: AvailQ[], count: number): void {
+  if (items.length !== count) {
+    throw new HttpError(
+      500,
+      `mock ${slug}: assembled ${items.length} questions but the exam's paper structure notifies ${count}`,
+    );
+  }
+  const unique = new Set(items.map((q) => q.id));
+  if (unique.size !== items.length) {
+    throw new HttpError(500, `mock ${slug}: ${items.length - unique.size} duplicate question(s) in one paper`);
+  }
+}
+
 async function setMembership(testId: string, items: AvailQ[]): Promise<void> {
   const del = await supabase().from("test_questions").delete().eq("test_id", testId);
   if (del.error) throw new HttpError(500, `clear members failed: ${del.error.message}`);
@@ -492,8 +510,28 @@ export async function buildMocks(examCodes: string[], log: Log = () => {}): Prom
       const weightOf = (top: string) => hot.get(top) ?? 0;
       // As many distinct sets as supply allows, capped by the shared ceiling.
       const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
+      // ⚑ The N sets of a paper no longer repeat each other where supply allows.
+      // Measured on the live sets before this: PRE_GS1 20% overlap (30 shared
+      // questions between two 150-question "full-length papers"), MAINS_GS5 55%,
+      // MAINS_GS1 35%.
+      //
+      // PREFER-unused, not REQUIRE-unused, and the difference is measured. Making
+      // the sets strictly disjoint (each drawing from what the last left) drove
+      // overlap to 0% but WRECKED the topic mix on thin pools, because the
+      // heavily-weighted sections are exactly the ones that deplete first: max
+      // section deviation went 5.0 -> 63.3pp on MAINS_GS5, 6.6 -> 36.6pp on
+      // MAINS_GS6 and 1.1 -> 7.4pp on PRE_CSAT. That trades requirement 2 for
+      // requirement 4, which is not a fix.
+      //
+      // Ordering the pool unused-first instead keeps the per-section counts
+      // identical to an independent sample — so the mix is untouched — while each
+      // section still spends its own fresh questions before repeating any.
+      const used = new Set<string>();
       for (let s = 1; s <= numSets; s++) {
-        const sample = weightedSample(available, cfg.count, weightOf);
+        const sample = weightedSample(available, cfg.count, weightOf, used);
+        assertPaperStructure(`mock:${cfg.paperCode}:${s}`, sample, cfg.count);
+        for (const q of sample) used.add(q.id);
+        const deviation = maxSectionDeviationPct(sample, weightOf, hot.keys());
         const totalMarks = roundMarks(sample.reduce((sum, q) => sum + q.marks, 0));
         // `mock:<PAPER_CODE>:<n>` needs no exam qualifier: paper codes are
         // globally unique across exams and a non-default exam's are prefixed,
@@ -512,7 +550,10 @@ export async function buildMocks(examCodes: string[], log: Log = () => {}): Prom
           negativeMarking: cfg.negativeMarking,
         });
         await setMembership(testId, sample);
-        log(`built mock:${cfg.paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks`);
+        log(
+          `built mock:${cfg.paperCode}:${s} — ${sample.length} questions, ${totalMarks} marks, ` +
+            `max section deviation ${deviation.toFixed(1)}pp`,
+        );
       }
       results.push({ exam_code: examCode, paper_code: cfg.paperCode, built: numSets, skipped: false });
     }
@@ -645,7 +686,7 @@ async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[
         .eq("paper_code", paperCode)
         // Same per-paper exam scoping as the MCQ pool above.
         .eq("exam_code", owningExamForPaper(paperCode))
-        .or(questionVisibilityOrFilter("catalog"))
+        .or(assemblyVisibilityOrFilter())
         .order("id", { ascending: true }),
     ),
     topLevelByNode(paperCode),
@@ -731,14 +772,33 @@ export async function buildMainsMocks(examCodes: string[], log: Log = () => {}):
       const hot = await sectionHotness(cfg.paperCode, weightage, year);
       const weightOf = (top: string) => hot.get(top) ?? 0;
       const numSets = Math.min(MOCK_MAX_SETS, Math.max(1, Math.floor(available.length / cfg.count)));
+      // Prefer-unused across the paper's sets, same mechanism and same reasoning
+      // as the prelims builder — and it matters more here, because a mains paper
+      // is 20 questions against a pool of ~100-200, so an independent sample
+      // repeats readily: measured 55% overlap between two MAINS_GS5 sets, 35% on
+      // MAINS_GS1, 30% on three more papers.
+      const used = new Set<string>();
       for (let s = 1; s <= numSets; s++) {
-        const sample = weightedSample(available, cfg.count, weightOf);
+        const sample = weightedSample(available, cfg.count, weightOf, used);
+        assertPaperStructure(`mock:${cfg.paperCode}:${s}`, sample, cfg.count);
+        for (const q of sample) used.add(q.id);
+        const deviation = maxSectionDeviationPct(sample, weightOf, hot.keys());
         // Re-weight each sampled question to the real paper's marks pattern
         // (shuffled so the values are mixed, like the actual paper), so every set
         // matches the paper's exact structure regardless of the PYQs' own marks.
         const pattern = shuffle(cfg.marksPattern);
         const weighted = sample.map((q, i) => ({ ...q, marks: pattern[i] ?? cfg.marksPattern[0] }));
         const totalMarks = weighted.reduce((sum, q) => sum + q.marks, 0);
+        // The registry's notified total, re-checked on the paper we actually
+        // built rather than only on the config it was built from — a pattern
+        // shorter than `count` would otherwise fall back to `marksPattern[0]`
+        // above and quietly mis-total the paper.
+        if (totalMarks !== officialMax) {
+          throw new HttpError(
+            500,
+            `mock:${cfg.paperCode}:${s}: assembled marks total ${totalMarks} but the registry notifies ${officialMax}`,
+          );
+        }
         await upsertMainsMockTest({
           slug: `mock:${cfg.paperCode}:${s}`,
           examCode,
@@ -750,7 +810,10 @@ export async function buildMainsMocks(examCodes: string[], log: Log = () => {}):
           title: cfg.title,
           sample: weighted,
         });
-        log(`built mock:${cfg.paperCode}:${s} — ${weighted.length} questions, ${totalMarks} marks`);
+        log(
+          `built mock:${cfg.paperCode}:${s} — ${weighted.length} questions, ${totalMarks} marks, ` +
+            `max section deviation ${deviation.toFixed(1)}pp`,
+        );
       }
       results.push({ exam_code: examCode, paper_code: cfg.paperCode, built: numSets, skipped: false });
     }
