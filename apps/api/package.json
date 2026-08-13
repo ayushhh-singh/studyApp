@@ -14,6 +14,7 @@
     "test:qgen": "tsx scripts/test-qgen-plan.ts",
     "test:args": "tsx scripts/test-parse-args.ts",
     "test:ca-rotation": "tsx scripts/test-source-rotation.ts",
+    "test:embed-chunk": "tsx scripts/test-embed-chunk.ts",
     "prompts:snapshot": "tsx scripts/prompt-snapshot.ts",
     "ingest:syllabus": "tsx --env-file-if-exists=.env src/ingest/syllabus.ts",
     "ingest:upsc-syllabus": "tsx --env-file-if-exists=.env src/ingest/seed/upsc-syllabus-seed.ts",

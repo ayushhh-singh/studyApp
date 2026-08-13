@@ -17,6 +17,7 @@ import { embeddings } from "../lib/embeddings.js";
 import { toVectorLiteral, upsertEmbeddingRows, type EmbeddingRow } from "../lib/embed-upsert.js";
 import { paperByCode, parseArgs, report } from "./_shared.js";
 import { computeEmbedCoverage } from "./embed-coverage.js";
+import { chunkWithContext } from "./chunk.js";
 
 type Locale = "hi" | "en";
 const LOCALES: Locale[] = ["hi", "en"];
@@ -31,26 +32,6 @@ interface Chunk {
   exam_code: string;
 }
 
-const MAX_CHARS = 1500;
-
-function splitText(text: string): string[] {
-  const clean = text.replace(/\s+/g, " ").trim();
-  if (clean.length <= MAX_CHARS) return clean ? [clean] : [];
-  const chunks: string[] = [];
-  const sentences = clean.split(/(?<=[.?!।])\s+/);
-  let cur = "";
-  for (const s of sentences) {
-    if ((cur + " " + s).length > MAX_CHARS && cur) {
-      chunks.push(cur.trim());
-      cur = s;
-    } else {
-      cur = cur ? `${cur} ${s}` : s;
-    }
-  }
-  if (cur.trim()) chunks.push(cur.trim());
-  return chunks;
-}
-
 function pushChunks(
   out: Chunk[],
   source_type: Chunk["source_type"],
@@ -58,8 +39,10 @@ function pushChunks(
   locale: Locale,
   text: string,
   exam_code: string,
+  /** Identifying context repeated onto CONTINUATION chunks — see chunk.ts. */
+  contextFor?: string,
 ): void {
-  splitText(text).forEach((chunk_text, chunk_index) =>
+  chunkWithContext(text, contextFor).forEach((chunk_text, chunk_index) =>
     out.push({ source_type, source_id, locale, chunk_index, chunk_text, exam_code }),
   );
 }
@@ -135,7 +118,11 @@ async function collectQuestionChunks(limit?: number): Promise<Chunk[]> {
     for (const loc of LOCALES) {
       const optText = opts.map((o) => o.text_i18n?.[loc]).filter(Boolean).join("; ");
       const text = [stem[loc], optText, expl[loc]].filter(Boolean).join(" ");
-      pushChunks(out, "question", q.id, loc, text, nodeExam ?? paperExam ?? DEFAULT_EXAM_CODE);
+      // The stem is the context: a continuation chunk is explanation prose, and
+      // without this it reaches the mentor with no indication of the question it
+      // explains. Byte-identical for every question that fits one chunk — see
+      // pushChunks' `contextFor` doc.
+      pushChunks(out, "question", q.id, loc, text, nodeExam ?? paperExam ?? DEFAULT_EXAM_CODE, stem[loc]);
     }
   }
   if (unmapped > 0) {
@@ -190,7 +177,14 @@ async function clearStaleChunks(chunks: Chunk[]): Promise<void> {
 function packBySource(chunks: Chunk[], size: number): Chunk[][] {
   const groups = new Map<string, Chunk[]>();
   for (const c of chunks) {
-    const k = `${c.source_type} ${c.source_id}`;
+    // Separator is a printable "|" rather than a NUL byte. It was \x00, which
+    // is safe as a key (neither a source_type nor a uuid can contain it) but
+    // made the WHOLE FILE binary to grep — `grep -n pushChunks embed.ts`
+    // silently returned nothing while awk printed the line. That is the D15
+    // census-miss class, and it cost real time twice while auditing this very
+    // file. "|" is equally impossible in `syllabus`/`question` or a uuid, and
+    // this Map is local to the function, so the change is behaviour-identical.
+    const k = `${c.source_type}|${c.source_id}`;
     (groups.get(k) ?? groups.set(k, []).get(k)!).push(c);
   }
   const batches: Chunk[][] = [];
