@@ -377,9 +377,29 @@ children when the depth-1 node carries more than ~2 tests' worth of supply.**
 | **State-special (UPPSC only)** | 100 Q | UP-tagged PYQ + `state_focus` CA | | | Chahal ships 5. Maps to `MAINS_GS5/GS6` themes at Prelims level and to `current_affairs_items.state_focus` (migration `0116`). |
 | **Mains sectional / full-length** | 20 Q | **80–100%** | 0% | **0–20%** | §6.5 — descriptive generation is not cleared. |
 
-Every selection goes through `questionVisibilityOrFilter("test")`, and
-"unseen by this user" is computed from the user's own `attempt_answers` — the
-idea `recentlyUsedInDailyQuiz` already implements.
+Every selection goes through **`assemblyVisibilityOrFilter()`** — published AND
+review-approved, no exceptions. ⚑ **CORRECTED 2026-08-13: this line used to name
+`questionVisibilityOrFilter("test")`, and that would have been an instruction to
+reproduce a live defect.** The `"test"` scope admits anything on the
+`CURRENT_AFFAIRS` paper code regardless of review state — an exception written
+when a CA MCQ could never be approved at all, whose population has since inverted
+(uppsc CA MCQs: approved 1451 / needs_review 18 / **rejected 331**). It had put 37
+unapproved questions into 25 live tests. `"test"` is now a SERVING-only scope; a
+series builder must use `assemblyVisibilityOrFilter()`, which takes no scope
+argument precisely so this cannot be got wrong again.
+
+Topic mix comes from `lib/topic-balance.ts`'s `balancedPick`, the one selector
+every surface now shares — it takes shared running counts, so a series entry
+assembled in several slices (PYQ / CA / qgen, per the table above) balances as ONE
+paper rather than as three independent draws. `lib/sections.ts` supplies the axis.
+
+"Unseen by this user" is computed from the user's own `attempt_answers` — the idea
+`recentlyUsedInDailyQuiz` already implements. ⚑ Note the measured constraint a
+series inherits: **prefer-unused, never require-unused.** Making a paper's sets
+strictly disjoint drives overlap to 0% but wrecks the topic mix on a thin pool
+(MAINS_GS5 measured 5.0 → 69.8pp), because the heavily-weighted sections deplete
+first — so a full-length entry that demands freshness must be given a pool deep
+enough to supply it, not a stricter selector.
 
 ### 6.3 Feasibility of the FULL pattern — verdict per product
 
