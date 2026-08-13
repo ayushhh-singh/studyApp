@@ -229,7 +229,8 @@
     "paperCount_one": "{{count}} paper",
     "paperCount_other": "{{count}} papers",
     "noMatchTitle": "No papers match",
-    "noMatchDescription": "Try a different exam stage."
+    "noMatchDescription": "Try a different exam stage.",
+    "resourcesLinkCta": "Free NCERT textbooks & government sources"
   },
   "Practice": {
     "title": "Practice",
@@ -840,9 +841,7 @@
     "badgesTitle": "Badges",
     "badgesDescription": "Milestones you've earned so far.",
     "badgesEmptyTitle": "No badges yet",
-    "badgesEmptyDescription": "Write an answer, take a test or build a streak — badges land here as you go.",
-    "helpResources": "Free resources",
-    "helpResourcesHint": "NCERT textbooks and government sources, free to download"
+    "badgesEmptyDescription": "Write an answer, take a test or build a streak — badges land here as you go."
   },
   "Review": {
     "title": "Review Queue",
@@ -2268,7 +2267,7 @@
     "handedOff": "Your email app should be opening with this message ready to send. If nothing happened, copy the address on the left and email us directly — your text is still here."
   },
   "Resources": {
-    "navTitle": "Free resources",
+    "navTitle": "Resources",
     "title": "Resources",
     "description": "Everything you can study from without paying: the chapters we have already written for your {{exam}} syllabus, NCERT's own textbooks, and the government's own reports.",
     "filterLabel": "Filter by subject",

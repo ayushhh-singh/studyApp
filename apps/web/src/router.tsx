@@ -70,6 +70,9 @@ export const router = createBrowserRouter([
               // The tour's permanent, always-findable discovery surface (layer 5).
               { path: "explore", lazy: () => import("@/routes/explore") },
               { path: "learn", lazy: () => import("@/routes/learn") },
+              // Static `resources` outranks the sibling `learn/:paperCode`
+              // dynamic segment, so it is matched first. Verified in-browser.
+              { path: "learn/resources", lazy: () => import("@/routes/learn-resources") },
               { path: "learn/:paperCode", lazy: () => import("@/routes/learn-paper") },
               { path: "learn/:paperCode/trends", lazy: () => import("@/routes/learn-trends") },
               { path: "learn/:paperCode/:nodeId", lazy: () => import("@/routes/learn-node") },

@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { Info, HelpCircle, Library, Mail, ChevronRight, FileText, ShieldCheck, ReceiptIndianRupee } from "lucide-react";
+import { Info, HelpCircle, Mail, ChevronRight, FileText, ShieldCheck, ReceiptIndianRupee } from "lucide-react";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { useLocale } from "@/hooks/use-locale";
 import { SUPPORT_EMAIL } from "@/components/marketing/footer";
@@ -29,24 +29,6 @@ export function HelpAboutCard() {
           <span className="flex min-w-0 flex-col gap-0.5">
             <span className="text-sm font-medium">{t("Profile.helpAbout")}</span>
             <span className="text-xs text-muted-foreground">{t("Profile.helpAboutHint")}</span>
-          </span>
-          <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
-        </Link>
-
-        {/* /resources is a PUBLIC page with its own marketing chrome, so it is
-            not in the sidebar — which left it reachable from nowhere at all
-            inside the signed-in app, the same hole /pyq-archive fell into
-            (docs/OUTSTANDING.md §3 C5). This card exists precisely so a
-            signed-in user doesn't have to log out to reach a standalone public
-            page, and its "Already in Neev" section is signed-in-only, so this
-            is the audience most likely to want it. */}
-        <Link to={`/${locale}/resources`} className={rowClass}>
-          <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-marigold/15 text-marigold-foreground">
-            <Library className="size-4.5" aria-hidden />
-          </span>
-          <span className="flex min-w-0 flex-col gap-0.5">
-            <span className="text-sm font-medium">{t("Profile.helpResources")}</span>
-            <span className="text-xs text-muted-foreground">{t("Profile.helpResourcesHint")}</span>
           </span>
           <ChevronRight className="ml-auto size-4 shrink-0 text-muted-foreground" aria-hidden />
         </Link>

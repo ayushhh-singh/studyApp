@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
-import { BookOpen, FileText, ListChecks, Target, ArrowRight, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, BookOpen, FileText, Library, ListChecks, SlidersHorizontal, Target } from "lucide-react";
 import type { PaperSummary } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { EmptyState } from "@/components/ui-x/empty-state";
@@ -138,6 +138,21 @@ export function Component() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader title={t("Learn.title")} description={t("Learn.description", { exam: examName })} tourAnchor="learn" />
+
+      {/* Free base texts, beside the syllabus they support. This is where a
+          reader working through a paper actually wants NCERT — not in Profile,
+          where it first landed only because /resources had no in-app home.
+          Unconditional: it needs no data, so it is useful on day one. */}
+      <div className="flex flex-wrap gap-2">
+        <Link
+          to={`/${locale}/learn/resources`}
+          className="inline-flex w-fit items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Library className="size-4 shrink-0 text-marigold-foreground" aria-hidden />
+          {t("Learn.resourcesLinkCta")}
+          <ArrowRight className="size-3.5 shrink-0" aria-hidden />
+        </Link>
+      </div>
 
       {!isLoading && totalCount > 0 && (
         <Link
