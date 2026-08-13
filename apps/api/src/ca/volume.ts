@@ -84,15 +84,28 @@
  *    Of 3,370 items taken: 60.0% kept, 32.8% scored prelims >= 2 (MCQ-eligible),
  *    but only 4.1% scored mains == 3 — the ONLY tier that yields a descriptive
  *    question. At 160 items/day that is ~6.6 mains-3 items, against a demand of
- *    5/day/exam x 2 live exams = 10 descriptive questions/day.
+ *    the daily mains cap x 2 live exams.
  *
- * ⚑ AND THE HONEST LIMIT OF THIS CHANGE: 70 does NOT close the mains gap. It
- * takes ~160 -> ~280 items/day, so ~6.6 -> ~11.5 mains-3 items/day and the
- * daily mains sitting from ~1.5/5 to roughly 2.5-3/5. Closing it by volume
- * alone needs ~400 items/day (100/run), which the wall clock below does not
- * allow. The cheaper follow-up is the 4.1% itself, or generating more than one
- * descriptive question from a mains-3 item that is rich enough for two — both
- * are prompt/quality changes needing their own validation, not a knob.
+ * ⚑ WHETHER 70 CLOSES THE MAINS GAP DEPENDS ON A CAP THAT MOVED THE SAME DAY.
+ * Against the ORIGINAL cap of 5/day/exam the answer was no: demand 10/day, and
+ * 70 lifts ~160 -> ~280 items/day, i.e. ~6.6 -> ~11.5 mains-3 items/day, which
+ * at the measured conversion (the verification run turned 8 mains-3 items into
+ * 5 descriptive questions — a question is generated per RELEVANT exam, and not
+ * every item is mains-3 for both) is ~7.2 questions/day. Short of 10.
+ *
+ * `DAILY_MAINS_MAX` was then lowered 5 -> 3 (./assemble.ts, and the reasoning
+ * there is daily student load, not this arithmetic), which puts demand at
+ * 6/day — so **~7.2 vs 6 now closes it, with roughly 20% margin**, and at the
+ * 11.4% mains-3 rate the verification run actually showed it closes to ~20/day.
+ *
+ * TREAT THAT AS PLAUSIBLE, NOT PROVEN. Both figures lean on one run's
+ * conversion ratio, and its 11.4% is 2.8x the 4.1% historical baseline — the
+ * new subject desks may genuinely have raised it by supplying real policy
+ * issues rather than general news, or that batch may simply have been rich.
+ * Same signature, different causes. Measure the `mains == 3` rate over a few
+ * days at this volume before concluding. If it reverts toward 4.1%, the next
+ * lever is a second descriptive question from an item rich enough for two —
+ * a prompt/quality change needing its own validation, not a knob.
  *
  * ---------------------------------------------------------------------------
  * ⚑ WHY 70 AND NOT MORE — THE WALL CLOCK, NOT THE MONEY
