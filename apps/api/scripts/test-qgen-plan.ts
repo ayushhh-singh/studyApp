@@ -11,6 +11,7 @@
  * live data while only one exam is ever in shortfall.
  */
 import { mergePlans, trimToBudget } from "../src/qgen/topup.js";
+import { answerTextOf, isCombinationAnswer } from "../src/qgen/dedup.js";
 import type { GeneratePlan } from "../src/qgen/generate.js";
 
 let pass = 0;
@@ -96,6 +97,36 @@ function plan(nodeId: string, kind: "mcq" | "descriptive", count: number, examCo
 
   check("empty input → nothing kept, nothing dropped", trimToBudget([], 5).dropped === 0);
   check("estimate is non-negative and finite", Number.isFinite(both.estUsd) && both.estUsd >= 0);
+}
+
+// ---------------------------------------------------------------------------
+// Stage-D same-answer rule (dedup.ts) — the half cosine provably cannot do.
+// ---------------------------------------------------------------------------
+{
+  const opt = (key: string, en: string) => ({ key, text_i18n: { en, hi: "" } });
+  const OPTS = [opt("A", "Firoz Shah Tughlaq"), opt("B", "Sikandar Lodi"), opt("C", "Sher Shah Suri"), opt("D", "Akbar")];
+
+  check("a substantive answer is extracted, normalised", answerTextOf(OPTS, "A") === "firoz shah tughlaq");
+  check("the key is matched case-insensitively", answerTextOf(OPTS, "a") === "firoz shah tughlaq");
+  check("a key naming no option yields null", answerTextOf(OPTS, "Z") === null);
+  check("no options (a descriptive candidate) yields null", answerTextOf(null, "A") === null);
+  check("no key yields null", answerTextOf(OPTS, null) === null);
+  check("two questions keyed to the same option TEXT collide", answerTextOf(OPTS, "A") === answerTextOf([opt("C", "Firoz Shah Tughlaq")], "C"));
+
+  // ⚑ The load-bearing exclusion. Measured: comparing combination closures takes
+  // false rejections from 80 to 1,385 over the real bank, because ~2/3 of MCQ
+  // answers ARE such closures and unrelated questions share them constantly.
+  for (const t of [
+    "both 1 and 2", "neither 1 nor 2", "1 only", "2 and 3 only", "1 2 and 3",
+    "all of the above", "none of the above", "1 2 3 4", "a 1 b 2 c 3 d 4", "i ii iii",
+  ]) {
+    check(`combination closure excluded: "${t}"`, isCombinationAnswer(t));
+  }
+  for (const t of ["firoz shah tughlaq", "mental set", "cauvery river", "special investigation team sit", "algorithm", "22338"]) {
+    check(`substantive answer kept: "${t}"`, !isCombinationAnswer(t));
+  }
+  check("a combination-keyed question yields no comparable answer", answerTextOf([opt("A", "Both 1 and 2")], "A") === null);
+  check("a too-short answer yields null", answerTextOf([opt("A", "x")], "A") === null);
 }
 
 if (failures.length > 0) {

@@ -101,7 +101,10 @@ function stemEn(c: Candidate): string {
  * exactly the stem for that kind.
  */
 function dedupCandidateOf(c: Candidate): DedupCandidate {
-  return { stem: stemEn(c), options: c.mcq?.options };
+  // `correctOptionKey` feeds the same-answer rule — see `dedup.ts`'s note on why
+  // cosine alone provably cannot catch same-fact duplication. Descriptive
+  // candidates carry neither options nor a key, so it is a no-op for them.
+  return { stem: stemEn(c), options: c.mcq?.options, correctOptionKey: c.mcq?.correct_option_key ?? null };
 }
 function stemI18n(c: Candidate): BilingualText {
   return c.mcq?.stem_i18n ?? c.desc?.stem_i18n ?? { hi: "", en: "" };

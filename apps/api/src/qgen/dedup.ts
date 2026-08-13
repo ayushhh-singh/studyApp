@@ -76,6 +76,13 @@ export interface DedupResult {
   maxSimilarity: number;
   /** Nearest EXISTING questions (highest cosine first, up to 3). */
   nearest: DedupHit[];
+  /**
+   * Set when the SAME-ANSWER rule fired rather than the cosine one — the two
+   * catch different things, so the reason has to be distinguishable or a future
+   * tuning pass cannot tell which signal is doing the work. Carries the
+   * normalised answer text the candidate collided on.
+   */
+  sameAnswerAs?: { question_id: string | null; answer: string };
 }
 
 function normalize(v: number[]): number[] {
@@ -142,10 +149,89 @@ export function dedupTextOf(stem: string, options?: readonly StoredOption[] | nu
   return [head, ...opts].join("\n").trim();
 }
 
-/** A candidate as this stage compares it: the rendered text, nothing else. */
+/** A candidate as this stage compares it: the rendered text, plus its own answer. */
 export interface DedupCandidate {
   stem: string;
   options?: readonly StoredOption[] | null;
+  /** The option key this candidate is keyed to, for the same-answer check below. */
+  correctOptionKey?: string | null;
+}
+
+/**
+ * ⚑ THE SAME-ANSWER CHECK — why a second signal exists at all.
+ *
+ * Cosine similarity provably cannot catch same-FACT duplication, and this is
+ * measured, not argued. The generated duplicates a blind panel caught on
+ * 2026-08-13 sit at **0.7833** ("Who founded the city of Jaunpur?" vs "The city
+ * of Jaunpur was founded in 1359 CE by which Tughlaq ruler?"), **0.7613** and
+ * **0.7921** — while `DEDUP_THRESHOLD_BY_KIND`'s own note records the
+ * commission's genuine RE-ASKS at **0.9034-0.9254**. The two distributions are
+ * not merely overlapping, they are INVERTED: a threshold low enough to catch the
+ * duplicates sits 0.15 BELOW where real repeat questions live. No setting works.
+ *
+ * What separates them is the ANSWER. Two MCQs on one node keyed to the same
+ * substantive answer are testing the same fact however differently they are
+ * worded — measured, the generated pairs this catches have stem overlap as low
+ * as **0.00**, i.e. exactly the region text similarity cannot reach.
+ *
+ * MEASURED EXHAUSTIVELY (G16's lesson — both populations are enumerable, so a
+ * sample is not good enough). Over every real same-node MCQ pair in the bank:
+ *
+ *   real pairs with a substantive answer      52,805
+ *   ...sharing that answer (false rejections)     80  = 0.152%
+ *   generated pairs sharing an answer             72  = 0.066%
+ *
+ * and inspection shows a good share of those 80 are genuine commission re-asks
+ * (two real UPPSC items keyed "mental set" differ only by person/subject), i.e.
+ * the rule is finding real duplication on both sides rather than misfiring.
+ *
+ * NO stem-similarity floor is applied on purpose. Adding one would re-introduce
+ * exactly the blindness this exists to remove — the clearest true positives
+ * measured at jaccard 0.00-0.20.
+ */
+export function answerTextOf(options: readonly StoredOption[] | null | undefined, correctKey: string | null | undefined): string | null {
+  if (!options || !correctKey) return null;
+  const hit = options.find((o) => (o.key ?? "").toUpperCase() === correctKey.toUpperCase());
+  const t = (hit?.text_i18n?.en ?? hit?.text_i18n?.hi ?? "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (t.length < 3) return null;
+  return isCombinationAnswer(t) ? null : t;
+}
+
+/**
+ * ⚑ A COMBINATION CLOSURE IS NOT A FACT, and skipping these is load-bearing.
+ * "2 and 3 only", "Both 1 and 2", "1 2 and 3", "None of the above", a match-list
+ * code like "a 1 b 2 c 3 d 4" — unrelated questions share these constantly.
+ * MEASURED: comparing them too takes false rejections from **80 to 1,385** (of
+ * 160,967 real pairs), because ~2/3 of all MCQ answers in this bank ARE such
+ * closures. Two questions keyed "2 and 3 only" have nothing in common.
+ */
+export function isCombinationAnswer(t: string): boolean {
+  if (/^(both|neither|none|all|only)\b/.test(t)) return true;
+  if (
+    /\b(only|and|nor)\b/.test(t) &&
+    /\d/.test(t) &&
+    !/[a-z]{4,}/.test(t.replace(/\b(only|and|nor|both|neither|all|none|statements?|above)\b/g, ""))
+  ) {
+    return true;
+  }
+  if (/^[\d\s,]+$/.test(t)) {
+    // ⚑ A LIST of small integers is a code ("1 2 3 4"); a SINGLE number is a real
+    // value and must be kept — an arithmetic item's answer ("22338" for an LCM)
+    // identifies its fact as well as a name does. Excluding bare numerics whole
+    // was tried and is measurably worse: it catches 8 fewer generated duplicates
+    // (72 vs 80) while its false-rejection RATE is no better (0.152% vs 0.142%),
+    // i.e. the feared "two different sums, same answer" collision does not show
+    // up in the real bank.
+    const toks = t.split(/[\s,]+/).filter(Boolean);
+    return toks.length >= 2 && toks.every((x) => x.length <= 2);
+  }
+  if (/^[a-d\d\s,]+$/.test(t) && t.replace(/[^a-d]/g, "").length >= 2) return true;
+  if (/^(i|ii|iii|iv|v)(\s+(i|ii|iii|iv|v))+$/.test(t)) return true;
+  return false;
 }
 
 /**
@@ -173,15 +259,19 @@ export async function dedupCandidates(
     // the candidates; see its note.
     let existingIds: string[] = [];
     let existingTexts: string[] = [];
+    /** answer text → the id of the first existing question keyed to it. */
+    const existingAnswers = new Map<string, string>();
     if (nodeId) {
       const { data, error } = await supabase()
         .from("questions")
-        .select("id, stem_i18n, options_i18n")
+        .select("id, stem_i18n, options_i18n, correct_option_key")
         .eq("syllabus_node_id", nodeId)
         .limit(500);
       if (error) throw new Error(error.message);
       for (const r of data ?? []) {
         const stem = r.stem_i18n as { en?: string; hi?: string };
+        const ans = answerTextOf(r.options_i18n as StoredOption[] | null, r.correct_option_key as string | null);
+        if (ans && !existingAnswers.has(ans)) existingAnswers.set(ans, r.id as string);
         const text = dedupTextOf(stem.en || stem.hi || "", r.options_i18n as StoredOption[] | null);
         // ⚑ DROP EMPTY ROWS, and this is not hygiene. `embedAll` substitutes one
         // placeholder for empty text, so every empty row embeds identically and
@@ -201,6 +291,11 @@ export async function dedupCandidates(
     const candidateVecs = await embedAll(clean);
     const existingVecs = existingTexts.length ? await embedAll(existingTexts) : [];
 
+    // Answers seen EARLIER IN THIS RUN, so a batch that produces three questions
+    // with one answer keeps the first — the same first-wins rule the cosine pass
+    // uses, and the shape the 2026-08-13 panel actually caught (three generated
+    // "who founded Jaunpur" items in one 23-question set).
+    const runAnswers = new Map<string, number>();
     return clean.map((_, i) => {
       const cand = candidateVecs[i];
       // vs existing bank
@@ -213,7 +308,23 @@ export async function dedupCandidates(
       let maxRun = 0;
       for (let j = 0; j < i; j++) maxRun = Math.max(maxRun, dot(cand, candidateVecs[j]));
       const maxSimilarity = Math.max(maxExisting, maxRun);
-      return { isDuplicate: maxSimilarity >= threshold, maxSimilarity, nearest: hits };
+
+      // SAME-ANSWER rule — see `answerTextOf`. Independent of cosine on purpose.
+      const ans = answerTextOf(candidates[i].options, candidates[i].correctOptionKey);
+      let sameAnswerAs: DedupResult["sameAnswerAs"];
+      if (ans) {
+        const existingId = existingAnswers.get(ans);
+        if (existingId) sameAnswerAs = { question_id: existingId, answer: ans };
+        else if (runAnswers.has(ans)) sameAnswerAs = { question_id: null, answer: ans };
+        else runAnswers.set(ans, i);
+      }
+
+      return {
+        isDuplicate: maxSimilarity >= threshold || !!sameAnswerAs,
+        maxSimilarity,
+        nearest: hits,
+        ...(sameAnswerAs ? { sameAnswerAs } : {}),
+      };
     });
   } catch (err) {
     logger.warn({ err, nodeId }, "qgen dedup failed; treating all candidates as unique");
