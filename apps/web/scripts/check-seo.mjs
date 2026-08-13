@@ -90,7 +90,17 @@ const prerenderRoutes = [...prerender.slice(prerender.indexOf("const ROUTES = ["
   (m) => m[1],
 );
 // A public route is a child of /:locale declared BEFORE the require-auth subtree.
-const beforeAuth = router.slice(0, router.indexOf('lazy: () => import("@/routes/require-auth")'));
+// ⚑ Assert the marker exists. `indexOf` returns -1 when it moves, and
+// `slice(0, -1)` would then treat the ENTIRE router as public — the guard still
+// fails, but with a flood of "route missing from sitemap" noise instead of the
+// real cause. Fail on the cause.
+const AUTH_MARKER = 'lazy: () => import("@/routes/require-auth")';
+const authAt = router.indexOf(AUTH_MARKER);
+if (authAt === -1) {
+  console.error(`  ✗ src/router.tsx no longer contains ${AUTH_MARKER} — this guard cannot tell public routes from app routes. Update the marker.`);
+  process.exit(1);
+}
+const beforeAuth = router.slice(0, authAt);
 const publicPaths = [...beforeAuth.matchAll(/\{ path: "([^"]+)", lazy/g)].map((m) => m[1]);
 // `auth*` is deliberately not indexable (app entry, not content) and a `:param`
 // route has no single URL to list.
