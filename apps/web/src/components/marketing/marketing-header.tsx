@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/providers/auth-provider";
+import { useProfile } from "@/hooks/use-profile";
 import { useLocale } from "@/hooks/use-locale";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,10 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
   const location = useLocation();
   const navigate = useNavigate();
   const { session } = useAuth();
+  // Only fetched when signed in — a marketing page must never fire a doomed
+  // authed request for a visitor who has no session (the same `enabled` gate
+  // /pricing already uses for its subscription query).
+  const { data: profile } = useProfile({ enabled: !!session });
 
   function setLocale(next: Locale) {
     if (next === locale) return;
@@ -97,9 +102,32 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
             ))}
           </div>
           {session ? (
-            <Button asChild size="sm">
-              <Link to={`/${locale}/dashboard`}>{t("Landing.goToApp")}</Link>
-            </Button>
+            <>
+              <Button asChild size="sm">
+                <Link to={`/${locale}/dashboard`}>{t("Landing.goToApp")}</Link>
+              </Button>
+              {/* Profile avatar beside "Go to dashboard", so a signed-in visitor
+                  on a marketing page has the same account affordance the app
+                  shell gives them everywhere else — and one that goes somewhere
+                  DIFFERENT from the button next to it (dashboard vs profile),
+                  rather than being a second way to click the same thing.
+
+                  Deliberately a plain Link to /profile, not the app shell's
+                  AccountMenu: that menu carries sign-out, theme and locale, and
+                  two locale controls in one header (the toggle sits immediately
+                  to its left) is the kind of duplication the landing header was
+                  just cleaned up to remove. The initial comes from `profile`,
+                  which is why this renders "?" for the moment before it loads
+                  rather than flashing a wrong letter. */}
+              <Link
+                to={`/${locale}/profile`}
+                aria-label={t("TopBar.account")}
+                title={profile?.display_name ?? t("TopBar.account")}
+                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                {(profile?.display_name?.trim() || session.user?.email?.trim() || "?").charAt(0).toUpperCase()}
+              </Link>
+            </>
           ) : (
             <>
               {/* The reference's Login + Sign Up pair. Both land on the one
