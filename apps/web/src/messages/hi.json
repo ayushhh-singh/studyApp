@@ -840,7 +840,9 @@
     "badgesTitle": "बैज",
     "badgesDescription": "अब तक अर्जित उपलब्धियाँ।",
     "badgesEmptyTitle": "अभी कोई बैज नहीं",
-    "badgesEmptyDescription": "उत्तर लिखें, परीक्षा दें या शृंखला बनाएँ — बैज यहाँ जुड़ते जाएँगे।"
+    "badgesEmptyDescription": "उत्तर लिखें, परीक्षा दें या शृंखला बनाएँ — बैज यहाँ जुड़ते जाएँगे।",
+    "helpResources": "निःशुल्क संसाधन",
+    "helpResourcesHint": "एनसीईआरटी पाठ्यपुस्तकें और सरकारी स्रोत, निःशुल्क डाउनलोड"
   },
   "Review": {
     "title": "समीक्षा सूची",

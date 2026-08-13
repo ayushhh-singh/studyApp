@@ -65,7 +65,10 @@ export function Component() {
   // label to appear on in the first place.
   const state = stateFocusName(exam, locale, examCode) ?? "";
 
-  const subjects = useMemo(() => activeSubjects(examCode), [examCode]);
+  // No session means no known exam — see officialResourcesFor. Passing the
+  // default exam here is what leaked UP-specific rows to every visitor.
+  const scopedExam = session ? examCode : null;
+  const subjects = useMemo(() => activeSubjects(scopedExam), [scopedExam]);
 
   // An unknown/stale ?subject= (a link shared from another exam, a typo) falls
   // back to "all" rather than rendering an empty page — same convention as
@@ -84,7 +87,7 @@ export function Component() {
   const matches = (s: ResourceSubject) => active === "all" || s === active;
 
   const ncert = NCERT_BOOKS.filter((b) => matches(b.subject));
-  const official = officialResourcesFor(examCode).filter((r) => matches(r.subject));
+  const official = officialResourcesFor(scopedExam).filter((r) => matches(r.subject));
 
   return (
     <div className="min-h-svh bg-background">

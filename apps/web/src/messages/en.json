@@ -840,7 +840,9 @@
     "badgesTitle": "Badges",
     "badgesDescription": "Milestones you've earned so far.",
     "badgesEmptyTitle": "No badges yet",
-    "badgesEmptyDescription": "Write an answer, take a test or build a streak — badges land here as you go."
+    "badgesEmptyDescription": "Write an answer, take a test or build a streak — badges land here as you go.",
+    "helpResources": "Free resources",
+    "helpResourcesHint": "NCERT textbooks and government sources, free to download"
   },
   "Review": {
     "title": "Review Queue",

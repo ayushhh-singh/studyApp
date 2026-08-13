@@ -288,8 +288,18 @@ export const OFFICIAL_RESOURCES: OfficialResource[] = [
 // SELECTORS
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** The official free material relevant to this exam. */
-export function officialResourcesFor(examCode: string): OfficialResource[] {
+/**
+ * The official free material relevant to this exam.
+ *
+ * `null` means NO exam is known — the signed-out case on this public page. It
+ * is NOT the same as the default exam: `useCurrentExam` falls back to
+ * DEFAULT_EXAM_CODE with no session, which is right inside the app and wrong
+ * here, because it showed every visitor "Uttar Pradesh Budget" and a
+ * "Uttar Pradesh focus" chip as though it were their exam's. With no exam
+ * known we show only the material that is true for every exam.
+ */
+export function officialResourcesFor(examCode: string | null): OfficialResource[] {
+  if (examCode === null) return OFFICIAL_RESOURCES.filter((r) => !r.stateSpecific);
   return OFFICIAL_RESOURCES.filter((r) => (r.exams as string[]).includes(examCode));
 }
 
@@ -298,7 +308,7 @@ export function officialResourcesFor(examCode: string): OfficialResource[] {
  * row is built from this, never from the full enum, so a chip can never select
  * an empty list.
  */
-export function activeSubjects(examCode: string): ResourceSubject[] {
+export function activeSubjects(examCode: string | null): ResourceSubject[] {
   const present = new Set<ResourceSubject>();
   for (const b of NCERT_BOOKS) present.add(b.subject);
   for (const r of officialResourcesFor(examCode)) present.add(r.subject);
