@@ -83,6 +83,10 @@ import {
   UPSC_PRELIMS_CSAT_PAPER_CODE,
   UPSC_PRELIMS_GS1_PAPER_CODE,
 } from "../src/lib/upsc-papers.js";
+// UPPSC's own aptitude-paper code, imported for the same reason as the UPSC ones
+// above: `csatQgenConfigFor` matches `papers.prelimsCsat` exactly, so a hand-typed
+// code that drifted would silently take the GS branch and guard nothing.
+import { PRELIMS_CSAT_PAPER_CODE } from "../src/lib/exam-papers.js";
 
 // Portable paths only — resolved from this module's own location, never a
 // hardcoded prefix or an assumed process.cwd() (see CLAUDE.md → Dev conventions).
@@ -277,6 +281,17 @@ const QGEN_NODE_UPSC_MAINS = {
   id: "88888888-8888-4888-8888-888888888883",
   paperCode: UPSC_MAINS_GS_PAPER_CODES[0],
   stage: "mains" as const,
+};
+// ⚑ UPPSC's OWN aptitude-paper fixture. Every other uppsc qgen fixture carries
+// FIXTURE_PAPER, which can never equal `papers.prelimsCsat`, so all of them take
+// the GS branch — which is why authoring `uppsc.qgen.csat` on 2026-08-13 moved a
+// real prompt while this harness reported "168 byte-identical". Without this
+// fixture the LIVE exam's aptitude-paper norm is the one thing here that is not
+// guarded, and a length-preserving reword of it would regress undetected.
+const QGEN_NODE_UPPSC_CSAT = {
+  ...QGEN_NODE,
+  id: "88888888-8888-4888-8888-888888888884",
+  paperCode: PRELIMS_CSAT_PAPER_CODE,
 };
 
 const CA_CANDIDATES = [
@@ -641,6 +656,10 @@ async function collectQgenPrompts(): Promise<void> {
     "qgen/buildMcqGenParams:upsc-csat-grounded",
     paramsSnapshot(mod.buildMcqGenParams(genOpts({ node: QGEN_NODE_UPSC_CSAT }))),
   );
+  put(
+    "qgen/buildMcqGenParams:uppsc-csat-grounded",
+    paramsSnapshot(mod.buildMcqGenParams(genOpts({ node: QGEN_NODE_UPPSC_CSAT }))),
+  );
   put("qgen/buildDescGenParams:upsc-mains", paramsSnapshot(mod.buildDescGenParams(genOpts({ node: QGEN_NODE_UPSC_MAINS }))));
   put("qgen/buildDescGenParams:grounded-fewshot", paramsSnapshot(mod.buildDescGenParams(genOpts())));
   put(
@@ -700,6 +719,16 @@ async function collectQgenPrompts(): Promise<void> {
     paramsSnapshot(
       mod.buildCriticParams({
         node: QGEN_NODE_UPSC_GS as never,
+        rendered: mod.renderQuestionForCritic.mcq(mcq as never),
+        grounding: GROUNDING as never,
+      }),
+    ),
+  );
+  put(
+    "qgen/buildCriticParams:uppsc-csat-mcq-grounded",
+    paramsSnapshot(
+      mod.buildCriticParams({
+        node: QGEN_NODE_UPPSC_CSAT as never,
         rendered: mod.renderQuestionForCritic.mcq(mcq as never),
         grounding: GROUNDING as never,
       }),

@@ -4933,6 +4933,83 @@
       ]
     }
   },
+  "qgen/buildCriticParams:uppsc-csat-mcq-grounded": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 1600,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are a strict UPPSC question-quality reviewer. You are given ONE candidate exam question (with its intended answer/marking scheme), the syllabus topic it targets, and REFERENCE PASSAGES retrieved for that topic. Judge it rigorously against the passages — do NOT rely on the question's own explanation for the facts. Return JSON:\n- single_correct_answer: for an MCQ, is there EXACTLY ONE defensibly-correct option and are the other three genuinely wrong? (for a descriptive question, is the task well-posed and answerable within its word limit?)\n- options_plausible: are the distractors plausible and non-trivial (not obviously absurd, not near-duplicates of the answer)? (descriptive: is the marking outline complete and on-point?)\n- uppsc_tone: is this an aptitude or language item a candidate solves on the spot from the stem alone — short, direct, and exercising the named skill — rather than a General Studies recall question about that skill?\n- out_of_syllabus: is any part outside the stated topic/paper syllabus?\n- decisive_facts: list EVERY proper noun, date, article/section number, statistic, or named person/scheme the answer turns on. For each, set status = 'grounded' if a reference passage supports it, 'well_established' if it is basic knowledge you are certain of, or 'unverifiable' if neither. Be honest — do not upgrade a fact you are only guessing at.\n- factual_red_flags: list any statement that is factually wrong (empty array if none).\n- notes: one or two sentences on the main issue, or praise if clean.\n- approve: true ONLY if it is single-correct (or well-posed), plausible, on-tone, in-syllabus, has NO factual red flags, and NO decisive fact is 'unverifiable'. We do not publish unverifiable trivia. Be conservative — reject anything you would not put in front of a real aspirant.\nReturn strict JSON only.",
+        "cache": true
+      }
+    ],
+    "content": "SYLLABUS TOPIC:\nTopic: Fixture Topic Title — Fixture topic description.\nPaper: PRE_CSAT (prelims)\n\nREFERENCE PASSAGES (from the official UPPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.\n\nCANDIDATE QUESTION:\nType: MCQ\nStem: Fixture generated stem.\nOptions:\n  A) Alpha\n  B) Beta\n  C) Gamma\n  D) Delta\nIntended correct answer: C\nExplanation given: Fixture explanation.\n\nReturn your JSON verdict.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "single_correct_answer": {
+          "type": "boolean"
+        },
+        "options_plausible": {
+          "type": "boolean"
+        },
+        "uppsc_tone": {
+          "type": "boolean"
+        },
+        "out_of_syllabus": {
+          "type": "boolean"
+        },
+        "decisive_facts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "fact": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "grounded",
+                  "well_established",
+                  "unverifiable"
+                ]
+              }
+            },
+            "required": [
+              "fact",
+              "status"
+            ]
+          }
+        },
+        "factual_red_flags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "string"
+        },
+        "approve": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "single_correct_answer",
+        "options_plausible",
+        "uppsc_tone",
+        "out_of_syllabus",
+        "decisive_facts",
+        "factual_red_flags",
+        "notes",
+        "approve"
+      ]
+    }
+  },
   "qgen/buildCriticParams:upsc-csat-mcq-grounded": {
     "model": "claude-sonnet-5",
     "effort": "medium",
@@ -5510,6 +5587,135 @@
       },
       {
         "text": "Topic: Fixture Topic Title\nPaper: FIXTURE_PAPER (mains)\n\nNo sample past-year questions were available for this exact topic; follow the general UPPSC style described above.\n\nNo reference passages were retrieved. Use only well-established, verifiable facts about this topic from the UPPSC syllabus; do not invent specifics you are unsure of.",
+        "cache": true
+      }
+    ],
+    "content": "Generate 3 distinct UPPSC-Prelims MCQs on the topic above. Aim for a medium difficulty mix. Vary the sub-aspect tested. Make them genuinely different from one another in the sub-aspect they test. Return JSON only.",
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "questions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "stem_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "options": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "enum": [
+                        "A",
+                        "B",
+                        "C",
+                        "D"
+                      ]
+                    },
+                    "text_i18n": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "hi": {
+                          "type": "string"
+                        },
+                        "en": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "hi",
+                        "en"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "text_i18n"
+                  ]
+                }
+              },
+              "correct_option_key": {
+                "type": "string",
+                "enum": [
+                  "A",
+                  "B",
+                  "C",
+                  "D"
+                ]
+              },
+              "explanation_i18n": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "hi": {
+                    "type": "string"
+                  },
+                  "en": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "hi",
+                  "en"
+                ]
+              },
+              "difficulty": {
+                "type": "string",
+                "enum": [
+                  "easy",
+                  "medium",
+                  "hard"
+                ]
+              }
+            },
+            "required": [
+              "stem_i18n",
+              "options",
+              "correct_option_key",
+              "explanation_i18n",
+              "difficulty"
+            ]
+          }
+        }
+      },
+      "required": [
+        "questions"
+      ]
+    }
+  },
+  "qgen/buildMcqGenParams:uppsc-csat-grounded": {
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "maxTokens": 8000,
+    "systemKind": "segments",
+    "segments": [
+      {
+        "text": "You are an experienced UPPSC (Uttar Pradesh Public Service Commission) Prelims question setter. You write original, exam-standard objective questions in BOTH Hindi (Devanagari) and English. Rules for every question:\n- Exactly 4 options keyed A, B, C, D, with EXACTLY ONE unambiguously correct answer; the other three must be clearly wrong to a well-prepared aspirant, yet plausible enough to be real distractors (not jokes, not trivially absurd).\n- The stem must be self-contained and answerable from the option set alone. This is UPPSC's Prelims Paper-II (CSAT), an APTITUDE AND LANGUAGE paper, NOT General Studies: treat the topic above as naming the SKILL the question must EXERCISE, never a body of theory to be recalled. Do NOT ask what a term means, what its components are, or which statements about a concept are correct. FORMAT, in the real paper's own proportions: about NINE IN TEN items are a DIRECT single-item question with no scaffolding — make that your default. Negative framing (which option is NOT correct) is the only other common shape, roughly one in ten. Assertion-Reason, match-the-list and 'consider the following statements' together account for about one item in FIFTY across the whole paper, so use them almost never and never as a default. LENGTH: real stems are SHORT — a median of about 70 characters, three-quarters under 110, and essentially none beyond 400. Write one crisp sentence carrying the data it needs; do not compose a passage, a multi-line scenario or a numbered set-up. The paper's families, in rough proportion: English language usage and comprehension about one in five; analytical and logical reasoning about one in five; arithmetic about one in six; Hindi comprehension about one in eight; interpersonal and communication skills about one in eight; decision-making about one in fourteen; data interpretation and verbal/non-verbal reasoning a few percent each. On interpersonal and communication topics specifically — the family that goes wrong most often — a real item asks what a person SHOULD DO in a short situation, or which single statement about an exchange is correct; it is a judgement solvable on the spot, never a definition. Always give exactly four options.\n- Base every factual claim on the reference passages provided or on well-established knowledge; NEVER invent a statistic, date, constitutional article, committee, or scheme detail. If you are not sure a fact is true, do not use it.\n- Hindi and English must be faithful translations of each other. The explanation states why the correct option is right and, briefly, why each other option is wrong. Plain text only — no markdown.\n- The topic names the SKILL to exercise, not the subject matter to be tested: any everyday, workplace or administrative context is fair game as the vehicle, provided solving the item requires that skill and no outside knowledge. Use the reference passages only as realistic background — never as the thing being recalled. Return strict JSON matching the schema.",
+        "cache": false
+      },
+      {
+        "text": "Topic: Fixture Topic Title — Fixture topic description.\nPaper: PRE_CSAT (prelims)\n\nREAL UPPSC PAST-YEAR QUESTIONS FOR THIS TOPIC (match their stem length, option style, and trap patterns):\n\nExample 1 (UPPSC 2019, difficulty medium):\n  Stem EN: Fixture stem one in English.\n  Stem HI: फिक्स्चर प्रश्न एक।\n  Options:\n    A) Option alpha  /  विकल्प अल्फा\n    B) Option beta  /  विकल्प बीटा\n  Correct: B\n\nExample 2 (UPPSC, difficulty hard):\n  Stem EN: Fixture stem two in English.\n  Stem HI: फिक्स्चर प्रश्न दो।\n\n\nREFERENCE PASSAGES (from the official UPPSC syllabus/PYQ store — base every factual claim ONLY on these or on well-established knowledge; never fabricate a statistic, date, article number, or scheme detail):\n1. [syllabus] Fixture passage one: the constitutional framework and its welfare provisions.\n2. [question] Fixture passage two: administrative reform committees and their recommendations.",
         "cache": true
       }
     ],

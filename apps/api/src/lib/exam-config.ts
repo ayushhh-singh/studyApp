@@ -1138,11 +1138,68 @@ const UPPSC: ExamConfig = {
       "(asking which option is NOT correct, about one in ten), then assertion-reason and chronological-sequence " +
       "(each about one in fifteen). 'Consider the following statements' is UNCOMMON in UPPSC — only about one " +
       "question in thirty — so use it rarely and never as your default shape.",
-    // Deliberate no-op — see `ExamQgenConfig.csat`. NOT a claim that UPPSC's
-    // CSAT paper has no norm of its own (measured: ~89% direct-single, median
-    // stem 87 chars, ~4% passage-based against UPSC CSAT's ~30%). Authoring it
-    // changes the LIVE exam's generated questions and needs its own validation.
-    csat: null,
+    // ---------------------------------------------------------------------
+    // AUTHORED 2026-08-13. Was `null`, and that no-op had a measured cost: the
+    // GS body above was reaching CSAT nodes and reshaping them. Measured over
+    // the real bank (799 real PYQs vs 292 generated, same classifier both
+    // sides, so only the real-vs-generated comparison is claimed):
+    //
+    //   GS-only scaffolds (assertion-reason + match-list + consider-statements)
+    //     real uppsc CSAT ~2%   vs generated 24.1%   — 12x
+    //     real upsc  CSAT ~13%  vs generated 14.3%   — parity, and upsc is the
+    //     exam that HAS this slot authored. Same generator, same pipeline.
+    //
+    // Per family, the damage is CONCENTRATED rather than spread, which is what
+    // the text below targets — "Interpersonal Skills including Communication
+    // Skills" reads like a body of theory, so the generator wrote GS recall
+    // about communication instead of an exercise:
+    //
+    //   family                         real direct / AR     generated direct / AR
+    //   Interpersonal & Communication    76% / 3%             34% / 23%
+    //   Decision Making                  84% / 0%             79% /  3%
+    //   General Mental Ability          100% / 0%             86% /  0%
+    //
+    // And stems are 2-3x too long everywhere: real medians run 48-117 chars per
+    // family, generated 106-378.
+    //
+    // ⚑ UPSC's CSAT text must NOT be copied here — the two papers are close to
+    // opposites. UPSC CSAT is ~a third self-contained passage items with a
+    // median stem near 230 chars; UPPSC's is 0.1% over 400 chars with a median
+    // of 72, because its comprehension passages are printed ONCE for a block of
+    // questions, so an individual stem is short. UPPSC also has Hindi and
+    // English LANGUAGE sections, which UPSC's CSAT does not have at all.
+    //
+    // ⚑ SECOND CONSEQUENCE, deliberate: `csatQgenConfigFor` also gates
+    // `loadFewShot`, so authoring this stops UPPSC CSAT nodes falling back to a
+    // paper-wide few-shot pool. That is the point — a paper-wide filler mixes
+    // unrelated skills. Impact is small and was measured: of 12 CSAT families
+    // only three (Logical Reasoning 7 PYQs, General Mental Ability 5, Basic
+    // Numeracy 3) have fewer than 8 own-node examples and will now see fewer
+    // rather than wrong-skill ones.
+    // ---------------------------------------------------------------------
+    csat: {
+      formatGuidance:
+        "This is UPPSC's Prelims Paper-II (CSAT), an APTITUDE AND LANGUAGE paper, NOT General Studies: treat the " +
+        "topic above as naming the SKILL the question must EXERCISE, never a body of theory to be recalled. Do NOT " +
+        "ask what a term means, what its components are, or which statements about a concept are correct. " +
+        "FORMAT, in the real paper's own proportions: about NINE IN TEN items are a DIRECT single-item question " +
+        "with no scaffolding — make that your default. Negative framing (which option is NOT correct) is the only " +
+        "other common shape, roughly one in ten. Assertion-Reason, match-the-list and 'consider the following " +
+        "statements' together account for about one item in FIFTY across the whole paper, so use them almost never " +
+        "and never as a default. LENGTH: real stems are SHORT — a median of about 70 characters, three-quarters " +
+        "under 110, and essentially none beyond 400. Write one crisp sentence carrying the data it needs; do not " +
+        "compose a passage, a multi-line scenario or a numbered set-up. The paper's families, in rough proportion: " +
+        "English language usage and comprehension about one in five; analytical and logical reasoning about one in " +
+        "five; arithmetic about one in six; Hindi comprehension about one in eight; interpersonal and communication " +
+        "skills about one in eight; decision-making about one in fourteen; data interpretation and verbal/non-verbal " +
+        "reasoning a few percent each. On interpersonal and communication topics specifically — the family that goes " +
+        "wrong most often — a real item asks what a person SHOULD DO in a short situation, or which single statement " +
+        "about an exchange is correct; it is a judgement solvable on the spot, never a definition. Always give " +
+        "exactly four options.",
+      toneCriterion:
+        "is this an aptitude or language item a candidate solves on the spot from the stem alone — short, direct, " +
+        "and exercising the named skill — rather than a General Studies recall question about that skill?",
+    },
     directiveVerbGuidance: UPPSC_DIRECTIVE_VERBS,
     marksNormGuidance:
       "UPPSC Mains norms (typically 125 words / 7 marks, or 200 words / 10 marks; longer for higher marks)",
