@@ -28,14 +28,19 @@ function ExplanationBlock({
   const [explanation, setExplanation] = useState(explanationI18n);
   const { text, isStreaming, error, explain } = useExplainQuestion(questionId);
 
+  // text-sm, not text-xs: an explanation is now a ~100-200 word answer-key entry
+  // to study from, not a one-line gloss. whitespace-pre-line because the prompt
+  // may separate paragraphs with a blank line (see lib/explanation-depth.ts's
+  // EXPLANATION_FORMAT_RULE) and a plain <p> collapses those, turning a
+  // structured explanation into an unbroken wall of text.
   if (explanation) {
     return (
-      <div className="flex flex-col gap-2 rounded-md bg-muted/50 p-2.5 text-xs">
-        <p>
+      <div className="flex flex-col gap-2 rounded-md bg-muted/50 p-2.5 text-sm">
+        <p className="whitespace-pre-line">
           <span className="font-semibold text-foreground">EN — </span>
           {explanation.en}
         </p>
-        <p lang="hi" className="leading-[1.75]">
+        <p lang="hi" className="whitespace-pre-line leading-[1.75]">
           <span className="font-semibold text-foreground">HI — </span>
           {explanation.hi}
         </p>
@@ -75,7 +80,11 @@ function ExplanationBlock({
 
   if (isStreaming || text) {
     return (
-      <div className="rounded-md bg-muted/50 p-2.5 text-xs" lang={locale} aria-live="polite">
+      <div
+        className="rounded-md bg-muted/50 p-2.5 text-sm whitespace-pre-line"
+        lang={locale}
+        aria-live="polite"
+      >
         {text}
         {isStreaming && (
           <span className="animate-pulse" aria-hidden>
