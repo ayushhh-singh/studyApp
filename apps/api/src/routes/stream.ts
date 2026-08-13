@@ -122,6 +122,13 @@ streamRouter.get(
           examCode,
           "misc.explanationTranslateDomainHint",
         ),
+        // Above translate()'s 2000 default, because THIS caller sends a long
+        // input: the depth rewrite makes an explanation ~200 words, and rendering
+        // that in Devanagari costs ~3.3x the tokens English does (MEASURED ~1.43
+        // vs ~4.74 chars/token on this bank). At the default an en->hi
+        // translation of a longer explanation truncates, which structuredJson
+        // then retries at 1.75x — a silent doubling rather than a failure.
+        4000,
       );
       const explanation_i18n: BilingualText =
         locale === "en" ? { en: generated.trim(), hi: otherText } : { en: otherText, hi: generated.trim() };

@@ -23,6 +23,9 @@
  * exam framing, so moving them would enlarge the diff for no verification gain.
  */
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+// Dependency-free by construction — see explanation-depth.ts's header for why
+// that matters to THIS module's "imports nothing but exam-config" contract.
+import { EXPLANATION_DEPTH_SPEC, EXPLANATION_FORMAT_RULE } from "../lib/explanation-depth.js";
 
 /**
  * Memoise a per-exam prompt build: one string instance per exam across a whole
@@ -57,10 +60,12 @@ export const supportSystem = memoisePerExam(
 export const explainSystem = memoisePerExam(
   (examCode) =>
     `You write ${requireAuthored(getExamConfig(examCode).misc.explanationFraming, examCode, "misc.explanationFraming")} for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the ` +
-    "verified correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using " +
-    "the reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
-    "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
-    "no bold/italic asterisks, no bullet lists. Return strict JSON only.",
+    `verified correct option. ${EXPLANATION_DEPTH_SPEC}\n` +
+    "Ground every factual claim in the reference passages or in well-established knowledge; never invent a date, " +
+    "article, name, or number. Where the passages do not settle a particular wrong option, say plainly why it is " +
+    "wrong on well-established grounds rather than inventing a specific to justify it.\n" +
+    "Write BOTH languages in full: the Hindi must stand on its own as a complete explanation, not a shortened " +
+    `summary of the English. ${EXPLANATION_FORMAT_RULE} Return strict JSON only.`,
 );
 
 // ---------------------------------------------------------------------------

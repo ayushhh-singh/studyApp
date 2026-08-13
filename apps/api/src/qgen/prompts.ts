@@ -16,6 +16,7 @@
  */
 import { MODELS, type StructuredParams } from "../lib/anthropic.js";
 import { getExamConfig, isAuthored, requireAuthored, type ExamQgenCsatConfig } from "../lib/exam-config.js";
+import { EXPLANATION_DEPTH_CLAUSE } from "../lib/explanation-depth.js";
 import type { CriticVerdict, Difficulty, VerifyResult } from "@neev/shared";
 import type { GroundingResult } from "../services/evaluation/grounding.js";
 
@@ -227,8 +228,7 @@ const mcqSystem = memoisePerExamAndPaperKind((examCode, csat) => {
   `- The stem must be self-contained and answerable from the option set alone. ${formatClause}\n` +
   "- Base every factual claim on the reference passages provided or on well-established knowledge; NEVER invent a " +
   "statistic, date, constitutional article, committee, or scheme detail. If you are not sure a fact is true, do not use it.\n" +
-  "- Hindi and English must be faithful translations of each other. The explanation states why the correct option is " +
-  "right and, briefly, why each other option is wrong. Plain text only — no markdown.\n" +
+  `- Hindi and English must be faithful translations of each other. ${EXPLANATION_DEPTH_CLAUSE} Plain text only — no markdown.\n` +
   (csat
     // Replaces the GS "stay within the topic's syllabus" close, which on an
     // aptitude paper reads as an instruction to test the topic's CONTENT — the
@@ -291,7 +291,16 @@ export function buildMcqGenParams(opts: {
   return {
     model: MODELS.sonnet,
     effort: "medium",
-    maxTokens: 8000,
+    // 8000 before the explanation-depth rewrite, and it was ALREADY the binding
+    // constraint: MEASURED over 239 real `qgen_mcq_generate` calls, p95 was 6,424
+    // output tokens and p99/max sat exactly ON 8,000 — 1.7% of calls truncated
+    // and paid for structuredJson's 1.75x retry. One call writes GEN_CHUNK (5)
+    // bilingual questions, so the explanation cost multiplies by five: at the
+    // length real answer keys run, a bilingual explanation is ~1,090 tokens
+    // against the ~160 these were costing, i.e. ~+4,650 per call, putting the
+    // measured p99 near 12,650. Raised with headroom above that. A ceiling is
+    // not a spend — sonnet's real ceiling is 128k.
+    maxTokens: 16000,
     system: [
       // [0] uncached-looking, but the cached PREFIX is [0]+[1] — see the cache
       // note at the top of this file. Per-exam text partitions; per-request kills.
@@ -381,7 +390,15 @@ export function buildDescGenParams(opts: {
   return {
     model: MODELS.sonnet,
     effort: "medium",
-    maxTokens: 8000,
+    // UNRELATED TO THE EXPLANATION-DEPTH REWRITE, and fixed here because the
+    // measurement that justified the MCQ raise above found it: a descriptive
+    // question has no explanation field (it carries `marking_points_i18n`), so
+    // the depth clause cannot reach this call — yet MEASURED over 343 real
+    // `qgen_descriptive_generate` calls, p99/max also sat exactly on 8,000, with
+    // 3.5% truncating and paying the 1.75x retry. That is a pre-existing
+    // inefficiency, not a regression; raising the ceiling costs nothing on the
+    // 96.5% that never approach it.
+    maxTokens: 12000,
     system: [
       // Same [0]+[1] cached-prefix contract as buildMcqGenParams above.
       { text: descSystem(opts.node.examCode) },

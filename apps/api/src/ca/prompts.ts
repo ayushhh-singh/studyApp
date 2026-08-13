@@ -50,6 +50,7 @@
 import { MODELS, structuredJson, type LlmUsage, type StructuredParams } from "../lib/anthropic.js";
 import { getExamConfig, gsPapersFor, requireAuthored, stateLensFor } from "../lib/exam-config.js";
 import { fewShotBlock, type FewShotQuestion } from "../qgen/prompts.js";
+import { EXPLANATION_DEPTH_CLAUSE_MINIMAL } from "../lib/explanation-depth.js";
 import type {
   CurrentAffairsCategory,
   CurrentAffairsFact,
@@ -583,9 +584,28 @@ export function mcqsParams(opts: McqsParamsOpts): StructuredParams {
     system:
       `You write ${requireAuthored(cfg.mcqStyleFraming, examCode, "ca.mcqStyleFraming")} (bilingual, Hindi Devanagari + English) to test a current-affairs ` +
       `item, in the style of ${requireAuthored(cfg.mcqExamplesFraming, examCode, "ca.mcqExamplesFraming")}. Rules:\n` +
+      // The explanation requirement is the SHARED one (lib/explanation-depth.ts),
+      // not a bespoke line, so this pipeline cannot silently keep writing to an
+      // older standard than the rest of the bank — which is exactly what "a short
+      // explanation" here did while three other sites said "3-5 sentences".
+      //
+      // ⚑ IT IS THE **MINIMAL** FORM, AND THAT WAS DECIDED BY MEASUREMENT, NOT
+      // TASTE. Dropping the full `EXPLANATION_DEPTH_CLAUSE` in here cost 20% of
+      // question yield (15 -> 12 over 12 real items) against an old-vs-old
+      // control arm that came back 15/15 — i.e. a real regression, the same
+      // shape as the reverted rule block documented below. The minimal form
+      // lands at 14 with ~82% more explanation. Full numbers and the reason this
+      // pipeline is uniquely yield-sensitive are on
+      // EXPLANATION_DEPTH_CLAUSE_MINIMAL. Re-measure with a control arm before
+      // lengthening this line.
+      //
+      // DISTINCT FROM that reverted block in kind, though: it added CONSTRUCTION
+      // drop-checks ("verify no distractor is also correct"), asking the model to
+      // catch its own error in the pass that made it. This only changes how the
+      // explanation FIELD of an already-decided question is written.
       "- Each question has exactly 4 options keyed A/B/C/D, exactly one unambiguously correct, three plausible-but-" +
-      "wrong distractors, and a short explanation. Base every question ONLY on the facts given — never invent a fact " +
-      "not present in them. Plain text only, no markdown.\n" +
+      `wrong distractors, and ${EXPLANATION_DEPTH_CLAUSE_MINIMAL}. Base every question ONLY on the facts given — ` +
+      "never invent a fact not present in them. Plain text only, no markdown.\n" +
       `- EXAM-RELEVANCE FILTER (the important part): ${requireAuthored(cfg.mcqRelevanceFilter, examCode, "ca.mcqRelevanceFilter")} — a named scheme, report/index (+rank), appointment, place, organisation, species, ` +
       "treaty, award, or a significant first/location. DO NOT build a question around an incidental detail that " +
       "merely appeared in the story (a headcount, a date mentioned in passing, an unremarkable statistic, " +
@@ -667,6 +687,15 @@ export function mcqsParams(opts: McqsParamsOpts): StructuredParams {
       },
       required: ["questions"],
     },
+    // DELIBERATELY UNCHANGED by the explanation-depth rewrite, unlike qgen's.
+    // MEASURED over 2,170 real `ca_mcq_gen` calls: median 738 output tokens, p95
+    // 1,238, max 2,365 — 0% at the cap, so this one was never truncating. The
+    // MINIMAL depth clause this pipeline ships (see EXPLANATION_DEPTH_CLAUSE_
+    // MINIMAL) takes a bilingual explanation from ~28 to ~51 words, about +240
+    // tokens across the at-most-two questions a call writes — so the observed
+    // maximum moves to roughly 2,600 and 4000 keeps ~35% headroom. Raising it
+    // was drafted and then reverted when the clause shrank: an unjustified
+    // ceiling change is worse than none.
     maxTokens: 4000,
   };
 }

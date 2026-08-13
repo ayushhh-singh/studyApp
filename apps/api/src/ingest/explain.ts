@@ -162,7 +162,13 @@ async function main(): Promise<void> {
     // the loop rather than multiplied by a single shared figure.
     inTok += estTokens(supportSystem(examOf[i]!)) + estTokens(explainSystem(examOf[i]!));
   }
-  const outTok = targets.length * (120 + 600); // ~support + ~explain output tokens
+  // ~support + ~explain output tokens. The explain figure was 600, sized for the
+  // pre-2026-08-13 "3-5 sentences per language" prompt. The depth rewrite makes a
+  // bilingual explanation ~1,800 output tokens (MEASURED: Devanagari ~1.43
+  // chars/token vs English ~4.74, so the Hindi half dominates). Left at a
+  // deliberately round figure — this is a pre-run COST GATE the operator reads
+  // before approving spend, so it must not under-project.
+  const outTok = targets.length * (120 + 1800);
   const fullCost = estimateCostUsd(MODELS.haiku, inTok, outTok, 0, 0);
   const batchCost = fullCost * 0.5;
   report.section("Projected explanation cost");
@@ -243,7 +249,10 @@ async function main(): Promise<void> {
     customId: q.id,
     params: structuredParams({
       model: MODELS.haiku,
-      maxTokens: 1500,
+      // 1500 before the depth rewrite. Same sizing as `authorExplanation`'s —
+      // see the comment there; a bilingual explanation is dominated by its
+      // Devanagari half at ~1.43 chars/token.
+      maxTokens: 3000,
       system: explainSystem(examOf[idx.get(q.id)!]!),
       content: explainContent(q, grounds[idx.get(q.id)!]),
       schema: EXPLAIN_SCHEMA,

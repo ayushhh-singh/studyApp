@@ -25,6 +25,7 @@ import { HttpError, notFound } from "../lib/http-error.js";
 import { retrieveGrounding, type GroundingResult } from "./evaluation/grounding.js";
 import { examCodeForNode } from "../lib/exams.js";
 import { getExamConfig, requireAuthored } from "../lib/exam-config.js";
+import { EXPLANATION_DEPTH_SPEC, EXPLANATION_FORMAT_RULE } from "../lib/explanation-depth.js";
 
 interface ExplainQuestion {
   id: string;
@@ -84,10 +85,12 @@ function memoisePerExam(build: (examCode: string) => string): (examCode: string)
 export const explainSystem = memoisePerExam(
   (examCode) =>
     `You write ${requireAuthored(getExamConfig(examCode).misc.explanationFraming, examCode, "misc.explanationFraming")} for exam aspirants, in BOTH Hindi (Devanagari) and English. You are given the ` +
-    "correct option — write a concise explanation (3-5 sentences per language) that argues FOR that option using the " +
-    "reference passages, and briefly why each other option is wrong. Ground every factual claim in the passages or " +
-    "well-established knowledge; never invent a date, article, name, or number. Plain prose only — no markdown, no headers, " +
-    "no bold/italic asterisks, no bullet lists. Return strict JSON only.",
+    `correct option. ${EXPLANATION_DEPTH_SPEC}\n` +
+    "Ground every factual claim in the reference passages or in well-established knowledge; never invent a date, " +
+    "article, name, or number. Where the passages do not settle a particular wrong option, say plainly why it is " +
+    "wrong on well-established grounds rather than inventing a specific to justify it.\n" +
+    "Write BOTH languages in full: the Hindi must stand on its own as a complete explanation, not a shortened " +
+    `summary of the English. ${EXPLANATION_FORMAT_RULE} Return strict JSON only.`,
 );
 
 /**
@@ -105,11 +108,11 @@ export const explainSystem = memoisePerExam(
  */
 export const streamExplainSystem = memoisePerExam(
   (examCode) =>
-    `You explain ${requireAuthored(getExamConfig(examCode).misc.streamExplanationFraming, examCode, "misc.streamExplanationFraming")} for exam aspirants. Be concise (3-5 sentences), ` +
-    "argue why the given correct option is right (grounded in the reference passages) and briefly why the " +
-    "others are wrong. Ground every factual claim in the passages or well-established knowledge; never invent a " +
-    "date, article, name, or number. Output plain prose only, rendered verbatim with no markdown renderer: no " +
-    "headers, no bold/italic asterisks, no bullet lists.",
+    `You explain ${requireAuthored(getExamConfig(examCode).misc.streamExplanationFraming, examCode, "misc.streamExplanationFraming")} for exam aspirants, in ONE language. ` +
+    `${EXPLANATION_DEPTH_SPEC}\n` +
+    "Ground every factual claim in the reference passages or in well-established knowledge; never invent a date, " +
+    "article, name, or number. Where the passages do not settle a particular wrong option, say plainly why it is " +
+    `wrong on well-established grounds rather than inventing a specific to justify it.\n${EXPLANATION_FORMAT_RULE}`,
 );
 
 const EXPLAIN_SCHEMA: Record<string, unknown> = {
@@ -135,7 +138,17 @@ async function authorExplanation(
   const correct = (q.options_i18n ?? []).find((o) => o.key === q.correct_option_key);
   const out = await structuredJson<{ explanation: BilingualText }>({
     model: MODELS.haiku,
-    maxTokens: 1500,
+    // 1500 before the depth rewrite, sized for a 3-5 sentence pair. The binding
+    // constraint is Devanagari, MEASURED on this bank's own text at ~1.43
+    // chars/token against English's ~4.74 — 3.3x more tokens for the same prose,
+    // so a bilingual explanation is dominated by its Hindi half. At the length
+    // real answer keys actually run (~200 words for a multi-statement item, so
+    // ~1,200 characters per language) that is ~250 (en) + ~840 (hi) + JSON
+    // scaffolding ≈ 1,140 tokens: survivable under the old 1500, but with no
+    // margin for the longer tail, and truncation there means a silent 1.75x
+    // retry or an outright TruncatedResponseError. A ceiling is not a spend —
+    // raising it costs nothing on the calls that never approach it.
+    maxTokens: 3000,
     system: explainSystem(examCode),
     content:
       `Question:\n${q.stem_i18n.en ?? q.stem_i18n.hi ?? ""}\n\nOptions:\n${optionsEn(q)}\n\n` +

@@ -897,6 +897,21 @@ export async function translate(
   target: "hi" | "en",
   examCode: string,
   domainHint: string,
+  /**
+   * Output ceiling. Defaults to 2000, which is what every caller got before this
+   * parameter existed — so `ingest/syllabus.ts`, whose four call sites translate
+   * short node titles and one-line descriptions, is byte-identical.
+   *
+   * It is an OVERRIDE rather than a raised default because only the caller knows
+   * how long its input is, and Devanagari is where this bites: MEASURED on this
+   * bank's own text, Hindi runs ~1.43 chars/token against English's ~4.74, i.e.
+   * 3.3x more tokens for the same prose. A ~2,900-character English explanation
+   * therefore needs ~2,000 output tokens in Hindi ALONE and truncates at the
+   * default. `structuredJson` would retry it once at 1.75x and usually recover,
+   * so the symptom is a silent doubling of cost and latency rather than a
+   * failure — which is exactly why it is worth sizing rather than leaving.
+   */
+  maxTokens = 2000,
 ): Promise<string> {
   const targetName = target === "hi" ? "Hindi (Devanagari)" : "English";
   const out = await structuredJson<{ translation: string }>({
@@ -909,7 +924,7 @@ export async function translate(
       properties: { translation: { type: "string" } },
       required: ["translation"],
     },
-    maxTokens: 2000,
+    maxTokens,
   });
   return out.translation.trim();
 }
