@@ -16,13 +16,19 @@
  * paper), never any one individual's — there is no single "the user" for a quiz
  * everyone takes.
  *
- * Every pool query goes through the centralized question-visibility helper
- * (never an inline is_published filter): the generated/pyq/random slices use
- * "catalog" scope (published + review-approved only), the current-affairs slice
- * uses "test" scope (which additionally admits the review-gated CA pool that is
- * only ever served inside a test). Because a daily_quiz test can therefore carry
- * CA questions, the attempt player/grader — which also runs "test" scope — serves
- * and scores every slice correctly.
+ * Every pool query goes through `assemblyVisibilityOrFilter()` — published AND
+ * review-approved, no exceptions, for all four slices. ⚑ The current-affairs
+ * slice used to run the "test" scope, which admits anything on the
+ * CURRENT_AFFAIRS paper code regardless of review state; measured 2026-08-13 that
+ * had put 30 unapproved questions (mostly ones a human REJECTED) into 21 live
+ * daily quizzes. See lib/question-visibility.ts for why that exception existed
+ * and why it is serving-only now.
+ *
+ * TOPIC MIX is balanced across all four slices as ONE paper (lib/topic-balance.ts),
+ * against the same recency-weighted section hotness the mock builder uses. The
+ * slice ratios stay a content-type decision; the balancer decides which SECTION
+ * each slice's next pick comes from, sharing one running tally so the slices
+ * cannot each be individually reasonable and collectively skewed.
  *
  * Idempotent per (date, paper): keyed on slug `daily:YYYY-MM-DD:<paper>`; a
  * re-run rebuilds membership. Yesterday's quizzes simply remain published tests
@@ -34,9 +40,11 @@ import { DEFAULT_EXAM_CODE } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { selectAll } from "../lib/paginate.js";
 import { formatDateBilingual } from "../lib/ist.js";
-import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { assemblyVisibilityOrFilter } from "../lib/question-visibility.js";
 import { DEFAULT_MCQ_MARKS, roundMarks } from "../lib/marks.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
+import { sectionHotness, sectionOf, topLevelByNode, UNMAPPED_SECTION } from "../lib/sections.js";
+import { balancedPick, maxSectionDeviationPct } from "../lib/topic-balance.js";
 import {
   SLICE_FILL_ORDER,
   clampSize,
@@ -52,6 +60,12 @@ type Log = (msg: string) => void;
 interface PoolItem {
   id: string;
   marks: number;
+  /**
+   * Top-level syllabus section, so the four slices can be balanced against real
+   * weightage as ONE paper rather than four independent draws — see
+   * `selectDailyQuizItems`. `__unmapped__` for a question with no syllabus node.
+   */
+  top: string;
 }
 
 export interface DailyQuizBuildResult {
@@ -78,7 +92,8 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-const MCQ_COLUMNS = "id, marks";
+/** `syllabus_node_id` is what every pool item's section (`top`) is derived from. */
+const MCQ_COLUMNS = "id, marks, syllabus_node_id";
 
 /**
  * Every syllabus node id belonging to one exam. Paged — the tree is ~500 rows
@@ -213,7 +228,12 @@ async function recentlyUsedInDailyQuiz(days: number, examCode: string, paperCode
  * pool degrades into "rest" generated (and ultimately the backfill reservoir)
  * rather than re-serving a recently-seen weak question.
  */
-async function generatedPool(paperCode: string, weakNodes: string[], seen: Set<string>): Promise<PoolItem[]> {
+async function generatedPool(
+  paperCode: string,
+  weakNodes: string[],
+  seen: Set<string>,
+  topByNode: Map<string, string>,
+): Promise<PoolItem[]> {
   // Paginate (selectAll + stable order), same as pyqPool: generated MCQs now
   // exceed 1000, and a single select silently truncates to the first 1000
   // (PostgREST cap) — so the last ~255 generated questions were never eligible
@@ -228,7 +248,7 @@ async function generatedPool(paperCode: string, weakNodes: string[], seen: Set<s
       .eq("type", "mcq")
       .eq("source", "generated")
       .eq("paper_code", paperCode)
-      .or(questionVisibilityOrFilter("catalog"))
+      .or(assemblyVisibilityOrFilter())
       .order("id", { ascending: true }),
   );
   const rows = data.filter((r) => !seen.has(r.id));
@@ -242,28 +262,59 @@ async function generatedPool(paperCode: string, weakNodes: string[], seen: Set<s
   const byNode = new Map<string, typeof onWeak>();
   for (const r of shuffle(onWeak)) (byNode.get(r.syllabus_node_id!) ?? byNode.set(r.syllabus_node_id!, []).get(r.syllabus_node_id!)!).push(r);
   const orderedWeak = weakNodes.flatMap((id) => byNode.get(id) ?? []);
-  return [...orderedWeak, ...shuffle(rest)].map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
+  return [...orderedWeak, ...shuffle(rest)].map((r) => ({
+    id: r.id,
+    marks: r.marks ?? DEFAULT_MCQ_MARKS,
+    top: sectionOf(r.syllabus_node_id, topByNode),
+  }));
 }
 
-async function pyqPool(paperCode: string, seen: Set<string>): Promise<PoolItem[]> {
+/**
+ * Order a pool so questions NOT used in a recent daily quiz come first, keeping
+ * the recently-seen ones as a tail rather than dropping them.
+ *
+ * Used by the two pools that previously had NO recency handling at all — the
+ * current-affairs slice and the `random` slice, which is also the backfill
+ * reservoir — so a repeat now happens only when the pool genuinely has nothing
+ * fresher, instead of at random. Deliberately PREFER rather than EXCLUDE here:
+ * `random` is what guarantees the quiz reaches full length, and hard-excluding a
+ * fortnight of it could ship a short quiz. The `pyq` and `generated` slices keep
+ * their existing hard exclusion — their pools are large (1,022 approved MCQs on
+ * PRE_GS1 alone) and that behaviour is working.
+ */
+function unseenFirst(rows: PoolItem[], seen: ReadonlySet<string>): PoolItem[] {
+  if (seen.size === 0) return rows;
+  return [...rows.filter((r) => !seen.has(r.id)), ...rows.filter((r) => seen.has(r.id))];
+}
+
+async function pyqPool(paperCode: string, seen: Set<string>, topByNode: Map<string, string>): Promise<PoolItem[]> {
   // Paginate: published pyq MCQs exceed 1000, so a single select truncated the
   // pool to the first 1000 (biasing every daily quiz toward earlier questions).
   // Scoped to this quiz's paper (PRE_GS1 / PRE_CSAT).
-  const data = await selectAll<{ id: string; marks: number | null }>(() =>
+  const data = await selectAll<{ id: string; marks: number | null; syllabus_node_id: string | null }>(() =>
     supabase()
       .from("questions")
       .select(MCQ_COLUMNS)
       .eq("type", "mcq")
       .eq("source", "pyq")
       .eq("paper_code", paperCode)
-      .or(questionVisibilityOrFilter("catalog"))
+      .or(assemblyVisibilityOrFilter())
       .order("id", { ascending: true }),
   );
   const rows = data.filter((r) => !seen.has(r.id));
-  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
+  return shuffle(rows).map((r) => ({
+    id: r.id,
+    marks: r.marks ?? DEFAULT_MCQ_MARKS,
+    top: sectionOf(r.syllabus_node_id, topByNode),
+  }));
 }
 
-async function currentAffairsPool(days: number, examCode: string): Promise<PoolItem[]> {
+async function currentAffairsPool(
+  days: number,
+  examCode: string,
+  seen: ReadonlySet<string>,
+  topByNode: Map<string, string>,
+): Promise<PoolItem[]> {
   const cutoff = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const { data: items, error: itemsErr } = await supabase()
     .from("current_affairs_items")
@@ -282,17 +333,33 @@ async function currentAffairsPool(days: number, examCode: string): Promise<PoolI
   // Chunk the id list: `.in("id", ids)` becomes a URL query param, and a large
   // list (the CA bank now has ~400 linked MCQs) makes the URL exceed the HTTP
   // client's limit → an opaque "TypeError: fetch failed". Batch in groups of 100.
-  const rows: { id: string; marks: number | null }[] = [];
+  const rows: { id: string; marks: number | null; syllabus_node_id: string | null }[] = [];
   for (let i = 0; i < ids.length; i += 100) {
     const { data, error } = await supabase()
       .from("questions")
       .select(MCQ_COLUMNS)
       .in("id", ids.slice(i, i + 100))
-      .or(questionVisibilityOrFilter("test"));
+      // ⚑ WAS `questionVisibilityOrFilter("test")`, and that was a live defect.
+      // The "test" scope admits ANY question on the CURRENT_AFFAIRS paper code
+      // regardless of publish/review state — an exception written when a CA MCQ
+      // could never be approved at all. It can now, and 1,451 uppsc CA MCQs are;
+      // what the exception uniquely admitted had become the 331 a human REJECTED.
+      // Measured before this change: 30 unapproved questions (mostly rejected)
+      // were sitting in 21 live daily quizzes — the shared paper that feeds the
+      // competitive daily board. This is an ASSEMBLY path, so it takes the
+      // assembly filter, which has no scope argument to get wrong.
+      .or(assemblyVisibilityOrFilter());
     if (error) throw new Error(`current affairs question lookup failed: ${error.message}`);
-    rows.push(...((data ?? []) as { id: string; marks: number | null }[]));
+    rows.push(...((data ?? []) as typeof rows));
   }
-  return shuffle(rows).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
+  return unseenFirst(
+    shuffle(rows).map((r) => ({
+      id: r.id,
+      marks: r.marks ?? DEFAULT_MCQ_MARKS,
+      top: sectionOf(r.syllabus_node_id, topByNode),
+    })),
+    seen,
+  );
 }
 
 /**
@@ -300,21 +367,32 @@ async function currentAffairsPool(days: number, examCode: string): Promise<PoolI
  * per-paper backfill reservoir. Scoped to the variant's paper so a short GS
  * slice never backfills with a CSAT question (and vice versa).
  */
-async function randomPool(paperCode: string): Promise<PoolItem[]> {
+async function randomPool(
+  paperCode: string,
+  seen: ReadonlySet<string>,
+  topByNode: Map<string, string>,
+): Promise<PoolItem[]> {
   // Paginate: the full catalog MCQ set (2000+) exceeds the 1000-row cap, and this
   // pool is BOTH the random slice and the backfill reservoir — so a single select
   // silently shrank both to the first 1000 ids. Stable order for complete
   // pagination; shuffled below.
-  const data = await selectAll<{ id: string; marks: number | null }>(() =>
+  const data = await selectAll<{ id: string; marks: number | null; syllabus_node_id: string | null }>(() =>
     supabase()
       .from("questions")
       .select(MCQ_COLUMNS)
       .eq("type", "mcq")
       .eq("paper_code", paperCode)
-      .or(questionVisibilityOrFilter("catalog"))
+      .or(assemblyVisibilityOrFilter())
       .order("id", { ascending: true }),
   );
-  return shuffle(data).map((r) => ({ id: r.id, marks: r.marks ?? DEFAULT_MCQ_MARKS }));
+  return unseenFirst(
+    shuffle(data).map((r) => ({
+      id: r.id,
+      marks: r.marks ?? DEFAULT_MCQ_MARKS,
+      top: sectionOf(r.syllabus_node_id, topByNode),
+    })),
+    seen,
+  );
 }
 
 async function upsertDailyQuizTest(input: {
@@ -383,7 +461,15 @@ async function setMembership(testId: string, items: PoolItem[]): Promise<PoolIte
         .select("question_id, marks")
         .eq("test_id", testId);
       if (!reErr && existing && existing.length > 0) {
-        return existing.map((r) => ({ id: r.question_id as string, marks: (r.marks as number | null) ?? 0 }));
+        // `top` is only used to CHOOSE questions; by here the choosing is over
+        // and this is the other caller's already-persisted set, read back purely
+        // so size/total_marks are reported truthfully. UNMAPPED_SECTION rather
+        // than a second round trip to re-derive sections we will never use.
+        return existing.map((r) => ({
+          id: r.question_id as string,
+          marks: (r.marks as number | null) ?? 0,
+          top: UNMAPPED_SECTION,
+        }));
       }
     }
     throw new Error(`insert members failed: ${ins.error.message}`);
@@ -429,6 +515,10 @@ export interface DailyQuizSelection {
   backfilled: number;
   /** How many candidates each pool offered — diagnostics for a replay. */
   poolSizes: Record<QuizSlice, number>;
+  /** Largest per-section gap between the assembled quiz and its weightage target, in pp. */
+  deviation: number;
+  /** How many chosen questions were used in a daily quiz of this paper recently. */
+  repeatsRecent: number;
 }
 
 /**
@@ -487,13 +577,21 @@ export async function selectDailyQuizItems(
     cfg.generatedRecencyDays === cfg.pyqRecencyDays
       ? seen
       : await recentlyUsedInDailyQuiz(cfg.generatedRecencyDays, examCode, paperCode);
+  // The paper's node->section map and its per-section weightage, so every slice's
+  // items carry a section and the whole quiz can be balanced against how often
+  // the commission actually asks each one.
+  const [topByNode, weightage] = await Promise.all([topLevelByNode(paperCode), loadNodeWeightage()]);
+  const hot = await sectionHotness(paperCode, weightage, currentExamYear());
+  const weightOf = (top: string) => hot.get(top) ?? 0;
   const [gen, pyq, ca, rand] = await Promise.all([
-    generatedPool(paperCode, weak, genSeen),
-    pyqPool(paperCode, seen),
+    generatedPool(paperCode, weak, genSeen, topByNode),
+    pyqPool(paperCode, seen, topByNode),
     // Current affairs is GS content only — the CSAT variant never includes it
     // (its ratio is 0 too, so this is belt-and-suspenders).
-    variant.includeCurrentAffairs ? currentAffairsPool(cfg.currentAffairsDays, examCode) : Promise.resolve([]),
-    randomPool(paperCode),
+    variant.includeCurrentAffairs
+      ? currentAffairsPool(cfg.currentAffairsDays, examCode, seen, topByNode)
+      : Promise.resolve([]),
+    randomPool(paperCode, seen, topByNode),
   ]);
   const pools: Record<QuizSlice, PoolItem[]> = { generated: gen, pyq, current_affairs: ca, random: rand };
   const poolSizes: Record<QuizSlice, number> = {
@@ -512,33 +610,58 @@ export async function selectDailyQuizItems(
   const breakdown: Record<QuizSlice, number> = { generated: 0, pyq: 0, current_affairs: 0, random: 0 };
   const shortfalls: DailyQuizBuildResult["shortfalls"] = [];
 
+  // ⚑ ONE running per-section tally SHARED across all four slices, which is the
+  // whole point. Each slice still has its own size (a content-type quota, a
+  // separate product decision), but each one picks the section the QUIZ SO FAR is
+  // furthest below target on — so the four slices compose into one paper whose
+  // topic mix tracks real weightage. Balancing each slice independently would
+  // not achieve this: they draw from differently shaped pools, and four
+  // separately-balanced draws still add up to a skewed paper.
+  //
+  // Before this, the daily quiz had no balancing at all and it showed: measured
+  // on the last three GS quizzes, max section deviation was 13.1 / 14.9 / 21.4pp.
+  // 2026-07-31 gave Economic & Social Development ZERO questions against a 15%
+  // target; 2026-08-05 gave Environmental Ecology 8/25 (32%) on an 11% target
+  // while Polity took 1/25 (4%) on 16%.
+  const running = new Map<string, number>();
+
   for (const slice of SLICE_FILL_ORDER) {
     const target = targets[slice];
-    let filled = 0;
-    for (const item of pools[slice]) {
-      if (filled >= target) break;
-      if (chosen.has(item.id)) continue;
-      chosen.set(item.id, item);
-      filled += 1;
-    }
-    breakdown[slice] = filled;
-    if (filled < target) {
-      shortfalls.push({ slice, target, filled });
-      log(`slice "${slice}" short: filled ${filled}/${target} — will backfill from other pools`);
+    // `balancedPick` preserves each pool's own within-section order, so the
+    // generated slice's weak-topic priority and the unseen-first ordering of the
+    // CA/random pools both survive — balancing is a cross-section concern only.
+    const picked = balancedPick({
+      pool: pools[slice],
+      count: target,
+      weightOf,
+      running,
+      placedTotal: chosen.size,
+      exclude: new Set(chosen.keys()),
+    });
+    for (const item of picked) chosen.set(item.id, item);
+    breakdown[slice] = picked.length;
+    if (picked.length < target) {
+      shortfalls.push({ slice, target, filled: picked.length });
+      log(`slice "${slice}" short: filled ${picked.length}/${target} — will backfill from other pools`);
     }
   }
 
   // Backfill to `size` from the leftover reservoir (random first — the general
   // coverage pool — then the remaining slice pools), so a thin slice never ships
-  // a thin quiz.
-  let backfilled = 0;
+  // a thin quiz. Balanced too, and against the SAME running tally: the backfill
+  // is where a short slice's slots actually land, so filling it in pool order
+  // would undo the balancing the slices just did.
   const reservoir = [...pools.random, ...pools.pyq, ...pools.generated, ...pools.current_affairs];
-  for (const item of reservoir) {
-    if (chosen.size >= size) break;
-    if (chosen.has(item.id)) continue;
-    chosen.set(item.id, item);
-    backfilled += 1;
-  }
+  const backfill = balancedPick({
+    pool: reservoir,
+    count: size - chosen.size,
+    weightOf,
+    running,
+    placedTotal: chosen.size,
+    exclude: new Set(chosen.keys()),
+  });
+  for (const item of backfill) chosen.set(item.id, item);
+  const backfilled = backfill.length;
   if (backfilled > 0) log(`backfilled ${backfilled} question(s) to reach ${chosen.size}/${size}`);
 
   if (chosen.size === 0) {
@@ -549,7 +672,15 @@ export async function selectDailyQuizItems(
     log(`only ${chosen.size} questions available (min ${cfg.minSize}) — shipping a smaller quiz than intended`);
   }
 
-  return { items: shuffle([...chosen.values()]), size, breakdown, shortfalls, backfilled, poolSizes };
+  const items = [...chosen.values()];
+  const deviation = maxSectionDeviationPct(items, weightOf, hot.keys());
+  const repeatsRecent = items.filter((it) => seen.has(it.id)).length;
+  log(
+    `topic mix: max section deviation ${deviation.toFixed(1)}pp; ` +
+      `${repeatsRecent}/${items.length} question(s) seen in the last ${cfg.pyqRecencyDays} days`,
+  );
+
+  return { items: shuffle(items), size, breakdown, shortfalls, backfilled, poolSizes, deviation, repeatsRecent };
 }
 
 export async function buildDailyQuizVariant(

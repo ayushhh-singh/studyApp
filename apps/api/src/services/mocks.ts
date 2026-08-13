@@ -39,7 +39,8 @@ import {
   UPSC_PRELIMS_GS1_PAPER_CODE,
 } from "../lib/upsc-papers.js";
 import { roundMarks } from "../lib/marks.js";
-import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
+import { loadNodeWeightage, currentExamYear } from "../lib/weightage.js";
+import { sectionHotness, sectionOf, topLevelByNode } from "../lib/sections.js";
 
 const MCQ_MARKS = 2;
 
@@ -79,11 +80,12 @@ const MOCK_MIN_PER_SECTION = 1;
  * hardcoded number. 6 keeps the Practice → Mock Tests list substantial but
  * manageable. Today's supply supports 4–9 sets per paper.
  *
- * ⚑ This ceiling is now also a UNIQUENESS budget, not only a variety/UX one. The
- * N sets of a paper are mutually disjoint (see `buildMocks`), which the
- * supply-driven formula makes free — but it means raising this number spends real
- * pool depth, and a paper whose pool cannot support N disjoint papers simply
- * builds fewer. The earlier framing here ("sets sample independently, overlap is
+ * ⚑ This ceiling is now also a FRESHNESS budget, not only a variety/UX one. The N
+ * sets of a paper prefer questions the earlier sets did not use (see
+ * `buildMocks`), so raising this number spends real pool depth: past the point
+ * where a section can fill N papers proportionally, the later sets repeat rather
+ * than skew — deliberately, because a correct topic mix outranks zero overlap.
+ * The earlier framing here ("sets sample independently, overlap across sets is
  * acceptable") described the old behaviour and is no longer true.
  */
 export const MOCK_MAX_SETS = 6;
@@ -244,19 +246,10 @@ function shuffle<T>(items: T[]): T[] {
   return out;
 }
 
-/** node_id -> top-level path segment, for the paper's tree (balance grouping). */
-async function topLevelByNode(paperCode: string): Promise<Map<string, string>> {
-  const { data, error } = await supabase()
-    .from("syllabus_nodes")
-    .select("id, path")
-    .eq("paper_code", paperCode);
-  if (error) throw new HttpError(500, `syllabus lookup failed: ${error.message}`);
-  const out = new Map<string, string>();
-  for (const n of (data ?? []) as { id: string; path: string }[]) {
-    out.set(n.id, n.path ? n.path.split("/")[0] : "__root__");
-  }
-  return out;
-}
+// `topLevelByNode` / `sectionHotness` moved to lib/sections.ts when the daily
+// quiz and the CA sittings adopted topic balancing — see that module. Re-exported
+// so services/on-demand.ts's existing import from here keeps working.
+export { sectionHotness };
 
 /**
  * The exam that OWNS a paper — the value the pool queries filter `exam_code` on.
@@ -323,26 +316,8 @@ async function availableQuestions(paperCode: string): Promise<AvailQ[]> {
   return rows.map((r) => ({
     id: r.id,
     marks: r.marks ?? MCQ_MARKS,
-    top: (r.syllabus_node_id && topByNode.get(r.syllabus_node_id)) || "__unmapped__",
+    top: sectionOf(r.syllabus_node_id, topByNode),
   }));
-}
-
-/**
- * Rolled-up recency-weighted PYQ frequency (hotness) per top-level section of a
- * paper, from the cached weightage matview — the SAME signal qgen/topup.ts and
- * the /learn weightage bars use. Every node under a section contributes, so a
- * chapter's weight reflects its whole subtree. Sections with no dated PYQ have
- * weight 0 (they still appear in a mock via the per-section floor).
- */
-export async function sectionHotness(paperCode: string, weightage: Map<string, OwnWeightage>, year: number): Promise<Map<string, number>> {
-  const topByNode = await topLevelByNode(paperCode);
-  const out = new Map<string, number>();
-  for (const [nodeId, top] of topByNode) {
-    const w = weightage.get(nodeId);
-    if (!w) continue;
-    out.set(top, (out.get(top) ?? 0) + hotnessRaw(w.byYear, year));
-  }
-  return out;
 }
 
 /**
@@ -694,7 +669,7 @@ async function availableDescriptiveQuestions(paperCode: string): Promise<AvailQ[
   return rows.map((r) => ({
     id: r.id,
     marks: r.marks ?? 0,
-    top: (r.syllabus_node_id && topByNode.get(r.syllabus_node_id)) || "__unmapped__",
+    top: sectionOf(r.syllabus_node_id, topByNode),
   }));
 }
 
