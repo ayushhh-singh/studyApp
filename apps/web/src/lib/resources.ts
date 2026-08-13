@@ -118,11 +118,27 @@ const NCERT_PDF_ROOT = "https://ncert.nic.in/textbook/pdf";
  * do offer a single NCERT PDF are hosting unauthorised copies; that is why they
  * can offer what NCERT itself does not. Do not add a merge endpoint here.
  *
- * The per-chapter PDFs (`<code>NN.pdf`) are also public and were verified, but
- * are deliberately not surfaced: the founder's call is one file per book.
  */
 export function ncertBookUrl(code: string): string {
   return `${NCERT_PDF_ROOT}/${code}dd.zip`;
+}
+
+/**
+ * A single chapter, as a direct PDF.
+ *
+ * Offered ALONGSIDE the complete-book zip rather than instead of it, because
+ * the two solve different problems: the zip is one file but needs an unzip app,
+ * and a chapter PDF opens natively in one tap. That matters most on exactly the
+ * books where the zip is worst — 15 of the 81 editions are over 50MB and the
+ * largest is 201MB, which is not a realistic download on metered mobile data.
+ *
+ * The chapter scheme is verified, not extrapolated: every chapter of every book
+ * shipped here was magic-byte checked (591 files), and NCERT answers a missing
+ * one with a genuine 404 rather than a soft-404 body, so a withdrawn book fails
+ * loudly. Chapter n is zero-padded: `<code>01.pdf`.
+ */
+export function ncertChapterUrl(code: string, chapter: number): string {
+  return `${NCERT_PDF_ROOT}/${code}${String(chapter).padStart(2, "0")}.pdf`;
 }
 
 /**

@@ -2309,6 +2309,9 @@
     "bookAria": "Download the complete book, {{lang}} edition of {{title}} ({{size}})",
     "seoDescription": "Free study material for Indian civil-services preparation: NCERT textbooks in Hindi and English, the government's own reports and surveys, and syllabus-mapped study chapters.",
     "seoTitle": "Free study resources",
-    "descriptionPublic": "Everything you can study from without paying: NCERT's own textbooks in Hindi and English, and the government's own reports and surveys."
+    "descriptionPublic": "Everything you can study from without paying: NCERT's own textbooks in Hindi and English, and the government's own reports and surveys.",
+    "chapterToggle_one": "{{count}} chapter — download individually",
+    "chapterToggle_other": "{{count}} chapters — download individually",
+    "chapterAria": "Chapter {{n}} of {{title}}, {{lang}} edition (PDF)"
   }
 }
