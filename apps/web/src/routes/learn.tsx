@@ -10,6 +10,7 @@ import { StatCardSkeleton } from "@/components/ui-x/skeleton";
 import { Chip } from "@/components/ui-x/chip";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
+import { usePaperCatalog } from "@/hooks/use-paper-catalog";
 import { useLocale } from "@/hooks/use-locale";
 import { scoreBandTextColor } from "@/lib/score-band";
 
@@ -102,6 +103,8 @@ export function Component() {
   const { name: examName } = useCurrentExam();
   const locale = useLocale();
   const { data, isLoading, isError, refetch } = usePaperSummaries();
+  // The commission's own paper order, for the "Syllabus order" sort.
+  const { compare, isLoading: catalogLoading } = usePaperCatalog();
   const [params, setParams] = useSearchParams();
 
   // Filters live in the URL — a filtered browse is shareable and survives a
@@ -129,11 +132,30 @@ export function Component() {
       // last rather than being treated as 0%, which would read as "you scored
       // zero here" when the truth is "you haven't started".
       sorted.sort((a, b) => (b.accuracy_pct ?? -1) - (a.accuracy_pct ?? -1));
+    } else {
+      // ⚑ "Syllabus order" USED TO DO NOTHING — there was no branch here at all,
+      // so the list kept whatever order the API happened to return. That order is
+      // `getPaperSummaries`' `.order("paper_code")`, i.e. ALPHABETICAL BY CODE,
+      // which is not syllabus order and visibly is not: UPSC_PRE_CSAT sorts
+      // before UPSC_PRE_GS1 because "C" < "G", so the papers grid opened with
+      // Paper II above Paper I under a control that said "Syllabus order".
+      //
+      // The registry IS the syllabus order — `exams.paper_structure` was seeded
+      // from each commission's own notification PDF (0106), so `compare` follows
+      // the order the commission itself prints. It also fixes Mains, where
+      // alphabetical put MAINS_ESSAY and MAINS_GH ahead of MAINS_GS1.
+      sorted.sort((a, b) => compare(a.paper_code, b.paper_code));
     }
     return sorted;
-  }, [data, stage, sort]);
+  }, [data, stage, sort, compare]);
 
   const totalCount = data?.length ?? 0;
+  // The catalog is EMPTY while `GET /exams` is in flight and `compare` then falls
+  // back to comparing RAW CODES — which is exactly the alphabetical order this
+  // fix exists to remove. Rendering through it would show the wrong order for a
+  // moment and visibly reshuffle, so hold the skeleton until it resolves; this is
+  // the gating rule `usePaperCatalog`'s own header calls not optional.
+  const showSkeleton = isLoading || (sort === "syllabus" && catalogLoading);
 
   return (
     <div className="flex flex-col gap-6">
@@ -154,7 +176,7 @@ export function Component() {
         </Link>
       </div>
 
-      {!isLoading && totalCount > 0 && (
+      {!showSkeleton && totalCount > 0 && (
         <Link
           to={`/${locale}/profile#mastery-matrix`}
           className="inline-flex w-fit items-center gap-2 rounded-lg border border-border bg-card px-4 py-2.5 text-sm font-medium transition-colors hover:border-primary/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -172,7 +194,7 @@ export function Component() {
           share the same per-IP limiter (docs/OUTSTANDING.md B9). */}
       {isError ? (
         <QueryErrorState onRetry={() => void refetch()} />
-      ) : isLoading || !data ? (
+      ) : showSkeleton || !data ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <StatCardSkeleton />
           <StatCardSkeleton />
