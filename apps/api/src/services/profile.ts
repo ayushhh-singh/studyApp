@@ -10,6 +10,7 @@ import { DEFAULT_EXAM_CODE } from "@neev/shared";
 interface ExamInfo {
   days_to_exam: number | null;
   next_exam_label_i18n: { hi: string; en: string } | null;
+  next_exam_stage: Profile["next_exam_stage"];
 }
 
 /**
@@ -29,13 +30,13 @@ const PROFILE_COLUMNS =
   "streak_freezes, streak_freeze_used_on, onboarding_completed, study_hours_per_day, show_on_mains_board, tour_state";
 
 /**
- * Days until the next scheduled Prelims (from exam_calendar), same lookup
- * pattern as dashboard.ts's getGreeting — null if nothing is scheduled.
- */
-/**
- * Upcoming dates for EVERY exam, fetched in parallel with the profile read so
- * the countdown never serialises behind it (0106). Narrowed to the user's own
- * exam by `examInfoFor` once the profile row is in hand.
+ * Upcoming dates for EVERY exam at EVERY stage, fetched in parallel with the
+ * profile read so the countdown never serialises behind it (0106). Narrowed to
+ * the user's own exam — and to their next milestone, Prelims or Mains — by
+ * `examInfoFor` once the profile row is in hand.
+ *
+ * (This carried a second, stale doc block saying "days until the next scheduled
+ * Prelims"; the lookup stopped being prelims-only when upcomingExamsQuery did.)
  */
 async function fetchUpcomingExams(today: string): Promise<unknown> {
   const { data, error } = await upcomingExamsQuery(today);
@@ -48,10 +49,13 @@ async function fetchUpcomingExams(today: string): Promise<unknown> {
 // an off-by-one countdown.
 function examInfoFor(rows: unknown, examCode: string, today: string): ExamInfo {
   const row = pickNextExam(rows, examCode);
-  if (!row) return { days_to_exam: null, next_exam_label_i18n: null };
+  if (!row) return { days_to_exam: null, next_exam_label_i18n: null, next_exam_stage: null };
   return {
     days_to_exam: daysBetween(today, row.exam_date),
     next_exam_label_i18n: row.title_i18n as BilingualText,
+    // Read off the row, never inferred from the label's wording — the UI needs
+    // to say "Days to Prelims" / "Days to Mains" and the title is free prose.
+    next_exam_stage: row.exam_stage as Profile["next_exam_stage"],
   };
 }
 
@@ -203,7 +207,14 @@ export async function updateProfile(userId: string, patch: ProfileUpdateBody): P
     updateQuery.select(PROFILE_COLUMNS).maybeSingle(),
     fetchUpcomingExams(today),
   ]);
-  if (error) throw new HttpError(500, `profile update failed: ${error.message}`);
+  if (error) {
+    // `users_profile.handle` is UNIQUE (0052). Two people can genuinely want
+    // the same one, so a collision is an expected outcome of a normal edit, not
+    // a server fault — surfaced as the same 409 completeOnboarding already
+    // gives, so the form can just ask for another.
+    if (error.code === "23505") throw conflict("That handle is already taken");
+    throw new HttpError(500, `profile update failed: ${error.message}`);
+  }
   if (!data) {
     if (!swapFromExam) {
       // No guard was added, so 0 rows matched only because the profile row

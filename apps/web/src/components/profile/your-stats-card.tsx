@@ -18,11 +18,14 @@ function StatRow({
   icon: Icon,
   label,
   value,
+  hint,
   tint = "bg-primary/15 text-primary",
 }: {
   icon: LucideIcon;
   label: string;
   value: string | number;
+  /** One line under the label, for a row whose name does not explain itself. */
+  hint?: string;
   /** Semantic tint — streak/freezes are the gold "achievement" family, exam
    *  and target are neutral study-blue. Same assignments as the dashboard. */
   tint?: string;
@@ -32,7 +35,12 @@ function StatRow({
       <span className={`flex size-8 shrink-0 items-center justify-center rounded-lg ${tint}`}>
         <Icon className="size-4" aria-hidden />
       </span>
-      <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        {/* Only the label truncates. A hint that truncates teaches nothing, so
+            it wraps instead. */}
+        <span className="truncate text-sm">{label}</span>
+        {hint && <span className="text-xs leading-snug text-muted-foreground">{hint}</span>}
+      </span>
       {/* font-display is Inter 800 tabular — figures in a column must line up,
           and Poppins (the heading face) has no tabular figures at all. */}
       <span className="shrink-0 font-display text-lg tabular-nums">{value}</span>
@@ -65,11 +73,33 @@ export function YourStatsCard({ profile, isLoading }: { profile: Profile | undef
           label={t("Profile.statStreak")}
           value={t("Profile.statDays", { count: profile.streak_count })}
         />
-        <StatRow icon={Snowflake} tint="bg-marigold/20 text-marigold-foreground ring-1 ring-marigold-foreground/25" label={t("Profile.statFreezes")} value={profile.streak_freezes} />
+        <StatRow
+          icon={Snowflake}
+          tint="bg-marigold/20 text-marigold-foreground ring-1 ring-marigold-foreground/25"
+          label={t("Profile.statFreezes")}
+          // "Streak freezes banked: 0" is unreadable without this — the number
+          // means nothing unless you know a freeze is spent automatically to
+          // cover a missed day, is earned every 7 days, caps at 2, and cannot
+          // be bought. See daily/streak.ts.
+          hint={t("Profile.statFreezesHint")}
+          value={profile.streak_freezes}
+        />
         {profile.days_to_exam !== null && (
           <StatRow
             icon={CalendarDays}
-            label={t("Profile.statDaysToExam")}
+            // Names the STAGE rather than saying "your exam": with both a
+            // Prelims and a Mains date on the calendar, "282 days" alone does
+            // not say which one it is counting to. Falls back to the old
+            // generic label only if the stage is somehow absent.
+            label={
+              profile.next_exam_stage
+                ? t(
+                    profile.next_exam_stage === "mains"
+                      ? "Profile.statDaysToMains"
+                      : "Profile.statDaysToPrelims",
+                  )
+                : t("Profile.statDaysToExam")
+            }
             value={t("Profile.statDays", { count: profile.days_to_exam })}
           />
         )}

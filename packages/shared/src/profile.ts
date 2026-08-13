@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, localeSchema } from "./types";
+import { apiEnvelopeSchema, examStageSchema, localeSchema } from "./types";
 import { tourStateSchema } from "./tour";
 import { targetExamCodeSchema } from "./exams";
 
@@ -36,6 +36,18 @@ export const profileSchema = z.object({
   /** Days until the next known exam date (from exam_calendar), null if none scheduled. */
   days_to_exam: z.number().int().nullable(),
   next_exam_label_i18n: z.object({ hi: z.string(), en: z.string() }).nullable(),
+  /**
+   * WHICH STAGE the countdown above is counting down to. Carried as data rather
+   * than left to be read out of `next_exam_label_i18n`'s prose: the label is
+   * hand-authored per calendar row and is not guaranteed to contain the word
+   * "Prelims"/"Mains", so a UI that needs the stage must read it from here.
+   *
+   * Before this existed, `profile-card.tsx` hardcoded `exam_stage: "prelims"`
+   * when adapting this shape into DashboardNextExam — harmless only while the
+   * calendar lookup itself was prelims-only, and a straight lie the moment it
+   * stopped being (see lib/exam-calendar.ts).
+   */
+  next_exam_stage: examStageSchema.nullable(),
   /** Opt-in only — Mains (Answer Writing) scores are personal; never forced. See Scoreboard. */
   show_on_mains_board: z.boolean(),
   /** The 5-layer onboarding tour's persisted progress — see GET/PATCH /tour for the full picture (checklist + feature-touch map). */
@@ -46,6 +58,20 @@ export type Profile = z.infer<typeof profileSchema>;
 export const profileUpdateBodySchema = z
   .object({
     display_name: z.string().min(1).max(120).optional(),
+    /**
+     * Your public identity on Community and the Scoreboards; with none you show
+     * as "Anonymous" there. Until this existed a handle could be set ONCE, in
+     * the onboarding wizard, and never changed — and since that step is
+     * optional, most accounts simply had none for good.
+     *
+     * `.nullable()` is deliberate and is not the same as `.optional()`:
+     *   - key absent  -> leave the handle alone (every other PATCH field)
+     *   - key = null  -> CLEAR it and go back to appearing as Anonymous, which
+     *                    is a legitimate privacy action, not an error state.
+     * Reuses `handleSchema` rather than restating the pattern — a second copy
+     * of the rule is how the two paths drift.
+     */
+    handle: handleSchema.nullable().optional(),
     preferred_locale: localeSchema.optional(),
     target_exam_year: z.number().int().min(2000).max(2100).optional(),
     target_exam: targetExamCodeSchema.optional(),

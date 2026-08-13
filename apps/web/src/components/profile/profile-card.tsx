@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { User } from "lucide-react";
-import type { DashboardNextExam, Locale, Profile, ProfileUpdateBody } from "@neev/shared";
+import { handleSchema, type DashboardNextExam, type Locale, type Profile, type ProfileUpdateBody } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { FreezePips } from "@/components/ui-x/freeze-pips";
@@ -13,13 +13,17 @@ import { cn } from "@/lib/utils";
 const INPUT_CLASS =
   "min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
 
-/** Profile carries a flatter {days_to_exam, next_exam_label_i18n} shape than the
- * dashboard's DashboardNextExam — adapt it so both pages share one chip component
- * instead of two near-identical countdown renderers drifting apart over time. */
+/** Profile carries a flatter {days_to_exam, next_exam_label_i18n, next_exam_stage}
+ * shape than the dashboard's DashboardNextExam — adapt it so both pages share one
+ * chip component instead of two near-identical countdown renderers drifting apart
+ * over time. */
 function toDashboardNextExam(profile: Profile): DashboardNextExam {
   if (profile.days_to_exam === null || !profile.next_exam_label_i18n) return null;
   return {
-    exam_stage: "prelims",
+    // Was hardcoded "prelims", which was only ever true because the calendar
+    // lookup itself was prelims-only. It no longer is (lib/exam-calendar.ts),
+    // so this reads the real stage; the ?? is for a row shaped by an older API.
+    exam_stage: profile.next_exam_stage ?? "prelims",
     title_i18n: profile.next_exam_label_i18n,
     exam_date: "",
     days_until: profile.days_to_exam,
@@ -27,27 +31,51 @@ function toDashboardNextExam(profile: Profile): DashboardNextExam {
   };
 }
 
+/**
+ * People type "@ayush", "Ayush", "ayush singh" — all of which `handleSchema`
+ * rejects. Normalising as they type turns three guaranteed validation failures
+ * into no failure at all, and leaves the schema as the single source of truth
+ * for what is actually legal.
+ */
+function normalizeHandle(raw: string): string {
+  return raw.trim().replace(/^@+/, "").toLowerCase();
+}
+
 export function ProfileCard({ profile, isLoading }: { profile: Profile | undefined; isLoading: boolean }) {
   const { t } = useTranslation();
   const updateProfile = useUpdateProfile();
 
   const [displayName, setDisplayName] = useState("");
+  const [handle, setHandle] = useState("");
   const [targetYear, setTargetYear] = useState("");
   const [medium, setMedium] = useState<Locale>("en");
 
   useEffect(() => {
     if (!profile) return;
     setDisplayName(profile.display_name ?? "");
+    setHandle(profile.handle ?? "");
     setTargetYear(profile.target_exam_year ? String(profile.target_exam_year) : "");
     setMedium(profile.medium);
   }, [profile]);
 
+  // Empty is legal — it means "no handle", i.e. appear as Anonymous. Only a
+  // non-empty value has to satisfy the shared rule.
+  const handleValid = handle === "" || handleSchema.safeParse(handle).success;
+
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!handleValid) return;
     const body: ProfileUpdateBody = { medium };
     if (displayName.trim()) body.display_name = displayName.trim();
     const year = Number(targetYear);
     if (targetYear && Number.isInteger(year)) body.target_exam_year = year;
+    // Send `handle` only when it actually changed. Sending it on every save
+    // would make an unrelated edit (medium, target year) collide with someone
+    // who took the handle in between, failing a save that had nothing to do
+    // with it. `null` is the explicit "clear it" signal the PATCH schema
+    // documents; `undefined` would mean "leave it alone".
+    const nextHandle = handle === "" ? null : handle;
+    if (nextHandle !== (profile?.handle ?? null)) body.handle = nextHandle;
     updateProfile.mutate(body);
   }
 
@@ -92,7 +120,7 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
 
         <form className="flex flex-col gap-4 border-t border-border pt-5" onSubmit={handleSubmit}>
           <h3 className="text-sm font-semibold">{t("Profile.editProfileTitle")}</h3>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <div className="grid grid-cols-1 items-start gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <label className="flex flex-col gap-1.5 text-sm font-medium">
               {t("Profile.displayName")}
               <input
@@ -101,6 +129,28 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
                 onChange={(e) => setDisplayName(e.target.value)}
                 placeholder={t("Profile.displayNamePlaceholder")}
               />
+            </label>
+
+            <label className="flex flex-col gap-1.5 text-sm font-medium">
+              {t("Profile.handle")}
+              <input
+                className={cn(INPUT_CLASS, !handleValid && "border-destructive")}
+                value={handle}
+                onChange={(e) => setHandle(normalizeHandle(e.target.value))}
+                placeholder={t("Profile.handlePlaceholder")}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                aria-invalid={!handleValid}
+                aria-describedby="profile-handle-hint"
+              />
+              {/* Always visible, never only-on-error: a field called "Handle"
+                  means nothing on its own, and a rule you only learn by
+                  breaking it is a bad rule to hide. Same reasoning as the
+                  password-strength hint added in the auth-gap session. */}
+              <span id="profile-handle-hint" className="text-xs font-normal text-muted-foreground">
+                {handleValid ? t("Profile.handleHint") : t("Profile.handleInvalid")}
+              </span>
             </label>
 
             <label className="flex flex-col gap-1.5 text-sm font-medium">
@@ -125,7 +175,7 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
             </label>
           </div>
 
-          <Button type="submit" disabled={updateProfile.isPending} className="self-start">
+          <Button type="submit" disabled={updateProfile.isPending || !handleValid} className="self-start">
             {updateProfile.isPending ? t("Profile.saving") : t("Profile.save")}
           </Button>
 
