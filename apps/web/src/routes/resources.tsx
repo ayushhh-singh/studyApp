@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui-x/empty-state";
 import { Chip } from "@/components/ui-x/chip";
 import { NeevLibraryCard } from "@/components/resources/neev-library-card";
 import { useCurrentExam } from "@/hooks/use-current-exam";
+import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { stateFocusName } from "@/lib/exam-label";
 import {
@@ -52,6 +53,7 @@ const SUBJECT_PARAM = "subject";
 export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
+  const { session } = useAuth();
   const { examCode, exam, name: examName } = useCurrentExam();
   const [params, setParams] = useSearchParams();
 
@@ -87,15 +89,23 @@ export function Component() {
       <PageSeo
         locale={locale}
         path="/resources"
-        title={`${t("Resources.title")} — ${t("Landing.brand")}`}
+        title={`${t("Resources.seoTitle")} — ${t("Landing.brand")}`}
         description={t("Resources.seoDescription")}
       />
       <MarketingHeader maxWidthClass="max-w-5xl" />
 
       <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10 pb-16 sm:px-6 sm:py-14">
-        <div className="flex flex-col gap-1 border-b border-border pb-4">
-          <h1 className="text-2xl font-bold tracking-tight text-balance">{t("Resources.title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("Resources.description", { exam: examName })}</p>
+        <div className="mx-auto max-w-2xl text-center">
+          <h1 className="font-heading text-3xl font-extrabold tracking-tight text-balance sm:text-4xl">
+            {t("Resources.title")}
+          </h1>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">
+            {/* Signed out there is no target exam — useCurrentExam falls back
+                to the DEFAULT exam, so naming it told every visitor it was
+                theirs. The public copy also drops the "chapters we have written
+                for you" clause, since that section is signed-in only. */}
+            {session ? t("Resources.description", { exam: examName }) : t("Resources.descriptionPublic")}
+          </p>
         </div>
 
       <NeevLibraryCard />
@@ -119,12 +129,6 @@ export function Component() {
       <NcertSection books={ncert} state={state} />
       <OfficialSection resources={official} state={state} />
 
-      {/* Says out loud why the standard commercial books are absent. Without
-          this, the obvious next move for a reader who came here looking for
-          "Laxmikanth PDF" is to go and find a pirated one. */}
-      <p className="rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
-        {t("Resources.paidBooksNote")}
-      </p>
       </div>
 
       <Footer />

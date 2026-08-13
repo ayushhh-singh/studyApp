@@ -1930,7 +1930,7 @@
     "features": "Features",
     "contact": "Contact",
     "headerNavLabel": "Main",
-    "resources": "Free resources"
+    "resources": "Resources"
   },
   "Features": {
     "hub": {
@@ -2267,7 +2267,7 @@
   },
   "Resources": {
     "navTitle": "Free resources",
-    "title": "Free study resources",
+    "title": "Resources",
     "description": "Everything you can study from without paying: the chapters we have already written for your {{exam}} syllabus, NCERT's own textbooks, and the government's own reports.",
     "filterLabel": "Filter by subject",
     "neevTitle": "Already in Neev",
@@ -2288,7 +2288,6 @@
     "stateSpecific": "{{state}}",
     "noneForFilterTitle": "Nothing here for this subject",
     "noneForFilterBody": "Try another subject, or clear the filter to see everything.",
-    "paidBooksNote": "Standard reference books — Laxmikanth's Indian Polity, Spectrum's Modern History and the rest — are copyrighted, so they are not listed here. Any site offering them as a free download is distributing a pirated copy; buy those from the publisher or a bookshop.",
     "subject_polity": "Polity & Governance",
     "subject_history": "History",
     "subject_art_culture": "Art & Culture",
@@ -2308,8 +2307,8 @@
     "subject_society": "Society",
     "subject_social_science": "Social Science (Classes 6-9)",
     "bookAria": "Download the complete book, {{lang}} edition of {{title}} ({{size}})",
-    "neevSignedOut": "Create a free account to open the study chapters and the past-paper archive — both are free, and the archive lets you attempt a full paper and be scored on it.",
-    "neevSignedOutCta": "Create a free account",
-    "seoDescription": "Free study material for Indian civil-services preparation: NCERT textbooks in Hindi and English, the government's own reports and surveys, and syllabus-mapped study chapters."
+    "seoDescription": "Free study material for Indian civil-services preparation: NCERT textbooks in Hindi and English, the government's own reports and surveys, and syllabus-mapped study chapters.",
+    "seoTitle": "Free study resources",
+    "descriptionPublic": "Everything you can study from without paying: NCERT's own textbooks in Hindi and English, and the government's own reports and surveys."
   }
 }
