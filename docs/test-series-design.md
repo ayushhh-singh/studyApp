@@ -479,16 +479,38 @@ measured: question volume is not a constraint on this feature.**
 
 **⚑ Three things that ARE constraints, in order:**
 
-1. **`qgen` is not currently running.** `generation_batches` shows 285 batches
-   between 2026-07-06 and **2026-08-01**, then **nothing for nine days** against
-   a nightly schedule. Root cause not diagnosed here — but note `OUTSTANDING.md`
-   §8k (U8k) records that `schedule:` triggers run from the **default branch**,
-   and `assert-fresh-checkout.mjs` fails a scheduled run whose checkout is stale.
-   **Verify `qgen-topup.yml` is green before building a series that assumes it.**
-2. **Review throughput is the real ceiling.** ~150 CA + ~377 qgen = **~530
-   questions/week arriving for human approval**, on top of the standing 1,027
-   backlog. Nothing in this repo budgets a reviewer. This is Q9 and it is the
-   single most important operational answer needed.
+1. ~~**`qgen` is not currently running.**~~ **DIAGNOSED 2026-08-13 — IT WAS NEVER
+   AN OUTAGE, AND THE GUESS IN THIS BULLET WAS WRONG.** The workflow ran every
+   night and did exactly what it was told. `qgen:topup` writes a
+   `generation_batches` row only when it actually generates, so "no rows" is
+   ambiguous between *broken* and *nothing to do* — and it was the latter. Until
+   2026-08-13 the default branch carried only the COVERAGE floor
+   (`MCQ_FLOOR`/`DESCRIPTIVE_FLOOR`), which counts every published+approved
+   question in a section's subtree and is therefore satisfied on a mature bank.
+   Measured at its then-band `[25..80]`: **0 of 14 uppsc prelims sections and 0
+   of 54 uppsc mains sections were below floor**, so the planner correctly
+   planned nothing. It "resumed" on 2026-08-11 with **7** and then **6**
+   questions purely because `upsc` went live that day and brought exactly ONE
+   node (`UPSC_PRE_CSAT` "Interpersonal Skills") below floor — not because
+   anything was fixed.
+   The stale-checkout hypothesis is **ruled out**: `origin/main` received commits
+   on every single day of the gap, so `assert-fresh-checkout.mjs` (14-day
+   threshold) never fired. **Resolve this class with `pnpm --filter api
+   qgen:topup --dry-run`, which distinguishes the two cases; a green Actions run
+   cannot.** The real supply lever is the per-leaf FRESH-supply floor, raised on
+   2026-08-13 — see `qgen/topup.ts`.
+2. **Review throughput is the real ceiling — but it is NOT currently binding, and
+   the two feeds are not reviewed the same way.** Re-measured 2026-08-13: the
+   `needs_review` backlog is **381**, not 1,027, and **zero of it is generated
+   MCQs** (365 uppsc machine-translated PYQs + 10 upsc PYQs + 6 upsc generated
+   descriptives). Lifetime qgen output is 709 rows, of which **703 are already
+   decided** at a median of **5.6 days** (p95 8.6). CA output (1,895 rows) has
+   its own bulk path (`bulkApproveCaHighConfidence`); **qgen output does not** —
+   it must be multi-selected by hand, even though **99.6% of it meets
+   `isHighConfidenceQuestion` and the human agreed with that gate 97.2% of the
+   time**. Demonstrated absorption: **495 qgen decisions in one day**, ~1,134
+   accepted in the week of 2026-07-08. See Q9 — the highest-value operational
+   change is extending the high-confidence bulk-approve path to qgen output.
 3. **Per-section targeting, not just volume.** `qgen:topup`'s
    `computeNodeTargets` keeps every top-level node above a floor; a series wants
    generation aimed at the sections its calendar is about to test. Recommend a
@@ -719,7 +741,7 @@ Mock as an acquisition event · institute-style mentor feedback per test.
 | **Q6** | **Should series full-lengths appear in the existing per-paper mock board?** | They will by default (§5.3). | Yes, but surface the series board as primary. |
 | **Q7** | **UPPSC only, or both at launch?** | UPSC Prelims GS supply is fine but its CA slice is empty (U8v) and `is_live=false`. | UPPSC first; UPSC as a fast follow once CA MCQs are approved. |
 | **Q8** | **Acceptable notification lag?** | Decides whether §7.2's `pg_cron` v2 is needed. | Accept 0–20 min for v1; revisit before any advertised live event. |
-| **Q9** | **Who reviews generated questions, and at what weekly rate?** | **The only real supply constraint left** (§6.6): ~530 questions/week arrive for approval on top of a 1,027 backlog. Generation is solved; approval is not. | Decide a weekly review quota and who owns it. A series calendar is a commitment to publish on fixed dates — it cannot absorb a stalled queue. |
+| **Q9** | **Who reviews generated questions, and at what weekly rate — and should qgen output get the CA bulk-approve path?** | **Re-measured 2026-08-13 and materially better than this row first claimed** (§6.6 item 2): the backlog is **381**, not 1,027, and **none of it is generated MCQs**; qgen's 709 lifetime rows are 703 decided at a median 5.6 days. So approval is not currently the blocker — but it becomes one the moment volume rises, because **qgen output has no bulk path** while CA output does, even though 99.6% of it passes the same `isHighConfidenceQuestion` gate the human agreed with 97.2% of the time. | Decide a weekly review quota and who owns it, **and decide whether `bulkApproveCaHighConfidence` should be generalised beyond `paper_code = CURRENT_AFFAIRS`.** That second question is the cheap one and it is worth ~1,600 hand-selections during the 2026-08-13 floor fill alone. Note the rate lever is `QGEN_BATCH_MAX_USD`, not the floor — the floor sets the destination, the budget sets the speed. |
 | **Q10** | **One series per exam, or GS and CSAT sold separately?** | The market prices them as separate products (₹16,000 / ₹9,000) and §13.3 designs them separately; `test_series.paper_scope` supports either. | Separate — it matches the market and lets CSAT ship later, which matters because UPPSC CSAT is the one thin product (§13.3). |
 
 ---
