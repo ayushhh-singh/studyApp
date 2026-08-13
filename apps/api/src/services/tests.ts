@@ -12,7 +12,12 @@ import { roundMarks } from "../lib/marks.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { currentUserId } from "../lib/user-context.js";
 import { getUserExam, prelimsPaperCodesForExam } from "../lib/exams.js";
-import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter, UPPSC_EXAM_CODE } from "../lib/question-visibility.js";
+import {
+  assemblyVisibilityOrFilter,
+  CURRENT_AFFAIRS_PAPER_CODE,
+  questionVisibilityOrFilter,
+  UPPSC_EXAM_CODE,
+} from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 
 export { CURRENT_AFFAIRS_PAPER_CODE };
@@ -327,12 +332,16 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
   const orderedNodes = await resolveOrderedNodes(body.node_ids, examCode);
 
   // type=mcq: this builds an MCQ test-player set — a syllabus node can carry
-  // descriptive PYQs too (Mains topics), which the player can't run. "test" scope
-  // (not "catalog"): current-affairs MCQs are prelims-format and now mapped to the
-  // prelims "Current Events" topic (see ca/prelims-node.ts), so a topic set on
-  // that node SHOULD be able to draw on the abundant CA pool — the test scope's
-  // exception is exactly what admits those always-unpublished MCQs. PYQ-first
+  // descriptive PYQs too (Mains topics), which the player can't run. PYQ-first
   // ordering below keeps real PYQs ahead of any CA/generated fill.
+  //
+  // ⚑ WAS the "test" scope, on the reasoning that CA MCQs are prelims-format and
+  // mapped onto the prelims "Current Events" topic, so a topic set there should
+  // draw on the abundant CA pool — and that the exception was the only thing
+  // admitting "those always-unpublished MCQs". The premise expired: 1,451 uppsc
+  // CA MCQs are now published AND approved, so the CA pool is admitted by the
+  // ordinary clause and the exception's remaining contribution was the 331 a
+  // human REJECTED. The topic set keeps its CA depth and loses only the rejects.
   // Subtree-aware so "Practice this topic" works on a chapter (non-leaf) node,
   // whose MCQ PYQs live on its leaf sub-topics; a leaf resolves to just [node].
   // Multiple topics union their subtrees and dedupe by question id (two
@@ -344,7 +353,7 @@ export async function createCustomTestFromNode(body: CreateCustomTestBody): Prom
     .select("id, marks, source")
     .in("syllabus_node_id", subtreeIds)
     .eq("type", "mcq")
-    .or(questionVisibilityOrFilter("test"));
+    .or(assemblyVisibilityOrFilter());
   if (body.difficulty) questionsQuery = questionsQuery.eq("difficulty", body.difficulty);
   // Omitting `exam` mixes every exam mapped to the topic (the default); passing
   // one narrows the set to a single exam's PYQs.
@@ -431,7 +440,7 @@ export async function createCustomAnswerTest(nodeIds: string[], count: number): 
     // it silently reintroduces the exact mixed-exam contamination this
     // session's earlier fix addressed for every other test-assembly path.
     .eq("exam_code", UPPSC_EXAM_CODE)
-    .or(questionVisibilityOrFilter("catalog"));
+    .or(assemblyVisibilityOrFilter());
   if (questionsError) throw new HttpError(500, `node question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null; source: string | null }[];
   if (available.length === 0) throw badRequest("No published descriptive questions are mapped to these topics yet");
@@ -578,7 +587,7 @@ export async function createCustomTestFromCurrentAffairs(days: number): Promise<
     .from("questions")
     .select("id, marks")
     .in("id", questionIds)
-    .or(questionVisibilityOrFilter("test"));
+    .or(assemblyVisibilityOrFilter());
   if (questionsError) throw new HttpError(500, `question lookup failed: ${questionsError.message}`);
   const available = (questionRows ?? []) as { id: string; marks: number | null }[];
   if (available.length === 0) {

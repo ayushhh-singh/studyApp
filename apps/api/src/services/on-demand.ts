@@ -14,11 +14,15 @@
  * told honestly ("we're preparing more") and their request feeds tonight's
  * top-up — never a synchronous fallback, never a skipped review gate.
  *
- * The review-gate quality bar is preserved throughout: every syllabus question
- * this selects goes through questionVisibilityOrFilter (published + approved).
- * The only exception is the current-affairs pool, which is admitted via the
- * SAME "test" scope + CURRENT_AFFAIRS exception the "Quiz me on this week" test
- * already uses (see lib/question-visibility.ts) — CA's own serving surface.
+ * The review-gate quality bar is preserved throughout: every question this
+ * selects goes through `assemblyVisibilityOrFilter()` — published AND
+ * review-approved, with NO exception for current affairs.
+ *
+ * ⚑ The CA pool used to be that exception, admitted through the "test" scope's
+ * CURRENT_AFFAIRS carve-out. The carve-out dates from when a CA MCQ could never
+ * be approved at all; today 1,451 uppsc CA MCQs are approved and what it uniquely
+ * admitted had become the 331 a human REJECTED. A test this builds is as real as
+ * any other, so it takes the same bar as the rest.
  */
 import type {
   BilingualText,
@@ -35,10 +39,9 @@ import { logger } from "../lib/logger.js";
 import { roundMarks, DEFAULT_MCQ_MARKS } from "../lib/marks.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import {
+  assemblyVisibilityOrFilter,
   CURRENT_AFFAIRS_PAPER_CODE,
-  questionVisibilityOrFilter,
   UPPSC_EXAM_CODE,
-  type QuestionVisibilityScope,
 } from "../lib/question-visibility.js";
 import { resolveSubtreeNodeIds } from "../lib/syllabus-subtree.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
@@ -264,16 +267,12 @@ async function currentAffairsOverlapPool(
   if (ids.length === 0) return [];
   // Honor the difficulty filter here too — otherwise a "Hard" set could fill
   // with non-hard CA questions once the syllabus pool runs out.
-  const rows = await fetchQuestionsByIds(ids, "test", difficulty);
+  const rows = await fetchQuestionsByIds(ids, difficulty);
   return rows.filter((r) => !seen.has(r.id));
 }
 
 /** Fetch specific question ids under a visibility scope, chunked (a big `.in` list overflows the URL). */
-async function fetchQuestionsByIds(
-  ids: string[],
-  scope: QuestionVisibilityScope,
-  difficulty?: Difficulty,
-): Promise<PoolQuestion[]> {
+async function fetchQuestionsByIds(ids: string[], difficulty?: Difficulty): Promise<PoolQuestion[]> {
   const out: PoolQuestion[] = [];
   for (let i = 0; i < ids.length; i += 100) {
     let q = supabase()
@@ -281,7 +280,7 @@ async function fetchQuestionsByIds(
       .select("id, marks")
       .in("id", ids.slice(i, i + 100))
       .eq("type", "mcq")
-      .or(questionVisibilityOrFilter(scope));
+      .or(assemblyVisibilityOrFilter());
     if (difficulty) q = q.eq("difficulty", difficulty);
     const { data, error } = await q;
     if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
@@ -335,7 +334,7 @@ async function buildCustomMcqPool(opts: {
     .select("id, marks, source, syllabus_node_id")
     .in("syllabus_node_id", opts.generatedNodeIds)
     .eq("type", "mcq")
-    .or(questionVisibilityOrFilter("test"));
+    .or(assemblyVisibilityOrFilter());
   if (opts.exam) q = q.eq("exam_code", opts.exam);
   if (opts.difficulty) q = q.eq("difficulty", opts.difficulty);
   const { data, error } = await q;
@@ -367,7 +366,7 @@ async function buildCustomDescriptivePool(opts: {
     .in("syllabus_node_id", opts.generatedNodeIds)
     .eq("type", "descriptive")
     .eq("exam_code", UPPSC_EXAM_CODE)
-    .or(questionVisibilityOrFilter("catalog"));
+    .or(assemblyVisibilityOrFilter());
   if (error) throw new HttpError(500, `fresh descriptive pool lookup failed: ${error.message}`);
   const rows = (data ?? []) as QuestionRow[];
 
