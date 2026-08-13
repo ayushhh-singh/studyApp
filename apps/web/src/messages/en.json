@@ -27,8 +27,7 @@
     "community": "Community",
     "scoreboard": "Scoreboard",
     "myNotes": "My Notes",
-    "explore": "Explore",
-    "resources": "Free resources"
+    "explore": "Explore"
   },
   "TopBar": {
     "search": "Search",
@@ -420,7 +419,20 @@
     "noPapersDescription": "This exam's paper list hasn't been added yet — check back soon.",
     "latestYearDescription": "The most recent sitting — {{year}}.",
     "browseAllYearsRange": "Browse all years ({{from}}–{{to}})",
-    "backToLatest": "Back to {{year}}"
+    "backToLatest": "Back to {{year}}",
+    "printTitle": "Question paper",
+    "printAction": "Print / Save as PDF",
+    "backToArchive": "Back to archive",
+    "printMasthead": "Past year paper",
+    "printCount_one": "{{count}} question",
+    "printCount_other": "{{count}} questions",
+    "printAnswerKey": "Answer key",
+    "printKeyNote": "Key shown for {{withKey}} of {{total}} questions — only where we hold a verified answer. Nothing here is guessed.",
+    "printMissingTitle": "Pick a paper and year",
+    "printMissingBody": "Open this from the archive after choosing a paper and a year.",
+    "printEmptyTitle": "Nothing to print",
+    "printEmptyBody": "We have no published questions for that paper and year yet.",
+    "downloadPaper": "Download this paper"
   },
   "Answers": {
     "title": "Answer Writing",
@@ -1917,7 +1929,8 @@
     "support": "Support",
     "features": "Features",
     "contact": "Contact",
-    "headerNavLabel": "Main"
+    "headerNavLabel": "Main",
+    "resources": "Free resources"
   },
   "Features": {
     "hub": {
@@ -2265,7 +2278,7 @@
     "neevEmptyBody": "Study chapters for this exam are still being written. The free official material below is a good place to start.",
     "ncertTitle": "NCERT textbooks",
     "ncertDescription": "The base texts almost every serious preparation starts from — free from NCERT itself, in English and Hindi.",
-    "ncertNotice": "Free and official. Every link opens NCERT's own website — we never host or mirror the files, so you always get whatever NCERT currently publishes.",
+    "ncertNotice": "Free and official. Each link opens NCERT's own “Download complete book” file — a ZIP you unzip once to get the whole book. We link NCERT's file rather than keeping a copy: NCERT publishes no single-PDF version, and their terms prohibit any website from hosting or redistributing their textbooks.",
     "ncertClass": "Class {{klass}}",
     "openEnglish": "English",
     "openHindi": "हिन्दी",
@@ -2285,8 +2298,8 @@
     "subject_science_tech": "Science & Technology",
     "subject_state_focus": "{{state}} focus",
     "papersTitle": "Past question papers",
-    "papersBody_one": "{{count}} past-paper question, already parsed — with the official answer key wherever the commission published one.",
-    "papersBody_other": "{{count}} past-paper questions, already parsed — with the official answer key wherever the commission published one.",
+    "papersBody_one": "{{count}} past-paper question, already parsed — browse them, download any year's paper as a PDF, or attempt a full paper and be scored on it.",
+    "papersBody_other": "{{count}} past-paper questions, already parsed — browse them, download any year's paper as a PDF, or attempt a full paper and be scored on it.",
     "papersBrowse": "Browse the archive",
     "papersAttempt": "Attempt a full paper",
     "chaptersTitle": "Study chapters",
@@ -2294,9 +2307,9 @@
     "chaptersBody_other": "{{count}} chapters published for your exam, written against your own syllabus.",
     "subject_society": "Society",
     "subject_social_science": "Social Science (Classes 6-9)",
-    "chapterCount_one": "{{count}} chapter",
-    "chapterCount_other": "{{count}} chapters",
-    "chapterAria": "Chapter {{n}} of {{title}}, {{lang}} edition (PDF)",
-    "zipAria": "Download the full book, {{lang}} edition of {{title}} (ZIP)"
+    "bookAria": "Download the complete book, {{lang}} edition of {{title}} ({{size}})",
+    "neevSignedOut": "Create a free account to open the study chapters and the past-paper archive — both are free, and the archive lets you attempt a full paper and be scored on it.",
+    "neevSignedOutCta": "Create a free account",
+    "seoDescription": "Free study material for Indian civil-services preparation: NCERT textbooks in Hindi and English, the government's own reports and surveys, and syllabus-mapped study chapters."
   }
 }

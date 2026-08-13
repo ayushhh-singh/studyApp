@@ -1,8 +1,10 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useSearchParams } from "react-router";
-import { ChevronDown, ExternalLink, FileDown, Landmark, Library } from "lucide-react";
-import { PageHeader } from "@/components/ui-x/page-header";
+import { ExternalLink, FileDown, Landmark, Library } from "lucide-react";
+import { PageSeo } from "@/components/seo/page-seo";
+import { MarketingHeader } from "@/components/marketing/marketing-header";
+import { Footer } from "@/components/marketing/footer";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { Chip } from "@/components/ui-x/chip";
@@ -10,13 +12,12 @@ import { NeevLibraryCard } from "@/components/resources/neev-library-card";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useLocale } from "@/hooks/use-locale";
 import { stateFocusName } from "@/lib/exam-label";
-import { cn } from "@/lib/utils";
 import {
   NCERT_BOOKS,
   RESOURCE_SUBJECTS,
   activeSubjects,
-  ncertBookZipUrl,
-  ncertChapterUrl,
+  formatBytes,
+  ncertBookUrl,
   officialResourcesFor,
   type NcertBook,
   type OfficialResource,
@@ -82,8 +83,20 @@ export function Component() {
   const official = officialResourcesFor(examCode).filter((r) => matches(r.subject));
 
   return (
-    <div className="flex flex-col gap-6">
-      <PageHeader title={t("Resources.title")} description={t("Resources.description", { exam: examName })} />
+    <div className="min-h-svh bg-background">
+      <PageSeo
+        locale={locale}
+        path="/resources"
+        title={`${t("Resources.title")} — ${t("Landing.brand")}`}
+        description={t("Resources.seoDescription")}
+      />
+      <MarketingHeader maxWidthClass="max-w-5xl" />
+
+      <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10 pb-16 sm:px-6 sm:py-14">
+        <div className="flex flex-col gap-1 border-b border-border pb-4">
+          <h1 className="text-2xl font-bold tracking-tight text-balance">{t("Resources.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("Resources.description", { exam: examName })}</p>
+        </div>
 
       <NeevLibraryCard />
 
@@ -112,6 +125,9 @@ export function Component() {
       <p className="rounded-xl border border-border bg-card px-4 py-3 text-xs text-muted-foreground">
         {t("Resources.paidBooksNote")}
       </p>
+      </div>
+
+      <Footer />
     </div>
   );
 }
@@ -205,76 +221,44 @@ function NcertSection({ books, state }: { books: NcertBook[]; state: string }) {
 }
 
 /**
- * One NCERT book: whole-book zip per available language, plus an expandable
- * list of direct chapter PDFs.
+ * One NCERT book — the complete book, one file per available language.
  *
- * The chapter list exists because a zip is genuinely awkward on the budget
- * Android phones most of this audience reads on — it needs a second app to
- * open, where a single PDF opens natively. Collapsed by default so 44 books do
- * not render 400 links.
+ * The size is on the button rather than in a tooltip because it is the single
+ * most decision-relevant fact here: these run 8MB to 201MB and most of this
+ * audience is on metered mobile data.
  */
 function NcertRow({ book }: { book: NcertBook }) {
   const { t } = useTranslation();
-  const [open, setOpen] = useState(false);
   const editions = [
-    { lang: "en" as const, label: t("Resources.openEnglish"), code: book.code, chapters: book.chapters },
-    ...(book.codeHi && book.chaptersHi
-      ? [{ lang: "hi" as const, label: t("Resources.openHindi"), code: book.codeHi, chapters: book.chaptersHi }]
+    { lang: "en" as const, label: t("Resources.openEnglish"), code: book.code, bytes: book.bytes },
+    ...(book.codeHi && book.bytesHi
+      ? [{ lang: "hi" as const, label: t("Resources.openHindi"), code: book.codeHi, bytes: book.bytesHi }]
       : []),
   ];
 
   return (
-    <li className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <span className="text-xs font-medium text-muted-foreground">
-            {t("Resources.ncertClass", { klass: book.klass })}
-          </span>
-          <span className="text-sm font-medium">{book.title}</span>
-        </div>
-        <div className="flex shrink-0 flex-wrap gap-2">
-          {editions.map((e) => (
-            <ExternalAction
-              key={e.lang}
-              href={ncertBookZipUrl(e.code)}
-              icon={FileDown}
-              ariaLabel={t("Resources.zipAria", { lang: e.label, title: book.title })}
-            >
-              {e.label}
-            </ExternalAction>
-          ))}
-        </div>
+    <li className="flex flex-col gap-2 rounded-lg border border-border bg-background px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex min-w-0 flex-col gap-0.5">
+        <span className="text-xs font-medium text-muted-foreground">
+          {t("Resources.ncertClass", { klass: book.klass })}
+        </span>
+        <span className="text-sm font-medium">{book.title}</span>
       </div>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className="inline-flex min-h-11 w-fit items-center gap-1.5 rounded-lg px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <ChevronDown className={cn("size-3.5 transition-transform", open && "rotate-180")} aria-hidden />
-        {t("Resources.chapterCount", { count: book.chapters })}
-      </button>
-      {open && (
-        <div className="flex flex-col gap-2">
-          {editions.map((e) => (
-            <div key={e.lang} className="flex flex-wrap items-center gap-1.5">
-              <span className="text-xs font-medium text-muted-foreground">{e.label}</span>
-              {Array.from({ length: e.chapters }, (_, i) => i + 1).map((n) => (
-                <a
-                  key={n}
-                  href={ncertChapterUrl(e.code, n)}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-border px-2 text-xs font-medium tabular-nums text-primary transition-colors hover:border-primary/40 hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  aria-label={t("Resources.chapterAria", { n, title: book.title, lang: e.label })}
-                >
-                  {n}
-                </a>
-              ))}
-            </div>
-          ))}
-        </div>
-      )}
+      <div className="flex shrink-0 flex-wrap gap-2">
+        {editions.map((e) => (
+          <ExternalAction
+            key={e.lang}
+            href={ncertBookUrl(e.code)}
+            icon={FileDown}
+            ariaLabel={t("Resources.bookAria", { lang: e.label, title: book.title, size: formatBytes(e.bytes) })}
+          >
+            {e.label}
+            <span className="text-xs font-normal tabular-nums text-muted-foreground">
+              {formatBytes(e.bytes)}
+            </span>
+          </ExternalAction>
+        ))}
+      </div>
     </li>
   );
 }

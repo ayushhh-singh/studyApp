@@ -46,11 +46,10 @@ export type ResourceSubject = (typeof RESOURCE_SUBJECTS)[number];
 /**
  * A free, officially-published NCERT textbook.
  *
- * Stored as NCERT's own BOOK CODE plus a chapter count rather than as a list of
- * URLs, because the URL scheme is the verified thing: every file lives at
- * `/textbook/pdf/<code>…` as a plain static asset. Keeping the code means the
- * scheme is written down once ({@link ncertBookZipUrl} / {@link ncertChapterUrl})
- * instead of being re-typed 300 times.
+ * Stored as NCERT's own BOOK CODE rather than as a URL, because the URL scheme
+ * is the verified thing: every file lives at `/textbook/pdf/<code>…` as a plain
+ * static asset. Keeping the code means the scheme is written down once
+ * ({@link ncertBookUrl}) instead of being re-typed 81 times.
  *
  * DO NOT link `textbook.php?<code>=0-N`. That page is a 500KB client-rendered
  * shell — it returns byte-identical HTML for every book and contains no PDF
@@ -78,23 +77,52 @@ export interface NcertBook {
   codeHi?: string;
   /** The Hindi edition's own chapter count. */
   chaptersHi?: number;
+  /** Measured size of the complete-book download, in bytes. */
+  bytes: number;
+  /** Measured size of the Hindi complete-book download, in bytes. */
+  bytesHi?: number;
+}
+
+/**
+ * Human download size, shown on every download control.
+ *
+ * Not decoration: these files run from 8MB to 201MB (measured across all 81
+ * editions, median 22MB) and this audience is largely on metered mobile data.
+ * A download button with no size on it is a trap on a 201MB book.
+ */
+export function formatBytes(bytes: number): string {
+  return `${Math.round(bytes / 1_048_576)} MB`;
 }
 
 /** NCERT's static asset root. Both `ncert.nic.in` and `www.` serve it identically. */
 const NCERT_PDF_ROOT = "https://ncert.nic.in/textbook/pdf";
 
-/** Whole book as a zip — `<code>dd.zip` is the only zip suffix NCERT serves. */
-export function ncertBookZipUrl(code: string): string {
-  return `${NCERT_PDF_ROOT}/${code}dd.zip`;
-}
-
 /**
- * A single chapter PDF. Offered alongside the zip because a zip is genuinely
- * awkward on the budget Android phones most of this audience reads on, where a
- * single PDF opens natively and a zip needs another app.
+ * The complete book, as NCERT's own "Download complete book" button serves it.
+ *
+ * ⚑ IT IS A ZIP, AND THAT IS NOT AN OVERSIGHT ON OUR PART — NCERT PUBLISHES NO
+ * WHOLE-BOOK PDF. Verified three ways: their own textbook.php JS writes
+ * `<a href='../textbook/pdf/<code>dd.zip'>Download complete book</a>` and
+ * nothing else; every plausible whole-book PDF suffix (`.pdf`, `dd.pdf`,
+ * `00.pdf`, `bk.pdf`, `full.pdf`, `an.pdf`) 404s; ePathshala's domain refuses
+ * connections and DIKSHA serves the same books as chapter collections.
+ *
+ * ⚑ AND WE MAY NOT BUILD ONE. NCERT's terms of use, verbatim from that same
+ * page: "republication of NCERT textbooks by any other individual or agency is
+ * strictly prohibited. No agency or individual may make electronic or print
+ * copies of these books and redistribute them in any form whatsoever. Use of
+ * these online books as a part of digital content packages or software is also
+ * strictly prohibited. No website or online service is permitted to host these
+ * online textbooks." Merging the chapter PDFs and serving the result — from an
+ * endpoint, a cache, or a build step — is exactly what that forbids. Apps that
+ * do offer a single NCERT PDF are hosting unauthorised copies; that is why they
+ * can offer what NCERT itself does not. Do not add a merge endpoint here.
+ *
+ * The per-chapter PDFs (`<code>NN.pdf`) are also public and were verified, but
+ * are deliberately not surfaced: the founder's call is one file per book.
  */
-export function ncertChapterUrl(code: string, chapter: number): string {
-  return `${NCERT_PDF_ROOT}/${code}${String(chapter).padStart(2, "0")}.pdf`;
+export function ncertBookUrl(code: string): string {
+  return `${NCERT_PDF_ROOT}/${code}dd.zip`;
 }
 
 /**
@@ -125,50 +153,50 @@ export interface OfficialResource {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const NCERT_BOOKS: NcertBook[] = [
-  { id: "fees1", klass: 6, subject: "social_science", title: "Exploring Society: India and Beyond", code: "fees1", chapters: 14, codeHi: "fhes1", chaptersHi: 14 },
-  { id: "gees1", klass: 7, subject: "social_science", title: "Exploring Society: India and Beyond Part-I", code: "gees1", chapters: 12, codeHi: "ghes1", chaptersHi: 12 },
-  { id: "gees2", klass: 7, subject: "social_science", title: "Exploring Society: India and Beyond Part-II", code: "gees2", chapters: 8, codeHi: "ghes2", chaptersHi: 8 },
-  { id: "hees1", klass: 8, subject: "social_science", title: "Exploring Society: India and Beyond Part-I", code: "hees1", chapters: 7, codeHi: "hhes1", chaptersHi: 7 },
-  { id: "hees2", klass: 8, subject: "social_science", title: "Exploring Society: India and Beyond Part-II", code: "hees2", chapters: 8 },
-  { id: "iest1", klass: 9, subject: "social_science", title: "Understanding Society: India and Beyond Part-I", code: "iest1", chapters: 9 },
-  { id: "hess2", klass: 8, subject: "history", title: "Our Pasts-III", code: "hess2", chapters: 8, codeHi: "hhss1", chaptersHi: 8 },
-  { id: "jess3", klass: 10, subject: "history", title: "India and the Contemporary World-II", code: "jess3", chapters: 5, codeHi: "jhss3", chaptersHi: 5 },
-  { id: "kehs1", klass: 11, subject: "history", title: "Themes in World History", code: "kehs1", chapters: 7, codeHi: "khhs1", chaptersHi: 7 },
-  { id: "lehs1", klass: 12, subject: "history", title: "Themes in Indian History-I", code: "lehs1", chapters: 4, codeHi: "lhhs1", chaptersHi: 4 },
-  { id: "lehs2", klass: 12, subject: "history", title: "Themes in Indian History-II", code: "lehs2", chapters: 4, codeHi: "lhhs2", chaptersHi: 4 },
-  { id: "lehs3", klass: 12, subject: "history", title: "Themes in Indian History-III", code: "lehs3", chapters: 4, codeHi: "lhhs3", chaptersHi: 4 },
-  { id: "hess3", klass: 8, subject: "polity", title: "Social and Political Life", code: "hess3", chapters: 8, codeHi: "hhss3", chaptersHi: 8 },
-  { id: "jess4", klass: 10, subject: "polity", title: "Democratic Politics", code: "jess4", chapters: 5, codeHi: "jhss4", chaptersHi: 5 },
-  { id: "keps1", klass: 11, subject: "polity", title: "Political Theory", code: "keps1", chapters: 8, codeHi: "khps1", chaptersHi: 8 },
-  { id: "keps2", klass: 11, subject: "polity", title: "Indian Constitution at Work", code: "keps2", chapters: 10, codeHi: "khps2", chaptersHi: 10 },
-  { id: "leps1", klass: 12, subject: "polity", title: "Contemporary World Politics", code: "leps1", chapters: 7, codeHi: "lhps1", chaptersHi: 7 },
-  { id: "leps2", klass: 12, subject: "polity", title: "Politics in India Since Independence", code: "leps2", chapters: 8, codeHi: "lhps2", chaptersHi: 8 },
-  { id: "hess4", klass: 8, subject: "geography", title: "Resource and Development", code: "hess4", chapters: 5, codeHi: "hhss4", chaptersHi: 5 },
-  { id: "jess1", klass: 10, subject: "geography", title: "Contemporary India", code: "jess1", chapters: 7, codeHi: "jhss1", chaptersHi: 7 },
-  { id: "kegy1", klass: 11, subject: "geography", title: "India Physical Environment", code: "kegy1", chapters: 6, codeHi: "khgy1", chaptersHi: 6 },
-  { id: "kegy2", klass: 11, subject: "geography", title: "Fundamentals of Physical Geography", code: "kegy2", chapters: 14, codeHi: "khgy2", chaptersHi: 14 },
-  { id: "kegy3", klass: 11, subject: "geography", title: "Practical Work in Geography", code: "kegy3", chapters: 6, codeHi: "khgy3", chaptersHi: 6 },
-  { id: "legy1", klass: 12, subject: "geography", title: "Fundamentals of Human Geography", code: "legy1", chapters: 8, codeHi: "lhgy1", chaptersHi: 8 },
-  { id: "legy2", klass: 12, subject: "geography", title: "India People and Economy", code: "legy2", chapters: 9, codeHi: "lhgy2", chaptersHi: 9 },
-  { id: "legy3", klass: 12, subject: "geography", title: "Practical Work in Geography Part-II", code: "legy3", chapters: 4 },
-  { id: "jess2", klass: 10, subject: "economy", title: "Understanding Economic Development", code: "jess2", chapters: 5, codeHi: "jhss2", chaptersHi: 5 },
-  { id: "keec1", klass: 11, subject: "economy", title: "Indian Economic Development", code: "keec1", chapters: 8, codeHi: "khec1", chaptersHi: 8 },
-  { id: "kest1", klass: 11, subject: "economy", title: "Statistics for Economics", code: "kest1", chapters: 8, codeHi: "khst1", chaptersHi: 8 },
-  { id: "leec1", klass: 12, subject: "economy", title: "Introductory Macroeconomics", code: "leec1", chapters: 6, codeHi: "lhec1", chaptersHi: 6 },
-  { id: "leec2", klass: 12, subject: "economy", title: "Introductory Microeconomics", code: "leec2", chapters: 5, codeHi: "lhec2", chaptersHi: 5 },
-  { id: "kefa1", klass: 11, subject: "art_culture", title: "An Introduction to Indian Art Part-I", code: "kefa1", chapters: 8, codeHi: "khfa1", chaptersHi: 8 },
-  { id: "lefa1", klass: 12, subject: "art_culture", title: "An Introduction to Indian Art Part-II", code: "lefa1", chapters: 8, codeHi: "lhfa1", chaptersHi: 8 },
-  { id: "kesy1", klass: 11, subject: "society", title: "Introducing Sociology", code: "kesy1", chapters: 5, codeHi: "khsy1", chaptersHi: 5 },
-  { id: "lesy1", klass: 12, subject: "society", title: "Indian Society", code: "lesy1", chapters: 7, codeHi: "lhsy1", chaptersHi: 7 },
-  { id: "lesy2", klass: 12, subject: "society", title: "Social Change and Development in India", code: "lesy2", chapters: 8, codeHi: "lhsy2", chaptersHi: 8 },
-  { id: "fecu1", klass: 6, subject: "science_tech", title: "Curiosity", code: "fecu1", chapters: 12, codeHi: "fhcu1", chaptersHi: 12 },
-  { id: "gecu1", klass: 7, subject: "science_tech", title: "Curiosity", code: "gecu1", chapters: 12, codeHi: "ghcu1", chaptersHi: 12 },
-  { id: "hecu1", klass: 8, subject: "science_tech", title: "Curiosity", code: "hecu1", chapters: 13, codeHi: "hhcu1", chaptersHi: 13 },
-  { id: "hesc1", klass: 8, subject: "science_tech", title: "Science", code: "hesc1", chapters: 13 },
-  { id: "iesc1", klass: 9, subject: "science_tech", title: "Exploration", code: "iesc1", chapters: 13 },
-  { id: "jesc1", klass: 10, subject: "science_tech", title: "Science", code: "jesc1", chapters: 13, codeHi: "jhsc1", chaptersHi: 13 },
-  { id: "kebo1", klass: 11, subject: "science_tech", title: "Biology", code: "kebo1", chapters: 19 },
-  { id: "lebo1", klass: 12, subject: "science_tech", title: "Biology", code: "lebo1", chapters: 13 },
+  { id: "fees1", klass: 6, subject: "social_science", title: "Exploring Society: India and Beyond", code: "fees1", chapters: 14, bytes: 211000479, codeHi: "fhes1", chaptersHi: 14, bytesHi: 59186977 },
+  { id: "gees1", klass: 7, subject: "social_science", title: "Exploring Society: India and Beyond Part-I", code: "gees1", chapters: 12, bytes: 83271333, codeHi: "ghes1", chaptersHi: 12, bytesHi: 95063761 },
+  { id: "gees2", klass: 7, subject: "social_science", title: "Exploring Society: India and Beyond Part-II", code: "gees2", chapters: 8, bytes: 48990352, codeHi: "ghes2", chaptersHi: 8, bytesHi: 48204689 },
+  { id: "hees1", klass: 8, subject: "social_science", title: "Exploring Society: India and Beyond Part-I", code: "hees1", chapters: 7, bytes: 48094564, codeHi: "hhes1", chaptersHi: 7, bytesHi: 56239490 },
+  { id: "hees2", klass: 8, subject: "social_science", title: "Exploring Society: India and Beyond Part-II", code: "hees2", chapters: 8, bytes: 50138601 },
+  { id: "iest1", klass: 9, subject: "social_science", title: "Understanding Society: India and Beyond Part-I", code: "iest1", chapters: 9, bytes: 70903864 },
+  { id: "hess2", klass: 8, subject: "history", title: "Our Pasts-III", code: "hess2", chapters: 8, bytes: 51786237, codeHi: "hhss1", chaptersHi: 8, bytesHi: 88973474 },
+  { id: "jess3", klass: 10, subject: "history", title: "India and the Contemporary World-II", code: "jess3", chapters: 5, bytes: 29113574, codeHi: "jhss3", chaptersHi: 5, bytesHi: 27534400 },
+  { id: "kehs1", klass: 11, subject: "history", title: "Themes in World History", code: "kehs1", chapters: 7, bytes: 29255011, codeHi: "khhs1", chaptersHi: 7, bytesHi: 23807853 },
+  { id: "lehs1", klass: 12, subject: "history", title: "Themes in Indian History-I", code: "lehs1", chapters: 4, bytes: 23177241, codeHi: "lhhs1", chaptersHi: 4, bytesHi: 26081004 },
+  { id: "lehs2", klass: 12, subject: "history", title: "Themes in Indian History-II", code: "lehs2", chapters: 4, bytes: 24034378, codeHi: "lhhs2", chaptersHi: 4, bytesHi: 22827601 },
+  { id: "lehs3", klass: 12, subject: "history", title: "Themes in Indian History-III", code: "lehs3", chapters: 4, bytes: 15820340, codeHi: "lhhs3", chaptersHi: 4, bytesHi: 17286461 },
+  { id: "hess3", klass: 8, subject: "polity", title: "Social and Political Life", code: "hess3", chapters: 8, bytes: 23045559, codeHi: "hhss3", chaptersHi: 8, bytesHi: 21630127 },
+  { id: "jess4", klass: 10, subject: "polity", title: "Democratic Politics", code: "jess4", chapters: 5, bytes: 13370156, codeHi: "jhss4", chaptersHi: 5, bytesHi: 11949122 },
+  { id: "keps1", klass: 11, subject: "polity", title: "Political Theory", code: "keps1", chapters: 8, bytes: 18007623, codeHi: "khps1", chaptersHi: 8, bytesHi: 18258205 },
+  { id: "keps2", klass: 11, subject: "polity", title: "Indian Constitution at Work", code: "keps2", chapters: 10, bytes: 29415398, codeHi: "khps2", chaptersHi: 10, bytesHi: 28959602 },
+  { id: "leps1", klass: 12, subject: "polity", title: "Contemporary World Politics", code: "leps1", chapters: 7, bytes: 42004000, codeHi: "lhps1", chaptersHi: 7, bytesHi: 14746599 },
+  { id: "leps2", klass: 12, subject: "polity", title: "Politics in India Since Independence", code: "leps2", chapters: 8, bytes: 40873539, codeHi: "lhps2", chaptersHi: 8, bytesHi: 31412689 },
+  { id: "hess4", klass: 8, subject: "geography", title: "Resource and Development", code: "hess4", chapters: 5, bytes: 11909208, codeHi: "hhss4", chaptersHi: 5, bytesHi: 11717124 },
+  { id: "jess1", klass: 10, subject: "geography", title: "Contemporary India", code: "jess1", chapters: 7, bytes: 15381006, codeHi: "jhss1", chaptersHi: 7, bytesHi: 13937173 },
+  { id: "kegy1", klass: 11, subject: "geography", title: "India Physical Environment", code: "kegy1", chapters: 6, bytes: 10719225, codeHi: "khgy1", chaptersHi: 6, bytesHi: 8544900 },
+  { id: "kegy2", klass: 11, subject: "geography", title: "Fundamentals of Physical Geography", code: "kegy2", chapters: 14, bytes: 13768078, codeHi: "khgy2", chaptersHi: 14, bytesHi: 16342575 },
+  { id: "kegy3", klass: 11, subject: "geography", title: "Practical Work in Geography", code: "kegy3", chapters: 6, bytes: 13592042, codeHi: "khgy3", chaptersHi: 6, bytesHi: 18040043 },
+  { id: "legy1", klass: 12, subject: "geography", title: "Fundamentals of Human Geography", code: "legy1", chapters: 8, bytes: 24177649, codeHi: "lhgy1", chaptersHi: 8, bytesHi: 15770490 },
+  { id: "legy2", klass: 12, subject: "geography", title: "India People and Economy", code: "legy2", chapters: 9, bytes: 15598014, codeHi: "lhgy2", chaptersHi: 9, bytesHi: 15288967 },
+  { id: "legy3", klass: 12, subject: "geography", title: "Practical Work in Geography Part-II", code: "legy3", chapters: 4, bytes: 8758757 },
+  { id: "jess2", klass: 10, subject: "economy", title: "Understanding Economic Development", code: "jess2", chapters: 5, bytes: 16429387, codeHi: "jhss2", chaptersHi: 5, bytesHi: 14466833 },
+  { id: "keec1", klass: 11, subject: "economy", title: "Indian Economic Development", code: "keec1", chapters: 8, bytes: 27257382, codeHi: "khec1", chaptersHi: 8, bytesHi: 14445757 },
+  { id: "kest1", klass: 11, subject: "economy", title: "Statistics for Economics", code: "kest1", chapters: 8, bytes: 14737979, codeHi: "khst1", chaptersHi: 8, bytesHi: 13062844 },
+  { id: "leec1", klass: 12, subject: "economy", title: "Introductory Macroeconomics", code: "leec1", chapters: 6, bytes: 10906706, codeHi: "lhec1", chaptersHi: 6, bytesHi: 10547997 },
+  { id: "leec2", klass: 12, subject: "economy", title: "Introductory Microeconomics", code: "leec2", chapters: 5, bytes: 12905954, codeHi: "lhec2", chaptersHi: 5, bytesHi: 11157526 },
+  { id: "kefa1", klass: 11, subject: "art_culture", title: "An Introduction to Indian Art Part-I", code: "kefa1", chapters: 8, bytes: 199793173, codeHi: "khfa1", chaptersHi: 8, bytesHi: 56371238 },
+  { id: "lefa1", klass: 12, subject: "art_culture", title: "An Introduction to Indian Art Part-II", code: "lefa1", chapters: 8, bytes: 43979708, codeHi: "lhfa1", chaptersHi: 8, bytesHi: 48161432 },
+  { id: "kesy1", klass: 11, subject: "society", title: "Introducing Sociology", code: "kesy1", chapters: 5, bytes: 15830453, codeHi: "khsy1", chaptersHi: 5, bytesHi: 17518783 },
+  { id: "lesy1", klass: 12, subject: "society", title: "Indian Society", code: "lesy1", chapters: 7, bytes: 19936165, codeHi: "lhsy1", chaptersHi: 7, bytesHi: 21390234 },
+  { id: "lesy2", klass: 12, subject: "society", title: "Social Change and Development in India", code: "lesy2", chapters: 8, bytes: 21967931, codeHi: "lhsy2", chaptersHi: 8, bytesHi: 21818327 },
+  { id: "fecu1", klass: 6, subject: "science_tech", title: "Curiosity", code: "fecu1", chapters: 12, bytes: 73711415, codeHi: "fhcu1", chaptersHi: 12, bytesHi: 76449671 },
+  { id: "gecu1", klass: 7, subject: "science_tech", title: "Curiosity", code: "gecu1", chapters: 12, bytes: 43748851, codeHi: "ghcu1", chaptersHi: 12, bytesHi: 46055241 },
+  { id: "hecu1", klass: 8, subject: "science_tech", title: "Curiosity", code: "hecu1", chapters: 13, bytes: 48172439, codeHi: "hhcu1", chaptersHi: 13, bytesHi: 39482545 },
+  { id: "hesc1", klass: 8, subject: "science_tech", title: "Science", code: "hesc1", chapters: 13, bytes: 20362325 },
+  { id: "iesc1", klass: 9, subject: "science_tech", title: "Exploration", code: "iesc1", chapters: 13, bytes: 124332937 },
+  { id: "jesc1", klass: 10, subject: "science_tech", title: "Science", code: "jesc1", chapters: 13, bytes: 71057581, codeHi: "jhsc1", chaptersHi: 13, bytesHi: 45904927 },
+  { id: "kebo1", klass: 11, subject: "science_tech", title: "Biology", code: "kebo1", chapters: 19, bytes: 57009592 },
+  { id: "lebo1", klass: 12, subject: "science_tech", title: "Biology", code: "lebo1", chapters: 13, bytes: 160520741 },
 ];
 
 export const OFFICIAL_RESOURCES: OfficialResource[] = [

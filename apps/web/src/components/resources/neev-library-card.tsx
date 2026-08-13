@@ -8,6 +8,7 @@ import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { Button } from "@/components/ui/button";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
+import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 
 /**
@@ -38,7 +39,11 @@ import { useLocale } from "@/hooks/use-locale";
 export function NeevLibraryCard() {
   const { t } = useTranslation();
   const locale = useLocale();
-  const { data, isLoading, isError, refetch } = usePaperSummaries();
+  // /resources is public, and GET /syllabus/papers is behind requireAuth — so
+  // signed-out this query MUST stay disabled (a 401 would render as a load
+  // error on a marketing page) and the card shows a signed-out variant instead.
+  const { session } = useAuth();
+  const { data, isLoading, isError, refetch } = usePaperSummaries({ enabled: !!session });
 
   // Papers that actually have something to read. A paper with zero published
   // chapters is omitted rather than shown as a 0 row: this block's claim is
@@ -60,7 +65,16 @@ export function NeevLibraryCard() {
       }
       description={t("Resources.neevDescription")}
     >
-      {isError ? (
+      {!session ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm text-muted-foreground">{t("Resources.neevSignedOut")}</p>
+          <div className="flex flex-wrap gap-2">
+            <Button asChild size="sm">
+              <Link to={`/${locale}/auth`}>{t("Resources.neevSignedOutCta")}</Link>
+            </Button>
+          </div>
+        </div>
+      ) : isError ? (
         <QueryErrorState onRetry={() => void refetch()} />
       ) : isLoading ? (
         <div className="flex flex-col gap-2">

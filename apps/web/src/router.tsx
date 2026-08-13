@@ -35,6 +35,11 @@ export const router = createBrowserRouter([
       // Public marketing page — pricing must be reachable signed-out (and is
       // reviewed as such by Razorpay's live-mode approval).
       { path: "pricing", lazy: () => import("@/routes/pricing") },
+      // Public: free study material (NCERT, government sources) + what we have
+      // already written. Public for the same reason /pricing is — it is a
+      // reason to sign up, so it must be reachable and indexable before you do.
+      // Renders its own marketing chrome for everyone, /pricing's precedent.
+      { path: "resources", lazy: () => import("@/routes/resources") },
       // Public marketing pages — one dedicated, indexable SEO page per
       // flagship feature, plus a hub linking to all of them. See lib/features.ts
       // for the feature list; feature-detail's own loader 404s an unknown slug.
@@ -68,10 +73,6 @@ export const router = createBrowserRouter([
               { path: "learn/:paperCode", lazy: () => import("@/routes/learn-paper") },
               { path: "learn/:paperCode/trends", lazy: () => import("@/routes/learn-trends") },
               { path: "learn/:paperCode/:nodeId", lazy: () => import("@/routes/learn-node") },
-              // Free/official study material + the standard reference-book
-              // directory (purchase links only — we never host or link to a
-              // copyrighted PDF). See routes/resources.tsx's header.
-              { path: "resources", lazy: () => import("@/routes/resources") },
               { path: "practice", lazy: () => import("@/routes/practice") },
               { path: "pyq-archive", lazy: () => import("@/routes/pyq-archive") },
               { path: "scoreboard", lazy: () => import("@/routes/scoreboard") },
@@ -132,6 +133,10 @@ export const router = createBrowserRouter([
           { path: "practice/ghost/:attemptId", lazy: () => import("@/routes/practice-ghost") },
           // Same rationale as the test player — a focused full-screen review flow.
           { path: "revision/session", lazy: () => import("@/routes/revision-session") },
+          // A whole past paper laid out for print-to-PDF. Outside app-shell for
+          // the same reason the magazine editions below are: printing must not
+          // carry the sidebar/tab-bar chrome.
+          { path: "pyq-archive/print", lazy: () => import("@/routes/pyq-paper-print") },
           // The magazine editions are print-styled documents (own header +
           // print button, no app chrome) so print-to-PDF is clean. The
           // month page itself is a lightweight edition picker (two cards).

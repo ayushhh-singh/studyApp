@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSearchParams } from "react-router";
-import { Archive, BarChart3, FileQuestion, Flame } from "lucide-react";
+import { Link, useSearchParams } from "react-router";
+import { Archive, BarChart3, FileDown, FileQuestion, Flame } from "lucide-react";
 import type { ExamCode, Locale, Question, TrendNode } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
@@ -352,9 +352,24 @@ export function Component() {
     <div className="flex flex-col gap-4">
       {groups.map(([year, questions]) => (
         <div key={year} className="flex flex-col gap-2">
-          <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
-            {year === "unknown" ? t("Learn.yearUnknown") : year}
-          </h3>
+          {/* The download sits on the YEAR heading, not the page header,
+              because a paper PDF is scoped to exactly one paper+year — which is
+              precisely what this group already is. Skipped for the "unknown
+              year" bucket, which is not a real paper. */}
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold tracking-wide text-muted-foreground uppercase">
+              {year === "unknown" ? t("Learn.yearUnknown") : year}
+            </h3>
+            {year !== "unknown" && (
+              <Link
+                to={`/${locale}/pyq-archive/print?paper=${encodeURIComponent(selectedPaperCode)}&year=${year}`}
+                className="inline-flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-xs font-medium text-primary transition-colors hover:bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <FileDown className="size-3.5" aria-hidden />
+                {t("PyqArchive.downloadPaper")}
+              </Link>
+            )}
+          </div>
           <ul className="flex flex-col gap-2">
             {questions.map((question) => (
               <ArchiveQuestionCard key={question.id} question={question} locale={locale} />

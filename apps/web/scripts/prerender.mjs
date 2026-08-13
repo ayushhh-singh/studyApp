@@ -30,6 +30,8 @@ const ROUTES = [
   "/hi",
   "/en/pricing",
   "/hi/pricing",
+  "/en/resources",
+  "/hi/resources",
   "/en/about",
   "/hi/about",
   "/en/faq",
