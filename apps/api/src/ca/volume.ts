@@ -22,9 +22,20 @@
  * ---------------------------------------------------------------------------
  * Every number below was measured against the live corpus, not estimated.
  *
- * 1. THE BUDGET BINDS ON EVERY RUN, AND ALWAYS HAS. 3,369 items were taken in
- *    the 21 days to 2026-08-12 — 160.4/day against a ceiling of exactly 4 runs
- *    x 40. Not "occasionally capped": saturated.
+ * 1. THE BUDGET IS THE BINDING CONSTRAINT ON A TYPICAL RUN. 3,369 items were
+ *    taken in the 21 days to 2026-08-12, and the direct evidence is the run
+ *    log itself: it prints "budget spent (max-total=N)" with items left
+ *    unprocessed, and at the 40 budget there were 188 fresh eligible items
+ *    left behind (see 2). Clustering those items by >20-min gaps: 99 runs, a
+ *    MEDIAN of 38 items against the 40 cap, 47% landing in 38-42.
+ *
+ *    ⚑ CORRECTED FROM AN EARLIER DRAFT OF THIS FILE, which claimed the budget
+ *    binds on EVERY run and read 160.4 items/day as "exactly 4 runs x 40".
+ *    Both were too neat. There are 4.7 item-clusters/day, not 4 — manual and
+ *    dev-scheduler runs happen on top of the 6-hourly cron — and 49 of 99
+ *    clusters came in under 38, i.e. supply or dedupe ran out on that tick
+ *    before the budget did. "Binds on a typical run" is what the data
+ *    supports; "saturated on every run" is not.
  *
  * 2. SUPPLY IS NOT THE LIMIT. Fetching all 11 feeds and applying the pipeline's
  *    own local filter (unseen + dated + inside `--days`), there were 228 fresh
@@ -32,15 +43,32 @@
  *    129 of those were under 24h old, so this is standing daily supply, not a
  *    one-off backlog.
  *
- * 3. THE REVIEW QUEUE IS NOT THE LIMIT EITHER — which is what makes this safe
- *    to raise at all, and is the first thing to re-check if it is ever raised
- *    again. Every CA question is inserted `needs_review` and a human approves
- *    it before a student sees it, so reviewer capacity is the real ceiling on
- *    useful volume. Measured: backlog 12, against a DEMONSTRATED throughput of
- *    778 questions actioned in one day (2026-08-11) and 858 on 2026-07-23,
- *    1,889 lifetime. Generation runs at ~30-47 questions/day. The reviewer is
- *    over-provisioned by more than an order of magnitude; 1.75x of ~40/day is
- *    not close to troubling it.
+ * 3. REVIEWER CAPACITY IS NOT THE LIMIT — but REVIEWER LATENCY partly is, and
+ *    the two must not be conflated. This is the first thing to re-check if the
+ *    budget is ever raised again. Every CA question is inserted `needs_review`
+ *    and a human approves it before a student sees it (measured: ZERO rows are
+ *    ever inserted already-approved), so the reviewer sits between generation
+ *    and every downstream sitting.
+ *
+ *    CAPACITY is not close to troubled: backlog 25, all of it under 24h old,
+ *    against a DEMONSTRATED 778 questions actioned in one day (2026-08-11),
+ *    858 on 2026-07-23, 1,889 lifetime — versus generation at ~30-47/day.
+ *
+ *    ⚑ LATENCY IS THE REAL COST, AND IT CAPS THE CONVERSION RATE. A daily
+ *    sitting draws on `questions.created_at` within [day-1, day+1) AND
+ *    approved (`approvedCaQuestionIds` in ./assemble.ts) — so a question has
+ *    roughly ONE DAY to be approved or it never enters that day's sitting.
+ *    Measured on questions created in the last 7 days: p50 21.9h to a review
+ *    decision, 53% within 24h, 63% within 48h. So only about HALF of what is
+ *    generated reaches the sitting it was generated for.
+ *
+ *    That does not argue against raising the budget — it argues FOR it, since
+ *    the shortfall is roughly a factor of two and volume is the only lever
+ *    that does not require the reviewer to change habits. But do not read
+ *    "the reviewer has 20x headroom" as "generation converts 1:1". It does
+ *    not, and the lifetime p50 (209h) is far worse than the 7-day figure
+ *    because it is dominated by historical catch-up bursts — quote the recent
+ *    window, not the lifetime one.
  *
  * 4. WHAT IS ACTUALLY STARVED IS THE DAILY MAINS SITTING. Per-set fill, every
  *    CA set built since the caps were raised:
