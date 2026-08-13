@@ -74,7 +74,27 @@ jobs:
     # BUDGET RAISE — and note the other ceiling: max-per-source (15) caps a run
     # at `sum of min(supply, 15)`, measured at 99 items on real feeds, so a
     # budget past ~85 also needs that raised or it silently does nothing.
-    timeout-minutes: 50
+    #
+    # ⚑ 50 -> 75 BECAUSE A RUN COLLECTS **ALL** PENDING BATCHES, NOT ONE. The
+    # table above assumes one batch per run; `collectBatch` is called in a loop
+    # over `listPendingBatches()`, so when a batch has not finished by the time
+    # the next 6h tick submits another, the run after that does BOTH. Measured
+    # over 97 real batches: submit->collect p50 5.47h against a 6h cadence, and
+    # **1 of 95 collect events (1%) collected 2 batches** (max ever: 2). Rare,
+    # but not hypothetical. At 2x70 = 140 items the same arithmetic gives
+    # 40 min typical / **63 min worst** at 2 exams and 53 / 83 at 3 — so the
+    # OLD 40 budget was safe even on a double-collect (24/37 and 31/49) and 70
+    # is not. 75 covers the measured 2-exam worst case with headroom.
+    #
+    # A 3-exam worst-rate double-collect (83 min) would still be cancelled, and
+    # that is accepted rather than chased: it compounds three tail events, and a
+    # hard-cancel degrades safely — the pipeline persists item by item, uncollected
+    # ledger rows stay `pending` and are retried next run, and an item already
+    # persisted re-inserts as a 23505 duplicate (counted `skippedDuplicate`, not
+    # a failure). The one real casualty is the `ca:embed` step below, whose
+    # `if: !cancelled()` does NOT run on a timeout — nightly-settle's
+    # `ca:embed` + `ingest:embed --missing-only` backfills that within a day.
+    timeout-minutes: 75
     steps:
       - uses: actions/checkout@v4
 
