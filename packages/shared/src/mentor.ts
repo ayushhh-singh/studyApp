@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, bilingualTextSchema, localeSchema } from "./types";
+import { apiEnvelopeSchema, bilingualTextSchema, localeSchema, examStageSchema } from "./types";
 
 /**
  * The AI Mentor — a RAG doubt-solving chatbot grounded in OUR platform content
@@ -317,6 +317,15 @@ export const learnerProfileSchema = z.object({
   }),
   streak_count: z.number().int(),
   days_to_exam: z.number().int().nullable(),
+  /**
+   * WHICH STAGE `days_to_exam` counts to. The calendar lookup used to be
+   * prelims-only, so the mentor prompt could safely hardcode the word
+   * "Prelims"; it is now the next milestone at either stage, and telling the
+   * mentor "Prelims" about a Mains date would be a plain falsehood in its
+   * system prompt. Nullable for the same reason days_to_exam is: an exam with
+   * no seeded dates has no countdown at all.
+   */
+  next_exam_stage: examStageSchema.nullable(),
   recent_nodes: z.array(
     z.object({ node_id: z.string(), paper_code: z.string(), title_i18n: bilingualTextSchema }),
   ),

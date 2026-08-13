@@ -839,7 +839,7 @@
     "statDays_one": "{{count}} दिन",
     "statDays_other": "{{count}} दिन",
     "badgesTitle": "बैज",
-    "badgesDescription": "अब तक अर्जित उपलब्धियाँ।",
+    "badgesDescription": "आपने क्या अर्जित किया, और आगे क्या है।",
     "handle": "हैंडल",
     "handlePlaceholder": "your_handle",
     "handleHint": "समुदाय और स्कोरबोर्ड पर आप इसी नाम से दिखते हैं। गुमनाम रहने के लिए खाली छोड़ें।",
@@ -848,7 +848,9 @@
     "statDaysToMains": "मुख्य परीक्षा में शेष दिन",
     "statFreezesHint": "छूटे हुए दिन की भरपाई के लिए स्वतः प्रयुक्त। हर 7 दिन में एक अर्जित, अधिकतम 2।",
     "badgesEarnedOf": "{{total}} में से {{earned}}",
-    "badgesNextUp": "अगला लक्ष्य:"
+    "badgesNextUp": "अगला लक्ष्य:",
+    "badgesShowAll_one": "1 और बैज देखें",
+    "badgesShowAll_other": "{{count}} और बैज देखें"
   },
   "Review": {
     "title": "समीक्षा सूची",

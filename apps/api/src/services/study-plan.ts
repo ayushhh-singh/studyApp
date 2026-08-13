@@ -87,7 +87,8 @@ export interface GeneratePlanInput {
   displayName: string | null;
   targetExamYear: number | null;
   medium: string;
-  nextExam: { title_i18n: BilingualText; exam_date: string; days_until: number } | null;
+  /** `exam_stage` so the prompt can name Prelims vs Mains instead of assuming. */
+  nextExam: { title_i18n: BilingualText; exam_date: string; days_until: number; exam_stage: string } | null;
   weakSections: { title_i18n: BilingualText; pyq_count: number; mastery_level: string }[];
   srsDueCount: number;
 }
@@ -146,13 +147,14 @@ export async function planGenerate(userId: string, hoursPerDay: number): Promise
   if (srsDueRes.error) throw new HttpError(500, `SRS due count failed: ${srsDueRes.error.message}`);
 
   const examRow = pickNextExam(examRes.data, examCode) as
-    | { title_i18n: BilingualText; exam_date: string }
+    | { title_i18n: BilingualText; exam_date: string; exam_stage: string }
     | null;
   const nextExam = examRow
     ? {
         title_i18n: examRow.title_i18n,
         exam_date: examRow.exam_date,
         days_until: Math.round((Date.parse(`${examRow.exam_date}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000),
+        exam_stage: examRow.exam_stage,
       }
     : null;
 
@@ -261,8 +263,12 @@ export function buildPlanContent(input: GeneratePlanInput): string {
   lines.push(`Student: ${input.displayName ?? aspirant}, target exam year ${input.targetExamYear ?? "unspecified"}, preferred medium ${input.medium}.`);
   lines.push(`Hours available per day: ${input.hoursPerDay}.`);
   if (input.nextExam) {
+    // Names the real stage rather than asserting "Prelims": the plan a student
+    // needs 60 days before Mains is not the plan they need before Prelims, and
+    // the calendar lookup now returns whichever milestone is genuinely next.
+    const stage = input.nextExam.exam_stage === "mains" ? "Mains" : "Prelims";
     lines.push(
-      `Next Prelims exam: ${input.nextExam.title_i18n.en || input.nextExam.title_i18n.hi} on ${input.nextExam.exam_date} (${input.nextExam.days_until} days away).`,
+      `Next ${stage} exam: ${input.nextExam.title_i18n.en || input.nextExam.title_i18n.hi} on ${input.nextExam.exam_date} (${input.nextExam.days_until} days away).`,
     );
   } else {
     lines.push("No upcoming exam date is currently scheduled.");

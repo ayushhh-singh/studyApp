@@ -839,7 +839,7 @@
     "statDays_one": "{{count}} day",
     "statDays_other": "{{count}} days",
     "badgesTitle": "Badges",
-    "badgesDescription": "Milestones you've earned so far.",
+    "badgesDescription": "What you've earned, and what's next.",
     "handle": "Handle",
     "handlePlaceholder": "your_handle",
     "handleHint": "How you appear in Community and Scoreboards. Leave blank to stay anonymous.",
@@ -848,7 +848,9 @@
     "statDaysToMains": "Days to Mains",
     "statFreezesHint": "Spent automatically to cover a missed day. Earn one every 7 days, up to 2.",
     "badgesEarnedOf": "{{earned}} of {{total}}",
-    "badgesNextUp": "Next up:"
+    "badgesNextUp": "Next up:",
+    "badgesShowAll_one": "Show 1 more badge",
+    "badgesShowAll_other": "Show {{count}} more badges"
   },
   "Review": {
     "title": "Review Queue",

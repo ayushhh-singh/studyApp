@@ -255,6 +255,7 @@ export async function computeLearnerProfile(userId: string): Promise<LearnerProf
     evaluation,
     streak_count: (profileRow?.streak_count as number | undefined) ?? 0,
     days_to_exam: exam?.exam_date ? daysBetween(today, exam.exam_date as string) : null,
+    next_exam_stage: (exam?.exam_stage as LearnerProfile["next_exam_stage"]) ?? null,
     recent_nodes,
     activity_last_7d,
     locale: ((profileRow?.preferred_locale as Locale | undefined) ?? "en"),
@@ -306,7 +307,13 @@ export function formatProfileForPrompt(p: LearnerProfile): string {
   const lines: string[] = [];
   const title = (n: { title_i18n: BilingualText }) => n.title_i18n.en || n.title_i18n.hi;
 
-  if (p.days_to_exam != null) lines.push(`Days until next Prelims: ${p.days_to_exam}.`);
+  // Names the real stage. Hardcoding "Prelims" was safe only while the calendar
+  // lookup was prelims-only; it is now the next milestone at either stage, and
+  // an assertion in a system prompt has to be true.
+  if (p.days_to_exam != null) {
+    const stage = p.next_exam_stage === "mains" ? "Mains" : p.next_exam_stage === "prelims" ? "Prelims" : "exam";
+    lines.push(`Days until next ${stage}: ${p.days_to_exam}.`);
+  }
   if (p.streak_count > 0) lines.push(`Current study streak: ${p.streak_count} day(s).`);
 
   if (p.weak_nodes.length) {

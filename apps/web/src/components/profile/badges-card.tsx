@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Award,
@@ -81,12 +82,27 @@ function BadgeMedallion({ badge }: { badge: Badge }) {
   );
 }
 
+/**
+ * How many medallions to show before the "Show all" disclosure.
+ *
+ * The catalogue is 17 and the grid is 3-wide at 390px, so rendering everything
+ * unconditionally is ~6 rows — roughly 700px of badge case on a phone, on a
+ * page that already scrolls. 8 is under 3 rows there and under 2 at
+ * lg:grid-cols-6, and because the API returns earned-first-then-nearest it is
+ * always the 8 that carry information: what you have, and what you are closest
+ * to. The rest stay one tap away rather than gone.
+ */
+const COLLAPSED_COUNT = 8;
+
 export function BadgesCard() {
   const { t } = useTranslation();
   const locale = useLocale();
+  const [showAll, setShowAll] = useState(false);
   const { data, isLoading, isError, refetch } = useBadgeCase();
   const badges = data ?? [];
   const earnedCount = badges.filter((b) => b.earned_at !== null).length;
+  const visible = showAll ? badges : badges.slice(0, COLLAPSED_COUNT);
+  const hiddenCount = badges.length - visible.length;
 
   // The API returns locked badges sorted by how close they are, so the first
   // locked one with any progress at all IS the nearest. Showing a single "next
@@ -127,7 +143,7 @@ export function BadgesCard() {
         // impression than "no badges yet" and tells them what the app rewards.
         <div className="flex flex-col gap-4">
           <ul className="grid grid-cols-3 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-            {badges.map((badge) => (
+            {visible.map((badge) => (
               <BadgeMedallion key={badge.key} badge={badge} />
             ))}
           </ul>
@@ -140,6 +156,16 @@ export function BadgesCard() {
                 ({nextUp.progress.current} / {nextUp.progress.target})
               </span>
             </p>
+          )}
+
+          {hiddenCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowAll(true)}
+              className="min-h-11 self-start text-sm font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              {t("Profile.badgesShowAll", { count: hiddenCount })}
+            </button>
           )}
         </div>
       )}

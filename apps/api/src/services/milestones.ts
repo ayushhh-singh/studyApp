@@ -242,11 +242,20 @@ async function computeMetrics(userId: string): Promise<Record<Metric, number>> {
   };
 }
 
-/** The keys this user already holds. One cheap indexed read. */
+/**
+ * The keys this user already holds. One cheap indexed read.
+ *
+ * ⚑ Filtered to keys still IN the catalogue. A `milestones` row can outlive its
+ * definition — mapMilestone already tolerates that ("a retired milestone key —
+ * skip rather than crash") — and an unfiltered count would let N retired rows
+ * satisfy the all-badges-held check in `evaluateMilestones`, silently stopping
+ * that user from ever earning N real badges again. Latent today (0 unknown keys
+ * live, max held 7 of 17) but it would fail silently, which is the worst shape.
+ */
 async function fetchEarnedKeys(userId: string): Promise<Set<string>> {
   const { data, error } = await supabase().from("milestones").select("key").eq("user_id", userId);
   if (error) throw new HttpError(500, `milestone lookup failed: ${error.message}`);
-  return new Set((data ?? []).map((r) => r.key as string));
+  return new Set((data ?? []).map((r) => r.key as string).filter((k) => defByKey.has(k)));
 }
 
 /** Insert any crossed-but-unheld milestone. Idempotent (unique on user+key). */
