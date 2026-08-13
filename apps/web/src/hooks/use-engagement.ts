@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   activityHeatmapResponseSchema,
   leaderboardResponseSchema,
+  badgeCaseResponseSchema,
   milestoneListResponseSchema,
   milestoneResponseSchema,
   weeklyDigestResponseSchema,
@@ -33,11 +34,11 @@ export function useMilestones() {
   });
 }
 
-/** Every earned badge, seen or not — the profile's badge case. */
-export function useEarnedMilestones() {
+/** The whole badge catalogue with earned state + progress — the profile's badge case. */
+export function useBadgeCase() {
   return useQuery({
-    queryKey: queryKeys.earnedMilestones(),
-    queryFn: () => api.get("/api/v1/milestones/earned", milestoneListResponseSchema),
+    queryKey: queryKeys.badgeCase(),
+    queryFn: () => api.get("/api/v1/milestones/case", badgeCaseResponseSchema),
   });
 }
 

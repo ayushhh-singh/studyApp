@@ -2,6 +2,7 @@ import { Router } from "express";
 import { z } from "zod";
 import {
   activityHeatmapResponseSchema,
+  badgeCaseResponseSchema,
   leaderboardResponseSchema,
   localeSchema,
   milestoneListResponseSchema,
@@ -14,7 +15,7 @@ import { rateLimit } from "../lib/rate-limit.js";
 import { currentUserId } from "../lib/user-context.js";
 import {
   evaluateMilestones,
-  listEarnedMilestones,
+  getBadgeCase,
   listUnseenMilestones,
   markMilestoneSeen,
 } from "../services/milestones.js";
@@ -36,16 +37,19 @@ engagementRouter.get(
   }),
 );
 
-// Registered BEFORE /milestones/:id/seen is irrelevant (different verb), but it
-// must stay above nothing else — /milestones/earned is a GET and :id is a POST,
-// so there is no shadowing here.
+// Replaces the former /milestones/earned, which returned only what the user
+// already held — see getBadgeCase for why the locked slots are the point. A GET
+// beside a POST /milestones/:id/seen, so there is no route shadowing here.
+//
+// No evaluateMilestones() call: getBadgeCase computes the metrics anyway and
+// awards from them itself, so calling both would run the nine-query metric pass
+// twice per request.
 engagementRouter.get(
-  "/milestones/earned",
+  "/milestones/case",
   asyncHandler(async (_req, res) => {
     const userId = currentUserId();
-    await evaluateMilestones(userId); // award anything newly crossed before listing
-    const items = await listEarnedMilestones(userId);
-    res.json(milestoneListResponseSchema.parse({ data: items, error: null }));
+    const items = await getBadgeCase(userId);
+    res.json(badgeCaseResponseSchema.parse({ data: items, error: null }));
   }),
 );
 

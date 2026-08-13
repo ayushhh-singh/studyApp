@@ -840,15 +840,15 @@
     "statDays_other": "{{count}} days",
     "badgesTitle": "Badges",
     "badgesDescription": "Milestones you've earned so far.",
-    "badgesEmptyTitle": "No badges yet",
-    "badgesEmptyDescription": "Write an answer, take a test or build a streak — badges land here as you go.",
     "handle": "Handle",
     "handlePlaceholder": "your_handle",
     "handleHint": "How you appear in Community and Scoreboards. Leave blank to stay anonymous.",
     "handleInvalid": "Use 3–20 lowercase letters, numbers or underscores.",
     "statDaysToPrelims": "Days to Prelims",
     "statDaysToMains": "Days to Mains",
-    "statFreezesHint": "Spent automatically to cover a missed day. Earn one every 7 days, up to 2."
+    "statFreezesHint": "Spent automatically to cover a missed day. Earn one every 7 days, up to 2.",
+    "badgesEarnedOf": "{{earned}} of {{total}}",
+    "badgesNextUp": "Next up:"
   },
   "Review": {
     "title": "Review Queue",
