@@ -109,7 +109,7 @@
  * — i.e. 0.164 min/call typical and 0.262 min/call at the worst observed rate.
  *
  * Projecting `maxTotal x 0.60 keep x calls-per-kept x min-per-call`, against
- * `ca-run.yml`'s `timeout-minutes: 50` (plus ~2 min checkout/install):
+ * `ca-run.yml`'s `timeout-minutes` (plus ~2 min checkout/install):
  *
  *   maxTotal   2 exams typical / worst    3 exams typical / worst
  *      40           11 /  18 min               14 /  23 min
@@ -117,9 +117,20 @@
  *     100           27 /  44 min               36 /  58 min     <- BLOWS IT
  *
  * 70 is therefore the largest value that keeps even a worst-observed-rate run
- * inside the EXISTING timeout AFTER a third exam goes live. 100 would need the
+ * inside a 50-minute timeout AFTER a third exam goes live. 100 would need the
  * workflow timeout raised as well, and would still not fill the mains sitting.
  * If this is ever raised past 70, raise `timeout-minutes` in the same commit.
+ *
+ * ⚑ AND THE TABLE ABOVE ASSUMES ONE BATCH PER RUN, WHICH IS NOT GUARANTEED.
+ * `collectBatch` is called in a loop over every entry `listPendingBatches()`
+ * returns, so a batch that has not finished before the next 6h tick submits
+ * another leaves the run after that collecting BOTH. Measured over 97 real
+ * batches: submit->collect p50 5.47h against the 6h cadence, and 1 of 95
+ * collect events (1%) collected 2 batches (max ever 2). At 2 x 70 = 140 items
+ * the same arithmetic gives 40 min typical / 63 worst at two exams — so the
+ * OLD 40 budget was safe even on a double-collect (24/37) and 70 was not.
+ * `ca-run.yml`'s timeout was raised 50 -> 75 in the same pass to cover it; the
+ * reasoning and what is still deliberately uncovered live there.
  *
  * COST, disclosed rather than buried. Measured $0.0469 per KEPT item in the
  * dual-exam era ($9.52 over 203 kept), i.e. ~$0.028 per item taken at the 60%
