@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   StickyNote,
   Compass,
+  Library,
   type LucideIcon,
 } from "lucide-react";
 
@@ -43,6 +44,12 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },
   { id: "my-notes", to: "my-notes", labelKey: "Nav.myNotes", icon: StickyNote },
+  // Free/official study material (NCERT) + the standard reference-book
+  // directory. Deliberately a real nav item rather than a link buried on one
+  // page: /pyq-archive lost its single entry point in a UX cleanup and became
+  // reachable from nowhere in the product (docs/OUTSTANDING.md §3 C5), which is
+  // exactly the failure mode a one-link surface is prone to.
+  { id: "resources", to: "resources", labelKey: "Nav.resources", icon: Library },
   { id: "revision", to: "revision", labelKey: "Nav.revision", icon: Brain },
   { id: "community", to: "community", labelKey: "Nav.community", icon: MessagesSquare },
   // The tour's permanent discovery surface — deliberately a real nav item

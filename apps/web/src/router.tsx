@@ -68,6 +68,10 @@ export const router = createBrowserRouter([
               { path: "learn/:paperCode", lazy: () => import("@/routes/learn-paper") },
               { path: "learn/:paperCode/trends", lazy: () => import("@/routes/learn-trends") },
               { path: "learn/:paperCode/:nodeId", lazy: () => import("@/routes/learn-node") },
+              // Free/official study material + the standard reference-book
+              // directory (purchase links only — we never host or link to a
+              // copyrighted PDF). See routes/resources.tsx's header.
+              { path: "resources", lazy: () => import("@/routes/resources") },
               { path: "practice", lazy: () => import("@/routes/practice") },
               { path: "pyq-archive", lazy: () => import("@/routes/pyq-archive") },
               { path: "scoreboard", lazy: () => import("@/routes/scoreboard") },
