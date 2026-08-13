@@ -117,17 +117,32 @@
 export const CA_DEFAULT_DAYS = 3;
 
 /**
- * Per-source ceiling for one run. DELIBERATELY UNCHANGED at 70, on measurement.
+ * Per-source ceiling for one run. DELIBERATELY UNCHANGED at 70, on measurement:
+ * a real run at maxTotal 70 took at most 10 from any one source, so it does not
+ * bind. Verified live, not simulated — the run of 2026-08-13T06:24Z reported
+ *   national:10/39 india:10/89 livemint:10/14 lucknow:9/9
+ *   economy:9/13 science:9/14 environment:4/4 explained:9/20
+ * i.e. 70 taken across 8 productive desks, two of them drained to empty with
+ * their unused share flowing to the others. That is rotation working.
  *
- * Since `./source-rotation.ts` landed, items are drained round-robin, so a
- * source can only exceed its fair share when other sources have run out — and
- * with 9 of 11 feeds carrying supply, the fair share at maxTotal 70 is ~7.8 and
- * this cap does not bind at all (simulated against the live feeds at maxTotal
- * 80: the busiest source took 11). Raising it would therefore change behaviour
- * ONLY on days when few desks have anything — which is precisely when
- * concentrating the run on the two or three general national feeds is least
- * desirable, since breadth across the subject desks is what `./sources.ts` was
- * restructured for. So it stays a bound on concentration, not a volume knob.
+ * ⚑ BUT IT IS ALSO A HARD CEILING ON MAX_TOTAL, WHICH IS EASY TO MISS. The most
+ * a run can ever take is `sum over sources of min(supply, MAX_PER_SOURCE)`. On
+ * that same measured supply that is 99 — so raising MAX_TOTAL past ~85 buys
+ * progressively less and past 99 buys NOTHING AT ALL until MAX_PER_SOURCE is
+ * raised with it. An earlier draft of this comment claimed raising it "would
+ * change behaviour only on days when few desks have anything"; that is wrong,
+ * and it is wrong in the direction that matters — it would have let someone
+ * raise MAX_TOTAL to 120 and quietly get 99.
+ *
+ * It nevertheless stays at 15 HERE, because at MAX_TOTAL 70 the binding
+ * constraint is the wall clock (see above), not this. When the two are raised
+ * together, note what changes: the subject desks added by `./sources.ts` are
+ * SHALLOW (economy 13, science 14, environment 4 fresh items in that run) while
+ * the general national feeds are deep (39 and 89), so every item above ~85 comes
+ * disproportionately from the general feeds. Measured on that supply, the three
+ * general feeds' share of a run goes 40.0% at MAX_TOTAL 40 -> 42.9% at 70 ->
+ * 44.4% at the 99 ceiling. Modest, but it only moves one way, and re-concentrating
+ * on the general feeds is precisely what `./sources.ts` was restructured to undo.
  */
 export const CA_DEFAULT_MAX_PER_SOURCE = 15;
 

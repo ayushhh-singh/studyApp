@@ -52,6 +52,28 @@ jobs:
     # PREVIOUS run's batch) plus one non-blocking submit. The generous timeout
     # is deliberately left as-is — it is headroom, not a target, and the collect
     # phase is still the sequential enrich/MCQ/mains-question work it always was.
+    #
+    # ⚑ 2026-08-13: the run budget went 40 -> 70 items (apps/api/src/ca/volume.ts,
+    # which carries the full derivation) and CA_SOURCES is now 11 feeds, not the
+    # 6 the paragraph above was written against. 50 STILL HOLDS, and this is the
+    # arithmetic — do not re-derive it from scratch. Measured on the six real
+    # dual-exam runs of 2026-08-11/12: 64-79 critical-path calls, 10.5-12.7 min,
+    # one 17.8 min outlier => 0.164 min/call typical, 0.262 worst. Critical-path
+    # calls are `maxTotal x 0.60 keep-rate x calls-per-kept-item`, where
+    # calls-per-kept-item is 1.9 at ONE live exam and 2.78 at TWO (each extra
+    # live exam adds ~0.88, since node-classify and MCQ generation fan out per
+    # exam while enrich does not):
+    #
+    #   maxTotal    2 exams typ/worst    3 exams typ/worst   (+~2 min setup)
+    #      40           11 / 18 min          14 / 23 min
+    #      70           19 / 31 min          25 / 40 min      <- current
+    #     100           27 / 44 min          36 / 58 min      <- exceeds this cap
+    #
+    # So 70 is the largest budget that survives a worst-rate run AFTER a third
+    # exam goes live. RAISE `timeout-minutes` IN THE SAME COMMIT AS ANY FURTHER
+    # BUDGET RAISE — and note the other ceiling: max-per-source (15) caps a run
+    # at `sum of min(supply, 15)`, measured at 99 items on real feeds, so a
+    # budget past ~85 also needs that raised or it silently does nothing.
     timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
