@@ -36,10 +36,24 @@
  * re-running either cron returns that period's existing test rather than piling
  * up dupes.
  *
- * Supply is APPROVED-only (questionVisibilityOrFilter("catalog")): the pipeline
- * inserts CA questions as review-gated (needs_review), and a human approves them
- * in the Review Queue's CA / descriptive tabs before they enter a weekly set.
- * Either set is null until there's approved supply.
+ * Supply is APPROVED-only (`assemblyVisibilityOrFilter()`): the pipeline inserts
+ * CA questions as review-gated (needs_review), and a human approves them in the
+ * Review Queue's CA / descriptive tabs before they enter a sitting. Either set is
+ * null until there's approved supply. This was already correct here — unlike the
+ * daily quiz's CA slice, which ran the "test" scope and put rejected questions
+ * into 21 live quizzes — and now uses the filter that has no scope argument to
+ * get wrong.
+ *
+ * ⚑ APPROVED AT BUILD TIME IS NOT APPROVED FOREVER. 7 questions inside 4 live
+ * weekly sets are now `rejected`; every one passed this filter when its set was
+ * built and was rejected afterwards. Assembly cannot prevent that — the serving
+ * side is what re-checks a retracted question, and `getTestDetail` /
+ * `startAttempt` already do (see lib/question-visibility.ts's "test" scope).
+ *
+ * TOPIC MIX is balanced across sections within each relevance tier — see
+ * `selectCaBalanced` for why a plain top-k on importance was concentrating a
+ * 50-question sitting on two categories, and what the tier-by-tier structure
+ * preserves.
  *
  * PER EXAM. Both sets are built for ONE exam and drawn from that exam's own
  * approved CA questions. A CA question's `exam_code` is not mere provenance the
@@ -73,11 +87,14 @@ import { supabase } from "../lib/supabase.js";
 import { liveExamCodes } from "../lib/exams.js";
 import { roundMarks } from "../lib/marks.js";
 import { HttpError } from "../lib/http-error.js";
-import { CURRENT_AFFAIRS_PAPER_CODE, questionVisibilityOrFilter } from "../lib/question-visibility.js";
+import { assemblyVisibilityOrFilter, CURRENT_AFFAIRS_PAPER_CODE } from "../lib/question-visibility.js";
 import { istToday, istWeekStart, shiftDate } from "../lib/ist.js";
 import { selectAll } from "../lib/paginate.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear, type OwnWeightage } from "../lib/weightage.js";
+import { paperByNode, sectionHotness, sectionOf, topLevelByNode } from "../lib/sections.js";
+import { balancedPick, maxSectionDeviationPct } from "../lib/topic-balance.js";
 import { getTestDetail } from "../services/tests.js";
+import { prelimsPooledNodeScope } from "./prelims-node.js";
 
 const PRELIMS_MAX = 50;
 const MAINS_MAX = 20;
@@ -282,7 +299,7 @@ async function approvedCaQuestionIds(
       .eq("exam_code", examCode)
       .gte("created_at", window.from);
     if (window.to) q = q.lt("created_at", window.to);
-    return q.or(questionVisibilityOrFilter("catalog")).order("id", { ascending: true });
+    return q.or(assemblyVisibilityOrFilter()).order("id", { ascending: true });
   });
 }
 
@@ -335,6 +352,109 @@ export function rankCaPool(
     })
     .sort((a, b) => b.score - a.score)
     .map((x) => x.q);
+}
+
+/**
+ * Choose `max` questions from a ranked CA pool so the SITTING covers the syllabus
+ * in proportion to real weightage, instead of being whatever the top-k happened
+ * to be.
+ *
+ * ⚑ WHY A PLAIN TOP-K WAS NOT ENOUGH, measured on the live sets. The pool itself
+ * is well spread — the last 14 days of approved uppsc CA MCQs sit at Polity 28% /
+ * Economy 22% / Geography 15% / Science 14% / Environment 11% / Current Events 6%
+ * / History 4% — but `.slice(0, 50)` on a pure importance ranking pulled that out
+ * of shape: `ca-prelims-w2026-08-10` took international_relations 15/50 (30%)
+ * against a 16% pool share and economy 13/50 (26%) against 18%, while
+ * polity_governance took 4/50 (8%) against 15%. Breadth across the month's news
+ * IS the product for a current-affairs compilation, so a top-k that concentrates
+ * on two categories is the wrong paper even when every question in it is good.
+ *
+ * ⚑ AND WHY IT IS TIER-BY-TIER RATHER THAN ONE BALANCED PASS. Relevance is the
+ * CA-specific quality signal and must stay strictly dominant: a `prelims_relevance
+ * 3` question must never lose its place to a 2 just because its section is
+ * already well represented. So the balancer runs INSIDE each tier, highest tier
+ * first, carrying one running per-section tally across the tiers. The result
+ * keeps all three signals and lets each decide what it is actually good at:
+ *
+ *     relevance tier  ->  WHETHER a question is considered at all, and in what order
+ *     section weightage -> HOW MANY come from each section
+ *     node hotness    ->  WHICH question within a section
+ *
+ * The one behaviour this deliberately gives up: within a single tier, a
+ * lower-hotness question in an under-represented section is now picked ahead of a
+ * higher-hotness one in an over-represented section. That is the trade that buys
+ * the breadth, and it is bounded by the tier.
+ */
+export function selectCaBalanced(
+  pool: CaPoolQ[],
+  relevanceOf: (id: string) => number,
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+  max: number,
+  topByNode: Map<string, string>,
+  weightOf: (top: string) => number,
+): CaPoolQ[] {
+  // Rank once (relevance tier, then node hotness) and remember each question's
+  // section. `rankCaPool`'s order is what survives WITHIN a section, because
+  // `balancedPick` never re-orders inside one.
+  const ranked = rankCaPool(pool, relevanceOf, weightage, year).map((q) => ({
+    id: q.id,
+    top: sectionOf(q.syllabus_node_id, topByNode),
+    q,
+  }));
+
+  const tiers = [...new Set(ranked.map((r) => relevanceOf(r.id)))].sort((a, b) => b - a);
+  const running = new Map<string, number>();
+  const out: CaPoolQ[] = [];
+  for (const tier of tiers) {
+    if (out.length >= max) break;
+    const picked = balancedPick({
+      pool: ranked.filter((r) => relevanceOf(r.id) === tier),
+      count: max - out.length,
+      weightOf,
+      running,
+      placedTotal: out.length,
+    });
+    out.push(...picked.map((p) => p.q));
+  }
+  return out;
+}
+
+/**
+ * The section axis a CA sitting is balanced over, which differs by TYPE — and
+ * that is a fact about the data, measured rather than assumed:
+ *
+ *   MCQ         every approved CA MCQ maps into the ONE prelims GS paper
+ *               (uppsc 1,451 -> PRE_GS1, upsc 23 -> UPSC_PRE_GS1, 0 unmapped),
+ *               so the axis is that paper's depth-1 sections and the weights are
+ *               its real recency-weighted PYQ hotness.
+ *   DESCRIPTIVE approved CA descriptive spans SEVEN papers at once (uppsc:
+ *               MAINS_ESSAY + GS1-GS6), so "which depth-1 section" is not
+ *               well-formed. The axis is the PAPER, weighted EQUALLY — every
+ *               mains paper carries the same marks, so equal really is the
+ *               proportional target here, and the balancer's coverage floor is
+ *               what stops a 20-question set landing entirely on GS2.
+ *
+ * Returns null when the exam has no prelims GS paper configured, in which case
+ * the caller falls back to the unbalanced ranking rather than inventing an axis.
+ */
+async function caSectionContext(
+  examCode: string,
+  type: "mcq" | "descriptive",
+  weightage: Map<string, OwnWeightage>,
+  year: number,
+): Promise<{ topByNode: Map<string, string>; weightOf: (top: string) => number } | null> {
+  if (type === "descriptive") {
+    const topByNode = await paperByNode(examCode);
+    return { topByNode, weightOf: () => 1 };
+  }
+  const scope = prelimsPooledNodeScope(examCode);
+  if (!scope) return null;
+  const [topByNode, hot] = await Promise.all([
+    topLevelByNode(scope.paperCode),
+    sectionHotness(scope.paperCode, weightage, year),
+  ]);
+  return { topByNode, weightOf: (top: string) => hot.get(top) ?? 0 };
 }
 
 interface AssembleSpec {
@@ -403,9 +523,16 @@ async function assemble(
   const relMap = spec.type === "mcq" ? await prelimsRelevanceByQuestion(FALLBACK_DAYS, examCode) : null;
   const relevanceOf = (id: string) => (relMap ? relMap.get(id) ?? PRELIMS_RELEVANCE_FLOOR : DESCRIPTIVE_RELEVANCE);
 
-  // Rank the pool by relevance + weightage, then cap — for BOTH sets. Shuffle
-  // first so equal-relevance/equal-weightage ties vary across weeks.
-  const selected = rankCaPool(shuffled(pool), relevanceOf, weightage, year).slice(0, spec.max);
+  // Rank by relevance + weightage and then balance the SECTION mix within each
+  // relevance tier, so the sitting covers the syllabus in proportion instead of
+  // being whatever the top-k happened to be — see `selectCaBalanced`. Shuffle
+  // first so equal-relevance/equal-weightage ties vary across periods.
+  // An exam with no section axis (no prelims GS paper configured) falls back to
+  // the plain ranking rather than to an invented axis.
+  const section = await caSectionContext(examCode, spec.type, weightage, year);
+  const selected = section
+    ? selectCaBalanced(shuffled(pool), relevanceOf, weightage, year, spec.max, section.topByNode, section.weightOf)
+    : rankCaPool(shuffled(pool), relevanceOf, weightage, year).slice(0, spec.max);
   const totalMarks = roundMarks(selected.reduce((sum, q) => sum + (q.marks ?? 0), 0));
 
   const { data: test, error: testError } = await supabase()
@@ -422,7 +549,20 @@ async function assemble(
       duration_minutes: spec.durationMinutes,
       total_marks: totalMarks || null,
       is_published: true,
-      meta: { source: spec.metaSource, days: usedDays, requested_days: days, widened: usedDays !== days },
+      meta: {
+        source: spec.metaSource,
+        days: usedDays,
+        requested_days: days,
+        widened: usedDays !== days,
+        // The assembled sitting's largest per-section gap from its weightage
+        // target. Recorded rather than logged because a CA build has no logger
+        // and these rows are the only artefact a cron run leaves behind — so a
+        // regression in the topic mix is inspectable after the fact instead of
+        // needing a replay.
+        max_section_deviation_pct: section
+          ? Number(maxSectionDeviationPct(selected.map((q) => ({ id: q.id, top: sectionOf(q.syllabus_node_id, section.topByNode) })), section.weightOf, new Set(section.topByNode.values())).toFixed(1))
+          : null,
+      },
     })
     .select("id")
     .single();

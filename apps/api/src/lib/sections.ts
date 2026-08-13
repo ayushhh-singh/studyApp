@@ -16,6 +16,7 @@
  * `mv_node_weightage` rolls up to.
  */
 import { supabase } from "./supabase.js";
+import { selectAll } from "./paginate.js";
 import { HttpError } from "./http-error.js";
 import { hotnessRaw, type OwnWeightage } from "./weightage.js";
 
@@ -65,4 +66,25 @@ export async function sectionHotness(
 /** The section a question belongs to, given a paper's node->section map. */
 export function sectionOf(nodeId: string | null | undefined, topByNode: Map<string, string>): string {
   return (nodeId && topByNode.get(nodeId)) || UNMAPPED_SECTION;
+}
+
+/**
+ * node_id -> PAPER code, for one exam's whole tree.
+ *
+ * The section axis for content that spans several papers rather than sitting
+ * inside one. The current-affairs MAINS set is the case: measured, its approved
+ * descriptive questions map across MAINS_ESSAY and GS1-GS6 simultaneously (the
+ * MCQ set does not — every CA MCQ maps into the single prelims GS paper), so
+ * "which depth-1 section" is not a well-formed question for it and "which paper"
+ * is.
+ *
+ * Paged: two exams' trees are ~500 rows today and grow with every syllabus
+ * ingest, and a truncated read would silently drop papers from the balance rather
+ * than error.
+ */
+export async function paperByNode(examCode: string): Promise<Map<string, string>> {
+  const rows = await selectAll<{ id: string; paper_code: string }>(() =>
+    supabase().from("syllabus_nodes").select("id, paper_code").eq("exam_code", examCode).order("id", { ascending: true }),
+  );
+  return new Map(rows.map((r) => [r.id, r.paper_code]));
 }
