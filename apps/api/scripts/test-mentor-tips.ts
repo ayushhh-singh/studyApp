@@ -48,6 +48,7 @@ function profile(over: Partial<LearnerProfile> = {}): LearnerProfile {
     },
     streak_count: 12,
     days_to_exam: 120,
+    next_exam_stage: "prelims",
     recent_nodes: [],
     activity_last_7d: { answers_written: 3, mcqs_attempted: 40, srs_reviews: 25 },
     locale: "en",
@@ -177,6 +178,49 @@ ok("all three tiers carry real Devanagari, not a fallback", [5, 20, 80].every((d
 // "5 days out" competes for the card on the same footing as "80 days out".
 ok("urgency rises as the exam approaches", copyFor(5).priority > copyFor(20).priority && copyFor(20).priority > copyFor(80).priority);
 ok("no exam tip beyond 90 days", !kinds(ctx({ profile: profile({ days_to_exam: 200 }) })).has("exam_proximity"));
+
+// --- ...AND THE SAME COUNTDOWN INVERTS FOR MAINS ----------------------------
+// The countdown rolls Prelims -> Mains on its own (lib/exam-calendar.ts), so
+// every tier that told a Prelims candidate to drill recall would have told a
+// Mains candidate the same thing — in the one month where writing, not recall,
+// is the highest-yield hour. Copy, CTA and rank all follow the stage.
+const mainsCtx = (days: number) =>
+  ctx({ hourIst: 14, profile: profile({ days_to_exam: days, next_exam_stage: "mains" }) });
+const mainsSoon = mainsCtx(10);
+const prelimsSoon = ctx({ hourIst: 14, profile: profile({ days_to_exam: 10, next_exam_stage: "prelims" }) });
+
+const mainsTip = tip(mainsSoon, "exam_proximity");
+ok("Mains run-in names Mains, not Prelims", /Mains is 10 days away/.test(mainsTip.insight_i18n.en));
+ok("…and never says Prelims", !/Prelims/i.test(mainsTip.insight_i18n.en));
+ok("…in Hindi too", /मुख्य परीक्षा/.test(mainsTip.insight_i18n.hi) && !/प्रीलिम्स/.test(mainsTip.insight_i18n.hi));
+ok("Mains run-in sends you to answer writing, not the quiz", mainsTip.cta_link === "/answers");
+ok("Prelims run-in still sends you to practice", tip(prelimsSoon, "exam_proximity").cta_link === "/practice");
+ok("Mains tiers are still tiered", tip(mainsCtx(5), "exam_proximity").priority > tip(mainsCtx(20), "exam_proximity").priority);
+
+// The ranking half: writing tips are DEMOTED before Prelims and PROMOTED before
+// Mains. Comparing the two arms is what proves the sign actually flips rather
+// than the modifier merely existing.
+ok(
+  "answer-writing outranks itself in the Mains run-in vs the Prelims one",
+  pr(mainsSoon, "eval_dimension") > pr(prelimsSoon, "eval_dimension"),
+);
+ok(
+  "…and clears the exam-pacing tip before Mains, where it does not before Prelims",
+  pr(mainsSoon, "eval_dimension") > pr(mainsSoon, "exam_proximity") &&
+    pr(prelimsSoon, "exam_proximity") > pr(prelimsSoon, "eval_dimension"),
+);
+// ⚑ This is the one that pins the PROMOTION rather than the endgame gate.
+// Comparing the Mains run-in against the Prelims one only proves the demotion
+// stopped applying (64 vs 39); comparing it against its own far-out baseline
+// (79 vs 64) is what fails if the +15 is removed.
+ok(
+  "answer-writing is promoted in the Mains run-in, not merely un-demoted",
+  pr(mainsSoon, "eval_dimension") > pr(farOut, "eval_dimension"),
+);
+ok(
+  "a Mains date 80 days out is not a run-in — no promotion that far out",
+  pr(mainsCtx(80), "eval_dimension") === pr(ctx({ hourIst: 14, profile: profile({ days_to_exam: 80 }) }), "eval_dimension"),
+);
 
 // --- The CA tip links the item it names -------------------------------------
 const withCa = ctx({

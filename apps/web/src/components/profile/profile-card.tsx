@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { User } from "lucide-react";
-import { handleSchema, type DashboardNextExam, type Locale, type Profile, type ProfileUpdateBody } from "@neev/shared";
+import { handleSchema, type Locale, type Profile, type ProfileUpdateBody } from "@neev/shared";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { StreakFlame } from "@/components/ui-x/streak-flame";
 import { FreezePips } from "@/components/ui-x/freeze-pips";
@@ -12,24 +12,6 @@ import { cn } from "@/lib/utils";
 
 const INPUT_CLASS =
   "min-h-11 w-full rounded-lg border border-input bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring";
-
-/** Profile carries a flatter {days_to_exam, next_exam_label_i18n, next_exam_stage}
- * shape than the dashboard's DashboardNextExam — adapt it so both pages share one
- * chip component instead of two near-identical countdown renderers drifting apart
- * over time. */
-function toDashboardNextExam(profile: Profile): DashboardNextExam {
-  if (profile.days_to_exam === null || !profile.next_exam_label_i18n) return null;
-  return {
-    // Was hardcoded "prelims", which was only ever true because the calendar
-    // lookup itself was prelims-only. It no longer is (lib/exam-calendar.ts),
-    // so this reads the real stage; the ?? is for a row shaped by an older API.
-    exam_stage: profile.next_exam_stage ?? "prelims",
-    title_i18n: profile.next_exam_label_i18n,
-    exam_date: "",
-    days_until: profile.days_to_exam,
-    is_tentative: false,
-  };
-}
 
 /**
  * People type "@ayush", "Ayush", "ayush singh" — all of which `handleSchema`
@@ -102,7 +84,9 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
             <div className="flex flex-wrap items-center gap-2">
               <StreakFlame count={profile.streak_count} />
               <FreezePips count={profile.streak_freezes} />
-              <ExamCountdownChip exam={toDashboardNextExam(profile)} />
+              {/* The profile now carries the dashboard's own shape, so the chip is fed
+                  directly — no adapter to get exam_stage or is_tentative wrong. */}
+              <ExamCountdownChip exam={profile.next_exam} />
               <span
                 className={cn(
                   "inline-flex h-9 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wide",

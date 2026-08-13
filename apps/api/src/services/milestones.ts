@@ -243,6 +243,36 @@ async function computeMetrics(userId: string): Promise<Record<Metric, number>> {
 }
 
 /**
+ * In-flight `computeMetrics` calls, keyed by user — a single-flight guard, NOT
+ * a cache.
+ *
+ * A profile page load fires BOTH `/milestones` (the toaster, mounted app-wide)
+ * and `/milestones/case` within milliseconds, and each ran the full nine-query
+ * pass independently: measured 483 ms + 401 ms, with `getGradedAnswers` paging
+ * every graded answer twice. Sharing the in-flight promise makes the second
+ * request free.
+ *
+ * Deliberately NOT a TTL cache. A TTL would also collapse the toaster's
+ * 2-minute poll, but it would mean showing stale progress right after the
+ * action that moved it — crossing 100 MCQs and then seeing "99 / 100" is
+ * exactly the moment this feature exists for. Single-flight has no staleness:
+ * the entry is deleted the moment the promise settles, so anything sequential
+ * recomputes, and the map cannot grow (one entry per concurrent request).
+ */
+const inFlightMetrics = new Map<string, Promise<Record<Metric, number>>>();
+
+function metricsFor(userId: string): Promise<Record<Metric, number>> {
+  const existing = inFlightMetrics.get(userId);
+  if (existing) return existing;
+  // `finally`, not `then`: the entry must clear on rejection too, or one failed
+  // pass would pin a rejected promise and fail every later request for that
+  // user for the life of the process.
+  const p = computeMetrics(userId).finally(() => inFlightMetrics.delete(userId));
+  inFlightMetrics.set(userId, p);
+  return p;
+}
+
+/**
  * The keys this user already holds. One cheap indexed read.
  *
  * ⚑ Filtered to keys still IN the catalogue. A `milestones` row can outlive its
@@ -282,7 +312,7 @@ async function awardEarned(userId: string, metrics: Record<Metric, number>, have
 export async function evaluateMilestones(userId: string): Promise<void> {
   const have = await fetchEarnedKeys(userId);
   if (have.size >= MILESTONE_DEFS.length) return;
-  const metrics = await computeMetrics(userId);
+  const metrics = await metricsFor(userId);
   await awardEarned(userId, metrics, have);
 }
 
@@ -321,7 +351,7 @@ export async function listUnseenMilestones(userId: string): Promise<Milestone[]>
  * chase is always at the head of the locked group.
  */
 export async function getBadgeCase(userId: string): Promise<Badge[]> {
-  const metrics = await computeMetrics(userId);
+  const metrics = await metricsFor(userId);
   const { data, error } = await supabase()
     .from("milestones")
     .select("key, achieved_at")

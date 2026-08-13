@@ -84,23 +84,19 @@ export function YourStatsCard({ profile, isLoading }: { profile: Profile | undef
           hint={t("Profile.statFreezesHint")}
           value={profile.streak_freezes}
         />
-        {profile.days_to_exam !== null && (
+        {profile.next_exam && (
           <StatRow
             icon={CalendarDays}
             // Names the STAGE rather than saying "your exam": with both a
             // Prelims and a Mains date on the calendar, "282 days" alone does
             // not say which one it is counting to. Falls back to the old
             // generic label only if the stage is somehow absent.
-            label={
-              profile.next_exam_stage
-                ? t(
-                    profile.next_exam_stage === "mains"
-                      ? "Profile.statDaysToMains"
-                      : "Profile.statDaysToPrelims",
-                  )
-                : t("Profile.statDaysToExam")
-            }
-            value={t("Profile.statDays", { count: profile.days_to_exam })}
+            label={t(
+              profile.next_exam.exam_stage === "mains"
+                ? "Profile.statDaysToMains"
+                : "Profile.statDaysToPrelims",
+            )}
+            value={t("Profile.statDays", { count: profile.next_exam.days_until })}
           />
         )}
         {profile.target_exam_year !== null && (

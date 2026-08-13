@@ -52,7 +52,15 @@ const CA_RECENT_DAYS = 7;
 /** …and within this window it's genuinely "today's news", which ranks higher. */
 const CA_HOT_DAYS = 3;
 
-/** Inside this many days to Prelims, recall/revision outranks Mains writing. */
+/**
+ * Inside this many days to PRELIMS, recall/revision outranks Mains writing.
+ *
+ * ⚑ Gated on the stage, and the sign flips. The countdown used to be
+ * prelims-only, so "exam is close" and "Prelims is close" were the same fact;
+ * it is now whichever milestone is next. In the last month before MAINS the
+ * reasoning inverts — answer writing IS the highest-yield hour then, and
+ * demoting it would be exactly backwards.
+ */
 const PRELIMS_ENDGAME_DAYS = 30;
 /** Inside this many days, a weak section is a revision emergency, not a project. */
 const PRELIMS_REVISION_DAYS = 60;
@@ -167,11 +175,19 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
   const morning = hourIst >= 4 && hourIst < 12;
   const afternoonOrEvening = hourIst >= 12 && hourIst < 22;
   const lateNight = hourIst >= 22 || hourIst < 4;
-  // Within the last month before Prelims, a Mains answer-writing nudge is the
+  // WHICH milestone the countdown refers to. Prelims and Mains want opposite
+  // advice in their final month, so nothing may key off `daysToExam` alone.
+  const stage = profile.next_exam_stage;
+  const inFinalMonth = daysToExam != null && daysToExam <= PRELIMS_ENDGAME_DAYS;
+  // Within the last month before PRELIMS, a Mains answer-writing nudge is the
   // wrong ask — the marginal hour belongs to recall and revision. These tips
   // aren't suppressed (the user may be writing Mains deliberately), just ranked
   // below the recall ones for that window.
-  const endgame = daysToExam != null && daysToExam <= PRELIMS_ENDGAME_DAYS;
+  const endgame = inFinalMonth && stage !== "mains";
+  // ...and in the last month before MAINS the same tips are the RIGHT ask, so
+  // they are promoted rather than demoted. Without this the change that made
+  // the countdown roll over to Mains would have silently inverted the advice.
+  const mainsRunIn = inFinalMonth && stage === "mains";
 
   // 1. Weakest section with enough evidence → a targeted drill.
   const weak = pickWeakNode(profile);
@@ -213,7 +229,7 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
         hi: `आपके उत्तर संरचना और प्रवाह में अंक गँवा रहे हैं। एक छोटा ${label.hi} अभ्यास (80 शब्द, 2 मिनट) इसे सुधारने का सबसे तेज़ तरीका है — अभी एक आज़माएँ।`,
       },
       cta_link: `/profile`,
-      priority: 75 + (afternoonOrEvening ? 6 : 0) - (endgame ? 25 : 0),
+      priority: 75 + (afternoonOrEvening ? 6 : 0) - (endgame ? 25 : 0) + (mainsRunIn ? 15 : 0),
     });
   } else if (profile.evaluation.count >= 2 && dim && DIMENSION_LABELS[dim]) {
     const label = DIMENSION_LABELS[dim];
@@ -225,7 +241,7 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
         hi: `आपके उत्तर ${label.hi} में अंक गँवा रहे हैं। आज एक उत्तर उसी पर ध्यान देकर लिखें।`,
       },
       cta_link: `/answers`,
-      priority: 58 + (afternoonOrEvening ? 6 : 0) - (endgame ? 25 : 0),
+      priority: 58 + (afternoonOrEvening ? 6 : 0) - (endgame ? 25 : 0) + (mainsRunIn ? 15 : 0),
     });
   }
 
@@ -249,7 +265,7 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
       cta_link: `/profile`,
       // Encouragement, not a correction — it should never outrank something the
       // user has to act on today.
-      priority: 48 - (endgame ? 20 : 0),
+      priority: 48 - (endgame ? 20 : 0) + (mainsRunIn ? 10 : 0),
     });
   }
 
@@ -351,9 +367,33 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
 
   // 8. Exam proximity, tiered — the same countdown means a different instruction
   // at 5 days than at 80, so the copy and the rank both move with the bucket.
+  //
+  // ⚑ The advice is stage-specific, not just the noun. Every tier used to name
+  // "Prelims" and prescribe quizzes and recall, which is right before Prelims
+  // and wrong before Mains — where the highest-yield hour is spent WRITING, and
+  // the CTA belongs on /answers rather than /practice. Both the copy and the
+  // destination now follow the real stage.
   if (daysToExam != null && daysToExam > 0 && daysToExam <= 90) {
-    const tier =
-      daysToExam <= 7
+    const isMains = stage === "mains";
+    const tier = isMains
+      ? daysToExam <= 7
+        ? {
+            priority: 78,
+            en: `Mains is ${daysToExam} days away. Write full-length answers under the clock now — reading a new source this late costs more than it returns.`,
+            hi: `मुख्य परीक्षा में ${daysToExam} दिन बचे हैं। अब घड़ी देखकर पूरे उत्तर लिखें — इतनी देर से नया स्रोत पढ़ना नुक़सान का सौदा है।`,
+          }
+        : daysToExam <= PRELIMS_ENDGAME_DAYS
+          ? {
+              priority: 62,
+              en: `Mains is ${daysToExam} days away. A daily answer with real evaluation is the highest-yield hour left in the day.`,
+              hi: `मुख्य परीक्षा में ${daysToExam} दिन बचे हैं। रोज़ एक उत्तर, वास्तविक मूल्यांकन के साथ — दिन का सबसे फ़ायदेमंद घंटा यही है।`,
+            }
+          : {
+              priority: 45,
+              en: `Mains is ${daysToExam} days away — a steady answer-writing habit now beats a burst of it later.`,
+              hi: `मुख्य परीक्षा में ${daysToExam} दिन बचे हैं — अभी नियमित उत्तर-लेखन, बाद की जल्दबाज़ी से बेहतर है।`,
+            }
+      : daysToExam <= 7
         ? {
             priority: 78,
             en: `Prelims is ${daysToExam} days away. Revision and full mocks only now — a new topic this late costs more than it returns.`,
@@ -374,7 +414,7 @@ export function buildCandidates(ctx: TipContext): Candidate[] {
       kind: "exam_proximity",
       dedupe_key: `exam_close:${today}`,
       insight_i18n: { en: tier.en, hi: tier.hi },
-      cta_link: `/practice`,
+      cta_link: isMains ? `/answers` : `/practice`,
       priority: tier.priority,
     });
   }

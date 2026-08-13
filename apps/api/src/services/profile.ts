@@ -8,9 +8,7 @@ import { assertSelectableExam } from "../lib/exams.js";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
 
 interface ExamInfo {
-  days_to_exam: number | null;
-  next_exam_label_i18n: { hi: string; en: string } | null;
-  next_exam_stage: Profile["next_exam_stage"];
+  next_exam: Profile["next_exam"];
 }
 
 /**
@@ -49,13 +47,18 @@ async function fetchUpcomingExams(today: string): Promise<unknown> {
 // an off-by-one countdown.
 function examInfoFor(rows: unknown, examCode: string, today: string): ExamInfo {
   const row = pickNextExam(rows, examCode);
-  if (!row) return { days_to_exam: null, next_exam_label_i18n: null, next_exam_stage: null };
+  if (!row) return { next_exam: null };
+  // Every field comes straight off the calendar row — including exam_stage and
+  // is_tentative, which the client used to have to invent. Same shape the
+  // dashboard returns, so both render the chip from identical data.
   return {
-    days_to_exam: daysBetween(today, row.exam_date),
-    next_exam_label_i18n: row.title_i18n as BilingualText,
-    // Read off the row, never inferred from the label's wording — the UI needs
-    // to say "Days to Prelims" / "Days to Mains" and the title is free prose.
-    next_exam_stage: row.exam_stage as Profile["next_exam_stage"],
+    next_exam: {
+      exam_stage: row.exam_stage as NonNullable<Profile["next_exam"]>["exam_stage"],
+      title_i18n: row.title_i18n as BilingualText,
+      exam_date: row.exam_date,
+      days_until: daysBetween(today, row.exam_date),
+      is_tentative: row.is_tentative,
+    },
   };
 }
 

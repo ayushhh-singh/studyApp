@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { apiEnvelopeSchema, examStageSchema, localeSchema } from "./types";
+import { apiEnvelopeSchema, localeSchema } from "./types";
+import { dashboardNextExamSchema } from "./dashboard";
 import { tourStateSchema } from "./tour";
 import { targetExamCodeSchema } from "./exams";
 
@@ -33,21 +34,26 @@ export const profileSchema = z.object({
   streak_freeze_used_on: z.string().nullable(),
   onboarding_completed: z.boolean(),
   study_hours_per_day: z.number().int().nullable(),
-  /** Days until the next known exam date (from exam_calendar), null if none scheduled. */
-  days_to_exam: z.number().int().nullable(),
-  next_exam_label_i18n: z.object({ hi: z.string(), en: z.string() }).nullable(),
   /**
-   * WHICH STAGE the countdown above is counting down to. Carried as data rather
-   * than left to be read out of `next_exam_label_i18n`'s prose: the label is
-   * hand-authored per calendar row and is not guaranteed to contain the word
-   * "Prelims"/"Mains", so a UI that needs the stage must read it from here.
+   * The next milestone from `exam_calendar` — Prelims or Mains, whichever comes
+   * first for this user's exam — or null when that exam has no seeded dates.
    *
-   * Before this existed, `profile-card.tsx` hardcoded `exam_stage: "prelims"`
-   * when adapting this shape into DashboardNextExam — harmless only while the
-   * calendar lookup itself was prelims-only, and a straight lie the moment it
-   * stopped being (see lib/exam-calendar.ts).
+   * ⚑ ONE OBJECT, deliberately, reusing the dashboard's own shape. This was four
+   * flat fields (`days_to_exam`, `next_exam_label_i18n`, `next_exam_stage`, and
+   * no tentative flag at all), which forced `profile-card.tsx` to REBUILD a
+   * DashboardNextExam to render the shared chip — and a reconstruction of a
+   * struct from its scattered parts is a place to get parts wrong. It did: it
+   * hardcoded `exam_stage: "prelims"` (a lie the moment the calendar lookup
+   * stopped being prelims-only) and `is_tentative: false` (so a provisional date
+   * would show the "(tentative)" marker on the dashboard chip and silently not
+   * on the profile one). Passing the object through removes the adapter, and
+   * with it that whole class.
+   *
+   * `days_until` is the countdown; read `exam_stage` for "Prelims"/"Mains"
+   * rather than looking for the word in `title_i18n`, which is hand-authored
+   * per row and need not contain it.
    */
-  next_exam_stage: examStageSchema.nullable(),
+  next_exam: dashboardNextExamSchema,
   /** Opt-in only — Mains (Answer Writing) scores are personal; never forced. See Scoreboard. */
   show_on_mains_board: z.boolean(),
   /** The 5-layer onboarding tour's persisted progress — see GET/PATCH /tour for the full picture (checklist + feature-touch map). */
