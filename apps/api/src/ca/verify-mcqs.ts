@@ -91,6 +91,10 @@ async function loadPendingMcqs(): Promise<PendingMcq[]> {
       .eq("type", "mcq")
       .eq("review_state", "needs_review")
       .is("generation_meta", null)
+      // Deterministic sort key — see loadFactsByQuestionId below for why paging
+      // without one skips and repeats rows. Only 1 page today (126 pending),
+      // ordered anyway so it cannot start lying the moment it needs a 2nd.
+      .order("id", { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`pending CA mcq query failed: ${error.message}`);
     out.push(...((data ?? []) as PendingMcq[]));
@@ -109,6 +113,26 @@ async function loadFactsByQuestionId(): Promise<Map<string, string[]>> {
       .from("current_affairs_items")
       .select("mcq_question_ids, prelims_facts")
       .not("mcq_question_ids", "eq", "{}")
+      // ⚑ WAS UNORDERED, AND IS ALREADY PAST ONE PAGE — 1,206 matching rows on
+      // 2026-08-13 against PAGE_SIZE 1000. Postgres guarantees no row order
+      // without an ORDER BY, so successive .range() calls can return an unstable
+      // order and silently SKIP or REPEAT rows across the page boundary. A
+      // skipped row drops its questions out of this map, and a question with no
+      // facts is deliberately skipped rather than blind-verified (see the
+      // caller) — so the failure mode is CA MCQs quietly never getting their
+      // confidence check, visible only as an inflated `noFactsFound`.
+      //
+      // HONEST STATUS: this was NOT observed biting. Paging the old unordered
+      // query twice returned the same complete 1,206 rows with no duplicates,
+      // because an unchanging table read by a seq scan comes back in physical
+      // order. The realistic trigger is a CONCURRENT WRITER moving rows between
+      // the two range calls — and this table is written throughout a ca:run
+      // (status, mcq_question_ids), while ca-verify-mcqs.yml and ca-run.yml
+      // have no shared concurrency group. So: a correctness gap that today
+      // depends on planner luck, not an observed loss. Pre-existing; closed
+      // here because the 40->70 budget raise (./volume.ts) grows this table
+      // faster and lengthens the window in which a writer overlaps.
+      .order("id", { ascending: true })
       .range(from, from + PAGE_SIZE - 1);
     if (error) throw new Error(`current_affairs_items query failed: ${error.message}`);
     for (const row of data ?? []) {
