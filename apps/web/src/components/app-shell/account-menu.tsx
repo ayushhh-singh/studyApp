@@ -14,6 +14,18 @@ function initialOf(name: string | null | undefined, email: string | null | undef
   return source.charAt(0).toUpperCase();
 }
 
+/**
+ * The account avatar + its menu. Used by the app shell's TopBar and — since the
+ * signed-in marketing header needed the same affordance rather than a link that
+ * merely LOOKED like one — by `components/marketing/marketing-header.tsx`.
+ *
+ * It takes NO props on purpose: both surfaces get exactly the same avatar, menu
+ * and guest variant, so what a user learns in one place holds in the other. A
+ * `hideLocaleItem` prop was added while wiring up the second caller and then
+ * removed — the marketing header hides its OWN locale pill below `sm` instead,
+ * which is precisely where this menu's language row appears, so the two never
+ * overlap and neither component needs to know about the other.
+ */
 export function AccountMenu() {
   const { t } = useTranslation();
   const locale = useLocale();

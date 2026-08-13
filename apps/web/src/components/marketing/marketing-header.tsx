@@ -1,11 +1,11 @@
 import { Link, useLocation, useNavigate } from "react-router";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/providers/auth-provider";
-import { useProfile } from "@/hooks/use-profile";
 import { useLocale } from "@/hooks/use-locale";
 import { SUPPORTED_LOCALES, switchLocale, LOCALE_STORAGE_KEY, type Locale } from "@/lib/locale";
 import { Button } from "@/components/ui/button";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { AccountMenu } from "@/components/app-shell/account-menu";
 import { cn } from "@/lib/utils";
 
 /**
@@ -22,10 +22,6 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
   const location = useLocation();
   const navigate = useNavigate();
   const { session } = useAuth();
-  // Only fetched when signed in — a marketing page must never fire a doomed
-  // authed request for a visitor who has no session (the same `enabled` gate
-  // /pricing already uses for its subscription query).
-  const { data: profile } = useProfile({ enabled: !!session });
 
   function setLocale(next: Locale) {
     if (next === locale) return;
@@ -80,12 +76,34 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
           <BrandMark />
         </Link>
 
-        <nav className="hidden items-center gap-6 md:flex" aria-label={t("Footer.headerNavLabel")}>
+        {/* ⚑ `lg`, NOT `md` — PRE-EXISTING overflow, measured. At exactly 768px
+            the inline row needs 740px of content but the container offers 720
+            (768 minus `sm:px-6`), so the marketing pages scrolled horizontally by
+            28px from 768 to ~819px. Session 8 moved this switch from `sm` to `md`
+            to fix the same class at 640-703px; that shifted the boundary rather
+            than removing it, and a sixth link ("Resources") was added afterwards.
+            Below `lg` the same links live in the scrolling second row, which is
+            what that row is for. Verified: without the inline nav the header
+            needs 252px, and at `lg` it has 976. */}
+        <nav className="hidden items-center gap-6 lg:flex" aria-label={t("Footer.headerNavLabel")}>
           {links.map((l) => navLink(l.to, l.label))}
         </nav>
 
         <div className="flex items-center gap-1.5 sm:gap-3">
-          <div className="flex items-center gap-0.5 rounded-full border border-border p-0.5">
+          {/* ⚑ Hidden below `sm` WHEN SIGNED IN, because the account menu beside
+              it already carries a language row at exactly that breakpoint
+              (AccountMenu's `sm:hidden` items) — showing both is the duplication,
+              and showing neither is impossible. It also buys back ~68px, which is
+              what a 320px signed-in header was overflowing by once the avatar
+              joined the row. Signed OUT there is no menu, so the pill stays at
+              every width. Same shape as the app shell's TopBar, which folds
+              language and theme into the menu below `sm` for the same reason. */}
+          <div
+            className={cn(
+              "h-9 items-center gap-0.5 rounded-full border border-border p-0.5",
+              session ? "hidden sm:flex" : "flex",
+            )}
+          >
             {SUPPORTED_LOCALES.map((l) => (
               <button
                 key={l}
@@ -103,30 +121,20 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
           </div>
           {session ? (
             <>
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="h-9">
                 <Link to={`/${locale}/dashboard`}>{t("Landing.goToApp")}</Link>
               </Button>
-              {/* Profile avatar beside "Go to dashboard", so a signed-in visitor
-                  on a marketing page has the same account affordance the app
-                  shell gives them everywhere else — and one that goes somewhere
-                  DIFFERENT from the button next to it (dashboard vs profile),
-                  rather than being a second way to click the same thing.
-
-                  Deliberately a plain Link to /profile, not the app shell's
-                  AccountMenu: that menu carries sign-out, theme and locale, and
-                  two locale controls in one header (the toggle sits immediately
-                  to its left) is the kind of duplication the landing header was
-                  just cleaned up to remove. The initial comes from `profile`,
-                  which is why this renders "?" for the moment before it loads
-                  rather than flashing a wrong letter. */}
-              <Link
-                to={`/${locale}/profile`}
-                aria-label={t("TopBar.account")}
-                title={profile?.display_name ?? t("TopBar.account")}
-                className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold text-primary transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                {(profile?.display_name?.trim() || session.user?.email?.trim() || "?").charAt(0).toUpperCase()}
-              </Link>
+              {/* THE app-shell account menu, not a lookalike. The first cut was a
+                  plain Link to /profile, on the reasoning that AccountMenu also
+                  carries locale and would duplicate the toggle to its left. That
+                  was wrong twice over: the menu's language row is `sm:hidden`, so
+                  on DESKTOP the menu is only name/email + Profile + Sign out and
+                  there was never any duplication — and below `sm` the right fix
+                  is to hide the PILL (see above), not to strip the menu. A
+                  control that looks exactly like the app's account avatar must
+                  behave like it: tapping it opens the menu, it does not silently
+                  navigate to /profile. */}
+              <AccountMenu />
             </>
           ) : (
             <>
@@ -136,10 +144,10 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
                   wearing different labels. Log-in is hidden below `sm` — at
                   390px the row already carries the brand, the locale toggle
                   and the primary CTA, and /auth's own toggle is one tap away. */}
-              <Button asChild size="sm" variant="ghost" className="hidden md:inline-flex">
+              <Button asChild size="sm" variant="ghost" className="hidden h-9 sm:inline-flex">
                 <Link to={`/${locale}/auth`}>{t("Landing.signIn")}</Link>
               </Button>
-              <Button asChild size="sm">
+              <Button asChild size="sm" className="h-9">
                 <Link to={`/${locale}/auth?mode=signup`}>{t("Landing.signUp")}</Link>
               </Button>
             </>
@@ -157,7 +165,7 @@ export function MarketingHeader({ maxWidthClass = "max-w-6xl" }: { maxWidthClass
           overflowed the viewport between 640 and 703px. Hindi's labels are
           shorter and fit, which is why this only showed up in one locale. */}
       <nav
-        className="flex items-center gap-5 overflow-x-auto border-t border-border/60 px-4 py-2 md:hidden"
+        className="flex items-center gap-5 overflow-x-auto border-t border-border/60 px-4 py-2 lg:hidden"
         aria-label={t("Footer.headerNavLabel")}
       >
         {links.map((l) => navLink(l.to, l.label))}
