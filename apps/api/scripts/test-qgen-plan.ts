@@ -127,6 +127,21 @@ function plan(nodeId: string, kind: "mcq" | "descriptive", count: number, examCo
   }
   check("a combination-keyed question yields no comparable answer", answerTextOf([opt("A", "Both 1 and 2")], "A") === null);
   check("a too-short answer yields null", answerTextOf([opt("A", "x")], "A") === null);
+
+  // ⚑ DEVANAGARI. Two separate defects were found here by audit, both latent
+  // only because every MCQ in the bank happens to carry English option text:
+  //  1. the ASCII rules above cannot see a Hindi closure at all;
+  //  2. worse, the normaliser dropped `\p{M}`, so matras were stripped and
+  //     दोनों ("both") collapsed to "द न" — as does दिन ("day"), i.e. two
+  //     unrelated words became the same string and would be called duplicates.
+  const hi = (en: string, hiText: string) => ({ key: "A", text_i18n: { en, hi: hiText } });
+  check("matras survive normalisation (दोनों ≠ दिन)", answerTextOf([hi("", "दोनों")], "A") !== answerTextOf([hi("", "दिन")], "A"));
+  check("नहीं and नहि stay distinct", answerTextOf([hi("", "नहीं")], "A") !== answerTextOf([hi("", "नहि")], "A"));
+  for (const t of ["दोनों 1 और 2", "न तो 1 न ही 2", "केवल 1", "उपरोक्त सभी", "इनमें से कोई नहीं", "केवल 1 और 3"]) {
+    check(`Hindi closure excluded: "${t}"`, answerTextOf([hi("", t)], "A") === null);
+  }
+  check("a substantive Hindi answer is KEPT", answerTextOf([hi("", "फ़िरोज़ शाह तुग़लक़")], "A") !== null);
+  check("English is preferred over Hindi when both exist", answerTextOf([hi("Firoz Shah Tughlaq", "फ़िरोज़ शाह तुग़लक़")], "A") === "firoz shah tughlaq");
 }
 
 if (failures.length > 0) {

@@ -192,9 +192,23 @@ export interface DedupCandidate {
 export function answerTextOf(options: readonly StoredOption[] | null | undefined, correctKey: string | null | undefined): string | null {
   if (!options || !correctKey) return null;
   const hit = options.find((o) => (o.key ?? "").toUpperCase() === correctKey.toUpperCase());
-  const t = (hit?.text_i18n?.en ?? hit?.text_i18n?.hi ?? "")
+  // ⚑ `\p{M}` IS LOAD-BEARING — dropping it silently destroys Devanagari.
+  // Matras and the anusvara are Unicode MARKS, not Letters, so `[^\p{L}\p{N}\s]`
+  // strips them: दोनों ("both") shatters to "द न", and so does दिन ("day") —
+  // i.e. two unrelated Hindi words normalise to the SAME string and would be
+  // called duplicates. Same for नहीं vs नहि. Verified by codepoint. Latent today
+  // (every MCQ in the bank carries English option text, so the `hi` fallback is
+  // never reached — measured 0 of 3,861) but this is a Hindi-equal-first product
+  // and the fallback exists precisely for the day it is not.
+  // `||`, NOT `??` — an option whose English text failed to extract stores an
+  // EMPTY STRING, which is not nullish, so `??` would return "" and the Hindi
+  // fallback this line exists for could never fire. (Found by its own test: the
+  // Devanagari cases all returned null for that reason, which also made an
+  // earlier "0 rows use the hi fallback" measurement meaningless — it was
+  // counting rows the operator had already excluded.)
+  const t = (hit?.text_i18n?.en || hit?.text_i18n?.hi || "")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}\s]/gu, " ")
+    .replace(/[^\p{L}\p{M}\p{N}\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
   if (t.length < 3) return null;
@@ -209,7 +223,38 @@ export function answerTextOf(options: readonly StoredOption[] | null | undefined
  * 160,967 real pairs), because ~2/3 of all MCQ answers in this bank ARE such
  * closures. Two questions keyed "2 and 3 only" have nothing in common.
  */
+/**
+ * ⚑ SCRIPT-AGNOSTIC, and that is the point: every rule below it is an ASCII
+ * regex, and `\b` does not match a Devanagari boundary. Audited 2026-08-13, all
+ * eight real Hindi closures — दोनों 1 और 2, न तो 1 न ही 2, केवल 1, उपरोक्त सभी,
+ * इनमें से कोई नहीं … — slipped through as "substantive answers". LATENT rather
+ * than live (measured: 0 of 3,861 comparable-answer rows carry Devanagari-only
+ * option text, because every MCQ in the bank has English text too), but this is
+ * a Hindi-equal-first product and `answerTextOf` falls back to `hi` by design.
+ *
+ * Requires BOTH that every token is a marker or a bare index AND that at least
+ * one marker is present, so a bare number ("22338", a real LCM answer) is not
+ * swept up — that case is decided by the numeric rule below instead.
+ */
+const COMBINATION_WORDS = new Set([
+  "both", "neither", "nor", "none", "all", "only", "and", "or", "of", "the",
+  "above", "below", "these", "those", "statement", "statements", "given",
+  "दोनों", "केवल", "सभी", "कोई", "नहीं", "और", "या", "न", "तो", "ही",
+  "उपरोक्त", "उपर्युक्त", "इनमें", "इन", "से", "में", "कथन", "सही",
+]);
+function isCombinationByTokens(t: string): boolean {
+  const toks = t.split(/\s+/).filter(Boolean);
+  let sawMarker = false;
+  for (const tok of toks) {
+    if (/^\d+$/.test(tok)) continue;
+    if (!COMBINATION_WORDS.has(tok)) return false;
+    sawMarker = true;
+  }
+  return sawMarker;
+}
+
 export function isCombinationAnswer(t: string): boolean {
+  if (isCombinationByTokens(t)) return true;
   if (/^(both|neither|none|all|only)\b/.test(t)) return true;
   if (
     /\b(only|and|nor)\b/.test(t) &&
