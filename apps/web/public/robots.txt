@@ -21,6 +21,21 @@ Allow: /og-default-hi.png
 # even though the file's content and Content-Type are both fine.
 Allow: /sitemap.xml$
 
+# ⚑ THE SITE ROOT — and this is why the app's logo was missing beside the site in
+# Google results. Google discovers a favicon in exactly two places: /favicon.ico,
+# and the `<link rel="icon">` in the HOME PAGE's head. `/favicon.png` was already
+# allowed below, but Googlebot had no way to LEARN about it: the only rule
+# matching "/" was the blanket `Disallow: /`, so the home page was never fetched
+# and its icon declaration never read. Allowing the asset without allowing the
+# page that declares it is not enough.
+#
+# `$` anchors this to the exact root, so it opens up "/" and nothing else — every
+# app route still falls to the blanket disallow. It ties `Disallow: /` on length,
+# and Google resolves an equal-length tie in favour of the LEAST restrictive rule,
+# i.e. Allow. `pnpm --filter web check:seo` asserts that resolution rather than
+# trusting this comment.
+Allow: /$
+
 Allow: /en$
 Allow: /en/$
 Allow: /hi$
@@ -29,6 +44,24 @@ Allow: /en/pricing$
 Allow: /en/pricing/$
 Allow: /hi/pricing$
 Allow: /hi/pricing/$
+
+# ⚑ THIS FILE AND public/sitemap.xml MUST BE EDITED TOGETHER. Because the rule
+# above is a blanket `Disallow: /` plus an exact-match allow-list, a new public
+# page added to the sitemap but not listed here is not merely un-crawled — it is
+# a page we actively ASK Google to index and then forbid it from fetching, which
+# Search Console reports as "Submitted URL blocked by robots.txt". That is
+# exactly what happened to /resources and /contact: both were added to the
+# sitemap and to scripts/prerender.mjs (which generates real HTML for them) and
+# neither was added here, so all four URLs were advertised and blocked at once.
+# `pnpm --filter web check:seo` now fails the build on that combination.
+Allow: /en/resources$
+Allow: /en/resources/$
+Allow: /hi/resources$
+Allow: /hi/resources/$
+Allow: /en/contact$
+Allow: /en/contact/$
+Allow: /hi/contact$
+Allow: /hi/contact/$
 Allow: /en/about$
 Allow: /en/about/$
 Allow: /hi/about$

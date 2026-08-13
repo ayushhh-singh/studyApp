@@ -10,12 +10,31 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Neev" />
+    <!--
+      ⚑ THIS TITLE/DESCRIPTION PAIR IS WHAT A SEARCH ENGINE SHOWS FOR ANY PAGE IT
+      HAS NOT RE-CRAWLED SINCE PRERENDERING LANDED, or whose prerender failed —
+      not a dev-only placeholder. `PageSeo` overwrites both by direct DOM mutation
+      at runtime and `scripts/prerender.mjs` bakes the per-page values into each
+      snapshot, but this is the fallback under all of that, and it is the single
+      most-seen head on the site.
+
+      It said "Neev — UPPSC Exam Prep" / "...for UPPSC (UP PCS) aspirants" until
+      2026-08-13. That was the reported "old heading in Google results", and it
+      was also simply FALSE: `upsc` went live 2026-08-11, and the 2026-08-12
+      static-pages rebuild de-UPPSC'd 62 EN + 67 HI marketing strings for exactly
+      that reason — this file was missed by that sweep, so the one string every
+      crawler falls back to kept claiming a single-exam product.
+
+      Keep it EXAM-NEUTRAL. The live exam set is a registry fact
+      (`exams.is_live`), and a static file cannot track it; naming exams here is
+      how it goes stale again. The per-page tags say what is actually covered.
+    -->
     <meta
       name="description"
-      content="AI answer-writing evaluation, PYQ practice, and syllabus-mapped study for UPPSC (UP PCS) aspirants. Bilingual Hindi/English."
+      content="AI answer-writing evaluation, past-year practice and syllabus-mapped study for Indian civil-services aspirants. Bilingual Hindi/English."
     />
     <meta name="google-site-verification" content="bB-4-gkSBRwkenP8qgI0HpobcoUGsiBfW-9t1My049A" />
-    <title>Neev — UPPSC Exam Prep</title>
+    <title>Neev — Civil Services Exam Prep</title>
   </head>
   <body>
     <div id="root"></div>

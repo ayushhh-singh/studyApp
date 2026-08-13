@@ -34,6 +34,17 @@ jobs:
       - name: CLI-argument guard (no hand-rolled argv parsing)
         run: node scripts/check-cli-args.mjs
 
+      # Keeps robots.txt, sitemap.xml and scripts/prerender.mjs in agreement.
+      # robots is a blanket `Disallow: /` plus an exact allow-list, so a new
+      # public page reaches the sitemap and the prerenderer while staying blocked
+      # to crawlers — which is what happened to /resources and /contact, and
+      # (because the SITE ROOT was blocked, so Google could never read the home
+      # page's <link rel="icon">) is why the app's logo was missing beside the
+      # site in search results. Both failures are silent: the build stays green
+      # and the pages render fine. Dependency-free, so it runs before install.
+      - name: SEO guard (robots / sitemap / prerender agree)
+        run: node apps/web/scripts/check-seo.mjs
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
