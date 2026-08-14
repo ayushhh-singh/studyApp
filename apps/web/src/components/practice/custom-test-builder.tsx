@@ -2,9 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
 import { Sparkles } from "lucide-react";
-import type { Difficulty, ExamCode, Locale, SyllabusNodeWithStats } from "@neev/shared";
+import type { Difficulty, Locale, SyllabusNodeWithStats } from "@neev/shared";
 import { Button } from "@/components/ui/button";
-import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { usePaperSummaries } from "@/hooks/use-paper-summaries";
 import { usePaperTree } from "@/hooks/use-paper-tree";
 import { useCreateCustomTest } from "@/hooks/use-create-custom-test";
@@ -36,18 +35,16 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   const [paperCode, setPaperCode] = useState<string>("");
   const [nodeIds, setNodeIds] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState<Difficulty | "">("");
-  const [exam, setExam] = useState<ExamCode | undefined>(undefined);
   // Two trees, same reason the count ceiling is decoupled from supply (see below):
-  //  - `tree` is scoped by exam + difficulty, so the per-node counts and the
+  //  - `tree` is scoped by difficulty, so the per-node counts and the
   //    availableInBank the "Create practice set" gate reads reflect what a
   //    difficulty-filtered set would actually deliver.
-  //  - `treeAll` is difficulty-AGNOSTIC (exam-scoped only). It decides WHICH
-  //    topics appear, so choosing a difficulty with zero questions on a topic no
-  //    longer HIDES that topic — you can still select it and "Show me a new set"
-  //    builds what's available of that difficulty now and prepares more. (Exam is
-  //    respected on both — filtering to UPPSC-only is a deliberate scope.)
-  const { data: tree } = usePaperTree(paperCode || undefined, exam, difficulty || undefined);
-  const { data: treeAll } = usePaperTree(paperCode || undefined, exam);
+  //  - `treeAll` is difficulty-AGNOSTIC. It decides WHICH topics appear, so
+  //    choosing a difficulty with zero questions on a topic no longer HIDES
+  //    that topic — you can still select it and "Show me a new set" builds
+  //    what's available of that difficulty now and prepares more.
+  const { data: tree } = usePaperTree(paperCode || undefined, undefined, difficulty || undefined);
+  const { data: treeAll } = usePaperTree(paperCode || undefined);
   const [count, setCount] = useState(20);
   // Free-typed text for the number input, separate from `count` — clamping
   // on every keystroke (e.g. via `Number(e.target.value) || 1`) snapped an
@@ -88,7 +85,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
     () => selectedNodes.reduce((sum, f) => sum + f.node.own_generated_count, 0),
     [selectedNodes],
   );
-  // How many are actually in the bank for this exact selection (exam + difficulty
+  // How many are actually in the bank for this exact selection (difficulty
   // scoped). "Create practice set" only draws from the bank, so it's honest only
   // up to this many.
   const availableInBank = selectedPyq + selectedGen;
@@ -119,7 +116,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   function handleSubmit() {
     if (nodeIds.length === 0) return;
     createTest.mutate(
-      { node_ids: nodeIds, count, difficulty: difficulty || undefined, exam },
+      { node_ids: nodeIds, count, difficulty: difficulty || undefined },
       { onSuccess: (test) => navigate(`/${locale}/practice/test/${test.id}`) },
     );
   }
@@ -128,7 +125,7 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
     if (nodeIds.length === 0) return;
     setPreparing(false);
     createFresh.mutate(
-      { node_ids: nodeIds, count, kind: "mcq", difficulty: difficulty || undefined, exam },
+      { node_ids: nodeIds, count, kind: "mcq", difficulty: difficulty || undefined },
       {
         onSuccess: (result) => {
           if (result.status === "ready") navigate(`/${locale}/practice/test/${result.test.id}`);
@@ -139,23 +136,10 @@ export function CustomTestBuilder({ locale }: { locale: Locale }) {
   }
 
   // A changed selection/count invalidates a stale "preparing" notice.
-  useEffect(() => setPreparing(false), [nodeIds, count, difficulty, exam]);
+  useEffect(() => setPreparing(false), [nodeIds, count, difficulty]);
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-sm font-medium">{t("Exam.filterLabel")}</span>
-        <ExamFilter
-          value={exam}
-          onChange={(next) => {
-            setExam(next);
-            // The previously selected topics' own_pyq_count was computed
-            // under the old exam scope — it may no longer be valid/visible.
-            setNodeIds([]);
-          }}
-        />
-      </div>
-
       <label className="flex flex-col gap-1.5 text-sm font-medium">
         {t("Practice.customPaper")}
         <select

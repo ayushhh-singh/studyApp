@@ -1,13 +1,10 @@
 import { useTranslation } from "react-i18next";
 import { Link, useSearchParams } from "react-router";
 import { PenSquare, Timer, Trophy, X, Zap } from "lucide-react";
-import type { ExamCode } from "@neev/shared";
-import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
-import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PyqList } from "@/components/learn/pyq-list";
@@ -16,6 +13,7 @@ import { TestCard } from "@/components/practice/test-card";
 import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
 import { MockTestsPanel } from "@/components/practice/mock-paper-tabs";
+import { TestSeriesLink } from "@/components/practice/test-series-link";
 import { AttemptHistoryList } from "@/components/practice/attempt-history-list";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useTests } from "@/hooks/use-tests";
@@ -36,9 +34,7 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
   const { t } = useTranslation();
   const locale = useLocale();
   const [searchParams, setSearchParams] = useSearchParams();
-  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
-  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
-  const { data: node } = useSyllabusNode(nodeId, exam);
+  const { data: node } = useSyllabusNode(nodeId);
   const page = Number(searchParams.get("page") ?? "1") || 1;
 
   function setPage(next: number) {
@@ -53,35 +49,19 @@ function PyqFilterView({ nodeId }: { nodeId: string }) {
     );
   }
 
-  function setExam(next: ExamCode | undefined) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        if (next) params.set("exam", next);
-        else params.delete("exam");
-        params.delete("page");
-        return params;
-      },
-      { replace: true },
-    );
-  }
-
   return (
     <SectionCard
       title={node ? t("Practice.filteredTitle", { topic: node.title_i18n[locale] }) : t("Practice.filteredTitleFallback")}
       action={
-        <div className="flex flex-wrap items-center gap-2">
-          <ExamFilter value={exam} onChange={setExam} />
-          <Button asChild variant="ghost" size="sm">
-            <Link to={`/${locale}/practice`}>
-              <X aria-hidden />
-              {t("Practice.clearFilter")}
-            </Link>
-          </Button>
-        </div>
+        <Button asChild variant="ghost" size="sm">
+          <Link to={`/${locale}/practice`}>
+            <X aria-hidden />
+            {t("Practice.clearFilter")}
+          </Link>
+        </Button>
       }
     >
-      <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} exam={exam} />
+      <PyqList nodeId={nodeId} locale={locale} page={page} onPageChange={setPage} />
     </SectionCard>
   );
 }
@@ -218,7 +198,12 @@ export function Component() {
   if (nodeFilter) {
     return (
       <div className="flex flex-col gap-6">
-        <PageHeader title={t("Practice.title")} description={t("Practice.description")} tourAnchor="practice" />
+        <PageHeader
+          title={t("Practice.title")}
+          description={t("Practice.description")}
+          tourAnchor="practice"
+          action={<TestSeriesLink />}
+        />
         <PyqFilterView nodeId={nodeFilter} />
       </div>
     );
@@ -238,7 +223,12 @@ export function Component() {
 
   return (
     <div className="flex flex-col gap-6">
-      <PageHeader title={t("Practice.title")} description={t("Practice.description")} tourAnchor="practice" />
+      <PageHeader
+        title={t("Practice.title")}
+        description={t("Practice.description")}
+        tourAnchor="practice"
+        action={<TestSeriesLink />}
+      />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
         <TabsList>
