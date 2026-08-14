@@ -18,6 +18,40 @@ import { cn } from "@/lib/utils";
 // already-computed "needs attention" number (SRS due count); Learn/Current
 // Affairs/Mentor/Community have no per-user "unread"/"new" tracking in the
 // schema today, so they intentionally don't get a fabricated badge.
+/**
+ * Label sizing for the bar, shared by every tab AND the More button so the six
+ * labels stay on one baseline.
+ *
+ * Both halves exist because the bar went from 5 slots to 6 (Test Series became
+ * a primary): English "Dashboard" spilled its box and "Test Series" wrapped to
+ * two lines, which shoved that one tab's icon out of line with its neighbours.
+ *
+ * MEASURED, at semibold — the active state, i.e. the widest a label ever
+ * renders — against the slot width the viewport gives (viewport / 6):
+ *
+ *            worst EN label   320px→53.3   360px→60   390px→65
+ *   10px     Test Series 56      clips       fits       fits
+ *   11px     Test Series 61      clips       clips      fits
+ *
+ * Hence the step at 390 rather than 360, and no horizontal padding on the
+ * label — 4px of `px-0.5` was itself enough to clip "Test Series" at 390.
+ * Hindi is comfortable throughout (its widest is 48px at 11px).
+ *
+ * `truncate` is the guard, not the mechanism: it forces `white-space: nowrap`,
+ * so no label can ever wrap and break the row's alignment again, and it clips
+ * with an ellipsis rather than bleeding into the next tab.
+ *
+ * Verified at 320/360/390/414/430 in both locales, INCLUDING the worst case
+ * that a width sweep alone misses — the longest label also being the ACTIVE
+ * (semibold) one, which only happens on that tab's own route. Nothing clips at
+ * >=360px. At 320px (a 1st-gen SE, below this app's 390px floor) an active
+ * "Dashboard"/"Test Series" clips by 2-3px; that is the accepted trade against
+ * a sub-10px font or renaming an established tab, and it degrades to an
+ * ellipsis with the row still aligned.
+ */
+const TAB_LABEL_SIZE = "text-[10px] min-[390px]:text-[11px]";
+const TAB_LABEL = "w-full truncate text-center";
+
 function TabBadge({ count }: { count: number }) {
   if (count <= 0) return null;
   return (
@@ -65,7 +99,8 @@ export function BottomTabBar() {
             aria-label={dueCount > 0 ? `${t(item.labelKey)} — ${t("Dashboard.guidedSrsDue", { n: dueCount })}` : undefined}
             className={({ isActive }: NavLinkRenderProps) =>
               cn(
-                "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+                TAB_LABEL_SIZE,
                 "before:absolute before:inset-x-3 before:top-0 before:h-0.5 before:rounded-full before:bg-transparent",
                 isActive && "font-semibold text-foreground before:bg-marigold",
               )
@@ -75,7 +110,7 @@ export function BottomTabBar() {
               <item.icon className="size-5" aria-hidden />
               <TabBadge count={dueCount} />
             </span>
-            {t(item.labelKey)}
+            <span className={TAB_LABEL}>{t(item.labelKey)}</span>
           </NavLink>
         );
       })}
@@ -84,13 +119,14 @@ export function BottomTabBar() {
           <button
             type="button"
             className={cn(
-              "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              "relative flex min-w-11 flex-1 flex-col items-center justify-center gap-1 font-medium text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
+              TAB_LABEL_SIZE,
               "before:absolute before:inset-x-3 before:top-0 before:h-0.5 before:rounded-full before:bg-transparent",
               moreActive && "font-semibold text-foreground before:bg-marigold",
             )}
           >
             <MoreHorizontal className="size-5" aria-hidden />
-            {t("Nav.more")}
+            <span className={TAB_LABEL}>{t("Nav.more")}</span>
           </button>
         </SheetTrigger>
         <SheetContent side="bottom" title={t("Nav.more")}>
