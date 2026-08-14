@@ -13,7 +13,6 @@ import { TestCard } from "@/components/practice/test-card";
 import { CustomTestBuilder } from "@/components/practice/custom-test-builder";
 import { DailyQuizPanel } from "@/components/practice/daily-quiz-panel";
 import { MockTestsPanel } from "@/components/practice/mock-paper-tabs";
-import { TestSeriesLink } from "@/components/practice/test-series-link";
 import { AttemptHistoryList } from "@/components/practice/attempt-history-list";
 import { useCurrentExam } from "@/hooks/use-current-exam";
 import { useTests } from "@/hooks/use-tests";
@@ -202,7 +201,6 @@ export function Component() {
           title={t("Practice.title")}
           description={t("Practice.description")}
           tourAnchor="practice"
-          action={<TestSeriesLink />}
         />
         <PyqFilterView nodeId={nodeFilter} />
       </div>
@@ -227,7 +225,6 @@ export function Component() {
         title={t("Practice.title")}
         description={t("Practice.description")}
         tourAnchor="practice"
-        action={<TestSeriesLink />}
       />
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as Tab)}>
