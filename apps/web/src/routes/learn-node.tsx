@@ -2,14 +2,11 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router";
 import { BookOpen, GraduationCap, ListChecks, MessagesSquare, Newspaper, PenSquare } from "lucide-react";
-import type { ExamCode } from "@neev/shared";
-import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
-import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { Button } from "@/components/ui/button";
 import { PyqList } from "@/components/learn/pyq-list";
@@ -31,9 +28,7 @@ export function Component() {
   const { paperCode = "", nodeId = "" } = useParams<{ paperCode: string; nodeId: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
-  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
-  const { data: node, isLoading, isError } = useSyllabusNode(nodeId, exam);
+  const { data: node, isLoading, isError } = useSyllabusNode(nodeId);
   const recordEvent = useRecordEvent();
   const createTest = useCreateCustomTest();
   const page = Number(searchParams.get("page") ?? "1") || 1;
@@ -52,19 +47,6 @@ export function Component() {
         const params = new URLSearchParams(prev);
         if (next === "notes") params.delete("tab");
         else params.set("tab", next);
-        params.delete("page");
-        return params;
-      },
-      { replace: true },
-    );
-  }
-
-  function setExam(next: ExamCode | undefined) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        if (next) params.set("exam", next);
-        else params.delete("exam");
         params.delete("page");
         return params;
       },
@@ -155,7 +137,7 @@ export function Component() {
             {node.exam_stage === "prelims" && (
               <Button
                 type="button"
-                onClick={() => createTest.mutate({ node_ids: [nodeId], count: Math.min(node.pyq_count, 20), exam })}
+                onClick={() => createTest.mutate({ node_ids: [nodeId], count: Math.min(node.pyq_count, 20) })}
                 disabled={node.pyq_count === 0 || createTest.isPending}
               >
                 <PenSquare aria-hidden />
@@ -180,7 +162,6 @@ export function Component() {
           </span>
         )}
         {node.weightage && <WeightageBar weightage={node.weightage} />}
-        <ExamFilter value={exam} onChange={setExam} className="ms-auto" />
       </div>
 
       {createTest.isSuccess && (
@@ -240,7 +221,6 @@ export function Component() {
                 locale={locale}
                 page={page}
                 onPageChange={setPage}
-                exam={exam}
                 highlightId={qid}
                 pyqIds={pyqIds}
               />
