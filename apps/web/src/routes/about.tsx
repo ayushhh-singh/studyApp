@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Check, PenLine, BookOpen, MessagesSquare, Newspaper, Trophy, Sparkles, ShieldCheck, KeyRound, ScanSearch, UserCheck, Flag } from "lucide-react";
+import { ArrowRight, Check, PenLine, BookOpen, CalendarCheck, MessagesSquare, Newspaper, Trophy, Sparkles, ShieldCheck, KeyRound, ScanSearch, UserCheck, Flag } from "lucide-react";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { Button } from "@/components/ui/button";
@@ -109,6 +109,37 @@ export function Component() {
             <p>{t("About.flagshipBody2")}</p>
             <p>{t("About.flagshipBody3")}</p>
           </div>
+        </div>
+      </section>
+
+      {/* The scheduled test series — the second flagship, and the top plan's
+          reason to exist. This page described the whole product without ever
+          naming its top tier's offering, which read as an omission once Max
+          shipped. Given the same section shape as the evaluation flagship
+          above rather than a seventh pillar: a pillar is one honest sentence,
+          and this needs the window rule explained to be worth anything.
+
+          Deliberately no availability claim — every series is still `draft`
+          (docs/max-tier-design.md "Still open"). What is described here is
+          what the product IS, all of it shipped and true. */}
+      <section className="border-b border-border/60">
+        <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+          <span className="inline-flex size-11 items-center justify-center rounded-xl bg-marigold/15 text-marigold-foreground">
+            <CalendarCheck className="size-5" aria-hidden />
+          </span>
+          <h2 className="mt-4 text-2xl font-bold tracking-tight">{t("About.seriesTitle")}</h2>
+          <div className="mt-4 space-y-4 text-base leading-relaxed text-muted-foreground">
+            <p>{t("About.seriesBody1")}</p>
+            <p>{t("About.seriesBody2")}</p>
+            <p>{t("About.seriesBody3")}</p>
+          </div>
+          <Link
+            to={`/${locale}/features/test-series`}
+            className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-primary hover:underline"
+          >
+            {t("About.seriesLink")}
+            <ArrowRight className="size-4" aria-hidden />
+          </Link>
         </div>
       </section>
 
