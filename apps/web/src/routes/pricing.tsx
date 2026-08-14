@@ -19,7 +19,7 @@ import { billingCopy as c, pick, planPeriodLabel, planMonths } from "@/lib/billi
 
 type Status = "idle" | "starting" | "activating" | "done" | "error";
 
-export const handle = { titleI18n: { en: "Go Pro", hi: "प्रो बनें" } };
+export const handle = { titleI18n: { en: "Plans", hi: "प्लान" } };
 
 // Public marketing page (see router.tsx) — rendered standalone with its own
 // light header, not the signed-in app-shell chrome, so it reads correctly for
@@ -206,9 +206,18 @@ export function Component() {
         )}
         {tierGroups(plans.data?.plans ?? []).map(({ tier, plans: tierPlans }) => (
         <section key={tier} className="flex flex-col gap-3">
-          <h2 className="font-heading text-xl font-bold tracking-tight">
-            {pick(locale, tier === "max" ? c.max : c.pro)}
-          </h2>
+          <div className="flex flex-col gap-1">
+            <h2 className="font-heading text-xl font-bold tracking-tight">
+              {pick(locale, tier === "max" ? c.max : c.pro)}
+            </h2>
+            {/* What actually separates the two — the page showed six price
+                cards under two bare words and never said. leading-[1.75]
+                because Tailwind's text-sm sets its own line-height and would
+                otherwise win against the Devanagari floor. */}
+            <p className="max-w-2xl text-sm leading-[1.75] text-muted-foreground">
+              {pick(locale, tier === "max" ? c.maxTierNote : c.proTierNote)}
+            </p>
+          </div>
           <div className={cn("grid gap-4 sm:grid-cols-2", tierPlans.length > 2 && "lg:grid-cols-4")}>
         {tierPlans.map((plan) => {
           const highlight = plan.is_intro; // yearly = best value
@@ -289,7 +298,7 @@ export function Component() {
       </div>
       )}
 
-      {/* Free vs Pro comparison */}
+      {/* Free vs Pro vs Max comparison */}
       <div className="flex flex-col gap-3">
         <h2 className="font-heading text-xl font-bold tracking-tight">{pick(locale, c.compareTitle)}</h2>
         <ComparisonTable locale={locale} />

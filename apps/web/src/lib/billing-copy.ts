@@ -20,10 +20,24 @@ export function planMonths(plan: Plan): number {
 }
 
 export const billingCopy = {
-  pricingTitle: { en: "Go Pro", hi: "प्रो बनें" } as T,
+  // "Go Pro" was the title while Pro was the only paid tier. With Max on top it
+  // named one of three, so the page's own h1 and its <title> both undersold the
+  // ladder they were introducing.
+  pricingTitle: { en: "Plans and pricing", hi: "प्लान और मूल्य" } as T,
   pricingSubtitle: {
-    en: "Unlimited AI answer evaluation, all study notes, mock tests, and more. Pay securely with UPI.",
-    hi: "असीमित AI उत्तर मूल्यांकन, सभी नोट्स, मॉक टेस्ट और बहुत कुछ। UPI से सुरक्षित भुगतान करें।",
+    en: "Start free. Pro adds unlimited AI answer evaluation, every study note and mock tests. Max adds the scheduled test series on top. Pay securely with UPI.",
+    hi: "मुफ़्त शुरू करें। प्रो में असीमित AI उत्तर मूल्यांकन, हर अध्ययन नोट और मॉक टेस्ट जुड़ते हैं। मैक्स इनके ऊपर निर्धारित टेस्ट सीरीज़ जोड़ता है। UPI से सुरक्षित भुगतान करें।",
+  } as T,
+  // One line under each tier heading. Without them the grouped ladder shows two
+  // bare words ("Pro", "Max") above six price cards and never says what
+  // separates them — the one question the page exists to answer.
+  proTierNote: {
+    en: "Everything you need day to day: unlimited answer evaluation, every study note, handwritten upload and full-length mock tests you can attempt whenever you like.",
+    hi: "रोज़मर्रा की हर ज़रूरत: असीमित उत्तर मूल्यांकन, हर अध्ययन नोट, हस्तलिखित अपलोड और जब चाहें तब दिए जा सकने वाले पूर्ण-लंबाई मॉक टेस्ट।",
+  } as T,
+  maxTierNote: {
+    en: "Everything in Pro, plus the scheduled test series — papers on a published calendar that open on their date and rank you against everyone who sat them in the same window.",
+    hi: "प्रो का सब कुछ, और साथ में निर्धारित टेस्ट सीरीज़ — प्रकाशित कैलेंडर पर तय तारीख को खुलने वाले पेपर, जो आपको उसी अवधि में पेपर देने वाले सभी के मुक़ाबले रैंक देते हैं।",
   } as T,
   upiFirst: { en: "UPI · Cards · Netbanking · Wallets", hi: "UPI · कार्ड · नेटबैंकिंग · वॉलेट" } as T,
   upiNote: {
@@ -76,10 +90,16 @@ export const billingCopy = {
   featMentorPro: { en: "100/day", hi: "100/दिन" } as T,
   featOcr: { en: "Handwritten answer upload (OCR)", hi: "हस्तलिखित उत्तर अपलोड (OCR)" } as T,
   featDrills: { en: "Micro-drills (intro/conclusion)", hi: "माइक्रो-ड्रिल (परिचय/निष्कर्ष)" } as T,
-  featMocks: { en: "Full-length mock test series", hi: "पूर्ण-लंबाई मॉक टेस्ट श्रृंखला" } as T,
+  // "…test series" on the Pro row and "Scheduled test series" on the Max row
+  // read as the same product priced twice. The real distinction is WHEN you may
+  // sit them, so the labels say that: any time vs on a published date.
+  featMocks: { en: "Full-length mock tests, any time", hi: "पूर्ण-लंबाई मॉक टेस्ट, कभी भी" } as T,
   featAnalytics: { en: "Advanced analytics + improvement proof", hi: "उन्नत विश्लेषण + सुधार प्रमाण" } as T,
   featMagazine: { en: "Monthly magazine PDF download", hi: "मासिक पत्रिका PDF डाउनलोड" } as T,
-  featSeries: { en: "Scheduled test series (all-India rank)", hi: "निर्धारित टेस्ट सीरीज़ (अखिल भारतीय रैंक)" } as T,
+  // NOT "all-India rank": a rank here is against everyone who sat that paper in
+  // its ranked window, which for a STATE exam (UPPSC) is not an all-India
+  // cohort. The claim was true only for the national exam.
+  featSeries: { en: "Scheduled test series (dated calendar + rank)", hi: "निर्धारित टेस्ट सीरीज़ (तय कैलेंडर + रैंक)" } as T,
   featEvalMax: { en: "600/year (200/mo)", hi: "600/वर्ष (200/माह)" } as T,
   free: { en: "Free", hi: "मुफ़्त" } as T,
   pro: { en: "Pro", hi: "प्रो" } as T,
