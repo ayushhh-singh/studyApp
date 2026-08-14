@@ -27,10 +27,12 @@
  *    publish an article bound to a source that has no PUBLIC endpoint, because
  *    a signed-out reader would get a 401 where the number should be.
  *
- * ⚑ NO ARTICLE IS PUBLISHED YET, and that is the intended state of this commit.
- * The slate below is the plan; the prose is not written. Everything ships dark
- * until a `status` flips — the same way the trial, test-series and guest work
- * shipped dark in this repo before them.
+ * PUBLISHING STARTED 2026-08-14. Everything shipped dark until then — the same
+ * way the trial, test-series and guest work shipped dark in this repo before it
+ * — and a `planned` entry still means exactly what it meant on day one: a
+ * commitment recorded in code, 404ing and advertised nowhere. `check:seo`
+ * reports the live count on every run, so the honest answer to "how much of
+ * this is real?" is a build step rather than a comment that goes stale.
  */
 
 /**
@@ -188,7 +190,7 @@ export interface ArticleDef {
 export const ARTICLES: ArticleDef[] = [
   // --- Tier 1: evergreen, highest intent (§4). Ships first. -----------------
   { slug: "uppsc-pcs-exam-date-timeline-and-exam-pattern", hub: "uppsc", category: "exam-updates", i18nKey: "uppscExamDate", status: "published", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 1, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
-  { slug: "upsc-cse-2027-exam-date-timeline-and-structure", hub: "upsc", category: "exam-updates", i18nKey: "upscExamDate2027", status: "planned", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 2 },
+  { slug: "upsc-cse-exam-date-timeline-and-structure", hub: "upsc", category: "exam-updates", i18nKey: "upscExamDate", status: "published", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 2, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
   { slug: "uppsc-mains-2023-restructure-what-gs-v-and-gs-vi-ask", hub: "uppsc", category: "exam-updates", i18nKey: "uppscMainsRestructure", status: "planned", dataBinding: ["node_weightage", "exam_registry"], slateRef: 5 },
   { slug: "uppsc-pcs-booklist-2027-prelims-and-mains", hub: "uppsc", category: "books", i18nKey: "uppscBooklist2027", status: "planned", dataBinding: [], slateRef: 3 },
   { slug: "upsc-cse-booklist-2027-prelims-and-mains", hub: "upsc", category: "books", i18nKey: "upscBooklist2027", status: "planned", dataBinding: [], slateRef: 4 },

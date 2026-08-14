@@ -50,6 +50,8 @@ const ROUTES = [
   "/hi/upsc",
   "/en/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern",
   "/hi/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern",
+  "/en/upsc/exam-updates/upsc-cse-exam-date-timeline-and-structure",
+  "/hi/upsc/exam-updates/upsc-cse-exam-date-timeline-and-structure",
   "/en/features",
   "/hi/features",
   "/en/features/answer-evaluation",
