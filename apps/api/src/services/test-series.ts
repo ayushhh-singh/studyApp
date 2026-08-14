@@ -45,6 +45,7 @@ import { HttpError, notFound } from "../lib/http-error.js";
 import { supabase } from "../lib/supabase.js";
 import { isCurrentUserAdmin } from "../lib/admin.js";
 import { getUserExam } from "../lib/exams.js";
+import { assertTestSeries } from "./entitlements.js";
 
 const SERIES_COLUMNS =
   "id, slug, exam_code, stage, paper_scope, title_i18n, description_i18n, status, starts_on, ends_on, target_exam_year";
@@ -69,7 +70,8 @@ interface SeriesRow {
 interface EntryRow {
   id: string;
   series_id: string;
-  test_id: string;
+  /** Null until the paper is assembled — see migration 0128. */
+  test_id: string | null;
   sequence_no: number;
   entry_kind: string;
   opens_at: string;
@@ -115,15 +117,23 @@ function statusFilter(admin: boolean): { col: "status"; op: "eq" | "neq"; val: s
  * needs no scheduled job to open a test; §7.1.
  */
 export function entryStateFor(
-  entry: { opens_at: string; ranked_until: string | null; test_id?: string | null },
+  // ⚑ `test_id` is REQUIRED, not optional, and that is deliberate. When it was
+  // `test_id?: string | null`, a caller that simply forgot to select the column
+  // got `undefined`, which fell through to "locked" — i.e. the UI would claim a
+  // paper exists and is merely early, when it may not have been assembled at
+  // all. An optional field lets a caller silently keep the wrong behaviour;
+  // requiring it makes the compiler ask the question. (docs/multi-exam.md's M24,
+  // the same trap as getCutoffs' defaulted examCode.)
+  entry: { opens_at: string; ranked_until: string | null; test_id: string | null },
   attempt: { submitted_at: string | null } | undefined,
   now: Date,
 ): SeriesEntryState {
   // "scheduled" outranks "locked": both are unstartable, but only one of them is
   // a promise the operator still has to keep. Reported separately so a calendar
   // whose papers are not being built shows up as such instead of looking merely
-  // early.
-  if (entry.test_id === null) return "scheduled";
+  // early. `== null` covers undefined too, so a malformed row degrades to the
+  // honest answer rather than to "locked".
+  if (entry.test_id == null) return "scheduled";
   if (now < new Date(entry.opens_at)) return "locked";
   if (!attempt) return "open";
   if (!attempt.submitted_at) return "in_progress";
@@ -385,6 +395,21 @@ export async function assertSeriesAttemptAllowed(userId: string, testId: string)
   const admin = await isCurrentUserAdmin();
   if (series.exam_code !== examCode) throw notFound("Test not found");
   if (series.status !== "published" && !admin) throw notFound("Test not found");
+
+  // THE ENTITLEMENT. The series is the Max tier's product
+  // (docs/max-tier-design.md §5), and this is the only place that knows a test
+  // is part of one — series papers reuse test_kind 'mock'/'sectional', so
+  // `attempts.ts`'s existing `kind === "mock"` Pro gate would happily admit a
+  // Pro user to a series full-length, and nothing gates a series sectional at
+  // all. Keying off the test_series_entries join instead is what closes both.
+  //
+  // Admins bypass, matching the status check above: it is what lets the owner
+  // exercise a draft series end to end without holding a subscription.
+  //
+  // Ordered AFTER access and BEFORE the window so a user who cannot have the
+  // paper is told to upgrade rather than shown a countdown for something they
+  // could never open.
+  if (!admin) await assertTestSeries(userId);
 
   // Then the window. 423 Locked rather than 403: the paper exists and this user
   // is entitled to it — it simply has not opened yet, and the client renders a
