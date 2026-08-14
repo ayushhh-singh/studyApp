@@ -30,11 +30,12 @@ and is dated. Every market figure is attributed. Currency conversions use
    per-exam alternative would have cost a column on `plans`, a denormalised copy
    on `subscriptions`, a signature change, and a live-row migration if ever
    merged back. §6.
-6. **⚑ The naive gate leaks the entire product.** Series tests reuse
-   `test_kind` `'mock'` and `'sectional'`, so today a **Pro user is admitted to
-   every series full-length** and **a Free user is admitted to every series
-   sectional**. The gate must key off the `test_series_entries` join, never
-   `test.kind`. Measured, not predicted. §6.3.
+6. **The series gate already exists and is already correct — the plan check is
+   the single missing piece.** `assertSeriesAttemptAllowed` keys off the
+   `test_series_entries` join (never `test.kind`) and is wired into **both**
+   start paths, but consults no plan. Both live series are `draft`, so nothing
+   leaks today. §6.3 — **corrected after this document's first draft overclaimed
+   a live leak.**
 7. **⚑ Two entitlement bugs fail silently the moment `plan='max'` exists**, and
    one is a permanent revenue leak. §6.2.
 8. **Three price points in §7.** None is recommended for auto-adoption; the
@@ -282,11 +283,19 @@ write string literals (`'pro'`/`'free'`), and no `plans` row carries
 `tier='max'`, so `createOrder` → `planByCode` (which filters `is_active = true`)
 cannot mint an order for one either.
 
-**Not applied to the cloud DB in this session, deliberately.** An untracked
-`0127_test_series.sql` from a concurrent session is in the working tree and not
-yet applied; pushing `0128` ahead of it risks the ledger-ordering blockage this
-repo has already suffered once (`docs/OUTSTANDING.md` §0c / M10). Apply it with
-`supabase db push` once 0127 lands, or in the follow-up session.
+**Not applied to the cloud DB, and the reason changed mid-session.** The
+original reason was that `0127_test_series.sql` was untracked and unapplied, so
+pushing `0128` ahead of it risked the ledger-ordering blockage this repo has
+suffered once already (`docs/OUTSTANDING.md` §0c / M10). **That blocker has
+cleared** — a concurrent session committed 0127 during this session and it is
+applied (`test_series` is reachable through the API, verified 2026-08-14).
+
+The remaining reason is different and still holds: **`0128` currently exists only
+on the unmerged branch `feat/max-tier-design`.** Applying it now would put
+version 0128 in the remote ledger with no corresponding migration file on `main`
+— which is §0c's blockage in the other direction, and is exactly how this repo
+lost `db push` for a fortnight. **Apply it after the branch merges**, with
+`supabase db push`.
 
 ### 6.2 ⚑ Two entitlement bugs that fail silently
 
@@ -309,45 +318,96 @@ for each plan value:
    subscription that ends keeps full access **forever**, with no error and no
    cron to catch it. This is a permanent revenue leak.
 
-### 6.3 ⚑ The gate must not key off `test_kind`
+### 6.3 The series gate — where the plan check goes
 
-`docs/test-series-design.md` D-3 and `0127_test_series.sql:240` both confirm
-series tests **reuse** `test_kind` `'mock'` and `'sectional'` (adding a new value
-would silently break `v_test_leaderboard`). The only gate on starting a test is
-`apps/api/src/services/attempts.ts:229`:
+> **⚑ Correction.** This document's first draft claimed the series "leaks the
+> entire product" — that a Pro user is admitted to every series full-length and
+> a Free user to every series sectional, because the only gate is
+> `attempts.ts`'s `test.kind === "mock"` check. **That was wrong, and the way it
+> went wrong is the reusable part:** it trusted `docs/test-series-design.md`'s
+> then-current header, "DESIGN ONLY. No application code was written." That
+> header was already false when it was read, and its owner corrected it later
+> the same day (`e3da7a1`) to "⚑ PHASE 1 IS BUILT". The gate exists, it is
+> correctly built, and it is wired into a second entry point the first draft did
+> not even consider. The architectural recommendation survives; the status claim
+> did not, and the phrase "measured, not predicted" was itself unmeasured —
+> I checked the *predicates* and never checked whether a series existed.
+>
+> The lesson this repo keeps relearning, in a new costume: **a document's status
+> header is a claim about the past.** Verify a feature's existence against the
+> code, not against the doc that describes it.
+
+**What actually exists** (`apps/api/src/services/test-series.ts:370`,
+`assertSeriesAttemptAllowed`, at HEAD):
+
+- It keys off `seriesEntryForTest(testId)` — the `test_series_entries` join,
+  which carries `unique (test_id)` — and **never** `test.kind`. A test in no
+  series returns immediately, so it is a no-op for every standalone mock,
+  sectional and daily quiz. This is exactly the right discriminator, for exactly
+  the right reason (`0127_test_series.sql:240` keeps series tests on the
+  existing `'mock'`/`'sectional'` kinds so `v_test_leaderboard` keeps working).
+- It is called from **both** start paths:
+  `attempts.ts:220` (MCQ) and **`answer-sessions.ts:92`** (descriptive). The
+  second matters more than the first for this tier: a **Mains** series paper is
+  an answer-writing session, not an attempt, so it never passes through
+  `startAttempt` at all — it is the expensive half of the product, and the first
+  draft's analysis missed its entry point entirely.
+- It enforces: the series' exam is the viewer's own; the series is `published`
+  or the viewer is an admin; and `now() >= opens_at`, returning **423 Locked**
+  rather than 403 so the client can render a countdown. There is deliberately
+  **no `closes_at` check** — postponement is allowed indefinitely and a late
+  attempt is simply unranked, which is the market's own published rule.
+
+**What is missing, deliberately.** It consults **no plan at all**. That is not
+an oversight — `test-series.ts`'s header says so outright: *"⚑ ACCESS IS
+DELIBERATELY NARROW UNTIL PRICING IS DECIDED … turning the product on later is a
+status change plus one entitlement call."* It names `docs/test-series-design.md`
+Q3/Q10 as the blocking questions. **§4 and §5 of this document answer them.**
+
+**Nothing leaks today.** Verified against the live DB, 2026-08-14: exactly two
+series exist — `uppsc-prelims-2026` and `upsc-prelims-2027`, 32 entries between
+them — and **both are `draft`**, so they are invisible to every non-admin. The
+plan gap is real and must be closed before either is published; it is not a live
+exposure.
+
+**Where the plan check goes** — one call inside the existing gate, after its
+access checks and before the window check, so a lapsed Max gets the paywall
+rather than a countdown:
 
 ```ts
-if (test.kind === "mock") await assertMockTests(userId);   // → assertPro
-```
+// test-series.ts, inside assertSeriesAttemptAllowed, after the exam/status checks:
+await assertTestSeries(userId);          // new, in entitlements.ts
 
-So with the §5 decision and no further change:
-
-| Series entry | `tests.kind` | Gate hit today | Result |
-|---|---|---|---|
-| Full-length | `mock` | `assertMockTests` → `assertPro` | **a Pro user is ADMITTED** ⚑ |
-| Sectional | `sectional` | **none** | **a Free user is ADMITTED** ⚑ |
-
-**The entire product leaks under the naive implementation.** The discriminator
-must be *"is this test an entry in a published series"* — the
-`test_series_entries` join, which has `unique (test_id)` — never `test.kind`.
-
-Required shape (follow-up session):
-
-```ts
 // entitlements.ts — new
 export async function assertTestSeries(userId: string): Promise<void> {
   const { plan } = await getPlanFor(userId);
   if (plan !== "max") throw paywall("test_series", "…");
 }
-
-// attempts.ts — after the existing exam-scope check, BEFORE the resume
-// short-circuit at :217, so a lapsed Max cannot resume into a series paper.
-if (await isSeriesTest(test.id)) await assertTestSeries(userId);
 ```
 
-Note the ordering: `startAttempt`'s resume short-circuit (`:217–219`) currently
-runs *before* the mock gate, so an already-started attempt bypasses it. That is
-tolerable for an ad-hoc mock and is not tolerable for the series.
+Placing it inside `assertSeriesAttemptAllowed` — rather than adding a second
+call at each start path, as the first draft proposed — is what keeps the MCQ and
+descriptive paths from drifting apart. That is the same "one path fixed, sibling
+missed" failure the gate's own header cites as its reason for existing.
+
+Two smaller notes for whoever implements it.
+
+**The header names the insertion point `assertSeriesAccess`, but no such
+function exists** — the real name is `assertSeriesAttemptAllowed`.
+
+**⚑ And the two paths order the gate differently, which will matter once it
+carries a plan check.** Verified 2026-08-14 against a clean working tree:
+
+| Path | Resume short-circuit | Series gate | A lapsed Max mid-paper |
+|---|---|---|---|
+| `attempts.ts` (MCQ) | `findActiveAttempt` **:222** | **:220** | **blocked** — gate runs first |
+| `answer-sessions.ts` (descriptive) | `findActiveSession` **:69–70** | **:92** | **can finish the paper** |
+
+`attempts.ts` deliberately hoisted the gate above its resume; `answer-sessions.ts`
+did not. Neither ordering is obviously wrong — letting someone finish a Mains
+paper they had already started is arguably the kinder behaviour, and it is the
+*expensive* one — but the two paths currently disagree, and a paid tier should
+not inherit that by accident. Pick one and make both match.
 
 ### 6.4 Full follow-up checklist
 
@@ -362,7 +422,7 @@ Derived from a complete read of the billing surface; file:line as of 2026-08-14.
 | 3 | `billing.ts:222`, `:236` | literal `plan: "pro"` → `plan?.tier` (already in scope via `planByCode`) |
 | 4 | `packages/shared/src/profile.ts:7` | `userPlanSchema` → add `"max"`. **Without this, activating a Max `plans` row throws in `plansResponseSchema.parse` and takes down the public `/pricing` page for everyone.** |
 | 5 | `entitlements.ts:27–50` | `LIMITS.max` (§4.3) |
-| 6 | `entitlements.ts` + `attempts.ts:229` | `assertTestSeries` + `isSeriesTest` (§6.3) |
+| 6 | `entitlements.ts` (new `assertTestSeries`) + one call inside `test-series.ts:370` `assertSeriesAttemptAllowed` | the series plan gate — **do not** add it at the two start paths separately (§6.3) |
 
 **Non-blocking but wrong until fixed:** `entitlements.ts:160` (trial detection),
 `:213/:235/:251` (quota branches), `:370` (`canReadFullNote`), `:380–395`
