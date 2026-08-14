@@ -19,7 +19,7 @@ import {
   Trophy,
   TrendingUp,
 } from "lucide-react";
-import { paiseToRupeeString } from "@neev/shared";
+import { paiseToRupeeString, type Plan } from "@neev/shared";
 import { useAuth } from "@/providers/auth-provider";
 import { useLocale } from "@/hooks/use-locale";
 import { usePlans } from "@/hooks/use-billing";
@@ -56,6 +56,32 @@ const FEATURE_SLUGS = ["answer-evaluation", "pyq-practice", "notes", "revision"]
  */
 const COVERED_ABOVE: readonly string[] = [...FEATURE_SLUGS, "test-series"];
 
+/**
+ * The teaser's ladder, cheapest first. Derived from nothing on purpose: this is
+ * a marketing summary with hand-written per-tier copy (`Landing.plan_<tier>_*`),
+ * not a render of the plans table — /pricing is where every real cadence and
+ * price lives, and each card here links there.
+ */
+const TEASER_TIERS = ["free", "pro", "max"] as const;
+
+/**
+ * The cheapest ONE-MONTH plan for a tier, or null.
+ *
+ * ⚑ The month filter is load-bearing, not a tidy-up. This teaser prints a
+ * "/month" suffix, while the ladder's multi-month cadences carry a WHOLE-PERIOD
+ * price — so labelling ₹999-per-quarter as "/month" would understate Pro by 3x
+ * and ₹5,999-per-year as "/month" would understate Max by 12x. A tier with no
+ * monthly cadence correctly renders the "See pricing" fallback rather than a
+ * wrong number.
+ */
+function cheapestMonthly(plans: Plan[], tier: string): Plan | null {
+  return (
+    plans
+      .filter((p) => p.tier === tier && p.price_paise > 0 && planMonths(p) === 1)
+      .sort((a, b) => a.price_paise - b.price_paise)[0] ?? null
+  );
+}
+
 /** Icons for the test-series band's three selling points, in copy order. */
 const SERIES_POINT_ICONS = [CalendarRange, Trophy, History] as const;
 
@@ -78,20 +104,11 @@ export function Component() {
 
   const primaryHref = session ? `/${locale}/dashboard` : `/${locale}/auth`;
 
-  // The teaser's Pro price comes from the REAL plan ladder (GET /billing/plans
-  // is public, same source the /pricing page renders) — it used to be a
-  // hardcoded "Coming soon" string that went stale the day the ladder shipped.
-  //
-  // Deliberately the cheapest ONE-MONTH tier, not the cheapest tier outright:
-  // this teaser prints a "/month" suffix, and the ladder's multi-month tiers
-  // (quarterly/half-yearly/yearly) carry a whole-period price, so labelling
-  // ₹999-per-quarter as "/month" would overstate the price by 3x. If no
-  // monthly tier exists the teaser links to /pricing instead of guessing.
+  // Prices come from the REAL plan ladder (GET /billing/plans is public, the
+  // same source /pricing renders) — never a hardcoded number. See
+  // cheapestMonthly for why it must be the one-MONTH cadence.
   const plans = usePlans();
-  const monthlyPlan =
-    (plans.data?.plans ?? [])
-      .filter((p) => p.price_paise > 0 && planMonths(p) === 1)
-      .sort((a, b) => a.price_paise - b.price_paise)[0] ?? null;
+  const allPlans = plans.data?.plans ?? [];
 
   const pillars = [1, 2, 3, 4].map((n) => ({
     Icon: PILLAR_ICONS[n - 1],
@@ -473,56 +490,91 @@ export function Component() {
             <h2 className="text-3xl font-extrabold tracking-tight sm:text-4xl">{t("Landing.pricingTitle")}</h2>
             <p className="mt-3 text-base leading-relaxed text-muted-foreground">{t("Landing.pricingSub")}</p>
           </div>
-          <div className="mx-auto mt-12 grid max-w-3xl gap-5 sm:grid-cols-2">
-            {(["free", "pro"] as const).map((plan) => (
-              <div
-                key={plan}
-                className={cn(
-                  "rounded-2xl border p-6 sm:p-7",
-                  plan === "pro" ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border bg-card",
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <h3 className="text-lg font-bold">{t(`Landing.plan_${plan}_name`)}</h3>
-                  {plan === "pro" ? (
-                    <span className="rounded-full bg-primary px-2.5 py-0.5 text-xs font-semibold text-primary-foreground">
-                      {t("Landing.planPopular")}
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1 font-display text-2xl font-extrabold tabular-nums">
-                  {plan === "free" ? (
-                    t("Landing.plan_free_price")
-                  ) : monthlyPlan ? (
-                    <>
-                      ₹{paiseToRupeeString(monthlyPlan.price_paise)}
-                      <span className="text-sm font-medium text-muted-foreground">{t("Landing.planPerMonth")}</span>
-                    </>
-                  ) : (
-                    // Registry not loaded (or failed): link out rather than
-                    // print a number we don't have. Never a hardcoded price.
-                    <span className="text-base font-semibold text-primary">{t("Landing.plan_pro_priceFallback")}</span>
+          <div className="mx-auto mt-12 grid max-w-5xl gap-5 md:grid-cols-3">
+            {TEASER_TIERS.map((tier) => {
+              const paid = tier !== "free";
+              const monthly = paid ? cheapestMonthly(allPlans, tier) : null;
+              const top = tier === "max";
+              return (
+                <div
+                  key={tier}
+                  className={cn(
+                    "flex flex-col rounded-2xl border p-6 sm:p-7",
+                    top ? "border-marigold bg-card shadow-lg shadow-marigold/20" : "border-border bg-card",
                   )}
-                </p>
-                <p className="mt-1 text-sm text-muted-foreground">{t(`Landing.plan_${plan}_tag`)}</p>
-                <ul className="mt-5 space-y-2.5">
-                  {[0, 1, 2, 3].map((n) => {
-                    const key = `Landing.plan_${plan}_f${n}`;
-                    const text = t(key);
-                    if (text === key) return null;
-                    return (
-                      <li key={n} className="flex items-start gap-2.5 text-sm leading-relaxed">
-                        <Check className="mt-0.5 size-4 shrink-0 text-tulsi" />
-                        <span>{text}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-                <Button asChild className="mt-6 w-full" variant={plan === "pro" ? "default" : "outline"}>
-                  <Link to={primaryHref}>{plan === "pro" ? t("Landing.startFree") : t("Landing.plan_free_cta")}</Link>
-                </Button>
-              </div>
-            ))}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-lg font-bold">{t(`Landing.plan_${tier}_name`)}</h3>
+                    {top ? (
+                      // Gold pill, text --brand-navy via accentSolid. "Top tier"
+                      // is arithmetic; the badge here used to read "Popular",
+                      // which is a claim about what other people bought that we
+                      // have no data for — /pricing already rejected exactly
+                      // that wording (billing-copy.ts compareTitle).
+                      <span
+                        className="shrink-0 rounded-full px-2.5 py-0.5 text-xs font-semibold"
+                        style={accentSolid("marigold")}
+                      >
+                        {t("Landing.planTopTier")}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 font-display text-2xl font-extrabold tabular-nums">
+                    {!paid ? (
+                      t("Landing.plan_free_price")
+                    ) : monthly ? (
+                      <>
+                        ₹{paiseToRupeeString(monthly.price_paise)}
+                        <span className="text-sm font-medium text-muted-foreground">{t("Landing.planPerMonth")}</span>
+                      </>
+                    ) : (
+                      // Registry not loaded (or failed), or this tier has no
+                      // monthly cadence: link out rather than print a number we
+                      // don't have. Never a hardcoded price.
+                      <span className="text-base font-semibold text-primary">{t("Landing.planPriceFallback")}</span>
+                    )}
+                  </p>
+                  <p className="mt-1 text-sm leading-[1.75] text-muted-foreground">{t(`Landing.plan_${tier}_tag`)}</p>
+                  <ul className="mt-5 space-y-2.5">
+                    {[0, 1, 2, 3].map((n) => {
+                      const key = `Landing.plan_${tier}_f${n}`;
+                      const text = t(key);
+                      if (text === key) return null;
+                      return (
+                        <li key={n} className="flex items-start gap-2.5 text-sm leading-[1.75]">
+                          {/* -foreground, not the raw token: `text-tulsi` on a
+                              card measures 2.5:1 (design skill, the codebase's
+                              single most-repeated defect). */}
+                          <Check className="mt-1 size-4 shrink-0 text-tulsi-foreground" aria-hidden />
+                          <span>{text}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  {/* mt-auto so the three buttons line up despite different
+                      bullet counts. A PAID card must route to /pricing: it
+                      used to send every visitor to sign-up, so the section
+                      advertised a paid tier and then offered no way to see the
+                      ladder or buy it — and the Pro card's own label read
+                      "Start free", which describes the card next to it. */}
+                  {/* The spacing sits on a WRAPPER, not the Button: mt-auto
+                      bottom-aligns the three buttons despite differing bullet
+                      heights, but collapses to zero once a card's bullets fill
+                      it — which put the Max card's button flush against its
+                      last bullet while the shorter cards looked fine. pt-6 is
+                      a floor that always applies. It cannot go on the Button
+                      itself, where padding would push the label down inside
+                      the control instead of away from the list above it. */}
+                  <div className="mt-auto pt-6">
+                    <Button asChild className="w-full" variant={paid ? "outline" : "default"}>
+                      <Link to={paid ? `/${locale}/pricing` : primaryHref}>
+                        {paid ? t("Landing.planSeePlans") : t("Landing.plan_free_cta")}
+                      </Link>
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
