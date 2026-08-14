@@ -46,13 +46,26 @@ export function ArticleDataBlock({ marker, hub }: { marker: string; hub: Article
   if (name === "exam-timeline") return <ExamTimelineBlock hub={hub} />;
   if (name === "exam-pattern") return <ExamPatternBlock hub={hub} />;
   if (name === "marks-split") return <MarksSplitBlock hub={hub} />;
-  if (name === "weightage" && arg) return <WeightageBlock papers={arg.split(",").filter(Boolean)} />;
   if (name === "booklist") return <BooklistBlock exam={hub} />;
+
+  // ⚑ THE PAPER LIST MUST BE PARSED AND FOUND NON-EMPTY *HERE*, not inside the
+  // block. `usePaperWeightage([])` is `enabled: false`, and a disabled TanStack
+  // v5 query is PENDING — so `isAwaitingData` is true forever and the block
+  // renders a SKELETON THAT NEVER RESOLVES. `query-state.ts`'s own docstring
+  // documents this trap and counts four live regressions from it; a marker of
+  // `[[data:weightage:,]]` (a plausible authoring typo, and one that could
+  // exist in a single locale) walks straight into a fifth. Checking truthiness
+  // of the raw `arg` is NOT enough — "," is truthy and parses to [].
+  if (name === "weightage") {
+    const papers = (arg ?? "").split(",").filter(Boolean);
+    return papers.length > 0 ? <WeightageBlock papers={papers} /> : null;
+  }
   if (name === "reform-split" && arg) {
-    const [year, papers] = splitMarker(arg);
+    const [year, list] = splitMarker(arg);
     const pivot = Number(year);
-    if (Number.isFinite(pivot) && papers) {
-      return <ReformSplitBlock pivotYear={pivot} papers={papers.split(",").filter(Boolean)} />;
+    const papers = (list ?? "").split(",").filter(Boolean);
+    if (Number.isInteger(pivot) && papers.length > 0) {
+      return <ReformSplitBlock pivotYear={pivot} papers={papers} />;
     }
   }
   return null;

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Mail } from "lucide-react";
 import { useLocale } from "@/hooks/use-locale";
 import { BrandMark } from "@/components/marketing/brand-mark";
+import { ARTICLE_HUBS, hubPath } from "@/lib/articles";
 
 export const SUPPORT_EMAIL = "support@neevstudy.com";
 
@@ -30,6 +31,25 @@ export function Footer() {
             <Link to={`/${locale}/resources`} className="transition-colors hover:text-foreground">
               {t("Footer.resources")}
             </Link>
+            {/* ⚑ THE CONTENT HUB'S ONLY ENTRY POINT IN THE WHOLE APP. Before
+                this, `/uppsc` and `/upsc` were linked from NOWHERE — not the
+                header, not the footer, not nav.ts, not the landing page — so
+                the hubs and every article beneath them were reachable only by
+                typing the URL or arriving from a search result. That is the
+                exact hole recorded for /pyq-archive (docs/OUTSTANDING.md §3
+                C5), and it costs more here: the hubs exist to accumulate
+                internal link equity from the articles beneath them
+                (docs/content-strategy.md §1a), and a page nothing links to
+                accumulates none of it from the rest of the site. */}
+            {ARTICLE_HUBS.map((hub) => (
+              <Link
+                key={hub}
+                to={hubPath(hub, locale)}
+                className="transition-colors hover:text-foreground"
+              >
+                {t(`Articles.hub.${hub}.heroEyebrow`)}
+              </Link>
+            ))}
             <Link to={`/${locale}/about`} className="transition-colors hover:text-foreground">
               {t("Footer.about")}
             </Link>
