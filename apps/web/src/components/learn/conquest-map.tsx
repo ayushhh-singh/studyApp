@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
 import { ChevronRight, Layers, Share2 } from "lucide-react";
-import type { ExamCode, Locale, MasteryNode } from "@neev/shared";
+import type { Locale, MasteryNode } from "@neev/shared";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { Skeleton } from "@/components/ui-x/skeleton";
@@ -105,10 +105,10 @@ function Tile({
   );
 }
 
-export function ConquestMap({ paperCode, locale, exam }: { paperCode: string; locale: Locale; exam?: ExamCode }) {
+export function ConquestMap({ paperCode, locale }: { paperCode: string; locale: Locale }) {
   const { t } = useTranslation();
   const { name: examName } = useCurrentExam();
-  const { data, isLoading, isError, refetch } = useMastery(paperCode, exam);
+  const { data, isLoading, isError, refetch } = useMastery(paperCode);
 
   // The drill path: [] = top-level (paper's direct sections). Each entry is
   // the node whose subtree is currently being shown.

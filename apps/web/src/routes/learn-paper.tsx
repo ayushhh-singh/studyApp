@@ -2,13 +2,11 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, useParams, useSearchParams } from "react-router";
 import { BarChart3, BookOpen, Brain, Check, ChevronRight, ListChecks, Map as MapIcon, PenSquare, Rows3 } from "lucide-react";
-import type { ExamCode, SyllabusNodeWithStats } from "@neev/shared";
-import { examCodeSchema } from "@neev/shared";
+import type { SyllabusNodeWithStats } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
-import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { WeightageBar } from "@/components/ui-x/weightage-bar";
 import { ConquestMap } from "@/components/learn/conquest-map";
 import { Button } from "@/components/ui/button";
@@ -27,7 +25,6 @@ function NodeRow({
   expanded,
   onToggle,
   locale,
-  exam,
   addedIds,
   addingId,
   onAddToRevision,
@@ -38,7 +35,6 @@ function NodeRow({
   expanded: Set<string>;
   onToggle: (id: string) => void;
   locale: "hi" | "en";
-  exam?: ExamCode;
   addedIds: Set<string>;
   addingId: string | null;
   onAddToRevision: (nodeId: string) => void;
@@ -93,12 +89,7 @@ function NodeRow({
           <WeightageBar weightage={node.weightage} />
           {node.own_pyq_count > 0 && (
             <Button asChild variant="ghost" size="xs">
-              {/* Forwards the active exam filter — practice.tsx's PyqFilterView
-                  reads the same `?exam=` param, so without this a "UPPSC only"
-                  filter on this outline silently reset to "All exams" the
-                  moment you followed this link (the sibling "View trends"
-                  link a few lines up already does forward it). */}
-              <Link to={`/${locale}/practice?node=${node.id}${exam ? `&exam=${exam}` : ""}`}>
+              <Link to={`/${locale}/practice?node=${node.id}`}>
                 <PenSquare aria-hidden />
                 {t("Learn.practicePyqs")}
               </Link>
@@ -127,7 +118,6 @@ function NodeRow({
               expanded={expanded}
               onToggle={onToggle}
               locale={locale}
-              exam={exam}
               addedIds={addedIds}
               addingId={addingId}
               onAddToRevision={onAddToRevision}
@@ -144,9 +134,7 @@ export function Component() {
   const locale = useLocale();
   const { paperCode = "" } = useParams<{ paperCode: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
-  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
-  const { data: tree, isLoading, isError } = usePaperTree(paperCode, exam);
+  const { data: tree, isLoading, isError } = usePaperTree(paperCode);
   const view = searchParams.get("view") === "map" ? "map" : "outline";
 
   function setView(next: "map" | "outline") {
@@ -173,18 +161,6 @@ export function Component() {
     addToRevision.mutate(nodeId, {
       onSuccess: () => setAddedIds((prev) => new Set(prev).add(nodeId)),
     });
-  }
-
-  function setExam(next: ExamCode | undefined) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        if (next) params.set("exam", next);
-        else params.delete("exam");
-        return params;
-      },
-      { replace: true },
-    );
   }
 
   function toggleNode(id: string) {
@@ -242,13 +218,9 @@ export function Component() {
                 {t("Learn.mapView")}
               </Button>
             </div>
-            {/* Shown in both views now — it used to disappear entirely in Map
-                view, silently reading as "the filter doesn't apply here"
-                when actually the map was just never wired to it at all. */}
-            <ExamFilter value={exam} onChange={setExam} />
             {view === "outline" && (
               <Button asChild variant="outline" size="sm">
-                <Link to={`/${locale}/learn/${paperCode}/trends${exam ? `?exam=${exam}` : ""}`}>
+                <Link to={`/${locale}/learn/${paperCode}/trends`}>
                   <BarChart3 aria-hidden />
                   {t("Learn.viewTrends")}
                 </Link>
@@ -259,7 +231,7 @@ export function Component() {
       />
 
       {view === "map" ? (
-        <ConquestMap paperCode={paperCode} locale={locale} exam={exam} />
+        <ConquestMap paperCode={paperCode} locale={locale} />
       ) : isLoading || !tree ? (
         isError ? (
           <EmptyState
@@ -291,7 +263,6 @@ export function Component() {
                 expanded={expanded}
                 onToggle={toggleNode}
                 locale={locale}
-                exam={exam}
                 addedIds={addedIds}
                 addingId={pendingId}
                 onAddToRevision={handleAddToRevision}
