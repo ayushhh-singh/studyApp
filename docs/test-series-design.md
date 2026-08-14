@@ -1,7 +1,17 @@
 # Scheduled Test Series — design
 
-**Status:** DESIGN ONLY. No application code was written in the sessions that
-produced this document. Every platform number was measured against the live
+**Status:** ⚑ **PHASE 1 IS BUILT (2026-08-13).** This document is no longer
+design-only. Migration `0127` ships the three tables and the ranked-window
+predicate; `pnpm series:build --slug <s>` assembles papers; the window/access
+gates are in `startAttempt` and `startAnswerSession`; the calendar UI and the
+two-tier result card are live; and BOTH calendars are built (`draft`) against
+real pools. See CLAUDE.md's "Scheduled test series" entry for what the build
+measured, including three §6.2/§13 assumptions it falsified. Everything below is
+the original design — where a section is now contradicted by a measurement, the
+measurement wins.
+
+The rest of this header describes the design work only. No application code was
+written in the sessions that produced this document. Every platform number was measured against the live
 cloud DB on **2026-08-08 / 2026-08-10** and is dated; every market figure is
 taken from an institute's own published schedule and is sourced.
 
@@ -696,11 +706,11 @@ Recommendation: 2 or 3. Explicitly the founder's call.
 
 | Dependency | Tracked | Blocks |
 |---|---|---|
-| **U8v** — 0 approved `upsc` CA questions | `OUTSTANDING.md` §8k | The UPSC series' CA slice. **Editorial, not code.** |
-| **U8u** — 0 `upsc` mocks | §8k | UPSC series assembly (one CLI run) |
+| ~~**U8v** — 0 approved `upsc` CA questions~~ **PARTLY RESOLVED** | `OUTSTANDING.md` §8k | Measured 2026-08-13: **30** approved, not 2. Enough for a 5% CA slice; still far short of a standalone UPSC CA paper, so `upsc-prelims-2027.json` schedules none. |
+| ~~**U8u** — 0 `upsc` mocks~~ **RESOLVED** | §8k | 100 mock tests exist (measured 2026-08-13). |
 | **G1** — Mains-descriptive quality, second cause undiagnosed | §9 | qgen content in a Mains series. Not Prelims, and §6.3 shows PYQ-only is enough. |
 | **G3** — model-answer verify recall unmeasured | §9, §9a | Mains series ship |
-| **⚑ `qgen:topup` has not produced a batch since 2026-08-01** | §6.6 | Full-length freshness and CSAT depth. **Verify the workflow is green before Phase 1.** |
+| ~~**`qgen:topup` has not produced a batch since 2026-08-01**~~ **RESOLVED** | §6.6 | Was never an outage. Re-verified live 2026-08-13: nightly batches on 08-11/08-12, dry-run plans 395 nodes. |
 | **Reviewer throughput** — 1,027 backlog + **~530/week** inflow | §6.6 | Turning generated supply into *visible* supply. The single most important operational answer (Q9). |
 | **`exam_calendar` holds one row** (`uppsc/prelims/2026-12-06`) | §13 | Anchoring any calendar other than UPPSC Prelims. Seed the UPSC 2027 dates + UPPSC Mains. |
 | **D3** — in-process rate limiter | §4 | A real live-mock event (hundreds of `startAttempt` in one minute on a multi-instance deploy) |
@@ -1033,9 +1043,8 @@ sectional) out of a deploy.
 - **The `v_test_leaderboard` change in §5.5 is untested.**
 - **`pg_cron`/`pg_net` availability is from Supabase docs, not this project.**
 - **Push at cohort scale is entirely unproven** — 1 subscription.
-- **The `qgen` stall was measured, not diagnosed.** `generation_batches` is empty
-  after 2026-08-01; the stale-default-branch hypothesis (§6.6) is a pointer, not
-  a root cause. Check the Actions tab.
+- ~~**The `qgen` stall was measured, not diagnosed.**~~ **DIAGNOSED and then
+  RE-VERIFIED LIVE 2026-08-13** — see §6.6 item 1. Never an outage.
 - **The UPPSC Mains 2027 date in §13.2 is an estimate**, extrapolated from the
   prior cycle. It is not seeded and not confirmed against a UPPSC notification.
 - **CA throughput was measured over a 21-day window that includes backfill.**
