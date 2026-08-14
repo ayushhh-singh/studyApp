@@ -37,6 +37,7 @@ const sitemap = read("public/sitemap.xml");
 const prerender = read("scripts/prerender.mjs");
 const router = read("src/router.tsx");
 const indexHtml = read("index.html");
+const articlesSrc = read("src/lib/articles.ts");
 
 let problems = 0;
 const fail = (msg) => {
@@ -187,12 +188,162 @@ if (!staticTitle.trim()) fail("index.html has no static <title> — it is the fa
 if (!staticDescription.trim()) fail("index.html has no static meta description");
 if (!/<link[^>]+rel="icon"/.test(head)) fail('index.html declares no <link rel="icon"> — Google reads the favicon from here');
 
+// ---------------------------------------------------------- the content hub
+/**
+ * ⚑ THE CONTENT HUB NEEDS ITS OWN COVERAGE, AND ASSUMING OTHERWISE WOULD HAVE
+ * LEFT EVERY ARTICLE UNGUARDED. Rule 3 above derives public routes from
+ * router.tsx and then drops any path containing `:` — correct, because a param
+ * route has no single URL to list. But an article route IS
+ * `uppsc/:category/:slug`, so the checks above see the two hubs and NOTHING
+ * beneath them. Every article URL would be invisible to this guard.
+ *
+ * The registry in `src/lib/articles.ts` is what closes it: it already knows
+ * every article's hub, category, slug and status, so the exact set of URLs that
+ * SHOULD be crawlable is derivable rather than hand-maintained. That also makes
+ * publishing an article a one-field change — flip `status`, and this guard
+ * tells you precisely which of the four files still need the URL.
+ *
+ * Parsed with regex, like every other file here (this runs in CI before
+ * `pnpm install`, so it cannot import TypeScript). It FAILS LOUDLY if the shape
+ * it depends on moves, rather than silently checking nothing — the same lesson
+ * as AUTH_MARKER above.
+ */
+/**
+ * ⚑ ANCHORED TO `export const <NAME>` WITH NO NEWLINE BEFORE THE `=`, and both
+ * halves are load-bearing. An earlier cut of this used `${name}[^=]*=\s*\[...\]`,
+ * which a negative control caught misbehaving in the worst possible way: with
+ * ARTICLE_HUBS renamed, the pattern matched a LATER mention of the name (in a
+ * comment, or in `isArticleHub`'s body), then `[^=]*` ran across newlines to the
+ * next `= [` it could find and bound "hubs" to the ARTICLE_CATEGORIES array. The
+ * guard then cheerfully checked six categories as if they were hubs instead of
+ * reporting that it could no longer parse the file — a guard silently checking
+ * the wrong thing, which is worse than one that fails.
+ */
+function listLiteral(name) {
+  const m = articlesSrc.match(new RegExp(`export const ${name}[^=\\n]*=\\s*\\[([^\\]]*)\\]`));
+  if (!m) return null;
+  return [...m[1].matchAll(/"([^"]+)"/g)].map((x) => x[1]);
+}
+
+const hubs = listLiteral("ARTICLE_HUBS");
+const categories = listLiteral("ARTICLE_CATEGORIES");
+const publicSources = listLiteral("PUBLIC_DATA_SOURCES");
+
+// One line per entry, so a line carrying `slateRef:` is an article.
+const articleLines = articlesSrc.split("\n").filter((l) => l.includes("slateRef:") && l.includes("slug:"));
+const field = (line, key) => line.match(new RegExp(`${key}: "([^"]*)"`))?.[1];
+const articles = articleLines.map((line) => ({
+  slug: field(line, "slug"),
+  hub: field(line, "hub"),
+  category: field(line, "category"),
+  status: field(line, "status"),
+  publishedAt: field(line, "publishedAt"),
+  updatedAt: field(line, "updatedAt"),
+  dataBinding: [...(line.match(/dataBinding: \[([^\]]*)\]/)?.[1] ?? "").matchAll(/"([^"]+)"/g)].map((m) => m[1]),
+}));
+
+if (!hubs?.length || !categories?.length || !publicSources || articles.length === 0) {
+  console.error(
+    "  ✗ src/lib/articles.ts no longer parses — expected ARTICLE_HUBS / ARTICLE_CATEGORIES / PUBLIC_DATA_SOURCES " +
+      "array literals and one-line article entries containing `slateRef:`. This guard cannot check the content hub. " +
+      "Update the parser rather than leaving article URLs unchecked.",
+  );
+  process.exit(1);
+}
+if (articles.some((a) => !a.slug || !a.hub || !a.category || !a.status)) {
+  console.error("  ✗ src/lib/articles.ts: an article entry is missing slug/hub/category/status, or is split across lines.");
+  process.exit(1);
+}
+
+// 8. Every hub needs BOTH of its router lines. Without this, a hub added to
+//    ARTICLE_HUBS with no route 404s in production and nothing fails the build
+//    — the config would look complete and the page would not exist.
+for (const hub of hubs) {
+  if (!router.includes(`{ path: "${hub}", lazy`)) fail(`hub "${hub}" is in ARTICLE_HUBS but has no { path: "${hub}" } route`);
+  if (!router.includes(`{ path: "${hub}/:category/:slug", lazy`)) {
+    fail(`hub "${hub}" has no { path: "${hub}/:category/:slug" } article route — its articles would 404`);
+  }
+  for (const locale of ["en", "hi"]) {
+    const url = `/${locale}/${hub}`;
+    if (!crawlable(url)) fail(`hub ${url} is BLOCKED by robots.txt`);
+    if (!inSitemap.has(url)) fail(`hub ${url} is missing from the sitemap`);
+    if (!inPrerender.has(url)) fail(`hub ${url} is missing from scripts/prerender.mjs`);
+  }
+}
+
+// 9. Slug/URL integrity — a typo here is a live 404 that nothing else catches.
+const seenPaths = new Set();
+for (const a of articles) {
+  if (!hubs.includes(a.hub)) fail(`article "${a.slug}" has hub "${a.hub}", which is not in ARTICLE_HUBS`);
+  if (!categories.includes(a.category)) {
+    fail(`article "${a.slug}" has category "${a.category}", which is not in ARTICLE_CATEGORIES — its URL would 404`);
+  }
+  const canonical = `${a.hub}/${a.category}/${a.slug}`;
+  if (seenPaths.has(canonical)) fail(`two articles resolve to the same URL: ${canonical}`);
+  seenPaths.add(canonical);
+}
+
+// 10. A PUBLISHED article must be reachable, advertised and snapshotted.
+//     A PLANNED one must be in neither the sitemap nor the prerender list.
+//
+//     Note the asymmetry: `planned` is NOT required to be robots-blocked. The
+//     hub's Allow rule is a prefix (`/en/uppsc/`), as it must be for a growing
+//     directory, so every article URL is crawlable by construction — and a
+//     planned one simply 404s, which is not indexable. What must never happen
+//     is ADVERTISING an unwritten page in the sitemap.
+for (const a of articles) {
+  for (const locale of ["en", "hi"]) {
+    const url = `/${locale}/${a.hub}/${a.category}/${a.slug}`;
+    if (a.status === "published") {
+      if (!crawlable(url)) fail(`published article ${url} is BLOCKED by robots.txt`);
+      if (!inSitemap.has(url)) fail(`published article ${url} is missing from the sitemap`);
+      if (!inPrerender.has(url)) fail(`published article ${url} is missing from scripts/prerender.mjs`);
+    } else {
+      if (inSitemap.has(url)) fail(`${url} is status "${a.status}" but advertised in the sitemap — unwritten page`);
+      if (inPrerender.has(url)) fail(`${url} is status "${a.status}" but in scripts/prerender.mjs`);
+    }
+  }
+}
+
+// 11. A published article may only bind to data a SIGNED-OUT reader can fetch.
+//     This is the check with the most teeth: an article whose headline figure
+//     comes from `exam_calendar` or `mv_node_weightage` would render a failed
+//     request for exactly the logged-out visitor it was written to attract,
+//     because those routers are mounted after requireAuth. Publishing one needs
+//     a public endpoint FIRST.
+for (const a of articles.filter((x) => x.status === "published")) {
+  for (const source of a.dataBinding) {
+    if (!publicSources.includes(source)) {
+      fail(
+        `published article "${a.slug}" binds to "${source}", which has no PUBLIC endpoint — a signed-out reader ` +
+          `would get a failed fetch where the figure should be. Expose it before publishing, or drop the binding.`,
+      );
+    }
+  }
+}
+
+// 12. A published article needs its dates: BlogPosting's datePublished is
+//     required for a valid rich result, and §5.2 requires a visible "updated on"
+//     so a stale prerendered snapshot reads as dated rather than as wrong.
+for (const a of articles.filter((x) => x.status === "published")) {
+  if (!a.publishedAt) fail(`published article "${a.slug}" has no publishedAt — BlogPosting needs datePublished`);
+  if (!a.updatedAt) fail(`published article "${a.slug}" has no updatedAt — the page cannot state its own currency`);
+  for (const [key, value] of [["publishedAt", a.publishedAt], ["updatedAt", a.updatedAt]]) {
+    if (value && !/^\d{4}-\d{2}-\d{2}$/.test(value)) fail(`article "${a.slug}" ${key}="${value}" is not ISO YYYY-MM-DD`);
+  }
+}
+
+const publishedCount = articles.filter((a) => a.status === "published").length;
+
 if (problems === 0) {
   console.log(
     `✓ SEO guard: ${sitemapUrls.length} sitemap URLs all crawlable and prerendered, ` +
-      `${indexable.length} public routes x 2 locales listed, hreflang consistent, app routes still blocked.`,
+      `${indexable.length} public routes x 2 locales listed, hreflang consistent, app routes still blocked. ` +
+      `Content hub: ${hubs.length} hubs routed, ${publishedCount}/${articles.length} articles published and wired.`,
   );
   process.exit(0);
 }
-console.error(`\n${problems} SEO problem(s). robots.txt / sitemap.xml / scripts/prerender.mjs must agree.`);
+console.error(
+  `\n${problems} SEO problem(s). robots.txt / sitemap.xml / scripts/prerender.mjs / src/lib/articles.ts must agree.`,
+);
 process.exit(1);

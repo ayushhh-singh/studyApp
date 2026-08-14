@@ -34,7 +34,8 @@ jobs:
       - name: CLI-argument guard (no hand-rolled argv parsing)
         run: node scripts/check-cli-args.mjs
 
-      # Keeps robots.txt, sitemap.xml and scripts/prerender.mjs in agreement.
+      # Keeps robots.txt, sitemap.xml, scripts/prerender.mjs, src/router.tsx and
+      # src/lib/articles.ts in agreement.
       # robots is a blanket `Disallow: /` plus an exact allow-list, so a new
       # public page reaches the sitemap and the prerenderer while staying blocked
       # to crawlers — which is what happened to /resources and /contact, and
@@ -42,7 +43,11 @@ jobs:
       # page's <link rel="icon">) is why the app's logo was missing beside the
       # site in search results. Both failures are silent: the build stays green
       # and the pages render fine. Dependency-free, so it runs before install.
-      - name: SEO guard (robots / sitemap / prerender agree)
+      # It also covers the content hub, which the route-derived checks alone
+      # CANNOT see: an article route is `uppsc/:category/:slug`, and a path with
+      # a `:param` has no single URL to list, so every article URL would be
+      # invisible. lib/articles.ts is parsed for the real set instead.
+      - name: SEO guard (robots / sitemap / prerender / router / articles agree)
         run: node apps/web/scripts/check-seo.mjs
 
       - name: Install dependencies
