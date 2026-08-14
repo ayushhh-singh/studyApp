@@ -88,7 +88,10 @@ export function Component() {
         locale={locale}
         path={`/${hub}`}
         title={t(`${k}.metaTitle`)}
-        description={t(`${k}.metaDescription`)}
+        // Year range interpolated, never frozen into the string (§5): the meta
+        // description is the one place a stale "2018 to 2024" would be quoted
+        // straight back at us in a search result.
+        description={t(`${k}.metaDescription`, { from: years.from, to: years.to })}
         structuredData={breadcrumbStructuredData}
       />
 
@@ -124,7 +127,12 @@ export function Component() {
       {/* Exam pattern — live from the registry, never written into prose (§5). */}
       <section className="border-b border-border/60 bg-muted/30">
         <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-          <h2 className="text-2xl font-bold tracking-tight">{t("Articles.hub.patternTitle")}</h2>
+          {/* The exam name is interpolated so this H2 carries the page's primary
+              keyword ("UPPSC PCS exam pattern") for both hubs from one key,
+              rather than a generic heading that ranks for nothing. */}
+          <h2 className="text-2xl font-bold tracking-tight">
+            {t("Articles.hub.patternTitle", { exam: t(`${k}.heroEyebrow`) })}
+          </h2>
           <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{t("Articles.hub.patternSub")}</p>
           <div className="mt-7">
             {exams.isError ? (

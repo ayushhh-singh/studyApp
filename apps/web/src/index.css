@@ -246,11 +246,24 @@
    THIS REFLOWS EVERY SCREEN IN HINDI. It is a deliberate typography change,
    verified by measurement, not a drive-by.
 
-   THE DEFECT. The `body` rule above sets 1.75, but Tailwind's `text-xs` and
-   `text-sm` each ship their OWN line-height in the same utilities layer and
-   win — so any Devanagari that uses a size utility AND wraps rendered at
-   1.33-1.43, app-wide. Devanagari needs the room: matras sit above AND below
-   the baseline, so a Latin-calibrated leading collides them.
+   THE DEFECT. The `body` rule above sets 1.75, but EVERY Tailwind text-size
+   utility ships its OWN line-height in the same utilities layer and wins — so
+   any Devanagari that uses a size utility AND wraps rendered at 1.33-1.63,
+   app-wide. Devanagari needs the room: matras sit above AND below the
+   baseline, so a Latin-calibrated leading collides them.
+
+   ⚑ B8's RECORDED SCOPE ("text-xs/text-sm") WAS INCOMPLETE, and the missing
+   part was the important one. Measured after fixing those two: `text-base`
+   was still 30 of 30 wrapped Devanagari nodes below the floor (1.5 and 1.625)
+   — and text-base is the LONG-FORM READING size, i.e. exactly the surface
+   Hindi article prose lives on. Covered here through `text-xl`; above that is
+   display type, where 1.75 is wrong, and headings are excluded anyway.
+
+   Matched with `[class*="text-base"]` rather than `.text-base` so RESPONSIVE
+   variants are caught too: `sm:text-lg` is a class literally named
+   `sm:text-lg`, which `.text-lg` does not match. None of these five strings is
+   a substring of another size utility — note `text-2xl` does NOT contain
+   `text-xl` — so this cannot over-match.
 
    MEASURED before shipping, on the production build, across 10 no-API pages x
    {390, 1440} — counting real line boxes via Range.getClientRects(), because
@@ -280,7 +293,13 @@
    `.leading-relaxed` (both single classes) without escalating into a value
    that later, more specific work cannot override. */
 :root[data-locale="hi"]
-  :is(.text-xs, .text-sm):not(
+  :is(
+    [class*="text-xs"],
+    [class*="text-sm"],
+    [class*="text-base"],
+    [class*="text-lg"],
+    [class*="text-xl"]
+  ):not(
     :where(h1, h2, h3, h4, h5, h6, .leading-none, .leading-tight, .leading-snug, .leading-4, [class*="leading-["])
   ) {
   line-height: 1.75;
