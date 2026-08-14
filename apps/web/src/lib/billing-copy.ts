@@ -24,7 +24,21 @@ export const billingCopy = {
   // named one of three, so the page's own h1 and its <title> both undersold the
   // ladder they were introducing.
   pricingTitle: { en: "Plans and pricing", hi: "प्लान और मूल्य" } as T,
+  /**
+   * ⚑ SHARED by three surfaces, only one of which is the pricing page: it is
+   * also the BODY of the generic paywall modal and of Profile's upgrade banner
+   * (paywall-modal.tsx, plan-banner.tsx). Both of those are shown to a user who
+   * is already signed in and already on Free — so this string must never open
+   * with a call to action like "Start free", which reads as nonsense there.
+   * Keep it a plain statement of what the paid tiers add. The pricing page's
+   * own hero line is pricingPageSubtitle, below.
+   */
   pricingSubtitle: {
+    en: "Unlimited AI answer evaluation, every study note and full-length mock tests with Pro — and the scheduled test series with Max. Pay securely with UPI.",
+    hi: "प्रो के साथ असीमित AI उत्तर मूल्यांकन, हर अध्ययन नोट और पूर्ण-लंबाई मॉक टेस्ट — और मैक्स के साथ निर्धारित टेस्ट सीरीज़। UPI से सुरक्षित भुगतान करें।",
+  } as T,
+  /** The pricing PAGE's hero line and meta description — safe to address a visitor. */
+  pricingPageSubtitle: {
     en: "Start free. Pro adds unlimited AI answer evaluation, every study note and mock tests. Max adds the scheduled test series on top. Pay securely with UPI.",
     hi: "मुफ़्त शुरू करें। प्रो में असीमित AI उत्तर मूल्यांकन, हर अध्ययन नोट और मॉक टेस्ट जुड़ते हैं। मैक्स इनके ऊपर निर्धारित टेस्ट सीरीज़ जोड़ता है। UPI से सुरक्षित भुगतान करें।",
   } as T,

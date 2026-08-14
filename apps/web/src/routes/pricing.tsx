@@ -134,7 +134,7 @@ export function Component() {
         locale={locale}
         path="/pricing"
         title={`${pick(locale, c.pricingTitle)} — ${t("Landing.brand")}`}
-        description={pick(locale, c.pricingSubtitle)}
+        description={pick(locale, c.pricingPageSubtitle)}
       />
 
       <MarketingHeader maxWidthClass="max-w-5xl" />
@@ -147,7 +147,7 @@ export function Component() {
           <h1 className="font-heading text-3xl font-extrabold tracking-tight sm:text-4xl">
             {pick(locale, c.pricingTitle)}
           </h1>
-          <p className="mt-3 text-base leading-relaxed text-muted-foreground">{pick(locale, c.pricingSubtitle)}</p>
+          <p className="mt-3 text-base leading-relaxed text-muted-foreground">{pick(locale, c.pricingPageSubtitle)}</p>
         </div>
 
       {/* UPI-first assurance */}
