@@ -2511,6 +2511,33 @@
         "ctaTitle": "Start with the real papers",
         "ctaSub": "Practise on actual UPSC papers, see what each topic is really worth, and write answers that get marked."
       }
+    },
+    "data": {
+      "timelineTitle": "Official exam dates",
+      "timelineEmpty": "The commission has not yet published a date for this exam's next sitting. Nothing is shown here until it does — an estimated date is worse than none.",
+      "colMilestone": "Sitting",
+      "colDate": "Date",
+      "tentative": "Tentative",
+      "colSection": "Section",
+      "colAsked": "Asked",
+      "colShare": "Share",
+      "weightageCoverage_one": "{{count}} year of real papers ({{span}}) · {{total}} questions",
+      "weightageCoverage_other": "{{count}} years of real papers ({{span}}) · {{total}} questions",
+      "weightageSource": "Counted from real past-year questions only, each mapped to the commission's own syllabus tree. AI-generated practice questions are excluded from these figures.",
+      "paper": {
+        "MAINS_GS2": "Mains General Studies II",
+        "MAINS_GS5": "Mains General Studies V",
+        "MAINS_GS6": "Mains General Studies VI"
+      }
+    },
+    "uppscExamDate": {
+      "metaTitle": "UPPSC PCS exam date and timeline — from the official record | Neev",
+      "metaDescription": "The UPPSC PCS exam date read live from the commission's own calendar, the full three-stage cycle explained, and the complete exam pattern for Prelims, Mains and the interview.",
+      "heroTitle": "UPPSC PCS exam date, timeline and exam pattern",
+      "heroSub": "Read from the commission's own calendar and notification rather than restated from a coaching list — and updated by reading, not by editing.",
+      "cardTitle": "UPPSC PCS exam date and timeline",
+      "cardTeaser": "The next announced sitting, how one full cycle runs, and the complete exam pattern — every date read live from the official calendar.",
+      "bodyMd": "## When is the next UPPSC PCS exam?\n\n[[data:exam-timeline]]\n\nOnly sittings the commission has actually announced appear above. That is a deliberate limit, and it is the difference between this page and most of the pages competing with it: where UPPSC has not published a date, we show nothing rather than an estimate dressed up as a fact. The table is read from the official calendar every time the page loads, so it cannot quietly go stale between now and the exam.\n\n## How one UPPSC PCS cycle actually runs\n\nThe dates move every year. The sequence does not, and understanding it is worth more than memorising any single date:\n\n1. **The commission publishes its annual examination calendar.** This is a one-page table of provisional dates for every examination UPPSC will conduct that year, including PCS.\n2. **The detailed advertisement for the PCS examination appears.** This is the document that carries the vacancy count, the eligibility conditions and the application window — and it is the only authority on any of them.\n3. **The online application window opens and closes**, usually with a short correction window afterwards.\n4. **The Preliminary examination** — two objective papers, held on a single day.\n5. **The Preliminary result** declares who is admitted to the Main examination. Prelims is a screening stage: the marks you score in it do not carry into the final merit list.\n6. **The Main examination** — a descriptive examination held over several days, months after Prelims.\n7. **The Main result**, then the **interview**.\n8. **The final merit list**, computed from the Main examination and the interview only.\n\nThe practical consequence of step 5 is the one most candidates learn too late. Prelims decides only whether you continue; every mark that decides your rank is earned in the Main examination and the interview. That is why a preparation plan that spends its last three months exclusively on objective practice is optimising the wrong stage.\n\n## Why the following year's date usually is not out yet\n\nUPPSC publishes its annual calendar early in the calendar year, so for most of any given year the next cycle's dates simply do not exist yet in any official form. Anything you find quoted before then is an inference from previous years, not an announcement.\n\nThe Main examination date is a second, separate case. UPPSC announces it **after the Preliminary result is declared**, not alongside the Prelims date — so for part of every cycle there is a published Prelims date and genuinely no published Mains date. Where you see a Mains date quoted during that window, it is almost always the *previous* cycle's date being repeated.\n\nBoth facts are why the table above can legitimately show fewer rows than a competitor's page shows. Ours reflects what has been announced.\n\n## The exam pattern, paper by paper\n\n[[data:exam-pattern]]\n\nThree details in that table are routinely got wrong elsewhere, and each of them changes how you should prepare:\n\n- **The negative marking is a fraction of the question's own marks, not a fixed deduction.** One-third of a question worth more marks is a bigger loss than one-third of a question worth fewer. A page that prints a single absolute deduction for the whole examination is wrong about at least one of the two papers.\n- **A qualifying paper still has to be cleared.** A paper that does not count toward merit can still end your attempt if you fall below its threshold, which is a very different thing from a paper you can safely neglect.\n- **Where a question count has not been officially notified, we say so** instead of printing the number everyone repeats from past papers.\n\n## What this page deliberately does not tell you\n\nIt does not state the age limits, the number of permitted attempts, the vacancy count or the application dates. Those are set in the detailed advertisement for each specific cycle, they change between cycles, and the commission's own notification is the only source worth trusting for them. Restating them here from a coaching site — which is where almost every version of this page gets them — is exactly the kind of second-hand fact that quietly goes wrong and takes a candidate's application with it.\n\nRead them from the advertisement itself, and read the whole advertisement rather than a summary of it.\n\n## Where to go from here\n\nKnowing the date is the smallest part of the problem. The useful next question is what the paper actually asks — and that we can answer from real papers rather than from advice, because every past-year question we hold is mapped onto the commission's own syllabus.\n"
     }
   }
 }

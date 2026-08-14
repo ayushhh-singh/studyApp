@@ -379,5 +379,23 @@
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
+  <url>
+    <loc>https://neevstudy.com/en/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern</loc>
+    <lastmod>2026-08-14</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern" />
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern</loc>
+    <lastmod>2026-08-14</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern" />
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>
 

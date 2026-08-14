@@ -109,8 +109,23 @@ export const ARTICLE_DATA_SOURCES = [
 ] as const;
 export type ArticleDataSource = (typeof ARTICLE_DATA_SOURCES)[number];
 
-/** The subset reachable without a session. Keep in step with `apps/api/src/index.ts`. */
-export const PUBLIC_DATA_SOURCES: readonly ArticleDataSource[] = ["exam_registry"];
+/**
+ * The subset reachable without a session. Keep in step with `apps/api/src/index.ts`.
+ *
+ * `exam_calendar` and `node_weightage` joined this list on 2026-08-14, when
+ * `contentHubPublicRouter` was added to serve them — and the ORDER of that work
+ * is the point of the guard: `check:seo` rule 11 would have failed the build on
+ * the first article that bound to either, so the endpoint had to exist before
+ * the prose could ship rather than after a signed-out reader found a blank
+ * figure where the headline number belonged.
+ *
+ * `syllabus_nodes`, `exam_cutoffs` and `question_bank` are still auth-only.
+ */
+export const PUBLIC_DATA_SOURCES: readonly ArticleDataSource[] = [
+  "exam_registry",
+  "exam_calendar",
+  "node_weightage",
+];
 
 export interface ArticleDef {
   /** URL slug — the last segment of /:locale/<hub>/<category>/<slug>. */
@@ -152,9 +167,27 @@ export interface ArticleDef {
  * UPPSC depth tier is empty and its Hindi intent is being served by Google
  * Translate proxies. The winnable hub gets the canonical.
  */
+/**
+ * ⚑ TWO SLATE TITLES CARRIED A YEAR; THE SHIPPED SLUGS DO NOT, and the reason is
+ * that our page is not the same KIND of page as the one it competes with.
+ *
+ * §4 named these "UPPSC PCS 2027 …" and "UPSC CSE 2027 …", copying the format
+ * SuperKalam re-cuts annually (§1a lists two 2027 date pages plus a 2026 calendar
+ * page for the same exam). A competitor must re-cut, because their date is typed
+ * into the page: when the cycle turns, the old URL is stale and a new one has to
+ * be minted. Ours READS the date (§5), so one URL stays correct across cycles —
+ * and a yearless URL accumulates link equity for the life of the exam instead of
+ * splitting it across a new page every year.
+ *
+ * For UPPSC there is a second, harder reason. Migration 0126 records that no
+ * official UPPSC 2027 date exists in any form (UPPSC publishes its calendar in
+ * January, and announces Mains only after the Prelims result), so a page titled
+ * "UPPSC PCS 2027 exam date" would have had no 2027 date to show — the exact
+ * gap between title and content that an accuracy-led hub cannot afford.
+ */
 export const ARTICLES: ArticleDef[] = [
   // --- Tier 1: evergreen, highest intent (§4). Ships first. -----------------
-  { slug: "uppsc-pcs-2027-exam-date-timeline-eligibility-and-pattern", hub: "uppsc", category: "exam-updates", i18nKey: "uppscExamDate2027", status: "planned", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 1 },
+  { slug: "uppsc-pcs-exam-date-timeline-and-exam-pattern", hub: "uppsc", category: "exam-updates", i18nKey: "uppscExamDate", status: "published", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 1, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
   { slug: "upsc-cse-2027-exam-date-timeline-and-structure", hub: "upsc", category: "exam-updates", i18nKey: "upscExamDate2027", status: "planned", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 2 },
   { slug: "uppsc-mains-2023-restructure-what-gs-v-and-gs-vi-ask", hub: "uppsc", category: "exam-updates", i18nKey: "uppscMainsRestructure", status: "planned", dataBinding: ["node_weightage", "exam_registry"], slateRef: 5 },
   { slug: "uppsc-pcs-booklist-2027-prelims-and-mains", hub: "uppsc", category: "books", i18nKey: "uppscBooklist2027", status: "planned", dataBinding: [], slateRef: 3 },
