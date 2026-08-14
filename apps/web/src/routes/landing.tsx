@@ -35,6 +35,7 @@ import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { PageSeo } from "@/components/seo/page-seo";
 import { CONTENT_STATS } from "@/lib/content-stats";
 import { FEATURES } from "@/lib/features";
+import { ARTICLE_HUBS, hubPath } from "@/lib/articles";
 import { accentSolid, accentTint, type Accent } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 
@@ -291,6 +292,55 @@ export function Component() {
             })}
           </dl>
           <p className="mt-5 border-t border-border pt-3 text-xs text-muted-foreground">{t("Landing.statsNote")}</p>
+        </div>
+      </section>
+
+      {/* ── Exam guides: the content hub's PRIMARY entry point ───────────────
+          Placement is the decision here, so it is recorded.
+
+          ⚑ THE FOOTER ALONE WAS NOT ENOUGH, and the reason is not taste. A hub
+          exists to accumulate internal link equity from the articles beneath it
+          (docs/content-strategy.md §1a); a footer link is sitewide and
+          crawlable, but it is the lowest-value link on any page and nobody
+          browsing finds it. This section is the highest-authority internal link
+          the site can give the hubs, and it is where a visitor who wants to
+          read before signing up will actually look.
+
+          ⚑ AND IT IS STATIC PROSE, WHICH IS THE WHOLE POINT. The obvious
+          alternative was to make `LiveExamChips` link to the hubs — they
+          already name both exams, one line above. That would have been a trap:
+          the chips are fail-quiet by design and render NOTHING until the exam
+          registry resolves, so they are absent from every prerendered snapshot
+          (see that component's header). A hub entry point that a crawler never
+          sees is backwards for a hub whose entire job is SEO. Exam names here
+          come from `Articles.hub.*.heroEyebrow`, the same keys the hubs
+          themselves use, so the two cannot drift. */}
+      <section className="mx-auto max-w-6xl px-4 pb-12 sm:px-6 lg:pb-16">
+        <div className="rounded-2xl border border-border bg-muted/30 p-5 sm:p-6">
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+            <h2 className="text-xl font-bold tracking-tight sm:text-2xl">{t("Landing.guidesTitle")}</h2>
+            <span className="text-sm text-muted-foreground">{t("Landing.guidesSub")}</span>
+          </div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+            {ARTICLE_HUBS.map((hub) => (
+              <Link
+                key={hub}
+                to={hubPath(hub, locale)}
+                className="group flex items-center justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3.5 transition-colors hover:border-primary/40"
+              >
+                <span className="min-w-0">
+                  <span className="block text-sm font-bold">{t(`Articles.hub.${hub}.heroEyebrow`)}</span>
+                  <span className="mt-0.5 block text-xs leading-snug text-muted-foreground">
+                    {t(`Landing.guides_${hub}`)}
+                  </span>
+                </span>
+                <ChevronRight
+                  className="size-4 shrink-0 text-primary transition-transform group-hover:translate-x-0.5"
+                  aria-hidden
+                />
+              </Link>
+            ))}
+          </div>
         </div>
       </section>
 

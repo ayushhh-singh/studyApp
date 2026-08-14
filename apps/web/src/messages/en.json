@@ -1549,7 +1549,11 @@
     "seriesWindow3Label": "After the ranked window",
     "seriesWindow3Body": "Still open, permanently. Your score and analysis are unchanged — the attempt just counts as practice rather than for the rank.",
     "seriesCta": "How the test series works",
-    "seriesPlanNote": "Part of the Max plan."
+    "seriesPlanNote": "Part of the Max plan.",
+    "guidesTitle": "Exam guides",
+    "guidesSub": "Free to read, no account needed",
+    "guides_uppsc": "Dates, pattern, booklist, and what the papers actually ask — counted from real UPPSC papers.",
+    "guides_upsc": "Dates, the full nine-paper structure, and a publisher-verified booklist."
   },
   "Community": {
     "tab": "Discussion",
