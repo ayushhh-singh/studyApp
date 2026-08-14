@@ -13,6 +13,10 @@ import {
   ListChecks,
   Newspaper,
   CalendarRange,
+  CalendarCheck,
+  History,
+  Lock,
+  Trophy,
   TrendingUp,
 } from "lucide-react";
 import { paiseToRupeeString } from "@neev/shared";
@@ -31,7 +35,7 @@ import { ScoreGauge } from "@/components/ui-x/score-gauge";
 import { PageSeo } from "@/components/seo/page-seo";
 import { CONTENT_STATS } from "@/lib/content-stats";
 import { FEATURES } from "@/lib/features";
-import { accentSolid, type Accent } from "@/lib/accent";
+import { accentSolid, accentTint, type Accent } from "@/lib/accent";
 import { cn } from "@/lib/utils";
 
 const FEATURE_ICONS = [PenLine, Target, BookOpen, BarChart3] as const;
@@ -43,6 +47,29 @@ const STAT_ICONS = [ListChecks, BookOpen, Newspaper, CalendarRange] as const;
 // small local list (not importing FEATURES) since this teaser's order/copy
 // is landing-page-specific, not driven by the feature config.
 const FEATURE_SLUGS = ["answer-evaluation", "pyq-practice", "notes", "revision"] as const;
+/**
+ * Slugs this page already covers ABOVE the compact "and everything around
+ * them" row, and which must therefore not appear in it a second time: the four
+ * deep-dive sections, plus the test series, which has its own full-width band.
+ * Without the series here it would show up twice on one page AND leave a fifth
+ * card orphaned on its own row in a 4-up grid.
+ */
+const COVERED_ABOVE: readonly string[] = [...FEATURE_SLUGS, "test-series"];
+
+/** Icons for the test-series band's three selling points, in copy order. */
+const SERIES_POINT_ICONS = [CalendarRange, Trophy, History] as const;
+
+/**
+ * The window rule, as three states. Colour carries meaning here: locked is
+ * INFORMATIONAL (a rule, not an error — so `primary`, never coral), the ranked
+ * window is the prize (`marigold`), and staying open is the reassurance
+ * (`tulsi`).
+ */
+const SERIES_WINDOW_STEPS = [
+  { tint: "primary", Icon: Lock },
+  { tint: "marigold", Icon: Trophy },
+  { tint: "tulsi", Icon: CalendarCheck },
+] as const satisfies readonly { tint: Accent; Icon: typeof Lock }[];
 
 export function Component() {
   const { t } = useTranslation();
@@ -250,6 +277,112 @@ export function Component() {
         </div>
       </section>
 
+      {/* ── Test series: a SECOND hero, deliberately not the first ──────────
+          Placement is the decision here, so it is recorded rather than left
+          to be re-litigated. The scheduled series is the strongest thing we
+          sell against the coaching market (institutes lead with a test series
+          at ₹9,000-16,000), and it gets hero weight: its own full-width band,
+          its own eyebrow/headline/visual, directly under the fold rather than
+          in the compact "and everything around them" row.
+
+          It is NOT the page's primary headline, for two reasons that both
+          point the same way:
+
+          1. It is Max-only. The homepage's job is a free signup, and leading
+             with the top tier's exclusive raises the perceived price of entry
+             before a visitor has seen anything they can have today.
+          2. Every series is still `draft` (docs/max-tier-design.md "Still
+             open"), so no non-admin can open one. A primary headline for a
+             surface nobody can reach is the exact claim this repo's own
+             convention forbids.
+
+          So the copy sells the MECHANICS and the calendar — all of which are
+          true and shipped — and deliberately makes no "sit one today" claim.
+          When a series is published, this section needs no rewrite. */}
+      <section className="relative overflow-hidden border-t border-border/60">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_60%_at_75%_0%,var(--marigold)/10%,transparent)]"
+        />
+        <div className="relative mx-auto grid max-w-6xl gap-10 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:gap-12 lg:py-24">
+          <div>
+            <span
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold"
+              style={accentSolid("marigold")}
+            >
+              <CalendarCheck className="size-3.5" aria-hidden />
+              {t("Landing.seriesEyebrow")}
+            </span>
+            <h2 className="mt-4 text-balance font-heading text-3xl font-extrabold leading-[1.2] tracking-tight sm:text-4xl">
+              {t("Landing.seriesTitle")}
+            </h2>
+            <p className="mt-4 text-pretty text-base leading-relaxed text-muted-foreground sm:text-lg">
+              {t("Landing.seriesBody")}
+            </p>
+            <ul className="mt-7 flex flex-col gap-5">
+              {[1, 2, 3].map((n) => {
+                const Icon = SERIES_POINT_ICONS[n - 1];
+                return (
+                  <li key={n} className="flex gap-3.5">
+                    <span
+                      className="flex size-9 shrink-0 items-center justify-center rounded-lg"
+                      style={accentTint("marigold")}
+                    >
+                      <Icon className="size-4.5" aria-hidden />
+                    </span>
+                    <div className="min-w-0">
+                      <h3 className="font-heading text-base font-bold tracking-tight">
+                        {t(`Landing.seriesPoint${n}Title`)}
+                      </h3>
+                      <p className="mt-1 text-sm leading-[1.75] text-muted-foreground">
+                        {t(`Landing.seriesPoint${n}Body`)}
+                      </p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
+              <Button asChild size="lg" variant="outline" className="h-12 gap-2 px-6 text-base">
+                <Link to={`/${locale}/features/test-series`}>
+                  {t("Landing.seriesCta")}
+                  <ChevronRight className="size-5" aria-hidden />
+                </Link>
+              </Button>
+              <span className="text-sm text-muted-foreground">{t("Landing.seriesPlanNote")}</span>
+            </div>
+          </div>
+
+          {/* The window rule, as the visual. Deliberately NOT a mocked-up
+              calendar with invented paper names, dates and rank numbers: the
+              asymmetric window IS the differentiator, and it can be shown
+              exactly as it behaves without inventing a single figure. */}
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-xl shadow-marigold/10 sm:p-6">
+            <h3 className="font-heading text-base font-bold tracking-tight">{t("Landing.seriesWindowTitle")}</h3>
+            <ol className="mt-4 flex flex-col gap-3">
+              {SERIES_WINDOW_STEPS.map((step, i) => (
+                <li key={step.tint} className="rounded-xl border border-border/70 bg-background p-4">
+                  <div className="flex items-center gap-2.5">
+                    <span
+                      className="flex size-7 shrink-0 items-center justify-center rounded-lg"
+                      style={accentTint(step.tint)}
+                    >
+                      <step.Icon className="size-4" aria-hidden />
+                    </span>
+                    <span className="font-heading text-sm font-bold tracking-tight">
+                      {t(`Landing.seriesWindow${i + 1}Label`)}
+                    </span>
+                  </div>
+                  <p className="mt-2 text-sm leading-[1.75] text-muted-foreground">
+                    {t(`Landing.seriesWindow${i + 1}Body`)}
+                  </p>
+                </li>
+              ))}
+            </ol>
+          </div>
+        </div>
+      </section>
+
       {/* Feature sections */}
       <section className="border-t border-border/60 bg-muted/30">
         <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 lg:py-24">
@@ -304,7 +437,7 @@ export function Component() {
             <p className="mt-3 text-base leading-relaxed text-muted-foreground">{t("Landing.moreSub")}</p>
           </div>
           <ul className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {FEATURES.filter((f) => !FEATURE_SLUGS.includes(f.slug as (typeof FEATURE_SLUGS)[number])).map((f) => (
+            {FEATURES.filter((f) => !COVERED_ABOVE.includes(f.slug)).map((f) => (
               <li key={f.slug}>
                 <Link
                   to={`/${locale}/features/${f.slug}`}
