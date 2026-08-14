@@ -58,14 +58,22 @@ on conflict (code) do update set
 -- to be a schema assertion): these rows are written by THIS migration, so the
 -- checks are true on first apply and on every replay.
 -- ---------------------------------------------------------------------------
+-- ⚑ Scoped to THIS migration's own two codes, never to "all max plans". An
+-- assertion of the form `count(*) where tier='max' = 2` is true today and FALSE
+-- the moment a later migration adds a third Max cadence — which would make THIS
+-- file non-replayable through no fault of its own. That is the exact defect
+-- found in 0116 and fixed there (M14); it is easy to reintroduce because the
+-- broader assertion looks stricter.
 do $$
 declare
   n_max int;
   yearly_paise int;
 begin
-  select count(*) into n_max from public.plans where tier = 'max' and is_active;
+  select count(*) into n_max
+    from public.plans
+   where code in ('max_monthly', 'max_yearly') and tier = 'max' and is_active;
   if n_max <> 2 then
-    raise exception '0130: expected exactly 2 active max plans, found %', n_max;
+    raise exception '0130: both max_monthly and max_yearly must be active max plans, found %', n_max;
   end if;
 
   select price_paise into yearly_paise from public.plans where code = 'max_yearly';

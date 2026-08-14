@@ -51,6 +51,21 @@ export function Component() {
   const RANK: Record<string, number> = { free: 0, pro: 1, max: 2 };
   /** A plan is already covered if the user is on that tier or a higher one. */
   const owned = (tier: string) => RANK[currentTier] >= RANK[tier];
+  /**
+   * The button label for a plan the user already has. "Your current plan" is
+   * only true for the tier they are actually ON — saying it on a LOWER tier
+   * (a Max user looking at the four Pro cards) is simply false, which is what
+   * a browser check as a Max user caught.
+   */
+  const ownedLabel = (tier: string) => (tier === currentTier ? c.currentPlan : c.includedInPlan);
+  /**
+   * A strict upgrade from a tier the user already PAYS for gets prorated at
+   * checkout (services/billing.ts computeProration). Say so before they click
+   * — the card shows the list price, but the order will charge less, and a
+   * user who is not told that reads the full price as a second full charge.
+   */
+  const willProrate = (tier: string) =>
+    !!session && currentTier !== "free" && (RANK[tier] ?? 0) > (RANK[currentTier] ?? 0);
 
   // While confirming a fresh payment, poll the subscription until the webhook
   // flips the plan to Pro (the webhook is the source of truth, not checkout.js).
@@ -149,7 +164,9 @@ export function Component() {
       {isPro && (
         <div className="flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 p-4 text-sm">
           <Sparkles className="size-5 text-primary" aria-hidden />
-          <span className="font-semibold text-primary">{pick(locale, c.youArePro)}</span>
+          <span className="font-semibold text-primary">
+            {pick(locale, currentTier === "max" ? c.youAreMax : c.youArePro)}
+          </span>
           {proUntil && (
             <span className="text-muted-foreground">
               · {pick(locale, c.proUntil)} {new Date(proUntil).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -240,6 +257,11 @@ export function Component() {
                   </p>
                 )}
               </div>
+              {willProrate(plan.tier) && (
+                <p className="rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs leading-[1.75] text-primary">
+                  {pick(locale, c.proratedNote)}
+                </p>
+              )}
               {plan.is_intro && (
                 <span className="w-fit rounded-full bg-marigold/15 px-2 py-0.5 text-xs font-medium text-marigold-foreground">
                   {pick(locale, c.introPrice)}
@@ -252,7 +274,11 @@ export function Component() {
                 disabled={busy || owned(plan.tier) || status === "activating" || (!!session && profileQuery.isLoading)}
                 onClick={() => choose(plan)}
               >
-                {busy ? pick(locale, c.processing) : owned(plan.tier) ? pick(locale, c.currentPlan) : pick(locale, c.choosePlan)}
+                {busy
+                  ? pick(locale, c.processing)
+                  : owned(plan.tier)
+                    ? pick(locale, ownedLabel(plan.tier))
+                    : pick(locale, c.choosePlan)}
               </Button>
             </div>
           );

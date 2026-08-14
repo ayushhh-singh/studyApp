@@ -44,6 +44,13 @@ export const billingCopy = {
   introPrice: { en: "Launch price", hi: "लॉन्च मूल्य" } as T,
   choosePlan: { en: "Choose this plan", hi: "यह प्लान चुनें" } as T,
   currentPlan: { en: "Your current plan", hi: "आपका वर्तमान प्लान" } as T,
+  /** A LOWER tier than the one you are on — covered, but not "your plan". */
+  includedInPlan: { en: "Included in your plan", hi: "आपके प्लान में शामिल" } as T,
+  /** Shown on a HIGHER tier when the user already pays for a lower one. */
+  proratedNote: {
+    en: "Upgrading — you only pay the difference. Unused time on your current plan is credited at checkout. Pick the same or a longer billing period to use your full credit.",
+    hi: "अपग्रेड — आप केवल अंतर का भुगतान करते हैं। आपके वर्तमान प्लान का शेष समय चेकआउट पर समायोजित हो जाता है। पूरा क्रेडिट उपयोग करने के लिए वही या उससे लंबी बिलिंग अवधि चुनें।",
+  } as T,
   youArePro: { en: "You're on Pro", hi: "आप प्रो पर हैं" } as T,
   youAreMax: { en: "You're on Max", hi: "आप मैक्स पर हैं" } as T,
   proUntil: { en: "Pro until", hi: "प्रो इस तिथि तक" } as T,

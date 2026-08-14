@@ -114,7 +114,16 @@ export const createOrderBodySchema = z.object({
 });
 export type CreateOrderBody = z.infer<typeof createOrderBodySchema>;
 
+/**
+ * A checkout order. `amount_paise` is what the user pays TODAY — already net of
+ * any upgrade proration, so the UI must render this and never the plan's own
+ * price. `credit_paise` is what was knocked off; `forfeited_paise` is credit
+ * that could not be applied because it exceeded the target price (possible only
+ * when upgrading into a SHORTER cadence — see computeProration).
+ */
 export const orderDataSchema = z.object({
+  credit_paise: z.number().int().nonnegative().default(0),
+  forfeited_paise: z.number().int().nonnegative().default(0),
   order_id: z.string(),
   amount_paise: z.number().int(),
   currency: z.string(),
