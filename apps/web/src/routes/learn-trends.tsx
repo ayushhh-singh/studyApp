@@ -1,15 +1,13 @@
 import { useTranslation } from "react-i18next";
-import { Link, useParams, useSearchParams } from "react-router";
+import { Link, useParams } from "react-router";
 import { Bar, BarChart, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ArrowLeft, BarChart3, Flame, Moon, TrendingUp } from "lucide-react";
-import type { ExamCode, TrendNode } from "@neev/shared";
-import { examCodeSchema } from "@neev/shared";
+import type { TrendNode } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { Breadcrumbs } from "@/components/ui-x/breadcrumbs";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
-import { ExamFilter } from "@/components/ui-x/exam-filter";
 import { Button } from "@/components/ui/button";
 import { usePaperTree, usePaperTrends } from "@/hooks/use-paper-tree";
 import { useLocale } from "@/hooks/use-locale";
@@ -56,23 +54,8 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const { paperCode = "" } = useParams<{ paperCode: string }>();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const examParam = examCodeSchema.safeParse(searchParams.get("exam"));
-  const exam: ExamCode | undefined = examParam.success ? examParam.data : undefined;
-  const { data: trends, isLoading, isError } = usePaperTrends(paperCode, exam);
-  const { data: tree } = usePaperTree(paperCode, exam);
-
-  function setExam(next: ExamCode | undefined) {
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        if (next) params.set("exam", next);
-        else params.delete("exam");
-        return params;
-      },
-      { replace: true },
-    );
-  }
+  const { data: trends, isLoading, isError } = usePaperTrends(paperCode);
+  const { data: tree } = usePaperTree(paperCode);
 
   const paperTitle = tree ? tree.title_i18n[locale] : paperCode;
 
@@ -92,15 +75,12 @@ export function Component() {
         title={t("Trends.title")}
         description={t("Trends.description")}
         action={
-          <div className="flex flex-wrap items-center gap-2">
-            <ExamFilter value={exam} onChange={setExam} />
-            <Button asChild variant="outline" size="sm">
-              <Link to={`/${locale}/learn/${paperCode}${exam ? `?exam=${exam}` : ""}`}>
-                <ArrowLeft aria-hidden />
-                {t("Trends.backToPaper")}
-              </Link>
-            </Button>
-          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link to={`/${locale}/learn/${paperCode}`}>
+              <ArrowLeft aria-hidden />
+              {t("Trends.backToPaper")}
+            </Link>
+          </Button>
         }
       />
 
