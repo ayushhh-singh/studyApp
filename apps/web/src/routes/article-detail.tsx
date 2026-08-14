@@ -8,6 +8,7 @@ import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
 import { PageSeo } from "@/components/seo/page-seo";
 import { ChapterMarkdown } from "@/components/ui-x/chapter-markdown";
+import { blogPosting, breadcrumbList } from "@/lib/structured-data";
 import {
   articlePath,
   getPublishedArticle,
@@ -54,25 +55,24 @@ export function Component() {
 
   const related = publishedArticlesForHub(hub).filter((a) => a.slug !== article.slug).slice(0, 4);
 
-  const breadcrumbStructuredData = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: t("Articles.breadcrumbHome"), item: `https://neevstudy.com/${locale}` },
-      {
-        "@type": "ListItem",
-        position: 2,
-        name: t(`Articles.hub.${hub}.heroEyebrow`),
-        item: `https://neevstudy.com${hubPath(hub, locale)}`,
-      },
-      {
-        "@type": "ListItem",
-        position: 3,
-        name: t(`${k}.cardTitle`),
-        item: `https://neevstudy.com${articlePath(article, locale)}`,
-      },
-    ],
-  };
+  // Both graphs on one page, as a top-level array. `check:seo` guarantees a
+  // published article carries both dates, so these are never undefined here —
+  // the `??` keeps the type honest rather than papering over a real gap.
+  const structuredData = [
+    blogPosting({
+      headline: t(`${k}.heroTitle`),
+      description: t(`${k}.metaDescription`),
+      path: articlePath(article, locale),
+      datePublished: article.publishedAt ?? "",
+      dateModified: article.updatedAt ?? article.publishedAt ?? "",
+      locale,
+    }),
+    breadcrumbList([
+      { name: t("Articles.breadcrumbHome"), path: `/${locale}` },
+      { name: t(`Articles.hub.${hub}.heroEyebrow`), path: hubPath(hub, locale) },
+      { name: t(`${k}.cardTitle`), path: articlePath(article, locale) },
+    ]),
+  ];
 
   return (
     <div className="min-h-svh bg-background">
@@ -81,7 +81,10 @@ export function Component() {
         path={`/${hub}/${article.category}/${article.slug}`}
         title={t(`${k}.metaTitle`)}
         description={t(`${k}.metaDescription`)}
-        structuredData={breadcrumbStructuredData}
+        structuredData={structuredData}
+        ogType="article"
+        publishedTime={article.publishedAt}
+        modifiedTime={article.updatedAt}
       />
 
       <MarketingHeader maxWidthClass="max-w-3xl" />

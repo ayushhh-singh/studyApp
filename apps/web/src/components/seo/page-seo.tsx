@@ -5,14 +5,10 @@ import { Helmet as HelmetBase } from "react-helmet-async";
 // JSX component type (works fine at runtime); cast to a children-only component.
 const Helmet = HelmetBase as unknown as ComponentType<PropsWithChildren>;
 import { DEFAULT_LOCALE, SUPPORTED_LOCALES, type Locale } from "@/lib/locale";
-
-/**
- * VITE_SITE_URL lets a real deploy override this; every dev/preview build
- * without it set falls back to the production domain so canonical/OG URLs
- * are at least well-formed rather than pointing at localhost in a shared
- * build artifact.
- */
-const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) ?? "https://neevstudy.com").replace(/\/$/, "");
+// One definition, shared with lib/structured-data.ts — a canonical tag and a
+// JSON-LD `item` URL resolving to different origins on a preview deploy is the
+// kind of split that looks identical in development and is punished in search.
+import { SITE_URL } from "@/lib/site-url";
 
 /**
  * Only meant for genuinely public, unauthenticated routes (landing, pricing)
@@ -34,14 +30,37 @@ export function PageSeo({
   title,
   description,
   structuredData,
+  ogType = "website",
+  publishedTime,
+  modifiedTime,
 }: {
   locale: Locale;
   /** Path WITHOUT the locale prefix, e.g. "" for the landing page, "/pricing" for pricing. */
   path: string;
   title: string;
   description: string;
-  /** Optional JSON-LD object (e.g. a FAQPage schema) rendered as a <script type="application/ld+json">. */
-  structuredData?: object;
+  /**
+   * Optional JSON-LD, rendered as a <script type="application/ld+json">.
+   *
+   * Accepts an ARRAY as well as a single object because one page can carry
+   * several graphs — a content-hub article is both a BlogPosting and a
+   * BreadcrumbList — and JSON-LD permits a top-level array. Passing two
+   * separate <script> tags would also work; one array keeps them adjacent and
+   * unambiguously about the same page.
+   */
+  structuredData?: object | object[];
+  /**
+   * `og:type`. Defaults to "website", which was previously hardcoded and is
+   * right for the landing/pricing/feature pages — but wrong for an article,
+   * where "article" is what unlocks the published/modified time properties
+   * below and tells a social preview it is looking at a piece of writing
+   * rather than a site.
+   */
+  ogType?: "website" | "article";
+  /** ISO date. Emitted only for ogType="article"; ignored otherwise. */
+  publishedTime?: string;
+  /** ISO date. Emitted only for ogType="article"; ignored otherwise. */
+  modifiedTime?: string;
 }) {
   const canonical = `${SITE_URL}/${locale}${path}`;
   const ogImage = `${SITE_URL}/og-default-${locale}.png`;
@@ -67,12 +86,18 @@ export function PageSeo({
         <link key={l} rel="alternate" hrefLang={l} href={`${SITE_URL}/${l}${path}`} />
       ))}
       <link rel="alternate" hrefLang="x-default" href={`${SITE_URL}/${DEFAULT_LOCALE}${path}`} />
-      <meta property="og:type" content="website" />
+      <meta property="og:type" content={ogType} />
       <meta property="og:title" content={title} />
       <meta property="og:description" content={description} />
       <meta property="og:url" content={canonical} />
       <meta property="og:image" content={ogImage} />
       <meta property="og:locale" content={locale === "hi" ? "hi_IN" : "en_IN"} />
+      {/* Only meaningful under og:type="article" — emitting them on a website
+          page would be inert at best and contradictory at worst. */}
+      {ogType === "article" && publishedTime && (
+        <meta property="article:published_time" content={publishedTime} />
+      )}
+      {ogType === "article" && modifiedTime && <meta property="article:modified_time" content={modifiedTime} />}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content={title} />
       <meta name="twitter:description" content={description} />

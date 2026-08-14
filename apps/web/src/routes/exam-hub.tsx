@@ -12,6 +12,7 @@ import { PageSeo } from "@/components/seo/page-seo";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ExamPatternTable } from "@/components/content-hub/exam-pattern-table";
 import { accentSolid, type Accent } from "@/lib/accent";
+import { breadcrumbList } from "@/lib/structured-data";
 import { EXAM_PYQ_YEARS } from "@/lib/content-stats";
 import {
   ARTICLE_HUBS,
@@ -76,14 +77,10 @@ export function Component() {
     { icon: Library, tint: "coral", href: `/${locale}/resources`, key: "holdResources" },
   ] as const;
 
-  const breadcrumbStructuredData = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    itemListElement: [
-      { "@type": "ListItem", position: 1, name: t("Articles.breadcrumbHome"), item: `https://neevstudy.com/${locale}` },
-      { "@type": "ListItem", position: 2, name: t(`${k}.heroEyebrow`), item: `https://neevstudy.com${hubPath(hub, locale)}` },
-    ],
-  };
+  const breadcrumbStructuredData = breadcrumbList([
+    { name: t("Articles.breadcrumbHome"), path: `/${locale}` },
+    { name: t(`${k}.heroEyebrow`), path: hubPath(hub, locale) },
+  ]);
 
   return (
     <div className="min-h-svh bg-background">
