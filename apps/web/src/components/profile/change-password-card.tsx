@@ -120,9 +120,14 @@ export function ChangePasswordCard() {
                     conditionally mounting this animated the button's own
                     padding/width via `transition-all` at the exact moment
                     `disabled` engaged, which a real captured frame showed as
-                    doubled/ghosted text. Only opacity/animation change now. */}
+                    doubled/ghosted text. Only opacity/animation change now.
+                    The trailing spacer mirrors the icon so the label stays
+                    centred instead of the icon+label GROUP being centred
+                    (which pushes the label off-centre at rest — also caught
+                    live, see exam-switch-dialog.tsx). */}
                 <Loader2 className={cn("size-4", busy ? "animate-spin opacity-100" : "opacity-0")} aria-hidden />
                 {t("Profile.changePasswordSubmit")}
+                <span className="size-4" aria-hidden />
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={reset} disabled={busy}>
                 {t("Profile.changePasswordCancel")}

@@ -464,9 +464,13 @@ export function Component() {
                     button's own padding via `transition-all` at the exact
                     moment `disabled` engaged, which a real captured frame
                     showed as doubled/ghosted text elsewhere in this app.
-                    Only opacity/animation change now. */}
+                    Only opacity/animation change now. The trailing spacer
+                    mirrors the icon so the label stays centred instead of
+                    the icon+label GROUP being centred (which pushes the
+                    label off-centre at rest — also caught live). */}
                 <Loader2 className={cn("size-5", busy ? "animate-spin opacity-100" : "opacity-0")} aria-hidden />
                 {t("Auth.otpVerify")}
+                <span className="size-5" aria-hidden />
               </Button>
               <button
                 type="button"

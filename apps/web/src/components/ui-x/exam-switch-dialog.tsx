@@ -100,12 +100,24 @@ export function ExamSwitchDialog({
                   synthetic screenshot forcing a fresh paint) showed the text
                   glyphs re-rasterising at a shifted position as a doubled,
                   ghosted "Switch exam". Only opacity/animation change now,
-                  both purely compositor-side with no layout/reflow at all. */}
+                  both purely compositor-side with no layout/reflow at all.
+
+                  That fix has its own side effect, caught live: reserving the
+                  icon's space even at rest pushes "Switch exam" 12px right of
+                  the button's true centre (measured — half of the icon's
+                  16px + the row's 8px gap), since `justify-center` centres
+                  the icon+text GROUP, not the text alone. The trailing
+                  same-size spacer below mirrors the icon on the other side,
+                  so the three-item row is symmetric and the text sits
+                  exactly in the middle regardless of pending state — while
+                  staying just as width-stable, since its size never changes
+                  either. */}
               <Loader2
                 className={cn("size-4", state.isPending ? "animate-spin opacity-100" : "opacity-0")}
                 aria-hidden
               />
               {t("ExamSwitcher.confirmSwitch")}
+              <span className="size-4" aria-hidden />
             </Button>
           </div>
         </Dialog.Content>

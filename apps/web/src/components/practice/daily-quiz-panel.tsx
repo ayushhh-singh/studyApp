@@ -238,12 +238,16 @@ function GenerateTodayCta({ bare = false }: { bare?: boolean }) {
             conditionally mounting this animated the button's own
             padding/width via `transition-all` at the exact moment `disabled`
             engaged, which a real captured frame showed as doubled/ghosted
-            text. Only opacity/animation change now. */}
+            text. Only opacity/animation change now. The trailing spacer
+            mirrors the icon so whichever label is showing stays centred
+            instead of the icon+label GROUP being centred (which pushes the
+            label off-centre at rest — also caught live). */}
         <Loader2
           className={cn("size-4", ensureToday.isPending ? "animate-spin opacity-100" : "opacity-0")}
           aria-hidden
         />
         {ensureToday.isPending ? t("Practice.dailyGenerating") : t("Practice.dailyGenerateButton")}
+        <span className="size-4" aria-hidden />
       </Button>
       {ensureToday.isError && <p className="text-xs text-destructive">{t("Practice.dailyGenerateError")}</p>}
       {ensureToday.isSuccess && !ensureToday.data.gs && !ensureToday.data.csat && (
