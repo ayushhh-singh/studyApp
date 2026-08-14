@@ -52,6 +52,8 @@ const ROUTES = [
   "/hi/uppsc/exam-updates/uppsc-pcs-exam-date-timeline-and-exam-pattern",
   "/en/upsc/exam-updates/upsc-cse-exam-date-timeline-and-structure",
   "/hi/upsc/exam-updates/upsc-cse-exam-date-timeline-and-structure",
+  "/en/uppsc/exam-updates/uppsc-mains-2023-restructure-what-gs-v-and-gs-vi-ask",
+  "/hi/uppsc/exam-updates/uppsc-mains-2023-restructure-what-gs-v-and-gs-vi-ask",
   "/en/features",
   "/hi/features",
   "/en/features/answer-evaluation",

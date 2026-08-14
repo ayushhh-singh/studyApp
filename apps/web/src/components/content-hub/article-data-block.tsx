@@ -46,6 +46,13 @@ export function ArticleDataBlock({ marker, hub }: { marker: string; hub: Article
   if (name === "exam-pattern") return <ExamPatternBlock hub={hub} />;
   if (name === "marks-split") return <MarksSplitBlock hub={hub} />;
   if (name === "weightage" && arg) return <WeightageBlock papers={arg.split(",").filter(Boolean)} />;
+  if (name === "reform-split" && arg) {
+    const [year, papers] = splitMarker(arg);
+    const pivot = Number(year);
+    if (Number.isFinite(pivot) && papers) {
+      return <ReformSplitBlock pivotYear={pivot} papers={papers.split(",").filter(Boolean)} />;
+    }
+  }
   return null;
 }
 
@@ -326,6 +333,89 @@ function WeightageTable({ paper, locale }: { paper: PaperWeightage; locale: "hi"
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ------------------------------------------------------------ reform split
+
+/**
+ * A paper's sections either side of a pivot year — what a restructure actually
+ * changed, measured rather than asserted.
+ *
+ * ⚑ COMPARES PER-YEAR RATES, NOT RAW TOTALS, and that is the whole reason this
+ * is a block instead of a sentence. The two windows are different lengths (five
+ * years before the 2023 UPPSC reform, three after), so raw counts would make
+ * every section look like it shrank. Dividing by the number of years ACTUALLY
+ * PRESENT in the data on each side — not by the nominal window width — also
+ * keeps it honest where a year is missing from the bank entirely.
+ */
+function ReformSplitBlock({ pivotYear, papers }: { pivotYear: number; papers: string[] }) {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const weightage = usePaperWeightage(papers);
+
+  if (weightage.isError) return <BlockShell><QueryErrorState onRetry={() => void weightage.refetch()} /></BlockShell>;
+  if (isAwaitingData(weightage)) return <BlockShell><Skeleton /></BlockShell>;
+
+  const data = weightage.data ?? [];
+  const ordered = papers.map((p) => data.find((d) => d.paper_code === p)).filter((d): d is PaperWeightage => Boolean(d));
+  if (ordered.length === 0) return null;
+
+  return (
+    <BlockShell>
+      <div className="space-y-6">
+        {ordered.map((paper) => {
+          const beforeYears = paper.years.filter((y) => y < pivotYear);
+          const afterYears = paper.years.filter((y) => y >= pivotYear);
+          const rate = (byYear: Record<string, number>, years: number[]) => {
+            if (years.length === 0) return null;
+            const sum = years.reduce((a, y) => a + (byYear[String(y)] ?? 0), 0);
+            return Math.round((sum / years.length) * 10) / 10;
+          };
+          return (
+            <div key={paper.paper_code} className="overflow-hidden rounded-2xl border border-border bg-card">
+              <div className="border-b border-border bg-muted/40 px-4 py-3">
+                <h3 className="text-sm font-bold">{t(`Articles.data.paper.${paper.paper_code}`, paper.paper_code)}</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">
+                  {t("Articles.data.reformCoverage", {
+                    beforeCount: beforeYears.length,
+                    afterCount: afterYears.length,
+                    pivot: pivotYear,
+                  })}
+                </p>
+              </div>
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="border-b border-border/60">
+                    <th scope="col" className="px-4 py-2.5 font-semibold">{t("Articles.data.colSection")}</th>
+                    <th scope="col" className="px-4 py-2.5 text-end font-semibold">
+                      {t("Articles.data.colBefore", { pivot: pivotYear })}
+                    </th>
+                    <th scope="col" className="px-4 py-2.5 text-end font-semibold">
+                      {t("Articles.data.colAfter", { pivot: pivotYear })}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paper.sections.map((s) => {
+                    const before = rate(s.by_year, beforeYears);
+                    const after = rate(s.by_year, afterYears);
+                    return (
+                      <tr key={s.node_id} className="border-b border-border/60 last:border-0">
+                        <th scope="row" className="px-4 py-2.5 text-left font-medium">{s.title_i18n[locale]}</th>
+                        <td className="px-4 py-2.5 text-end tabular-nums text-muted-foreground">{before ?? "—"}</td>
+                        <td className="px-4 py-2.5 text-end tabular-nums font-semibold">{after ?? "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("Articles.data.reformNote")}</p>
+    </BlockShell>
   );
 }
 
