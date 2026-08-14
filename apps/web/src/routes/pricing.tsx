@@ -169,7 +169,7 @@ export function Component() {
           </span>
           {proUntil && (
             <span className="text-muted-foreground">
-              · {pick(locale, c.proUntil)} {new Date(proUntil).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", year: "numeric" })}
+              · {pick(locale, currentTier === "max" ? c.maxUntil : c.proUntil)} {new Date(proUntil).toLocaleDateString(locale === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short", year: "numeric" })}
             </span>
           )}
         </div>
@@ -177,7 +177,7 @@ export function Component() {
 
       {status === "done" && isPro && (
         <div className="rounded-xl border border-tulsi/40 bg-tulsi/15 p-4 text-center text-base font-semibold text-tulsi-foreground">
-          {pick(locale, c.welcomePro)}
+          {pick(locale, currentTier === "max" ? c.welcomeMax : c.welcomePro)}
         </div>
       )}
       {status === "activating" && (

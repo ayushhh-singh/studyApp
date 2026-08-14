@@ -64,14 +64,27 @@ export function PaywallModal() {
   const evalState: "free" | "trial" | "proCap" | null =
     feature !== "evaluation" ? null : ent?.is_on_trial ? "trial" : ent?.plan === "pro" || ent?.plan === "max" ? "proCap" : "free";
 
-  // A paid Pro at the monthly cap has nothing to upgrade to — drop the sales CTA.
-  const hideUpgrade = evalState === "proCap";
+  // ⚑ Only a MAX user at the cap has nothing to upgrade to. This used to hide
+  // the CTA for any paid tier, which was true when Pro was the top of the
+  // ladder and became false the moment Max shipped — closing the door at the
+  // single moment the tier sells itself, to the one user who has just proved
+  // they want more evaluations.
+  const atCapOnTopTier = evalState === "proCap" && ent?.plan === "max";
+  const hideUpgrade = atCapOnTopTier;
+  /** This modal is selling MAX when the gate is the series, or when a PRO
+   *  user has hit their evaluation cap and Max is the actual next step. */
+  const sellsMax = isSeries || (evalState === "proCap" && !atCapOnTopTier);
 
   const cp =
     evalState === "trial"
       ? { title: c.paywallEvalTrialTitle, body: c.paywallEvalTrialBody }
       : evalState === "proCap"
-        ? { title: c.paywallEvalProCapTitle, body: c.paywallEvalProCapBody }
+        ? atCapOnTopTier
+          ? { title: c.paywallEvalProCapTitle, body: c.paywallEvalProCapBody }
+          : // A PRO user at the cap: name the real next step rather than the
+            // dead-end "resets next month" copy, whose "60 evaluations" figure
+            // is also wrong for any tier but Pro.
+            { title: c.paywallEvalMaxUpsellTitle, body: c.paywallEvalMaxUpsellBody }
         : featureCopy(feature);
   const goPricing = () => {
     close();
@@ -100,7 +113,7 @@ export function PaywallModal() {
             </div>
           </div>
           <ul className="grid gap-2">
-            {(isSeries ? MAX_BULLETS : PRO_BULLETS).map((b, i) => (
+            {(sellsMax ? MAX_BULLETS : PRO_BULLETS).map((b, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
                 <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
                 <span>{pick(locale, b)}</span>
@@ -122,7 +135,7 @@ export function PaywallModal() {
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && close()}>
-      <SheetContent side="bottom" title={pick(locale, isSeries ? c.upgradeToMax : c.upgradeToPro)} className="mx-auto max-w-lg gap-5">
+      <SheetContent side="bottom" title={pick(locale, sellsMax ? c.upgradeToMax : c.upgradeToPro)} className="mx-auto max-w-lg gap-5">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Sparkles className="size-5" aria-hidden />
@@ -148,7 +161,7 @@ export function PaywallModal() {
 
         {!hideUpgrade && (
           <ul className="grid gap-2">
-            {(isSeries ? MAX_BULLETS : PRO_BULLETS).map((b, i) => (
+            {(sellsMax ? MAX_BULLETS : PRO_BULLETS).map((b, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
                 <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
                 <span>{pick(locale, b)}</span>
@@ -166,7 +179,7 @@ export function PaywallModal() {
           ) : (
             <>
               <Button size="lg" className="w-full sm:flex-1" onClick={goPricing}>
-                {pick(locale, isSeries ? c.upgradeToMax : c.upgradeToPro)}
+                {pick(locale, sellsMax ? c.upgradeToMax : c.upgradeToPro)}
               </Button>
               <Button size="lg" variant="ghost" className="w-full sm:w-auto" onClick={close}>
                 {pick(locale, c.maybeLater)}

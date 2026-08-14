@@ -228,10 +228,24 @@ function monthStartUtc(): string {
   return istDayRangeUtc(`${y}-${m}-01`).startUtc;
 }
 
-/** Start of the current IST calendar year — the window Max's annual allowance resets on. */
+/**
+ * Start of Max's ROLLING annual window — 365 days back from now.
+ *
+ * ⚑ NOT the IST calendar year, which is what this was and which did not bound
+ * the thing it exists to bound. A subscription runs from its purchase date, so
+ * a calendar-year reset falls in the MIDDLE of it: bought in April, a user got
+ * 600 evaluations for Apr-Dec and a fresh 600 from 1 January — 1200 against one
+ * ₹5,999 payment, roughly ₹6,168 of AI cost against ₹5,999 of revenue. Worst
+ * case for any purchase from April to October, which is exactly the Indian prep
+ * season. The monthly cadence straddled it too (Oct-Dec plus Jan-Mar = six
+ * heavy months, not the three the cap was meant to allow).
+ *
+ * A rolling window bounds it at 600 per real year for every purchase date, with
+ * no migration and no dependency on a subscription row existing (an admin grant
+ * has none).
+ */
 function yearStartUtc(): string {
-  const [y] = istToday().split("-");
-  return istDayRangeUtc(`${y}-01-01`).startUtc;
+  return new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString();
 }
 
 /**
@@ -321,10 +335,13 @@ export async function assertEvaluationCredit(userId: string): Promise<void> {
       // a trial user already HAS Pro features — theirs resets at midnight.
       message = `You've used both of today's trial evaluations. They reset at midnight IST — or go Pro for more.`;
     } else if (q.plan === "max") {
+      // Deliberately does not promise "all N return on the 1st": the ANNUAL cap
+      // may still bind next month, so the honest phrasing names the cap that
+      // actually bit without over-promising the reset.
       message =
         q.period === "month"
-          ? `You've reached this month's cap of ${q.limit} evaluations. It resets on the 1st.`
-          : `You've reached your annual allowance of ${q.limit} evaluations.`;
+          ? `You've used this month's ${q.limit} evaluations. More become available next month, up to your annual allowance.`
+          : `You've used your annual allowance of ${q.limit} evaluations.`;
     } else if (q.plan === "pro") {
       message = `You've reached the fair-use cap of ${q.limit} evaluations this month.`;
     } else {
@@ -488,7 +505,13 @@ export async function listFreeNoteNodeIds(): Promise<Set<string>> {
 /** Whether this user may read the full note for `nodeId`. */
 export async function canReadFullNote(userId: string, nodeId: string): Promise<boolean> {
   const { plan } = await getPlanFor(userId);
-  if (plan === "pro") return true;
+  // ⚑ planAtLeast, NOT `plan === "pro"`. This is the one Pro gate in the file
+  // that RETURNS A BOOLEAN instead of throwing, so it does not go through
+  // assertPro and was missed when Max was added — leaving a Max subscriber
+  // locked out of the 362 published study chapters while GET /entitlements
+  // cheerfully reported all_notes: true. Same defect class as assertPro's, in
+  // the one place the shared helper could not catch it.
+  if (planAtLeast(plan, "pro")) return true;
   const free = await listFreeNoteNodeIds();
   return free.has(nodeId);
 }

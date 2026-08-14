@@ -88,17 +88,34 @@ export function Component() {
   function onTogglePlan(tier: "pro" | "max", days: number | null) {
     if (!selectedUser || pending) return;
     const email = selectedUser.email ?? selectedUser.id;
+    // Every confirm names the tier being acted on. These strings used to say
+    // "Pro" unconditionally, so a Max grant, a Max revoke AND a Pro-over-Max
+    // downgrade all asked the admin to confirm the wrong thing — and the two
+    // grant buttons sit side by side, so the dialog is the only disambiguator.
+    const RANK: Record<string, number> = { free: 0, pro: 1, max: 2 };
+    const label = t(tier === "max" ? "AdminUsers.planMax" : "AdminUsers.planPro");
     if (selectedUser.plan === tier) {
-      if (!window.confirm(t("AdminUsers.confirmRevokePro", { email }))) return;
+      if (!window.confirm(t("AdminUsers.confirmRevokePro", { email, tier: label }))) return;
       revokePro.mutate(selectedUser.id);
     } else {
-      const message = days
-        ? t("AdminUsers.confirmGrantProDays", {
+      // Granting a LOWER tier than the user holds is a downgrade wearing a
+      // grant's clothing: it silently strips the test series and, with no
+      // duration chosen, wipes the expiry a paid annual subscription set.
+      const isDowngrade = (RANK[selectedUser.plan] ?? 0) > (RANK[tier] ?? 0);
+      const message = isDowngrade
+        ? t("AdminUsers.confirmDowngrade", {
             email,
-            days,
-            date: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString(),
+            tier: label,
+            from: t(selectedUser.plan === "max" ? "AdminUsers.planMax" : "AdminUsers.planPro"),
           })
-        : t("AdminUsers.confirmGrantPro", { email });
+        : days
+          ? t("AdminUsers.confirmGrantProDays", {
+              email,
+              days,
+              tier: label,
+              date: new Date(Date.now() + days * 24 * 60 * 60 * 1000).toLocaleDateString(),
+            })
+          : t("AdminUsers.confirmGrantPro", { email, tier: label });
       if (!window.confirm(message)) return;
       grantPro.mutate({ userId: selectedUser.id, days, tier });
     }
@@ -334,7 +351,7 @@ function UserManagePanel({
   // account that already used its real trial reads as trial-tier limits, not
   // full Pro — surfaced here rather than silently under-serving the admin's
   // intent.
-  const showTrialWarning = user.plan !== "pro" && user.has_used_trial && selectedDays !== null;
+  const showTrialWarning = user.plan === "free" && user.has_used_trial && selectedDays !== null;
 
   return (
     <div className="flex flex-col gap-5 border-t border-border bg-muted/30 px-4 py-5">
@@ -360,7 +377,7 @@ function UserManagePanel({
         </div>
       </dl>
 
-      {user.plan !== "pro" && (
+      {user.plan === "free" && (
         <div className="flex flex-col gap-1.5">
           <label htmlFor={`pro-duration-${user.id}`} className="text-xs font-medium text-muted-foreground">
             {t("AdminUsers.durationLabel")}

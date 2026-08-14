@@ -9,6 +9,8 @@ import { TestPlayer } from "@/components/practice/test-player";
 import { useTest } from "@/hooks/use-tests";
 import { useAttemptDetail, useStartAttempt } from "@/hooks/use-attempt";
 import { useLocale } from "@/hooks/use-locale";
+import { ApiError } from "@/lib/api";
+import { usePaywallStore, toPaywallFeature } from "@/stores/paywall-store";
 
 export function Component() {
   const { t } = useTranslation();
@@ -24,6 +26,7 @@ export function Component() {
   const fromParam = searchParams.get("from");
   const backTo = fromParam && fromParam.startsWith("/") ? fromParam : `/${locale}/practice`;
   const startAttempt = useStartAttempt();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
   const [attemptId, setAttemptId] = useState<string | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const { data: attemptDetail } = useAttemptDetail(attemptId ?? undefined);
@@ -35,6 +38,16 @@ export function Component() {
         onSuccess: (attempt) => {
           setAttemptId(attempt.id);
           setStartedAt(attempt.started_at);
+        },
+        // A gated test (a Max-only series paper, or a Pro-only mock) answers
+        // 402. Without this the raw server string rendered as a red line under
+        // the Start button — untranslated, with no way to upgrade, next to a
+        // button that still looked live. Every other 402 surface in the app
+        // routes through the paywall; this path was the one that did not.
+        onError: (err) => {
+          if (err instanceof ApiError && err.status === 402) {
+            openPaywall(toPaywallFeature(err.feature));
+          }
         },
       },
     );

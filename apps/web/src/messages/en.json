@@ -945,9 +945,9 @@
     "revokePro": "Revoke Pro",
     "grantAdmin": "Grant admin",
     "revokeAdmin": "Revoke admin",
-    "confirmGrantPro": "Grant indefinite Pro access to {{email}}? This will be logged.",
-    "confirmGrantProDays": "Grant Pro access to {{email}} for {{days}} days, until {{date}}? This will be logged.",
-    "confirmRevokePro": "Revoke Pro access from {{email}}? They'll drop to the Free plan. This will be logged.",
+    "confirmGrantPro": "Grant indefinite {{tier}} access to {{email}}? This will be logged.",
+    "confirmGrantProDays": "Grant {{tier}} access to {{email}} for {{days}} days, until {{date}}? This will be logged.",
+    "confirmRevokePro": "Revoke {{tier}} access from {{email}}? They'll drop to the Free plan. This will be logged.",
     "confirmGrantAdmin": "Grant full admin privileges to {{email}}? They'll be able to review content and manage other users' access. This will be logged.",
     "confirmRevokeAdmin": "Revoke admin privileges from {{email}}? This will be logged.",
     "durationLabel": "Duration",
@@ -998,12 +998,15 @@
       "grant_pro": "Granted Pro",
       "revoke_pro": "Revoked Pro",
       "grant_admin": "Granted admin",
-      "revoke_admin": "Revoked admin"
+      "revoke_admin": "Revoked admin",
+      "grant_max": "Granted Max",
+      "revoke_max": "Revoked plan"
     },
     "planMax": "Max",
     "grantMax": "Grant Max",
     "revokeMax": "Revoke plan",
-    "tierLabel": "Tier"
+    "tierLabel": "Tier",
+    "confirmDowngrade": "{{email}} is on {{from}}, which is HIGHER than {{tier}}. Granting {{tier}} is a DOWNGRADE — they will lose the test series. Continue?"
   },
   "Exam": {
     "filterLabel": "Filter by exam",

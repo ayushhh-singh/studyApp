@@ -945,9 +945,9 @@
     "revokePro": "Pro वापस लें",
     "grantAdmin": "एडमिन बनाएँ",
     "revokeAdmin": "एडमिन हटाएँ",
-    "confirmGrantPro": "{{email}} को अनिश्चितकालीन Pro एक्सेस दें? यह लॉग होगा।",
-    "confirmGrantProDays": "{{email}} को {{days}} दिनों के लिए, {{date}} तक Pro एक्सेस दें? यह लॉग होगा।",
-    "confirmRevokePro": "{{email}} से Pro एक्सेस वापस लें? वे Free प्लान पर आ जाएँगे। यह लॉग होगा।",
+    "confirmGrantPro": "{{email}} को अनिश्चितकालीन {{tier}} एक्सेस दें? यह लॉग किया जाएगा।",
+    "confirmGrantProDays": "{{email}} को {{days}} दिनों के लिए, {{date}} तक {{tier}} एक्सेस दें? यह लॉग किया जाएगा।",
+    "confirmRevokePro": "{{email}} से {{tier}} एक्सेस वापस लें? वे फ़्री प्लान पर आ जाएंगे। यह लॉग किया जाएगा।",
     "confirmGrantAdmin": "{{email}} को पूर्ण एडमिन अधिकार दें? वे कंटेंट रिव्यू और अन्य उपयोगकर्ताओं की एक्सेस प्रबंधित कर सकेंगे। यह लॉग होगा।",
     "confirmRevokeAdmin": "{{email}} से एडमिन अधिकार वापस लें? यह लॉग होगा।",
     "durationLabel": "अवधि",
@@ -998,12 +998,15 @@
       "grant_pro": "Pro दिया गया",
       "revoke_pro": "Pro वापस लिया गया",
       "grant_admin": "एडमिन बनाया गया",
-      "revoke_admin": "एडमिन हटाया गया"
+      "revoke_admin": "एडमिन हटाया गया",
+      "grant_max": "मैक्स दिया",
+      "revoke_max": "प्लान वापस लिया"
     },
     "planMax": "मैक्स",
     "grantMax": "मैक्स दें",
     "revokeMax": "प्लान वापस लें",
-    "tierLabel": "टियर"
+    "tierLabel": "टियर",
+    "confirmDowngrade": "{{email}} {{from}} पर हैं, जो {{tier}} से ऊँचा है। {{tier}} देना एक डाउनग्रेड है — वे टेस्ट सीरीज़ खो देंगे। जारी रखें?"
   },
   "Exam": {
     "filterLabel": "परीक्षा फ़िल्टर",

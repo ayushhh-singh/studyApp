@@ -324,6 +324,24 @@ async function activate(sub: SubRow, paymentId: string | undefined, now: Date): 
     .update({ plan: tier, plan_expires_at: grantUntil.toISOString() })
     .eq("id", sub.user_id);
   if (profErr) throw new HttpError(500, `plan flip failed: ${profErr.message}`);
+
+  // ⚑ Supersede any OTHER active subscription for this user. Without this an
+  // upgrade leaves TWO rows at status='active' — the old Pro and the new Max —
+  // and the older one is a live liability: if recurring billing is ever turned
+  // on, its `subscription.charged` webhook would call renew() and write ITS
+  // tier, silently DOWNGRADING a Max user back to Pro. 'cancelled' is the
+  // honest status here: cancel() already means "no future renewals, access
+  // runs to period end", and a prorated upgrade has already paid that tail
+  // back as credit. Scoped by user AND `neq(id)` so it can never touch the row
+  // being activated, and by status so a spent row is not rewritten.
+  const { error: supErr } = await supabase()
+    .from("subscriptions")
+    .update({ status: "cancelled", cancelled_at: now.toISOString(), meta: { superseded_by: sub.id } })
+    .eq("user_id", sub.user_id)
+    .eq("status", "active")
+    .neq("id", sub.id);
+  if (supErr) logger.warn({ err: supErr, userId: sub.user_id }, "billing: superseding old subscriptions failed");
+
   logger.info({ userId: sub.user_id, subId: sub.id, tier, until: grantUntil.toISOString() }, "billing: activated");
 }
 
@@ -337,7 +355,25 @@ async function renew(sub: SubRow, now: Date): Promise<void> {
   await supabase().from("subscriptions").update({ status: "active", current_period_end: periodEnd.toISOString() }).eq("id", sub.id);
   // Same reason as activate(): the tier is the plan's, not a literal.
   const tier = plan?.tier ?? "pro";
-  await supabase().from("users_profile").update({ plan: tier, plan_expires_at: periodEnd.toISOString() }).eq("id", sub.user_id);
+  // ⚑ A renewal must never move a user DOWN. Before the Max tier every plan was
+  // Pro, so writing the tier unconditionally was a no-op; now a stale Pro
+  // subscription renewing would demote a Max user, and a shorter Pro period
+  // would pull their expiry in. Superseding on activate() should stop such a
+  // row existing at all — this is the second line of defence, because the cost
+  // of being wrong is a paying customer silently losing what they bought.
+  const { data: cur } = await supabase()
+    .from("users_profile")
+    .select("plan, plan_expires_at")
+    .eq("id", sub.user_id)
+    .maybeSingle();
+  const curTier = (cur?.plan as string | undefined) ?? "free";
+  const curEnd = cur?.plan_expires_at ? new Date(cur.plan_expires_at as string) : null;
+  const patch: Record<string, string> = {};
+  if ((TIER_RANK[tier] ?? 0) >= (TIER_RANK[curTier] ?? 0)) patch.plan = tier;
+  if (!curEnd || periodEnd > curEnd) patch.plan_expires_at = periodEnd.toISOString();
+  if (Object.keys(patch).length > 0) {
+    await supabase().from("users_profile").update(patch).eq("id", sub.user_id);
+  }
   logger.info({ userId: sub.user_id, subId: sub.id, tier, until: periodEnd.toISOString() }, "billing: renewed");
 }
 

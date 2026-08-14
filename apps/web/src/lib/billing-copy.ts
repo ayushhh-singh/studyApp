@@ -54,9 +54,11 @@ export const billingCopy = {
   youArePro: { en: "You're on Pro", hi: "आप प्रो पर हैं" } as T,
   youAreMax: { en: "You're on Max", hi: "आप मैक्स पर हैं" } as T,
   proUntil: { en: "Pro until", hi: "प्रो इस तिथि तक" } as T,
+  maxUntil: { en: "Max until", hi: "मैक्स इस तिथि तक" } as T,
   processing: { en: "Opening checkout…", hi: "चेकआउट खुल रहा है…" } as T,
   activating: { en: "Confirming your payment…", hi: "आपका भुगतान सत्यापित हो रहा है…" } as T,
   welcomePro: { en: "Welcome to Pro! 🎉", hi: "प्रो में आपका स्वागत है! 🎉" } as T,
+  welcomeMax: { en: "Welcome to Max", hi: "मैक्स में आपका स्वागत है" } as T,
   paymentCancelled: { en: "Payment cancelled.", hi: "भुगतान रद्द किया गया।" } as T,
   paymentFailed: { en: "Couldn't start checkout. Please try again.", hi: "चेकआउट शुरू नहीं हो सका। कृपया पुनः प्रयास करें।" } as T,
 
@@ -156,6 +158,11 @@ export const billingCopy = {
   } as T,
   // Paywall — a PAID Pro user hitting the monthly fair-use cap (no upgrade CTA).
   paywallEvalProCapTitle: { en: "You've hit this month's fair-use cap", hi: "इस माह की उचित-उपयोग सीमा पूरी हुई" } as T,
+  paywallEvalMaxUpsellTitle: { en: "Need more evaluations?", hi: "और मूल्यांकन चाहिए?" } as T,
+  paywallEvalMaxUpsellBody: {
+    en: "You've used this month's Pro allowance. Max raises it and adds the scheduled test series.",
+    hi: "आपने इस माह का प्रो कोटा उपयोग कर लिया। मैक्स इसे बढ़ाता है और निर्धारित टेस्ट सीरीज़ जोड़ता है।",
+  } as T,
   paywallEvalProCapBody: {
     en: "You've used all 60 evaluations included this month. Your allowance resets at the start of next month.",
     hi: "इस माह के सभी 60 मूल्यांकन उपयोग हो गए। आपकी सीमा अगले माह की शुरुआत में रीसेट होगी।",
