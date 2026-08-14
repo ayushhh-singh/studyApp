@@ -48,6 +48,8 @@ const ROUTES = [
   "/hi/features",
   "/en/features/answer-evaluation",
   "/hi/features/answer-evaluation",
+  "/en/features/test-series",
+  "/hi/features/test-series",
   "/en/features/pyq-practice",
   "/hi/features/pyq-practice",
   "/en/features/current-affairs",

@@ -1,4 +1,4 @@
-import { PenLine, Target, Newspaper, BookOpen, BarChart3, MessagesSquare, Trophy, Users, type LucideIcon } from "lucide-react";
+import { PenLine, Target, Newspaper, BookOpen, BarChart3, CalendarCheck, MessagesSquare, Trophy, Users, type LucideIcon } from "lucide-react";
 
 export type FeatureTint = "primary" | "marigold" | "tulsi" | "coral";
 
@@ -20,6 +20,11 @@ export interface FeatureDef {
 // the landing page and its dedicated page.
 export const FEATURES: FeatureDef[] = [
   { slug: "answer-evaluation", i18nKey: "answerEvaluation", icon: PenLine, tint: "primary", screenshot: "/marketing/evaluation.png" },
+  // Second, not fifth: the scheduled series is what the coaching market leads
+  // with, and the landing page gives it a full-width band of its own. It is
+  // deliberately NOT in the landing teaser's four (FEATURE_SLUGS there), so it
+  // is also excluded from that page's compact "more" row — see COVERED_ABOVE.
+  { slug: "test-series", i18nKey: "testSeries", icon: CalendarCheck, tint: "marigold", screenshot: "/marketing/test-series.png" },
   { slug: "pyq-practice", i18nKey: "pyqPractice", icon: Target, tint: "marigold", screenshot: "/marketing/practice.png" },
   { slug: "notes", i18nKey: "notes", icon: BookOpen, tint: "tulsi", screenshot: "/marketing/notes.png" },
   { slug: "revision", i18nKey: "revision", icon: BarChart3, tint: "coral", screenshot: "/marketing/revision.png" },
