@@ -476,7 +476,32 @@ async function assembleEntry(
     minPerSection: MIN_PER_SECTION,
   });
 
-  const items = picked;
+  // ⚑ A DESCRIPTIVE PAPER IS RE-WEIGHTED TO THE COMMISSION'S OWN MARKS PATTERN.
+  // The registry notifies a Mains paper's TOTAL (250 for UPSC GS, 200 for UPPSC)
+  // but not how it is distributed; `mocks.ts` derives the real per-question
+  // shape from the ingested papers and re-weights every sampled PYQ onto it.
+  // Skipping that is not cosmetic — a sampled PYQ carries its OWN year's marks,
+  // so the assembled paper mis-totals and every answer is then evaluated against
+  // a fabricated maximum. Measured before this: series:upsc-mains-2027:1 summed
+  // to 247.5 against a notified 250.
+  //
+  // Shuffled so the values are mixed through the paper, exactly as the real one
+  // is, rather than all the 10-markers landing first.
+  let items = picked;
+  if (entry.question_type === "descriptive") {
+    const reg = await freshMockPaperConfig(entry.paper_code);
+    if (reg?.marksPattern && reg.marksPattern.length === items.length) {
+      const pattern = shuffle(reg.marksPattern);
+      items = items.map((q, i) => ({ ...q, marks: pattern[i] }));
+      const total = items.reduce((sum, q) => sum + q.marks, 0);
+      if (total !== reg.officialMaxMarks) {
+        throw new HttpError(
+          500,
+          `series ${cal.slug} entry ${entry.sequence_no}: assembled marks total ${total} but the registry notifies ${reg.officialMaxMarks}`,
+        );
+      }
+    }
+  }
   const achieved = { pyq: 0, ca: 0, qgen: 0 };
   for (const q of items) achieved[q.source] += 1;
   const reused = items.filter((q) => ctx.used.has(q.id)).length;

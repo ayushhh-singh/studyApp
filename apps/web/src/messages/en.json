@@ -2357,6 +2357,10 @@
     "unrankedExplainer": "You sat this after its ranked window closed, so it counts as practice and not towards the rank. Your score and analysis are unaffected. {{cohort}} attempt(s) are on this test's board.",
     "stateScheduled": "Scheduled",
     "paperNumber": "Paper {{n}}",
-    "scheduledExplainer": "Opens {{date}}. This paper is assembled shortly before it opens, so it is drawn from the freshest question bank."
+    "scheduledExplainer": "Opens {{date}}. This paper is assembled shortly before it opens, so it is drawn from the freshest question bank.",
+    "statDone": "Done",
+    "statOpen": "Open now",
+    "statTotal": "Papers",
+    "nextUp": "Next up"
   }
 }
