@@ -5,6 +5,7 @@ import { Compass, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useExams } from "@/hooks/use-exams";
 import { useLocale } from "@/hooks/use-locale";
+import { cn } from "@/lib/utils";
 import type { ExamSwitch } from "@/hooks/use-exam-switch";
 
 /**
@@ -89,7 +90,21 @@ export function ExamSwitchDialog({
               {t("ExamSwitcher.confirmCancel")}
             </Button>
             <Button type="button" onClick={state.confirm} disabled={state.isPending} className="gap-2">
-              {state.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
+              {/* The spinner is ALWAYS a mounted direct child — never
+                  conditionally rendered — so the button's `has-[>svg]:px-3`
+                  size variant (see ui/button.tsx) never toggles between the
+                  idle and pending states. Toggling it on/off used to flip the
+                  button's own padding via `transition-all`, animating its
+                  width over ~150ms at the exact moment `disabled` also
+                  engaged; a real captured frame mid-transition (not a
+                  synthetic screenshot forcing a fresh paint) showed the text
+                  glyphs re-rasterising at a shifted position as a doubled,
+                  ghosted "Switch exam". Only opacity/animation change now,
+                  both purely compositor-side with no layout/reflow at all. */}
+              <Loader2
+                className={cn("size-4", state.isPending ? "animate-spin opacity-100" : "opacity-0")}
+                aria-hidden
+              />
               {t("ExamSwitcher.confirmSwitch")}
             </Button>
           </div>
