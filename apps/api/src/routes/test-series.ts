@@ -19,7 +19,7 @@ testSeriesRouter.get(
   "/test-series",
   asyncHandler(async (_req, res) => {
     const series = await listSeries(currentUserId());
-    res.json(testSeriesListResponseSchema.parse({ series }));
+    res.json(apiEnvelopeSchema(testSeriesListResponseSchema).parse({ data: { series }, error: null }));
   }),
 );
 

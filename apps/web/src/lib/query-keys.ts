@@ -141,4 +141,6 @@ export const queryKeys = {
     ["scoreboard", "rank-card", "evaluation", submissionId] as const,
   scoreboardMyRanks: () => ["scoreboard", "my-ranks"] as const,
   tourState: () => ["tour"] as const,
+  testSeriesList: () => ["test-series", "list"] as const,
+  testSeriesDetail: (slug: string) => ["test-series", "detail", slug] as const,
 };

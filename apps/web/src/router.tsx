@@ -78,6 +78,8 @@ export const router = createBrowserRouter([
               { path: "learn/:paperCode/:nodeId", lazy: () => import("@/routes/learn-node") },
               { path: "practice", lazy: () => import("@/routes/practice") },
               { path: "pyq-archive", lazy: () => import("@/routes/pyq-archive") },
+              { path: "test-series", lazy: () => import("@/routes/test-series") },
+              { path: "test-series/:slug", lazy: () => import("@/routes/test-series-detail") },
               { path: "scoreboard", lazy: () => import("@/routes/scoreboard") },
               {
                 path: "practice/attempt/:attemptId/result",

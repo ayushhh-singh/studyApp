@@ -19,7 +19,7 @@ import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js"
 import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { getUserExam } from "../lib/exams.js";
-import { assertSeriesAttemptAllowed } from "./test-series.js";
+import { assertSeriesAttemptAllowed, attemptSeriesContext } from "./test-series.js";
 import { DEFAULT_MCQ_MARKS } from "../lib/marks.js";
 import { assertMockTests } from "./entitlements.js";
 import { recordDailyQuizResult } from "./scoreboard.js";
@@ -658,6 +658,9 @@ export async function getAttemptResult(userId: string, attemptId: string): Promi
   return {
     attempt: toAttempt(attempt),
     test,
+    // Null for every standalone test; for a series paper it carries which of the
+    // two tiers this score is in. See attemptSeriesContext.
+    series: await attemptSeriesContext(attempt),
     score_pct: scorePct,
     percentile,
     accuracy_pct: accuracyPct,

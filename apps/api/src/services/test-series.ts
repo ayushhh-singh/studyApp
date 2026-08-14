@@ -34,7 +34,13 @@
  * product on later is a status change plus one entitlement call added to
  * `assertSeriesAccess` — not a rewrite. Both series built so far are `draft`.
  */
-import type { SeriesEntryState, TestSeriesDetail, TestSeriesEntry, TestSeriesSummary } from "@neev/shared";
+import type {
+  AttemptSeriesContext,
+  SeriesEntryState,
+  TestSeriesDetail,
+  TestSeriesEntry,
+  TestSeriesSummary,
+} from "@neev/shared";
 import { HttpError, notFound } from "../lib/http-error.js";
 import { supabase } from "../lib/supabase.js";
 import { isCurrentUserAdmin } from "../lib/admin.js";
@@ -286,6 +292,68 @@ export async function seriesEntryForTest(
   if (!data) return null;
   const row = data as unknown as EntryRow & { test_series: SeriesRow };
   return { entry: row, series: row.test_series };
+}
+
+/**
+ * The series context for a SUBMITTED attempt — what the result page needs to
+ * say which of the two tiers this score belongs to.
+ *
+ * ⚑ WHY THE PAGE MUST SAY IT RATHER THAN JUST SHOWING NOTHING. The existing
+ * rank card reads `v_test_leaderboard`, and migration 0127 makes that view drop
+ * a late attempt — so a student who sat the paper a day after the window
+ * already gets no card. Silence is ambiguous: it reads as "nobody else took
+ * this" or as a bug, when the truth is "this was practice, and here is why".
+ * `ranked` is that sentence's data.
+ *
+ * `rank` is null exactly when `ranked` is false, and `cohort_size` is reported
+ * either way — a late attempt is still measured against the cohort for the
+ * student's own information, it just does not place in it.
+ *
+ * Returns null for an attempt on any ordinary standalone test.
+ */
+export async function attemptSeriesContext(
+  attempt: { id: string; test_id: string | null; submitted_at: string | null },
+): Promise<AttemptSeriesContext | null> {
+  if (!attempt.test_id || !attempt.submitted_at) return null;
+  const hit = await seriesEntryForTest(attempt.test_id);
+  if (!hit) return null;
+  const { entry, series } = hit;
+
+  const ranked = !entry.ranked_until || new Date(attempt.submitted_at) <= new Date(entry.ranked_until);
+
+  const [{ count: entryCount }, board] = await Promise.all([
+    supabase().from("test_series_entries").select("id", { count: "exact", head: true }).eq("series_id", series.id),
+    supabase().from("v_test_leaderboard").select("attempt_id, score").eq("test_id", attempt.test_id),
+  ]);
+  if (board.error) throw new HttpError(500, `series board lookup failed: ${board.error.message}`);
+
+  const rows = ((board.data ?? []) as { attempt_id: string; score: number | null }[])
+    .map((r) => ({ ...r, score: r.score ?? 0 }))
+    .sort((a, b) => b.score - a.score);
+
+  // Competition ranking (1,2,2,4) — the same shape the Scoreboard's own
+  // computeRanks produces, so a series rank and a board rank never disagree by
+  // a tie-breaking rule.
+  let rank: number | null = null;
+  const idx = rows.findIndex((r) => r.attempt_id === attempt.id);
+  if (ranked && idx !== -1) {
+    let r = 1;
+    for (let i = 0; i < idx; i++) if (rows[i].score > rows[idx].score) r += 1;
+    // Ties share the better rank: count strictly-greater scores, then add 1.
+    rank = r;
+  }
+
+  return {
+    series_slug: series.slug,
+    series_title_i18n: series.title_i18n,
+    sequence_no: entry.sequence_no,
+    entry_count: entryCount ?? 0,
+    entry_kind: entry.entry_kind as AttemptSeriesContext["entry_kind"],
+    ranked,
+    ranked_until: entry.ranked_until,
+    rank,
+    cohort_size: rows.length,
+  };
 }
 
 /**

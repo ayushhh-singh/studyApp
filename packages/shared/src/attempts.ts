@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { apiEnvelopeSchema, bilingualTextSchema } from "./types";
+import { attemptSeriesContextSchema } from "./test-series";
 import { questionOptionSchema } from "./questions";
 import { testKindSchema } from "./tests";
 
@@ -118,6 +119,8 @@ export const attemptResultDetailSchema = z.object({
       paper_code: z.string().nullable(),
     })
     .nullable(),
+  /** Set only when this attempt's test belongs to a scheduled series. */
+  series: attemptSeriesContextSchema.nullable().default(null),
   score_pct: z.number().nullable(),
   percentile: z.number().nullable(),
   accuracy_pct: z.number().nullable(),
