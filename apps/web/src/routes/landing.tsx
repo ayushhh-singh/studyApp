@@ -565,10 +565,28 @@ export function Component() {
                       a floor that always applies. It cannot go on the Button
                       itself, where padding would push the label down inside
                       the control instead of away from the list above it. */}
+                  {/* Label is session-aware, matching the hero and final CTA
+                      below (both already branch on `session`) — this teaser
+                      was the one CTA on the page still hardcoded to a signed-
+                      out label. A signed-in visitor already has an account,
+                      so the Free card offering to "start" it is wrong; the
+                      Pro/Max cards inviting them to merely "see plans" undersells
+                      what the click is actually for once they're in. Routing is
+                      unchanged for both: Free still goes to primaryHref (which
+                      already resolves to the dashboard when signed in) and
+                      paid still goes to /pricing, where the real purchase/
+                      upgrade flow (incl. proration for an existing paid tier)
+                      lives — this only changes the words on the button. */}
                   <div className="mt-auto pt-6">
                     <Button asChild className="w-full" variant={paid ? "outline" : "default"}>
                       <Link to={paid ? `/${locale}/pricing` : primaryHref}>
-                        {paid ? t("Landing.planSeePlans") : t("Landing.plan_free_cta")}
+                        {paid
+                          ? session
+                            ? t("Landing.planUpgrade")
+                            : t("Landing.planSeePlans")
+                          : session
+                            ? t("Landing.goToApp")
+                            : t("Landing.plan_free_cta")}
                       </Link>
                     </Button>
                   </div>
