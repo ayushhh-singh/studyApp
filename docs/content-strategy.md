@@ -1,13 +1,40 @@
 # Content hub — SEO strategy for both exams
 
-**Status: INFRASTRUCTURE BUILT 2026-08-14, NO ARTICLE WRITTEN.** The hubs, the
-route tree, the SEO wiring and the `check:seo` coverage now exist and ship dark:
-`lib/articles.ts` carries all 15 slate items at `status: "planned"`, so every
-article URL 404s and none is advertised. Publishing one is a `status` flip plus
-its prose — the guard then names exactly which files still need the URL. §9.3
-and §9.4 are decided (below); §9.1, §9.2, §9.5 and §9.6 remain open. Everything below is either a measured fact (with the
-query that produced it) or a proposal awaiting sign-off. §9 lists the decisions
-that are the founder's, not this document's.
+**Status: TIER 1 WRITTEN 2026-08-14 — 5 of 15 published, awaiting founder review
+before push.** Slate items 1, 2, 5, 3 and 4 are live in both locales on the
+local branch; the other ten remain `status: "planned"`, so they 404 and are
+advertised nowhere. `check:seo` reports the real count on every run. §9.3 and
+§9.4 were already decided; §9.1 is answered in practice (below) and §9.2, §9.5
+and §9.6 remain open. Everything else below is either a measured fact (with the
+query that produced it) or a proposal awaiting sign-off.
+
+**What the writing pass changed about this document's own plan** — each is
+recorded at the decision it revises, not only here:
+
+- **§5's "read it, don't freeze it" needed an API that did not exist.** Every
+  source Tier 1 binds to sat behind `requireAuth`, and `check:seo` rule 11
+  refuses to publish an article bound to a non-public source — so
+  `contentHubPublicRouter` (`/content-hub/exam-calendar`, `/content-hub/weightage`)
+  had to ship first. `PUBLIC_DATA_SOURCES` now lists three, not one.
+- **Two slate titles carried a year; the shipped slugs do not** (§4 #1, #2). A
+  competitor re-cuts annually because their date is typed in; ours reads it, so
+  one URL stays correct across cycles instead of splitting link equity yearly.
+  For UPPSC there was no choice: migration `0126` records that no official 2027
+  date exists in any form, so "UPPSC PCS 2027 exam date" would have had no 2027
+  date to show.
+- **#1 dropped eligibility**, which its slate title named. Age, attempts and
+  vacancies are per-cycle notification facts, and the only sources reachable
+  were aggregators — which §1b itself calls thin and interchangeable, and which
+  disagreed with each other when checked. §4's own bench already says an
+  eligibility lookup is where "our data adds nothing". The article says out loud
+  that it does not state them, and why.
+- **§9.1 answered in practice, not in principle.** Both locales of all five were
+  authored natively rather than translated (§1c's hard requirement). "Hindi
+  first" as an ordering question was not tested and stays open.
+- **§2d's "publisher research already done, reuse `lib/resources.ts`" was
+  false.** That file holds NCERT and government sources only; the reference-book
+  work survived as prose in CLAUDE.md with every URL, ISBN and price lost. All 8
+  titles were re-verified from scratch and now live in `lib/booklist.ts`.
 
 Written 2026-08-14. Every competitor claim in §1 was verified by fetching the page
 or by search on that date, not from memory; every number in §2 came from a
@@ -491,10 +518,15 @@ that turned out to be computed against the wrong denominator. It is corrected in
 
 ## §9 Decisions for the founder
 
-1. **Hindi-first or English-first for the UPPSC Tier 1?** This document recommends
-   **Hindi first** for #1, #3, #10 on the §1c evidence, which is a real change in
-   authoring effort. English-first is the safer default if Hindi authoring capacity
-   is the constraint.
+1. **Hindi-first or English-first for the UPPSC Tier 1?** ⚑ **PARTLY ANSWERED
+   2026-08-14, and the half that matters is settled.** All five Tier-1 articles
+   were **authored natively in both locales** — the Hindi is written as Hindi,
+   not translated from the English draft, which §1c makes non-negotiable rather
+   than preferable (a machine-translated page is indistinguishable to a reader
+   from the Google Translate proxies currently ranking for this intent). What
+   remains open is the narrower ORDERING question — whether drafting Hindi first
+   produces better Hindi than drafting the two in parallel. That was not tested
+   and would need a real comparison to answer.
 2. **Who writes them?** The chapter pipeline (agent-authored → fact-audited →
    human-approved) exists and is proven over 362 chapters at $0 API spend. It is
    reusable here — but marketing copy carries brand voice in a way a study chapter
