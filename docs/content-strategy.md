@@ -1,7 +1,11 @@
 # Content hub — SEO strategy for both exams
 
-**Status: PLAN ONLY. No article has been written and no route, sitemap entry or
-robots rule has been added.** Everything below is either a measured fact (with the
+**Status: INFRASTRUCTURE BUILT 2026-08-14, NO ARTICLE WRITTEN.** The hubs, the
+route tree, the SEO wiring and the `check:seo` coverage now exist and ship dark:
+`lib/articles.ts` carries all 15 slate items at `status: "planned"`, so every
+article URL 404s and none is advertised. Publishing one is a `status` flip plus
+its prose — the guard then names exactly which files still need the URL. §9.3
+and §9.4 are decided (below); §9.1, §9.2, §9.5 and §9.6 remain open. Everything below is either a measured fact (with the
 query that produced it) or a proposal awaiting sign-off. §9 lists the decisions
 that are the founder's, not this document's.
 
@@ -497,11 +501,38 @@ that turned out to be computed against the wrong denominator. It is corrected in
    does not, and a hallucinated exam date on a public page is a different class of
    error from one inside a syllabus chapter. Recommendation: **agent-drafted,
    founder-edited, and every date/number data-bound rather than written.**
-3. **URL scheme** — `/:locale/<exam>/<category>/<slug>` as proposed, or a flat
-   `/:locale/blog/<slug>`? Recommendation as in §6.2; the hubs are the point.
-4. **Cadence and stopping point.** 15 articles is a slate, not a strategy. Decide
-   now whether this is a one-time push or an ongoing program, because §5's
-   scheduled-rebuild and freshness machinery is only worth building for the latter.
+3. ~~**URL scheme**~~ — **DECIDED 2026-08-14: exam-first hubs, as proposed in
+   §6.2. BUILT.** `/:locale/uppsc` and `/:locale/upsc`, articles at
+   `/:locale/<exam>/<category>/<slug>`, with `analysis` as its own accumulating
+   category rather than folded into `resources`. The hub segment is a LITERAL
+   in the router, not `:hub` — a leading dynamic segment would match every
+   unmatched one-segment path under `/:locale`, so `/en/typo` would resolve to
+   the hub route instead of falling through to the wildcard that already 404s
+   correctly.
+4. ~~**Cadence and stopping point.**~~ **DECIDED 2026-08-14: a ONE-TIME PUSH.**
+   §5's scheduled-rebuild machinery was therefore **not built** — no
+   `schedule:`-triggered deploy workflow exists, and the repo still has no
+   Cloudflare Pages deploy hook. Two consequences to accept knowingly rather
+   than rediscover:
+   - **A data-bound page's crawler-visible snapshot refreshes only on deploy.**
+     Real visitors always see current data (React replaces the prerendered
+     markup wholesale); a non-JS crawler sees the last build.
+   - ⚑ **And it is stronger than §5 stated.** §5 framed the risk as
+     *staleness*; for FETCHED data it is *total absence* — `prerender.mjs`
+     serves `dist/` off a static server with no API behind it, so a snapshot
+     carries the loading state, never the data. Anything that must be crawlable
+     has to be static prose or a build-time constant (the `lib/content-stats.ts`
+     precedent), which is why the hubs carry their substance as prose and the
+     live exam-pattern table is for real readers.
+   The **"as of" half of §5.2 IS shipped**: the exam-pattern table renders its
+   own `effective_from_year`, its sources, and — always — `unverified_notes`,
+   and an article renders a visible "Updated <date>" line. §5.3's *generated*
+   `lastmod` was deliberately **not** built: once a page's content lives in
+   shared `messages/*.json`, "the commit that last changed this page" is
+   ambiguous, so a naive `git log -1` check would fire on every unrelated i18n
+   edit. The hub entries' hand-set dates are accurate as written; revisit if
+   this ever becomes an ongoing program.
+   **Reopening this reopens step 6, not the whole slate.**
 5. **The 2022 UPPSC Prelims GS-I key gap (§2b).** Independent of publishing: 149 of
    150 real questions are sitting unpublished, and the live `/learn` Trends view
    already shows a 7-of-8-year series. Worth deciding whether to chase a verified
