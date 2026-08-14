@@ -61,6 +61,7 @@ subscription-framed market it is inverted, and that market was not in the brief.
 | Vision IAS CSAT | ₹9,000 (25 tests) | one-time | No |
 | Institute Mains series | ₹15,000–25,000 | one-time | Human evaluation |
 | Target PCS (UPPSC Prelims) | ₹2,100 | one-time | No |
+| theIAShub **UPPCS full course** | ₹14,999 online · ₹19,999 offline | one-time | No |
 | **Neev Pro today** | **₹399/mo · ₹2,499/yr** | subscription | Yes (60/mo) |
 
 Sources: [Testbook Pass](https://www.g2.com/products/testbook-pass/reviews) ·
@@ -85,18 +86,60 @@ The defensible position is therefore **"a fraction of an institute Mains series,
 a multiple of a mass-market pass"** — and the pitch has to say which comparison
 it is making, because a user anchored on Testbook will read ₹999/month as absurd.
 
-### 2.2 The dual-exam finding
+### 2.2 The dual-exam question — my first draft cited folklore
 
-Relevant to §4: the UPSC and state-PCS syllabi overlap **60–80%**, and the
-consensus of the coaching market is that *most serious aspirants sit both*, with
-state-PCS adding only 10–15% extra preparation on top of a UPSC base.
-([sleepyclasses](https://sleepyclasses.com/upsc-and-state-pcs-preparation/),
-[riceias](https://riceias.com/difference-between-state-pcs-and-upsc-cse-complete-comparison-guide/))
+> **⚑ Correction (2026-08-14).** This section originally read: *"the UPSC and
+> state-PCS syllabi overlap **60–80%**, and the consensus of the coaching market
+> is that most serious aspirants sit both."* **Both halves were folklore, and
+> the first was the wrong quantity anyway.** A dedicated search of ~20 named
+> institutes' own pages found the 60–70% figure stated as fact by Sleepy
+> Classes, PMF IAS and BharatNotes — **none with a citation, survey or
+> methodology** — and flatly contradicted by SPM IAS Academy and Riyasat IAS,
+> which both assert **85–90%** with equal confidence and equal sourcing. At
+> least one cluster is materially wrong and nobody can adjudicate. Worse, that
+> is *syllabus* overlap, which is a **different quantity from aspirant
+> overlap** — the thing this decision actually needed.
 
-The two exams' calendars are complementary rather than competing — UPPSC Prelims
+**No measured figure for aspirant overlap exists.** Neither UPSC nor any state
+PSC publishes candidate-level identifiers that would permit the join, and a
+sweep of institute pages, the Redseer test-prep market report and PhysicsWallah's
+DRHP coverage found segmentation by **delivery channel and geography, never by
+exam**. Adda247's "4 crore+ students" and PW's "3.5 million registered" are
+undifferentiated aggregates. Treat any overlap percentage you encounter as
+unsourced until someone produces the study.
+
+**So the honest evidence for this decision is our own** (§2.3), and it points the
+opposite way from the folklore: **91% of our active users work exactly one
+exam**, and of the seven who have ever switched, **five only ever worked one** —
+switching is *changing your mind*, not *adding a second exam*.
+
+What is genuinely measured, and useful, is the funnel:
+
+| Stage | Applied | Appeared | Show-up | Source |
+|---|---:|---:|---:|---|
+| UPSC CSE **Prelims** 2021 | 10,93,984 | 5,08,619 | **46.5%** | UPSC Annual Report (primary) |
+| UPSC CSE **Prelims** 2022 | 11,35,697 | 5,73,735 | **50.5%** | UPSC Annual Report (primary) |
+| UPSC CSE **Mains** 2021 | 9,156 | 8,930 | **97.5%** | UPSC Annual Report (primary) |
+| UPSC CSE **Mains** 2022 | 13,051 | 12,775 | **97.9%** | UPSC Annual Report (primary) |
+| UPPSC PCS Prelims 2024 | 5,76,154 | 2,41,212 | 42% | Careers360 (secondary; a protest year, treat as a low outlier) |
+
+Sources: [UPSC 73rd Annual Report](https://www.upsc.gov.in/sites/default/files/73rd-AnnualReport-2022-23-Engl-220824.pdf) ·
+[74th Annual Report](https://upsc.gov.in/sites/default/files/74thAnnualReport-2023-24-Engl-230326.pdf) ·
+[Careers360](https://news.careers360.com/up-pcs-prelims-2024-conclude-42-turnout). UPSC
+publishes the gap itself, as a **"Drop-out Rate (%)"** column.
+
+**⚑ Do not read the 46% → 98% jump as "commitment produces consumption."** It is
+overwhelmingly **selection**: the Mains cohort is the ~1.5% who passed a
+1-in-50 filter, so they differ in intent and ability, not merely in sunk cost.
+And there is a datapoint pointing the other way — **the ~50% who never showed at
+Prelims had already paid the application fee.** Prepayment demonstrably does not
+guarantee consumption. This matters because the tempting inference — "Max buyers
+will behave like the 98% cohort, so price high" — is not supported.
+
+The calendars are at least complementary rather than colliding: UPPSC Prelims
 Dec 2026, UPSC Prelims May 2027, UPPSC Mains ~Mar 2027, UPSC Mains Aug 2027
-(`docs/test-series-design.md` §13). Preparing for both is a normal pattern, not
-an edge case.
+(`docs/test-series-design.md` §13). So dual preparation is *feasible*; our data
+just says almost nobody does it.
 
 **Our own numbers do not yet show this, and that is expected**, not a
 counter-argument: `upsc` went live 2026-08-11, three days before this
@@ -108,12 +151,66 @@ measurement.
 | Users who have ever switched exam | **7** |
 | Currently `plan='pro'` | 76 (almost all trial) |
 | **Subscriptions that have ever been paid** | **3** |
-| Evaluations ever recorded | 34 (0 on `upsc`) |
+| Submissions that consumed an evaluation credit, ever | **41** (0 on `upsc`) |
 
 **⚑ This is a pre-revenue pricing decision.** With three paid subscriptions
 there is no revenue data to price against, and no elasticity to measure. Every
 number in §7 is a reasoned starting point to be corrected by real conversion
 data, not a finding.
+
+### 2.3 What our users actually consume
+
+Measured read-only, 2026-08-14. This is the evidence §2.2's folklore was
+standing in for, and it is the single strongest input to the cost model.
+
+| Signal | Measured |
+|---|---|
+| Users who submitted ≥1 test | 23 of 179 |
+| …who ever reached **25 tests** (one series) | **0** |
+| Best user ever | 16 tests |
+| Started attempts that get submitted | **60%** (40% abandoned mid-test) |
+| Repeat curve, of finishers | 100% → 43% (2+) → 26% (3+) → 17% (10+) → **0% (25)** |
+| Max evaluations by a **real human**, ever | **5** |
+| Users with ≥1 evaluation | 17 (9.5%) |
+| Retention, weeks 0–4 since signup | 100% → 21% → 14% → 7% → 7% |
+| **Active on exactly one exam** | **21 of 23 (91%)** |
+| Of the 7 exam-switchers, active on both | **2** (five switched and worked only one) |
+
+Two controls, because each of these has an obvious alternative explanation:
+
+- **It is not the cap biting.** 25 of 31 user-days are a *single* evaluation and
+  the busiest day ever was 5, so the trial's 2/day ceiling is not what is
+  holding usage down. **162 of 179 users never used even their 3 free
+  evaluations.**
+- **The "10 evaluations" top user is the demo seed account**, not a person. The
+  real human maximum is 5 — against a Mains series that asks for **440**.
+
+**Three caveats that stop this being decisive.** The platform is 37 days old;
+**no series is published**, so there is literally nothing to complete; and
+almost everyone is free or trial, so paid behaviour is unmeasured. Selection
+bias runs the other way — Max buyers self-select for commitment — but §2.2's
+prepaid-no-show finding says prepayment is a much weaker filter than it feels.
+
+Cost basis independently re-confirmed here: **$0.0590/evaluation** measured over
+139 real `answer_eval_*` calls, against the $0.0584 used in §3.
+
+### 2.4 What the research could NOT establish
+
+Recorded so nobody assumes these were checked and found reassuring. A research
+pass on 2026-08-14 hit a hard session limit before returning:
+
+| Question | Status |
+|---|---|
+| Test-series completion rate (of a 25–35 test series, how many are attempted) | **NOT FOUND.** Providers have no incentive to publish attempt rates; the researcher's own read is that the aggregate does not exist publicly. |
+| SWAYAM / NPTEL / MOOC completion rates in India | **NOT RETRIEVED** — agent terminated. |
+| Mains answer-writing participation and dropoff | **NOT RETRIEVED** — agent terminated. |
+| Does paying raise completion? (paid-vs-free, sunk cost) | **NOT RETRIEVED** — the one study design that would settle §2.2's selection-vs-commitment question. |
+| Indian EdTech subscription churn / average lifetime | **NOT RETRIEVED** — agent terminated. |
+| **Aspirant** overlap between UPSC and state PCS | **DOES NOT EXIST.** No institute, regulator or filing publishes it; see §2.2. |
+
+The gap that matters most is **paid-vs-free completion**. Until it is answered,
+"Max buyers will consume more than our free cohort" is an assumption, not a
+finding — and §7.1's pricing leans on it being *modest*.
 
 ---
 
@@ -172,9 +269,14 @@ shared evaluation pool, not by exam count.**
   add a whole schema dimension that controls none of the real cost, while a
   single evaluation cap bounds it exactly — regardless of how many exams the
   user touches.
-- **It taxes the normal case.** 60–80% syllabus overlap and most serious
-  aspirants sit both (§2.2). A per-exam SKU charges twice for the behaviour the
-  market treats as standard.
+- **It would charge twice for something almost nobody does — and collect almost
+  nothing.** The first draft argued this from a "60–80% overlap, most aspirants
+  sit both" claim that turned out to be folklore (§2.2). The measured version is
+  *stronger for the same conclusion, by the opposite route*: **91% of our active
+  users work exactly one exam** (§2.3), so a second SKU would sell to almost
+  nobody while adding a schema dimension, a per-exam resolution path and a
+  support burden for every user. The revenue it could capture is close to zero;
+  the complexity is not.
 - **It would put a paywall inside a free navigation control.** The exam switcher
   (Session 10) is deliberately one shared path used from both the top bar and
   Profile, and switching is free. Per-exam Max means a user on Max/uppsc who
@@ -195,10 +297,13 @@ shared evaluation pool, not by exam count.**
 
 - **Price discrimination between exams.** Institutes charge more for UPSC than
   for state PCS, and this forecloses that without an `exam_code` column later.
-- **The worst case doubles.** A user who works through both Mains series costs
-  **₹5,345** in evaluation. This is *the* risk this decision creates, and it is
-  the reason §7's evaluation cap is not optional — it is the only thing standing
-  between an exam-agnostic Max and an unbounded liability.
+- **The worst case doubles — on paper.** A user who works through both Mains
+  series costs **₹5,345** in evaluation, and this is the one risk the decision
+  genuinely creates. **⚑ Superseded by §7.1:** the behaviour research puts that
+  user close to hypothetical (91% work one exam), so the realistic ceiling is
+  **₹2,261**. The cap still matters, but as insurance against ad-hoc abuse
+  rather than against this scenario — and §7.1 shows a *monthly* cap does not
+  bound an *annual* liability anyway.
 
 ### 4.3 Consequence for the cap
 
@@ -474,6 +579,53 @@ series at about half. Best margin and the most defensive against adverse
 selection. Risk: at 4.8× Pro it reads as a different product rather than an
 upgrade, and with three paid subscribers there is no evidence anyone will cross
 that gap.
+
+### 7.1 Revised after the behaviour research (2026-08-14)
+
+The table above prices against a "realistic annual burn" of 750 evaluations
+(₹3,854). Two findings move that, in opposite directions, and one exposes a hole
+in §4.3's cap.
+
+**1. The worst case halves.** §4.2 flagged "a user works through both Mains
+series" (₹5,345) as the risk the exam-agnostic decision creates. §2.2 and §2.3
+say that user is close to hypothetical: 91% of our active users work exactly one
+exam, and five of seven switchers only ever worked one. **The realistic ceiling
+is one exam's series — ₹2,261, not ₹5,345.** That makes exam-agnostic Max nearly
+free to offer, so §4's decision gets *stronger*, not weaker.
+
+**2. Expected cost is far below the basis I used.** Nobody on the platform has
+ever reached 25 tests or more than 5 evaluations. Against 750, plausible
+expected consumption is an order of magnitude lower. **But** §2.3's caveats bite:
+no series exists to consume, and Max buyers self-select for commitment. Do not
+bank a specific low number — bank the *direction*.
+
+**3. ⚑ A MONTHLY cap does not bound an ANNUAL subscription.** §4.3 recommended
+200 evaluations/month as the tail insurance. Over twelve months that is 2,400
+evaluations = **₹12,336 — more than every price point in the table, including
+option C.** As insurance against the annual liability, it does not bind.
+
+What actually bounds series cost is **the series' own finite size**: a UPPSC
+Mains series is 440 evaluations and there is no 441st. So the honest picture is:
+
+| Cost source | Bounded by | Worst case |
+|---|---|---|
+| Series papers | the content itself | **₹2,261** (one exam) |
+| Ad-hoc answers outside the series | the monthly cap | ₹5.14 × cap × 12 |
+
+If you want a hard annual ceiling, the cap should be an **annual allowance**
+(e.g. 600/year ≈ ₹3,084) rather than a monthly one — which also matches how a
+series is actually consumed, in a seasonal burst rather than evenly.
+
+**What this does to the recommendation.** With the series self-bounding and the
+worst case halved, **cost stops being the binding constraint** — every option
+clears it comfortably on expected consumption. That makes this a **positioning
+and conversion decision, not a unit-economics one**, which is the opposite of
+what §7's table implies. On positioning: **B (₹999/mo · ₹7,999/yr) remains the
+anchor**, but **A (₹749/mo · ₹5,999/yr) is now defensible** — its only
+disqualifier was the loss-making 3-month monthly burn, and that scenario needs a
+user consuming a full series in three months, which nothing in our data or the
+market research suggests exists. Ship A annual-only and the objection disappears
+entirely.
 
 ### ⚑ The structural recommendation matters more than the number
 
