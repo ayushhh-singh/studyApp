@@ -44,6 +44,7 @@ export function ArticleDataBlock({ marker, hub }: { marker: string; hub: Article
   const [name, arg] = splitMarker(marker);
   if (name === "exam-timeline") return <ExamTimelineBlock hub={hub} />;
   if (name === "exam-pattern") return <ExamPatternBlock hub={hub} />;
+  if (name === "marks-split") return <MarksSplitBlock hub={hub} />;
   if (name === "weightage" && arg) return <WeightageBlock papers={arg.split(",").filter(Boolean)} />;
   return null;
 }
@@ -152,6 +153,105 @@ function ExamPatternBlock({ hub }: { hub: ArticleHub }) {
     );
   }
   return <BlockShell><ExamPatternTable exam={exam} /></BlockShell>;
+}
+
+// ------------------------------------------------------------- marks split
+
+/**
+ * Where an exam's marks actually sit: what decides your rank, what only has to
+ * be cleared, and what the interview carries.
+ *
+ * ⚑ EVERY FIGURE IS DERIVED FROM `paper_structure`, NOT WRITTEN. The insight
+ * this block exists to deliver — that a large block of marks can end your
+ * candidature while contributing nothing to your rank — is exactly the kind of
+ * arithmetic that would otherwise be typed into a sentence and go stale the
+ * next time a commission restructures. `counts_for_merit` is the registry's own
+ * field; summing it here means the claim cannot drift from the pattern table
+ * two sections above it.
+ */
+function MarksSplitBlock({ hub }: { hub: ArticleHub }) {
+  const { t } = useTranslation();
+  const locale = useLocale();
+  const exams = useExams();
+
+  if (exams.isError) return <BlockShell><QueryErrorState onRetry={() => void exams.refetch()} /></BlockShell>;
+  if (isAwaitingData(exams)) return <BlockShell><Skeleton /></BlockShell>;
+
+  const exam = exams.data?.find((e) => e.exam_code === hub);
+  if (!exam) return null;
+
+  let merit = 0;
+  let qualifying = 0;
+  let interview = 0;
+  const meritPapers: { label: string; marks: number }[] = [];
+
+  for (const stage of exam.paper_structure.stages) {
+    if (stage.stage === "interview") {
+      interview += stage.marks ?? 0;
+      continue;
+    }
+    // ⚑ ONLY MERIT-BEARING STAGES. An earlier cut summed every qualifying paper
+    // in the exam and reported 800 for UPSC — folding Prelims CSAT (200) in with
+    // the two Mains language papers (600). That mixes two universes: the total
+    // this is read against is the MERIT total, which Prelims does not enter at
+    // all, so a screening-stage paper has no place in "marks you sit for that do
+    // not count toward your rank". Prelims is a separate stage with its own
+    // arithmetic, and the pattern table above already shows it.
+    if (!stage.counts_for_merit) continue;
+    for (const paper of stage.papers ?? []) {
+      const marks = paper.marks ?? 0;
+      if (paper.counts_for_merit) {
+        merit += marks;
+        meritPapers.push({ label: paper.name_i18n[locale], marks });
+      } else if (paper.minimum) {
+        // Only a paper with a real threshold is "qualifying". A paper with no
+        // minimum that does not count for merit is a screening paper — a third
+        // thing again, and the distinction the pattern table now draws too.
+        qualifying += marks;
+      }
+    }
+  }
+
+  const total = merit + interview;
+  if (total === 0) return null;
+
+  const rows = [
+    { key: "merit", value: merit, share: Math.round((merit / total) * 1000) / 10 },
+    { key: "interview", value: interview, share: Math.round((interview / total) * 1000) / 10 },
+  ];
+
+  return (
+    <BlockShell>
+      <div className="rounded-2xl border border-border bg-card p-5">
+        <h3 className="text-sm font-bold">{t("Articles.data.marksTitle")}</h3>
+        <dl className="mt-4 space-y-3">
+          {rows.map((r) => (
+            <div key={r.key} className="flex items-baseline justify-between gap-4">
+              <dt className="text-sm text-muted-foreground">{t(`Articles.data.marks_${r.key}`)}</dt>
+              <dd className="text-sm font-semibold tabular-nums">
+                {r.value} <span className="text-xs font-normal text-muted-foreground">({r.share}%)</span>
+              </dd>
+            </div>
+          ))}
+          <div className="flex items-baseline justify-between gap-4 border-t border-border pt-3">
+            <dt className="text-sm font-semibold">{t("Articles.data.marks_total")}</dt>
+            <dd className="text-sm font-bold tabular-nums">{total}</dd>
+          </div>
+          {qualifying > 0 && (
+            <div className="flex items-baseline justify-between gap-4 rounded-xl bg-marigold/10 px-3 py-2.5">
+              <dt className="text-sm font-medium text-marigold-foreground">{t("Articles.data.marks_qualifying")}</dt>
+              <dd className="text-sm font-bold tabular-nums text-marigold-foreground">{qualifying}</dd>
+            </div>
+          )}
+        </dl>
+        {meritPapers.length > 0 && (
+          <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+            {t("Articles.data.marksMeritNote", { count: meritPapers.length, marks: merit })}
+          </p>
+        )}
+      </div>
+    </BlockShell>
+  );
 }
 
 // --------------------------------------------------------------- weightage

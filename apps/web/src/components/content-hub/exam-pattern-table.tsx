@@ -110,6 +110,24 @@ function StageBlock({ stage, locale }: { stage: ExamStageBlock; locale: "en" | "
 function PaperRow({ paper, locale }: { paper: ExamPaper; locale: "en" | "hi" }) {
   const { t } = useTranslation();
 
+  /**
+   * ⚑ A PAPER THAT DOES NOT COUNT FOR MERIT IS NOT NECESSARILY "QUALIFYING",
+   * and the old badge said it was. It keyed off `!counts_for_merit` alone, so
+   * UPSC's Prelims General Studies paper — the SCREENING paper, whose score is
+   * exactly what decides who advances, and the most competitive thing at that
+   * stage — was labelled "Qualifying only". That is the precise misconception
+   * the exam-structure article sets out to correct, sitting two sections above
+   * the table contradicting it.
+   *
+   * The registry already distinguishes them: a screening paper carries no
+   * `minimum`, a qualifying one carries a `minimum.role`. Read that instead.
+   */
+  const badge = !paper.counts_for_merit
+    ? paper.minimum
+      ? t("Articles.hub.qualifyingOnly")
+      : t("Articles.hub.screeningOnly")
+    : null;
+
   const stats: { label: string; value: string }[] = [
     { label: t("Articles.hub.colMarks"), value: String(paper.marks) },
     {
@@ -133,12 +151,43 @@ function PaperRow({ paper, locale }: { paper: ExamPaper; locale: "en" | "hi" }) 
           <span className="text-xs font-semibold text-muted-foreground">{paper.official_label}</span>
         )}
         <h4 className="text-sm font-semibold">{paper.name_i18n[locale]}</h4>
-        {!paper.counts_for_merit && (
+        {badge && (
           <span className="rounded-full border border-marigold-foreground/25 px-2 py-0.5 text-[11px] font-semibold text-marigold-foreground">
-            {t("Articles.hub.qualifyingOnly")}
+            {badge}
           </span>
         )}
       </div>
+
+      {/* ⚑ THE THRESHOLD, AND WHAT FAILING IT COSTS. `minimum.role` is the field
+          migration 0106 added precisely because "qualifying" describes three
+          arrangements that behave completely differently, and every competitor
+          table flattens them to one word. Rendering the role rather than the
+          bare percentage is the whole value: a stage gate ends this attempt, an
+          evaluation gate means your OTHER papers are never even marked, and a
+          merit floor is different again. This block was missing entirely — the
+          seeded thresholds were invisible on both hub pages. */}
+      {paper.minimum && (
+        <p className="mt-2 text-xs leading-relaxed text-marigold-foreground">
+          {/* ⚑ `pct` IS NULLABLE AND BEING NULL IS NORMAL, not an error — every
+              MPPSC paper carries its thresholds in `pct_by_category` instead,
+              and UPPSC's General Hindi records a merit floor whose percentage
+              is not in the notification at all. Interpolating it unguarded
+              rendered the literal sentence "Must score at least % ..." on the
+              live UPPSC hub. Say the role without a number instead. */}
+          {paper.minimum.pct !== null
+            ? t(`Articles.hub.minimumRole_${paper.minimum.role}`, { pct: paper.minimum.pct })
+            : t(`Articles.hub.minimumRoleNoPct_${paper.minimum.role}`)}
+        </p>
+      )}
+      {/* Per-category thresholds where a commission sets them (MPPSC's 40/30).
+          A single number would be wrong for most candidates reading it. */}
+      {paper.minimum?.pct_by_category && (
+        <p className="mt-1 text-xs text-muted-foreground">
+          {Object.entries(paper.minimum.pct_by_category)
+            .map(([cat, pct]) => `${cat}: ${pct}%`)
+            .join(" · ")}
+        </p>
+      )}
 
       <dl className="mt-3 grid grid-cols-3 gap-3">
         {stats.map((s) => (
