@@ -38,3 +38,4 @@ export * from "./on-demand";
 export * from "./auth";
 export * from "./exams";
 export * from "./search";
+export * from "./test-series";

@@ -19,6 +19,7 @@ import { badRequest, conflict, HttpError, notFound } from "../lib/http-error.js"
 import { logger } from "../lib/logger.js";
 import { questionVisibilityOrFilter } from "../lib/question-visibility.js";
 import { getUserExam } from "../lib/exams.js";
+import { assertSeriesAttemptAllowed } from "./test-series.js";
 import { DEFAULT_MCQ_MARKS } from "../lib/marks.js";
 import { assertMockTests } from "./entitlements.js";
 import { recordDailyQuizResult } from "./scoreboard.js";
@@ -208,6 +209,15 @@ export async function startAttempt(
       .maybeSingle();
     if (examCheckError) throw new HttpError(500, `test lookup failed: ${examCheckError.message}`);
     if (!examCheck || examCheck.exam_code !== examCode) throw notFound("Test not found");
+
+    // Scheduled-series window + access gate. A no-op for every standalone test.
+    //
+    // BEFORE the resume short-circuit on purpose, matching the exam check just
+    // above and for the same reason: `findActiveAttempt` matches only on
+    // (user_id, test_id) and knows nothing about a series, so an attempt started
+    // while a paper was open would otherwise keep resuming after the series was
+    // unpublished or the user's exam changed underneath it.
+    await assertSeriesAttemptAllowed(userId, body.test_id);
 
     const active = await findActiveAttempt(userId, body.test_id);
     if (active) return toAttempt(active);

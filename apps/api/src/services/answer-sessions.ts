@@ -13,6 +13,7 @@ import { supabase } from "../lib/supabase.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { getTestDetail } from "./tests.js";
 import { isPrelimsPaperCode } from "../lib/exams.js";
+import { assertSeriesAttemptAllowed } from "./test-series.js";
 
 interface SessionRow {
   id: string;
@@ -83,6 +84,12 @@ export async function startAnswerSession(userId: string, testId: string): Promis
   if (await isPrelimsPaperCode(test.paper_code)) {
     throw badRequest("This test is an MCQ test, not an answer-writing test");
   }
+
+  // Same series window + access gate as startAttempt. Every series shipped today
+  // is Prelims and so never reaches this path — it is gated anyway, because
+  // leaving the descriptive sibling open is how a future Mains series would
+  // silently ship with no window at all.
+  await assertSeriesAttemptAllowed(userId, testId);
 
   const { data, error } = await supabase()
     .from("answer_test_sessions")
