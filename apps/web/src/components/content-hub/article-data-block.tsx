@@ -7,6 +7,7 @@ import { useExamCalendar, usePaperWeightage } from "@/hooks/use-content-hub";
 import { isAwaitingData } from "@/lib/query-state";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { ExamPatternTable } from "@/components/content-hub/exam-pattern-table";
+import { booksForExam } from "@/lib/booklist";
 import type { ArticleHub } from "@/lib/articles";
 
 /**
@@ -46,6 +47,7 @@ export function ArticleDataBlock({ marker, hub }: { marker: string; hub: Article
   if (name === "exam-pattern") return <ExamPatternBlock hub={hub} />;
   if (name === "marks-split") return <MarksSplitBlock hub={hub} />;
   if (name === "weightage" && arg) return <WeightageBlock papers={arg.split(",").filter(Boolean)} />;
+  if (name === "booklist") return <BooklistBlock exam={hub} />;
   if (name === "reform-split" && arg) {
     const [year, papers] = splitMarker(arg);
     const pivot = Number(year);
@@ -333,6 +335,63 @@ function WeightageTable({ paper, locale }: { paper: PaperWeightage; locale: "hi"
         </tbody>
       </table>
     </div>
+  );
+}
+
+// ---------------------------------------------------------------- booklist
+
+/**
+ * The reference books for this exam — REVIEW ONLY, publisher page only (§7).
+ *
+ * ⚑ THE ONLY LINK A BOOK GETS IS ITS PUBLISHER'S OWN PRODUCT PAGE, and that is
+ * enforced by the data rather than by care here: no type in `lib/booklist.ts`
+ * carries a download field, so there is nothing else this component could
+ * render even if someone wanted it to. Every title is in copyright and every
+ * "free PDF" site an aspirant finds is distributing a pirated copy of one of
+ * exactly these.
+ *
+ * Not fetched — this is verified reference data with no API behind it, so
+ * unlike every other block on this page it DOES survive prerendering and a
+ * crawler sees the whole list.
+ */
+function BooklistBlock({ exam }: { exam: ArticleHub }) {
+  const { t } = useTranslation();
+  const books = booksForExam(exam);
+  if (books.length === 0) return null;
+
+  return (
+    <BlockShell>
+      <div className="space-y-3">
+        {books.map((book) => (
+          <div key={book.isbn} className="rounded-2xl border border-border bg-card p-4">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+                {t(`Booklist.subject.${book.subjectKey}`)}
+              </span>
+            </div>
+            <h3 className="mt-1.5 text-base font-bold tracking-tight">{book.title}</h3>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              {book.author ? `${book.author} · ` : ""}
+              {book.publisher}
+            </p>
+            <p className="mt-2 text-sm leading-relaxed">{t(`Booklist.note.${book.noteKey}`)}</p>
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+              <span>ISBN {book.isbn}</span>
+              {book.priceInr !== null && <span>{t("Booklist.mrp", { price: book.priceInr })}</span>}
+              <a
+                href={book.publisherUrl}
+                target="_blank"
+                rel="noopener noreferrer nofollow"
+                className="font-semibold text-primary underline-offset-4 hover:underline"
+              >
+                {t("Booklist.publisherPage")}
+              </a>
+            </div>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{t("Booklist.verifiedNote")}</p>
+    </BlockShell>
   );
 }
 

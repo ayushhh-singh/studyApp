@@ -433,5 +433,41 @@
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
+  <url>
+    <loc>https://neevstudy.com/en/uppsc/books/uppsc-pcs-booklist-prelims-and-mains</loc>
+    <lastmod>2026-08-14</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/uppsc/books/uppsc-pcs-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/uppsc/books/uppsc-pcs-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/uppsc/books/uppsc-pcs-booklist-prelims-and-mains" />
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/uppsc/books/uppsc-pcs-booklist-prelims-and-mains</loc>
+    <lastmod>2026-08-14</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/uppsc/books/uppsc-pcs-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/uppsc/books/uppsc-pcs-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/uppsc/books/uppsc-pcs-booklist-prelims-and-mains" />
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/en/upsc/books/upsc-cse-booklist-prelims-and-mains</loc>
+    <lastmod>2026-08-14</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/upsc/books/upsc-cse-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/upsc/books/upsc-cse-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/upsc/books/upsc-cse-booklist-prelims-and-mains" />
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://neevstudy.com/hi/upsc/books/upsc-cse-booklist-prelims-and-mains</loc>
+    <lastmod>2026-08-14</lastmod>
+    <xhtml:link rel="alternate" hreflang="en" href="https://neevstudy.com/en/upsc/books/upsc-cse-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="hi" href="https://neevstudy.com/hi/upsc/books/upsc-cse-booklist-prelims-and-mains" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://neevstudy.com/en/upsc/books/upsc-cse-booklist-prelims-and-mains" />
+    <changefreq>weekly</changefreq>
+    <priority>0.7</priority>
+  </url>
 </urlset>
 

@@ -192,8 +192,8 @@ export const ARTICLES: ArticleDef[] = [
   { slug: "uppsc-pcs-exam-date-timeline-and-exam-pattern", hub: "uppsc", category: "exam-updates", i18nKey: "uppscExamDate", status: "published", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 1, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
   { slug: "upsc-cse-exam-date-timeline-and-structure", hub: "upsc", category: "exam-updates", i18nKey: "upscExamDate", status: "published", dataBinding: ["exam_calendar", "exam_registry"], slateRef: 2, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
   { slug: "uppsc-mains-2023-restructure-what-gs-v-and-gs-vi-ask", hub: "uppsc", category: "exam-updates", i18nKey: "uppscMainsRestructure", status: "published", dataBinding: ["node_weightage", "exam_registry"], slateRef: 5, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
-  { slug: "uppsc-pcs-booklist-2027-prelims-and-mains", hub: "uppsc", category: "books", i18nKey: "uppscBooklist2027", status: "planned", dataBinding: [], slateRef: 3 },
-  { slug: "upsc-cse-booklist-2027-prelims-and-mains", hub: "upsc", category: "books", i18nKey: "upscBooklist2027", status: "planned", dataBinding: [], slateRef: 4 },
+  { slug: "uppsc-pcs-booklist-prelims-and-mains", hub: "uppsc", category: "books", i18nKey: "uppscBooklist", status: "published", dataBinding: [], slateRef: 3, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
+  { slug: "upsc-cse-booklist-prelims-and-mains", hub: "upsc", category: "books", i18nKey: "upscBooklist", status: "published", dataBinding: [], slateRef: 4, publishedAt: "2026-08-14", updatedAt: "2026-08-14" },
 
   // --- Tier 2: the data moat (§2c). Nobody else holds the questions. --------
   { slug: "what-uppsc-prelims-actually-tests-by-the-numbers", hub: "uppsc", category: "analysis", i18nKey: "uppscPrelimsWeightage", status: "planned", dataBinding: ["node_weightage"], slateRef: 6 },
