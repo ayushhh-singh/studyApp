@@ -242,6 +242,50 @@
   line-height: 1.45;
 }
 
+/* ⚑ B8 (docs/OUTSTANDING.md §2) — the Devanagari line-height floor, restored.
+   THIS REFLOWS EVERY SCREEN IN HINDI. It is a deliberate typography change,
+   verified by measurement, not a drive-by.
+
+   THE DEFECT. The `body` rule above sets 1.75, but Tailwind's `text-xs` and
+   `text-sm` each ship their OWN line-height in the same utilities layer and
+   win — so any Devanagari that uses a size utility AND wraps rendered at
+   1.33-1.43, app-wide. Devanagari needs the room: matras sit above AND below
+   the baseline, so a Latin-calibrated leading collides them.
+
+   MEASURED before shipping, on the production build, across 10 no-API pages x
+   {390, 1440} — counting real line boxes via Range.getClientRects(), because
+   dividing height by line-height reports false positives for any padded or
+   `min-h-` box: 390 of 402 wrapped Devanagari nodes were below the floor.
+   (OUTSTANDING recorded "3 confirmed instances on /pricing"; that audit had
+   only looked at /pricing. The defect is far more systemic than that number.)
+
+   WHY `leading-relaxed` IS NOT EXEMPT, and it is the load-bearing decision
+   here. It is 1.625 and by far the most-used leading in this codebase (96
+   call sites) — but 1.625 is BELOW the design system's own 1.75 Devanagari
+   floor. It was chosen for Latin prose, where it reads as roomy; in Hindi it
+   is a violation. Raising it is correcting a Latin-calibrated value, not
+   overriding an authorial intent about Devanagari.
+
+   WHAT IS EXEMPT, and why each one:
+     - h1-h6, so the deliberate 1.45 heading rule directly above still wins for
+       a heading that also carries a size utility.
+     - leading-none / tight / snug / 4 — deliberately tight, and structural:
+       these sit on numerals, badges and chips where 1.75 would blow out a
+       fixed-height box rather than improve anything.
+     - any arbitrary `leading-[...]` — every one in this codebase is already
+       at or above the floor (1.75, 1.9, 1.95) and was set on purpose.
+
+   The exclusions are wrapped in `:not(:where(...))` so they contribute ZERO
+   specificity: the rule stays at (0,3,0), enough to beat `.text-sm` and
+   `.leading-relaxed` (both single classes) without escalating into a value
+   that later, more specific work cannot override. */
+:root[data-locale="hi"]
+  :is(.text-xs, .text-sm):not(
+    :where(h1, h2, h3, h4, h5, h6, .leading-none, .leading-tight, .leading-snug, .leading-4, [class*="leading-["])
+  ) {
+  line-height: 1.75;
+}
+
 /* Opt-in heading face for text that is a heading in role but not in tag
    (card titles rendered as <p>/<span>, marketing eyebrow lines). */
 .font-heading {
