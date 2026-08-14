@@ -13,6 +13,7 @@ import { TestCard } from "@/components/practice/test-card";
 import { useDailyQuizArchive, useEnsureTodayQuiz } from "@/hooks/use-daily";
 import { useLocale } from "@/hooks/use-locale";
 import { usePaperCatalog } from "@/hooks/use-paper-catalog";
+import { cn } from "@/lib/utils";
 
 const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
 
@@ -232,7 +233,16 @@ function GenerateTodayCta({ bare = false }: { bare?: boolean }) {
   const button = (
     <div className="flex flex-col items-center gap-1.5">
       <Button type="button" onClick={() => ensureToday.mutate()} disabled={ensureToday.isPending}>
-        {ensureToday.isPending && <Loader2 className="size-4 animate-spin" aria-hidden />}
+        {/* Always mounted (see exam-switch-dialog.tsx) so the button's
+            `has-[>svg]:px-*` size variant never toggles mid-request —
+            conditionally mounting this animated the button's own
+            padding/width via `transition-all` at the exact moment `disabled`
+            engaged, which a real captured frame showed as doubled/ghosted
+            text. Only opacity/animation change now. */}
+        <Loader2
+          className={cn("size-4", ensureToday.isPending ? "animate-spin opacity-100" : "opacity-0")}
+          aria-hidden
+        />
         {ensureToday.isPending ? t("Practice.dailyGenerating") : t("Practice.dailyGenerateButton")}
       </Button>
       {ensureToday.isError && <p className="text-xs text-destructive">{t("Practice.dailyGenerateError")}</p>}

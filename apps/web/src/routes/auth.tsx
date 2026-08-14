@@ -458,7 +458,14 @@ export function Component() {
                 />
               </label>
               <Button type="submit" size="lg" className="h-11 w-full text-base" disabled={busy || otp.length < 6}>
-                {busy ? <Loader2 className="size-5 animate-spin" /> : null}
+                {/* Always mounted (see exam-switch-dialog.tsx) so the
+                    button's `has-[>svg]:px-*` size variant never toggles
+                    mid-submit — conditionally mounting this animated the
+                    button's own padding via `transition-all` at the exact
+                    moment `disabled` engaged, which a real captured frame
+                    showed as doubled/ghosted text elsewhere in this app.
+                    Only opacity/animation change now. */}
+                <Loader2 className={cn("size-5", busy ? "animate-spin opacity-100" : "opacity-0")} aria-hidden />
                 {t("Auth.otpVerify")}
               </Button>
               <button

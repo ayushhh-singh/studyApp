@@ -6,6 +6,7 @@ import { useAuth } from "@/providers/auth-provider";
 import { SectionCard } from "@/components/ui-x/section-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 /** Change-password control — new password twice + the shared min-strength check. */
 export function ChangePasswordCard() {
@@ -114,7 +115,13 @@ export function ChangePasswordCard() {
             </label>
             <div className="flex flex-wrap gap-2">
               <Button type="submit" size="sm" disabled={busy || !password || !confirm} className="gap-2">
-                {busy && <Loader2 className="size-4 animate-spin" />}
+                {/* Always mounted (see exam-switch-dialog.tsx) so the button's
+                    `has-[>svg]:px-*` size variant never toggles mid-submit —
+                    conditionally mounting this animated the button's own
+                    padding/width via `transition-all` at the exact moment
+                    `disabled` engaged, which a real captured frame showed as
+                    doubled/ghosted text. Only opacity/animation change now. */}
+                <Loader2 className={cn("size-4", busy ? "animate-spin opacity-100" : "opacity-0")} aria-hidden />
                 {t("Profile.changePasswordSubmit")}
               </Button>
               <Button type="button" variant="ghost" size="sm" onClick={reset} disabled={busy}>
