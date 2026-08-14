@@ -251,7 +251,28 @@ if (!hubs?.length || !categories?.length || !publicSources || articles.length ==
   process.exit(1);
 }
 if (articles.some((a) => !a.slug || !a.hub || !a.category || !a.status)) {
-  console.error("  ✗ src/lib/articles.ts: an article entry is missing slug/hub/category/status, or is split across lines.");
+  console.error("  ✗ src/lib/articles.ts: an article entry is missing slug/hub/category/status.");
+  process.exit(1);
+}
+/**
+ * ⚑ CROSS-CHECK THE COUNT, because the line-based parse above FAILS SILENTLY.
+ * An entry reformatted across several lines (a formatter run, or someone
+ * hand-wrapping a long one) matches no single line carrying both markers, so it
+ * is simply absent from `articles` — and every check below would then pass
+ * while quietly covering fewer articles than the registry declares. That is the
+ * exact failure this guard exists to prevent, so it must not be how the guard
+ * itself behaves.
+ *
+ * `slateRef: <digits>` counts real entries and not the interface's own
+ * `slateRef: number;` declaration, which carries the word rather than a number.
+ */
+const declaredArticles = (articlesSrc.match(/slateRef: \d+/g) ?? []).length;
+if (articles.length !== declaredArticles) {
+  console.error(
+    `  ✗ src/lib/articles.ts declares ${declaredArticles} articles but only ${articles.length} could be parsed — ` +
+      `an entry is split across lines. This parser needs ONE LINE PER ENTRY; re-join it, or teach the parser to ` +
+      `read multi-line entries. Leaving it would silently check fewer articles than exist.`,
+  );
   process.exit(1);
 }
 
