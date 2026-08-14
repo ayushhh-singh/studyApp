@@ -89,6 +89,13 @@ const DEFAULT_MCQ_MARKS = 2;
 /** A minimum from every populated bucket, so a rarely-asked topic still appears. */
 const MIN_PER_SECTION = 1;
 
+/**
+ * How far ahead a paper is assembled. Six weeks is comfortably past the longest
+ * open window in either calendar (14 days) while still leaving each paper drawn
+ * from a bank that is months fresher than the day the calendar was published.
+ */
+const DEFAULT_BUILD_WINDOW_DAYS = 42;
+
 // ---------------------------------------------------------------------------
 // Syllabus axis
 // ---------------------------------------------------------------------------
@@ -220,6 +227,7 @@ async function fetchPool(opts: {
   paperCode: string;
   nodeIds: string[];
   source: "pyq" | "ca" | "qgen";
+  questionType: "mcq" | "descriptive";
   axis: Axis;
   caWindow?: [string, string];
   /** CA slice only: restrict to these question ids (state_special entries). */
@@ -237,7 +245,7 @@ async function fetchPool(opts: {
       let q = supabase()
         .from("questions")
         .select("id, marks, syllabus_node_id")
-        .eq("type", "mcq")
+        .eq("type", opts.questionType)
         // The paper is titled to ONE commission's pattern, so it may contain
         // only that commission's questions. Other exams (UPSSSC PET, UP RO/ARO)
         // deliberately share UPPSC's paper codes for weightage analytics.
@@ -257,11 +265,11 @@ async function fetchPool(opts: {
                .lte("created_at", `${opts.caWindow[1]}T23:59:59+05:30`);
         }
       } else {
-        q = q
-          .eq("paper_code", opts.paperCode)
-          .eq("source", opts.source === "pyq" ? "pyq" : "generated")
-          // Some PYQs carry a real paper_code but are out-of-syllabus filler.
-          .eq("out_of_syllabus", false);
+        q = q.eq("paper_code", opts.paperCode).eq("source", opts.source === "pyq" ? "pyq" : "generated");
+        // Some PYQs carry a real paper_code but are out-of-syllabus filler. Only
+        // meaningful for MCQs — the flag is not set on descriptive rows, and
+        // `mocks.ts`'s own descriptive pool does not filter on it either.
+        if (opts.questionType === "mcq") q = q.eq("out_of_syllabus", false);
       }
       return q;
     });
@@ -366,17 +374,18 @@ async function assembleEntry(
   }
 
   const [pyq, ca, qgen] = await Promise.all([
-    fetchPool({ examCode: cal.exam_code, paperCode: entry.paper_code, nodeIds: axis.nodeIds, source: "pyq", axis }),
+    fetchPool({ examCode: cal.exam_code, paperCode: entry.paper_code, nodeIds: axis.nodeIds, source: "pyq", questionType: entry.question_type, axis }),
     fetchPool({
       examCode: cal.exam_code,
       paperCode: entry.paper_code,
       nodeIds: axis.nodeIds,
       source: "ca",
+      questionType: entry.question_type,
       axis,
       ...(entry.ca_window ? { caWindow: entry.ca_window } : {}),
       ...(stateOnly ? { restrictTo: stateOnly } : {}),
     }),
-    fetchPool({ examCode: cal.exam_code, paperCode: entry.paper_code, nodeIds: axis.nodeIds, source: "qgen", axis }),
+    fetchPool({ examCode: cal.exam_code, paperCode: entry.paper_code, nodeIds: axis.nodeIds, source: "qgen", questionType: entry.question_type, axis }),
   ]);
 
   const requested = sliceTargets(count, entry.composition);
@@ -618,7 +627,12 @@ async function upsertEntryTest(
   return testId;
 }
 
-async function upsertSeriesEntry(seriesId: string, cal: SeriesCalendar, entry: SeriesEntrySpec, testId: string) {
+async function upsertSeriesEntry(
+  seriesId: string,
+  cal: SeriesCalendar,
+  entry: SeriesEntrySpec,
+  testId: string | null,
+) {
   const opensAt = istToUtc(entry.opens_on, cal.opens_time_ist);
   const closesAt = windowClose(entry.opens_on, entry.open_days);
   const { error } = await supabase()
@@ -626,7 +640,12 @@ async function upsertSeriesEntry(seriesId: string, cal: SeriesCalendar, entry: S
     .upsert(
       {
         series_id: seriesId,
-        test_id: testId,
+        // Omitted entirely when the paper is not assembled yet, rather than set
+        // to null: PostgREST's on-conflict UPDATE only touches the columns it is
+        // given, so omitting it PRESERVES an already-built paper on a re-run of
+        // the calendar. Passing an explicit null here would wipe the paper off
+        // every previously-built entry the moment someone re-ran the schedule.
+        ...(testId ? { test_id: testId } : {}),
         sequence_no: entry.sequence_no,
         entry_kind: entry.entry_kind,
         opens_at: opensAt.toISOString(),
@@ -659,7 +678,33 @@ export interface SeriesBuildResult {
  * `dryRun` assembles and reports without writing a single row — the mode to use
  * when checking whether a calendar's pools can actually fill it.
  */
-export async function buildSeries(slug: string, opts: { dryRun?: boolean } = {}, log: Log = () => {}): Promise<SeriesBuildResult> {
+/**
+ * ⚑ JUST-IN-TIME ASSEMBLY IS THE DEFAULT, AND IT IS WHY THE FULL TEST COUNT IS
+ * AFFORDABLE.
+ *
+ * The whole calendar is published immediately — every entry row, with its dates,
+ * syllabus note and sources — because that IS the product a student buys months
+ * ahead. But a PAPER is only assembled once its open date is within
+ * `windowDays`, because the question bank is a FLOW: `ca:run` publishes ~90-100
+ * items/day and `qgen:topup` plans hundreds of shortfall nodes a night, all of
+ * it landing in the same pools these papers draw from.
+ *
+ * Assembling test 25 today would freeze it against today's bank. Assembling it
+ * the week it opens draws on months of accumulated supply — which is exactly
+ * what makes a 25- or 35-test series feasible when today's generated pool is 17
+ * questions on PRE_GS1 and 0 on UPSC_PRE_GS1. Supply at BUILD time stops being
+ * the constraint.
+ *
+ * Re-running is therefore the intended operating mode, not an exception: put it
+ * on a schedule and each paper materialises on time. A re-run never rebuilds an
+ * already-assembled paper (see `skipBuilt`), so a student's paper cannot change
+ * under them once it exists.
+ */
+export async function buildSeries(
+  slug: string,
+  opts: { dryRun?: boolean; windowDays?: number; all?: boolean; rebuild?: boolean } = {},
+  log: Log = () => {},
+): Promise<SeriesBuildResult> {
   const cal = loadCalendar(slug);
   const weightage = await loadNodeWeightage();
   const year = currentExamYear();
@@ -669,9 +714,47 @@ export async function buildSeries(slug: string, opts: { dryRun?: boolean } = {},
   log(`${cal.slug} — ${cal.exam_code}/${cal.stage}, ${entries.length} entries${opts.dryRun ? " [dry run]" : ""}`);
 
   const seriesId = opts.dryRun ? null : await upsertSeries(cal);
+
+  // Which papers already exist, so a re-run never rebuilds one a student may
+  // already have sat. `--rebuild` overrides, for a calendar whose composition
+  // or targets genuinely changed.
+  const alreadyBuilt = new Set<number>();
+  if (seriesId && !opts.rebuild) {
+    const { data, error } = await supabase()
+      .from("test_series_entries")
+      .select("sequence_no, test_id")
+      .eq("series_id", seriesId)
+      .not("test_id", "is", null);
+    if (error) throw new HttpError(500, `existing entry lookup failed: ${error.message}`);
+    for (const r of (data ?? []) as { sequence_no: number }[]) alreadyBuilt.add(r.sequence_no);
+  }
+
+  const windowDays = opts.windowDays ?? DEFAULT_BUILD_WINDOW_DAYS;
+  const horizon = Date.now() + windowDays * 24 * 60 * 60 * 1000;
   const results: EntryBuildResult[] = [];
+  let scheduledOnly = 0;
+  let skipped = 0;
 
   for (const entry of entries) {
+    const opensAt = istToUtc(entry.opens_on, cal.opens_time_ist).getTime();
+    const dueNow = opts.all || opensAt <= horizon;
+
+    // The calendar row is written for EVERY entry regardless — that is the
+    // published schedule, and it must be complete from day one.
+    if (!opts.dryRun && seriesId && !dueNow) {
+      await upsertSeriesEntry(seriesId, cal, entry, null);
+      scheduledOnly += 1;
+      continue;
+    }
+    if (!dueNow) {
+      scheduledOnly += 1;
+      continue;
+    }
+    if (alreadyBuilt.has(entry.sequence_no)) {
+      skipped += 1;
+      continue;
+    }
+
     const { items, result } = await assembleEntry(cal, entry, { weightage, year, used }, log);
     let testId = "(dry-run)";
     if (!opts.dryRun && seriesId) {
@@ -687,6 +770,14 @@ export async function buildSeries(slug: string, opts: { dryRun?: boolean } = {},
         `deviation ${result.deviation_pct}pp, reused ${result.reused_from_earlier_entries}`,
     );
   }
+
+  if (scheduledOnly > 0) {
+    log(
+      `  ${scheduledOnly} entr${scheduledOnly === 1 ? "y is" : "ies are"} on the calendar but open more than ` +
+        `${windowDays} days out — scheduled, not assembled. Re-run closer to the date (or --all).`,
+    );
+  }
+  if (skipped > 0) log(`  ${skipped} paper(s) already assembled — left untouched (use --rebuild to replace).`);
 
   return { slug: cal.slug, exam_code: cal.exam_code, series_id: seriesId, entries: results };
 }

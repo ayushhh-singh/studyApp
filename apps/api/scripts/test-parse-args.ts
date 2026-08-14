@@ -624,8 +624,15 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     // --dry-run form is the one an operator uses to check a calendar's pools
     // before a real build writes `tests` rows to the production project.
     script: "series:build",
-    spec: { value: ["slug"], boolean: ["dry-run"] },
-    documented: [[], ["--slug", "uppsc-prelims-2026"], ["--slug", "upsc-prelims-2027", "--dry-run"]],
+    spec: { value: ["slug"], positiveInt: ["window"], boolean: ["dry-run", "all", "rebuild"] },
+    documented: [
+      [],
+      ["--slug", "uppsc-prelims-2026"],
+      ["--slug", "upsc-prelims-2027", "--dry-run"],
+      // The scheduled operating mode: assemble only what opens soon.
+      ["--slug", "uppsc-prelims-2026", "--window", "42"],
+      ["--slug", "uppsc-mains-2027", "--all", "--rebuild"],
+    ],
   },
 ];
 

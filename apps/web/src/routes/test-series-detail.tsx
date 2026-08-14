@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { Link, useParams } from "react-router";
 import { useTranslation } from "react-i18next";
-import { BookOpen, CalendarDays, CheckCircle2, Clock, Lock, PlayCircle } from "lucide-react";
+import { BookOpen, CalendarClock, CalendarDays, CheckCircle2, Clock, Lock, PlayCircle } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { TestSeriesEntry } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -112,6 +112,7 @@ export function Component() {
  * 2.5:1 and `text-marigold` 1.6:1, so the `-foreground` partner is mandatory.
  */
 const STATE_STYLES: Record<TestSeriesEntry["state"], { cls: string; icon: LucideIcon; key: string }> = {
+  scheduled: { cls: "bg-muted text-muted-foreground", icon: CalendarClock, key: "TestSeries.stateScheduled" },
   locked: { cls: "bg-muted text-muted-foreground", icon: Lock, key: "TestSeries.stateLocked" },
   open: { cls: "bg-primary/15 text-primary", icon: PlayCircle, key: "TestSeries.stateOpen" },
   in_progress: { cls: "bg-marigold/15 text-marigold-foreground", icon: Clock, key: "TestSeries.stateInProgress" },
@@ -152,7 +153,9 @@ function EntryRow({ entry, locale }: { entry: TestSeriesEntry; locale: "en" | "h
         <span className="bg-muted text-muted-foreground font-display flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm">
           {entry.sequence_no}
         </span>
-        <h3 className="min-w-0 flex-1 text-base font-semibold">{entry.title_i18n[locale]}</h3>
+        <h3 className="min-w-0 flex-1 text-base font-semibold">
+          {entry.title_i18n ? entry.title_i18n[locale] : t("TestSeries.paperNumber", { n: entry.sequence_no })}
+        </h3>
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -164,9 +167,11 @@ function EntryRow({ entry, locale }: { entry: TestSeriesEntry; locale: "en" | "h
           <CalendarDays className="h-3.5 w-3.5" aria-hidden />
           {opensLabel}
         </Pill>
-        <Pill className="bg-muted text-muted-foreground">
-          {t("TestSeries.questionCount", { count: entry.question_count })}
-        </Pill>
+        {entry.question_count > 0 ? (
+          <Pill className="bg-muted text-muted-foreground">
+            {t("TestSeries.questionCount", { count: entry.question_count })}
+          </Pill>
+        ) : null}
         {entry.duration_minutes ? (
           <Pill className="bg-muted text-muted-foreground">
             {t("TestSeries.minutes", { count: entry.duration_minutes })}
@@ -194,7 +199,12 @@ function EntryRow({ entry, locale }: { entry: TestSeriesEntry; locale: "en" | "h
       ) : null}
 
       <div className="mt-4">
-        {entry.state === "locked" ? (
+        {entry.state === "scheduled" ? (
+          // Honest about WHY there is no button: the calendar is published
+          // months ahead, the paper is assembled shortly before it opens so it
+          // is drawn from the freshest bank.
+          <p className="text-muted-foreground text-sm">{t("TestSeries.scheduledExplainer", { date: opensLabel })}</p>
+        ) : entry.state === "locked" ? (
           // A locked row states WHEN rather than offering a dead button. The
           // server returns 423 for the same case, so the two agree.
           <p className="text-muted-foreground text-sm">{t("TestSeries.opensOn", { date: opensLabel })}</p>
@@ -202,13 +212,13 @@ function EntryRow({ entry, locale }: { entry: TestSeriesEntry; locale: "en" | "h
           <Button asChild variant="outline" className="min-h-11">
             <Link to={`/${locale}/practice/attempt/${entry.attempt_id}/result`}>{t("TestSeries.viewResult")}</Link>
           </Button>
-        ) : (
+        ) : entry.test_id ? (
           <Button asChild className="min-h-11">
             <Link to={`/${locale}/practice/test/${entry.test_id}`}>
               {entry.state === "in_progress" ? t("TestSeries.resume") : t("TestSeries.start")}
             </Link>
           </Button>
-        )}
+        ) : null}
       </div>
     </div>
   );

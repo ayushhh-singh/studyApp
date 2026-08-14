@@ -27,7 +27,8 @@
     "community": "Community",
     "scoreboard": "Scoreboard",
     "myNotes": "My Notes",
-    "explore": "Explore"
+    "explore": "Explore",
+    "testSeries": "Test Series"
   },
   "TopBar": {
     "search": "Search",
@@ -2353,6 +2354,9 @@
     "testNOfM": "Test {{n}} of {{m}}",
     "rankedWithRank": "Ranked {{rank}} of {{cohort}} in this test's cohort.",
     "rankedNoRank": "This attempt counts for the rank.",
-    "unrankedExplainer": "You sat this after its ranked window closed, so it counts as practice and not towards the rank. Your score and analysis are unaffected. {{cohort}} attempt(s) are on this test's board."
+    "unrankedExplainer": "You sat this after its ranked window closed, so it counts as practice and not towards the rank. Your score and analysis are unaffected. {{cohort}} attempt(s) are on this test's board.",
+    "stateScheduled": "Scheduled",
+    "paperNumber": "Paper {{n}}",
+    "scheduledExplainer": "Opens {{date}}. This paper is assembled shortly before it opens, so it is drawn from the freshest question bank."
   }
 }

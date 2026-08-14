@@ -1,0 +1,738 @@
+{
+  "slug": "upsc-mains-2027",
+  "exam_code": "upsc",
+  "stage": "mains",
+  "paper_scope": null,
+  "target_exam_year": 2027,
+  "opens_time_ist": "09:00",
+  "title_i18n": {
+    "en": "UPSC Mains 2027 — Test Series",
+    "hi": "यूपीएससी मुख्य परीक्षा 2027 — टेस्ट सीरीज़"
+  },
+  "description_i18n": {
+    "en": "Thirty papers to 20 August 2027: eight fundamentals, fourteen advanced papers, then two complete cycles of GS I–IV. The calendar deliberately pauses for roughly twelve weeks around Prelims (23 May 2027) — a generator that spread thirty papers evenly across the year would schedule them into weeks when no Mains aspirant is writing Mains. Every paper is drawn from real past-year questions.",
+    "hi": "20 अगस्त 2027 तक तीस पेपर: आठ आधार, चौदह उन्नत पेपर, फिर सामान्य अध्ययन I–IV के दो पूर्ण चक्र। कैलेंडर प्रारंभिक परीक्षा (23 मई 2027) के आसपास लगभग बारह सप्ताह के लिए जानबूझकर रुकता है — तीस पेपर वर्ष भर समान रूप से बाँटने वाला जनरेटर उन्हें उन सप्ताहों में रखेगा जब कोई मुख्य परीक्षा अभ्यर्थी मुख्य परीक्षा नहीं लिख रहा होता। हर पेपर वास्तविक विगत वर्ष प्रश्नों से बनता है।"
+  },
+  "entries": [
+    {
+      "sequence_no": 1,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2026-09-13",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-II Polity: Polity and the Constitution.",
+        "hi": "आधार — GS-II Polity: राजव्यवस्था एवं संविधान।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 2,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2026-09-27",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-I Geography: Geography — physical, human and economic.",
+        "hi": "आधार — GS-I Geography: भूगोल — भौतिक, मानव एवं आर्थिक।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 3,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2026-10-11",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-I History: History, art and culture, and world history.",
+        "hi": "आधार — GS-I History: इतिहास, कला एवं संस्कृति, तथा विश्व इतिहास।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 4,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2026-10-25",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-III Economics 1: Economy — growth, budgeting, agriculture.",
+        "hi": "आधार — GS-III Economics 1: अर्थव्यवस्था — संवृद्धि, बजट, कृषि।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 5,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2026-11-08",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-III Economics 2: Economy — infrastructure, industry, investment models.",
+        "hi": "आधार — GS-III Economics 2: अर्थव्यवस्था — अवसंरचना, उद्योग, निवेश मॉडल।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 6,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2026-11-22",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-III Environment: Environment, disaster management and security.",
+        "hi": "आधार — GS-III Environment: पर्यावरण, आपदा प्रबंधन एवं सुरक्षा।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 7,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2026-12-06",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-II Governance: Governance, social justice and society.",
+        "hi": "आधार — GS-II Governance: शासन, सामाजिक न्याय एवं समाज।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 8,
+      "entry_kind": "fundamental",
+      "paper_code": "UPSC_MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2026-12-20",
+      "open_days": 14,
+      "question_count": 12,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Fundamental — GS-IV Ethics: Ethics, integrity and aptitude.",
+        "hi": "आधार — GS-IV Ethics: नीतिशास्त्र, सत्यनिष्ठा एवं अभिरुचि।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 9,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-01-03",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Polity & Governance Pt1, at Mains depth.",
+        "hi": "उन्नत — Polity & Governance Pt1, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 10,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-01-17",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Polity & Governance Pt2, at Mains depth.",
+        "hi": "उन्नत — Polity & Governance Pt2, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 11,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-01-31",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Art & Culture + World History, at Mains depth.",
+        "hi": "उन्नत — Art & Culture + World History, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 12,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-14",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Modern + Post-Independence, at Mains depth.",
+        "hi": "उन्नत — Modern + Post-Independence, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 13,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-28",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Physical Geography + Disaster Management, at Mains depth.",
+        "hi": "उन्नत — Physical Geography + Disaster Management, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 14,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-14",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Human Geography + Environment, at Mains depth.",
+        "hi": "उन्नत — Human Geography + Environment, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 15,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-28",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Economics Pt1, at Mains depth.",
+        "hi": "उन्नत — Economics Pt1, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 16,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-11",
+      "open_days": 14,
+      "question_count": 12,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Ethics Pt1, at Mains depth.",
+        "hi": "उन्नत — Ethics Pt1, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 17,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-25",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Economics Pt2, at Mains depth.",
+        "hi": "उन्नत — Economics Pt2, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 18,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-05-09",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Society & Social Justice, at Mains depth.",
+        "hi": "उन्नत — Society & Social Justice, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 19,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-05-16",
+      "open_days": 14,
+      "question_count": 12,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Ethics Pt2, at Mains depth.",
+        "hi": "उन्नत — Ethics Pt2, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 20,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-05-23",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — International Relations, at Mains depth.",
+        "hi": "उन्नत — International Relations, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 21,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-05-30",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Security, at Mains depth.",
+        "hi": "उन्नत — Security, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 22,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-06-06",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Advanced — Technology, at Mains depth.",
+        "hi": "उन्नत — Technology, मुख्य परीक्षा की गहराई पर।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 23,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-06-27",
+      "open_days": 7,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-I, cycle 1 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-I, चक्र 1 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 24,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-07-04",
+      "open_days": 7,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-II, cycle 1 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-II, चक्र 1 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 25,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-07-11",
+      "open_days": 7,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-III, cycle 1 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-III, चक्र 1 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 26,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-07-18",
+      "open_days": 7,
+      "question_count": 12,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-IV, cycle 1 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-IV, चक्र 1 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 27,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-07-25",
+      "open_days": 7,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-I, cycle 2 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-I, चक्र 2 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 28,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-08-01",
+      "open_days": 7,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-II, cycle 2 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-II, चक्र 2 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 29,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-08-08",
+      "open_days": 7,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-III, cycle 2 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-III, चक्र 2 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 30,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-08-15",
+      "open_days": 7,
+      "question_count": 12,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full paper GS-IV, cycle 2 — complete syllabus simulation.",
+        "hi": "पूर्ण प्रश्नपत्र GS-IV, चक्र 2 — सम्पूर्ण पाठ्यक्रम सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    }
+  ]
+}

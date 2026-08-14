@@ -6,18 +6,19 @@
   "target_exam_year": 2026,
   "opens_time_ist": "09:00",
   "title_i18n": {
-    "en": "UPPSC Prelims 2026 — Accelerated Test Series",
-    "hi": "यूपीपीएससी प्रारंभिक 2026 — त्वरित टेस्ट सीरीज़"
+    "en": "UPPSC Prelims 2026 — Test Series",
+    "hi": "यूपीपीएससी प्रारंभिक 2026 — टेस्ट सीरीज़"
   },
   "description_i18n": {
-    "en": "Sixteen tests to 6 December 2026: eight subject sectionals, two current-affairs papers drawn from the platform’s own archive (which begins July 2026), a Uttar Pradesh special, and five full-length simulations including CSAT. One test opens every Sunday at 9 AM and stays open for a week — you may take it late, never early.",
-    "hi": "6 दिसंबर 2026 तक सोलह टेस्ट: आठ विषयवार सेक्शनल, दो करेंट अफेयर्स पेपर, एक उत्तर प्रदेश विशेष, और सीसैट सहित पाँच पूर्ण-लंबाई सिमुलेशन। हर रविवार सुबह 9 बजे एक टेस्ट खुलता है और एक सप्ताह तक खुला रहता है — आप इसे देर से दे सकते हैं, समय से पहले नहीं।"
+    "en": "Twenty-five papers to 6 December 2026: ten subject sectionals, three combined revisions, two current-affairs papers, a Uttar Pradesh special, and nine full-length simulations including CSAT. Each opens on its date and stays open — take it late, never early. Papers are assembled shortly before they open, so each is drawn from the freshest question bank.",
+    "hi": "6 दिसंबर 2026 तक पच्चीस पेपर: दस विषयवार सेक्शनल, तीन संयुक्त पुनरावृत्ति, दो करेंट अफेयर्स पेपर, एक उत्तर प्रदेश विशेष, तथा सीसैट सहित नौ पूर्ण-लंबाई सिमुलेशन। हर पेपर अपनी तिथि पर खुलता है और खुला रहता है — देर से दें, समय से पहले नहीं। पेपर खुलने से कुछ समय पूर्व तैयार किए जाते हैं, ताकि हर पेपर नवीनतम प्रश्न-बैंक से बने।"
   },
   "entries": [
     {
       "sequence_no": 1,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-08-16",
       "open_days": 7,
       "question_count": 50,
@@ -28,21 +29,22 @@
         "qgen": 30
       },
       "node_targets": [
-        "polity"
+        "polity/constitution"
       ],
       "syllabus_note_i18n": {
-        "en": "Indian Polity and Governance in full — the Constitution (Preamble, Fundamental Rights, DPSP, Fundamental Duties, amendment procedure, basic structure, emergency provisions), the political system and its working, Panchayati Raj and local governance, and public policy and rights issues.",
-        "hi": "भारतीय राजव्यवस्था और शासन सम्पूर्ण — संविधान (प्रस्तावना, मौलिक अधिकार, नीति-निदेशक तत्व, मौलिक कर्तव्य, संशोधन प्रक्रिया, आधारभूत संरचना, आपातकालीन उपबंध), राजनीतिक व्यवस्था और उसका कार्यकरण, पंचायती राज एवं स्थानीय शासन, तथा लोक नीति एवं अधिकार सम्बन्धी मुद्दे।"
+        "en": "Indian Polity & Constitution — Preamble, Fundamental Rights, DPSP, Fundamental Duties, amendment procedure, basic structure, emergency provisions.",
+        "hi": "भारतीय राजव्यवस्था एवं संविधान — प्रस्तावना, मौलिक अधिकार, नीति-निदेशक तत्व, मौलिक कर्तव्य, संशोधन प्रक्रिया, आधारभूत संरचना, आपातकालीन उपबंध।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Indian Constitution at Work; NCERT Class XII Politics in India Since Independence; Neev's Polity chapters; the Constitution's own text for the Articles named above.",
-        "hi": "एनसीईआरटी कक्षा 11 भारतीय संविधान सिद्धांत और व्यवहार; एनसीईआरटी कक्षा 12 स्वतंत्र भारत में राजनीति; नींव के राजव्यवस्था अध्याय; ऊपर उल्लिखित अनुच्छेदों के लिए संविधान का मूल पाठ।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 2,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-08-23",
       "open_days": 7,
       "question_count": 50,
@@ -53,80 +55,139 @@
         "qgen": 30
       },
       "node_targets": [
-        "geography"
+        "polity/political-system",
+        "polity/panchayati-raj",
+        "polity/public-policy-rights"
       ],
       "syllabus_note_i18n": {
-        "en": "Indian and World Geography end to end — physical geography (geomorphology, climatology, oceanography, soils), the geography of India, world geography, and economic and social geography including resources, agriculture, industry, transport and settlement.",
-        "hi": "भारत एवं विश्व का भूगोल सम्पूर्ण — भौतिक भूगोल (भू-आकृति विज्ञान, जलवायु विज्ञान, समुद्र विज्ञान, मृदा), भारत का भूगोल, विश्व भूगोल, तथा आर्थिक एवं सामाजिक भूगोल जिसमें संसाधन, कृषि, उद्योग, परिवहन और अधिवास सम्मिलित हैं।"
+        "en": "Working of the Constitution — Union and State executive, Parliament, judiciary, federalism, Panchayati Raj, public policy and rights issues.",
+        "hi": "संविधान का कार्यकरण — संघ एवं राज्य कार्यपालिका, संसद, न्यायपालिका, संघवाद, पंचायती राज, लोक नीति एवं अधिकार सम्बन्धी मुद्दे।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Fundamentals of Physical Geography and India Physical Environment; NCERT Class XII Fundamentals of Human Geography and India People and Economy; Oxford School Atlas; Neev's Geography chapters.",
-        "hi": "एनसीईआरटी कक्षा 11 भौतिक भूगोल के मूल सिद्धांत तथा भारत भौतिक पर्यावरण; एनसीईआरटी कक्षा 12 मानव भूगोल के मूल सिद्धांत तथा भारत लोग और अर्थव्यवस्था; ऑक्सफोर्ड स्कूल एटलस; नींव के भूगोल अध्याय।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 3,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-08-30",
       "open_days": 7,
       "question_count": 50,
       "duration_minutes": 60,
       "composition": {
-        "pyq": 70,
-        "ca": 5,
-        "qgen": 25
+        "pyq": 60,
+        "ca": 10,
+        "qgen": 30
       },
       "node_targets": [
-        "history/ancient-india",
-        "history/medieval-india"
+        "geography/physical-geography",
+        "geography/world-geography"
       ],
       "syllabus_note_i18n": {
-        "en": "Ancient and Medieval India with art and culture — the Indus Valley, Vedic period, Mahajanapadas, Mauryas, Guptas, the southern kingdoms; the Delhi Sultanate, the Mughals, the Bhakti and Sufi movements; architecture, sculpture, painting, dance and music.",
-        "hi": "प्राचीन एवं मध्यकालीन भारत, कला एवं संस्कृति सहित — सिंधु घाटी, वैदिक काल, महाजनपद, मौर्य, गुप्त, दक्षिण के राज्य; दिल्ली सल्तनत, मुगल, भक्ति एवं सूफी आंदोलन; स्थापत्य, मूर्तिकला, चित्रकला, नृत्य एवं संगीत।"
+        "en": "Physical Geography — geomorphology, climatology, oceanography, soils, and world physical geography.",
+        "hi": "भौतिक भूगोल — भू-आकृति विज्ञान, जलवायु विज्ञान, समुद्र विज्ञान, मृदा, तथा विश्व भौतिक भूगोल।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Themes in World History and Class XII Themes in Indian History Parts I and II; Neev's History chapters; the National Portal's culture pages for art forms.",
-        "hi": "एनसीईआरटी कक्षा 11 विश्व इतिहास के कुछ विषय तथा कक्षा 12 भारतीय इतिहास के कुछ विषय भाग 1 एवं 2; नींव के इतिहास अध्याय; कला रूपों के लिए राष्ट्रीय पोर्टल के संस्कृति पृष्ठ।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 4,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-09-06",
       "open_days": 7,
       "question_count": 50,
       "duration_minutes": 60,
       "composition": {
-        "pyq": 70,
-        "ca": 5,
-        "qgen": 25
+        "pyq": 60,
+        "ca": 10,
+        "qgen": 30
       },
       "node_targets": [
-        "history/modern-india",
-        "history/national-movement"
+        "geography/indian-geography",
+        "geography/economic-social-geography"
       ],
       "syllabus_note_i18n": {
-        "en": "Modern India and the national movement, 1757 to 1947 — colonial expansion and land revenue systems, the Revolt of 1857, socio-religious reform, the founding of the Congress, Moderates and Extremists, Swadeshi, the Gandhian mass movements, revolutionary activity, and Partition and independence.",
-        "hi": "आधुनिक भारत एवं राष्ट्रीय आंदोलन, 1757 से 1947 — औपनिवेशिक विस्तार एवं भू-राजस्व व्यवस्थाएँ, 1857 का विद्रोह, सामाजिक-धार्मिक सुधार, कांग्रेस की स्थापना, नरमपंथी एवं गरमपंथी, स्वदेशी, गांधीवादी जन आंदोलन, क्रांतिकारी गतिविधियाँ, तथा विभाजन एवं स्वतंत्रता।"
+        "en": "Indian, Economic and Social Geography — resources, agriculture, industry, transport, population and settlement.",
+        "hi": "भारत का, आर्थिक एवं सामाजिक भूगोल — संसाधन, कृषि, उद्योग, परिवहन, जनसंख्या एवं अधिवास।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XII Themes in Indian History Part III; Neev's Modern India and National Movement chapters; the Indian Culture portal's freedom-struggle archive.",
-        "hi": "एनसीईआरटी कक्षा 12 भारतीय इतिहास के कुछ विषय भाग 3; नींव के आधुनिक भारत एवं राष्ट्रीय आंदोलन अध्याय; इंडियन कल्चर पोर्टल का स्वतंत्रता संग्राम संग्रह।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 5,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-09-13",
       "open_days": 7,
       "question_count": 50,
       "duration_minutes": 60,
       "composition": {
-        "pyq": 55,
-        "ca": 15,
+        "pyq": 60,
+        "ca": 10,
+        "qgen": 30
+      },
+      "node_targets": [
+        "history/ancient-india",
+        "history/medieval-india"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Ancient and Medieval India with art and culture.",
+        "hi": "प्राचीन एवं मध्यकालीन भारत, कला एवं संस्कृति सहित।"
+      },
+      "sources_i18n": {
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
+      }
+    },
+    {
+      "sequence_no": 6,
+      "entry_kind": "sectional",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-09-20",
+      "open_days": 7,
+      "question_count": 50,
+      "duration_minutes": 60,
+      "composition": {
+        "pyq": 60,
+        "ca": 10,
+        "qgen": 30
+      },
+      "node_targets": [
+        "history/modern-india",
+        "history/national-movement"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Modern India and the national movement, 1757 to 1947.",
+        "hi": "आधुनिक भारत एवं राष्ट्रीय आंदोलन, 1757 से 1947।"
+      },
+      "sources_i18n": {
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
+      }
+    },
+    {
+      "sequence_no": 7,
+      "entry_kind": "sectional",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-09-27",
+      "open_days": 7,
+      "question_count": 50,
+      "duration_minutes": 60,
+      "composition": {
+        "pyq": 60,
+        "ca": 10,
         "qgen": 30
       },
       "node_targets": [
@@ -134,25 +195,26 @@
         "economic-social-development/demographics"
       ],
       "syllabus_note_i18n": {
-        "en": "Economy I — national income and its measurement, money and banking, the Reserve Bank and monetary policy, inflation, the Union Budget and fiscal policy, taxation including GST, growth and development, and India's demographic profile.",
-        "hi": "अर्थव्यवस्था I — राष्ट्रीय आय एवं उसका मापन, मुद्रा एवं बैंकिंग, रिज़र्व बैंक एवं मौद्रिक नीति, मुद्रास्फीति, केंद्रीय बजट एवं राजकोषीय नीति, जीएसटी सहित कराधान, संवृद्धि एवं विकास, तथा भारत की जनांकिकीय संरचना।"
+        "en": "Economy I — national income, money and banking, inflation, budget and fiscal policy, demographics.",
+        "hi": "अर्थव्यवस्था I — राष्ट्रीय आय, मुद्रा एवं बैंकिंग, मुद्रास्फीति, बजट एवं राजकोषीय नीति, जनांकिकी।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Indian Economic Development; NCERT Class XII Introductory Macroeconomics; the latest Economic Survey and Union Budget; RBI Annual Report; Neev's Economy chapters.",
-        "hi": "एनसीईआरटी कक्षा 11 भारतीय अर्थव्यवस्था का विकास; एनसीईआरटी कक्षा 12 समष्टि अर्थशास्त्र एक परिचय; नवीनतम आर्थिक सर्वेक्षण एवं केंद्रीय बजट; भारतीय रिज़र्व बैंक वार्षिक रिपोर्ट; नींव के अर्थव्यवस्था अध्याय।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
-      "sequence_no": 6,
+      "sequence_no": 8,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-09-20",
+      "question_type": "mcq",
+      "opens_on": "2026-10-04",
       "open_days": 7,
       "question_count": 50,
       "duration_minutes": 60,
       "composition": {
-        "pyq": 55,
-        "ca": 15,
+        "pyq": 60,
+        "ca": 10,
         "qgen": 30
       },
       "node_targets": [
@@ -160,119 +222,72 @@
         "economic-social-development/social-sector-initiatives"
       ],
       "syllabus_note_i18n": {
-        "en": "Economy II and social development — poverty estimation and alleviation, employment and inclusive growth, financial inclusion, health, education and nutrition, welfare schemes for vulnerable sections, and human development indicators.",
-        "hi": "अर्थव्यवस्था II एवं सामाजिक विकास — गरीबी आकलन एवं उन्मूलन, रोज़गार एवं समावेशी संवृद्धि, वित्तीय समावेशन, स्वास्थ्य, शिक्षा एवं पोषण, कमज़ोर वर्गों के लिए कल्याणकारी योजनाएँ, तथा मानव विकास सूचकांक।"
+        "en": "Economy II and social development — poverty, inclusion, welfare schemes and human development.",
+        "hi": "अर्थव्यवस्था II एवं सामाजिक विकास — गरीबी, समावेशन, कल्याणकारी योजनाएँ एवं मानव विकास।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Indian Economic Development chapters on poverty, human capital and employment; NITI Aayog's SDG India Index and multidimensional poverty reports; the Economic Survey's social-infrastructure chapter.",
-        "hi": "एनसीईआरटी कक्षा 11 भारतीय अर्थव्यवस्था का विकास के गरीबी, मानव पूँजी एवं रोज़गार अध्याय; नीति आयोग का एसडीजी इंडिया इंडेक्स एवं बहुआयामी गरीबी रिपोर्ट; आर्थिक सर्वेक्षण का सामाजिक अवसंरचना अध्याय।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
-      "sequence_no": 7,
+      "sequence_no": 9,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-09-27",
+      "question_type": "mcq",
+      "opens_on": "2026-10-11",
       "open_days": 7,
       "question_count": 50,
       "duration_minutes": 60,
       "composition": {
-        "pyq": 50,
-        "ca": 20,
+        "pyq": 60,
+        "ca": 10,
         "qgen": 30
       },
       "node_targets": [
         "environment-ecology"
       ],
       "syllabus_note_i18n": {
-        "en": "Environment, ecology, biodiversity and climate change — ecosystems and food chains, biodiversity hotspots, protected areas and conservation law, pollution and waste, climate science, and the international climate and biodiversity conventions.",
-        "hi": "पर्यावरण, पारिस्थितिकी, जैव-विविधता एवं जलवायु परिवर्तन — पारितंत्र एवं खाद्य श्रृंखला, जैव-विविधता हॉटस्पॉट, संरक्षित क्षेत्र एवं संरक्षण विधि, प्रदूषण एवं अपशिष्ट, जलवायु विज्ञान, तथा अंतर्राष्ट्रीय जलवायु एवं जैव-विविधता अभिसमय।"
+        "en": "Environment, ecology, biodiversity and climate change.",
+        "hi": "पर्यावरण, पारिस्थितिकी, जैव-विविधता एवं जलवायु परिवर्तन।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XII Biology units on ecology; India State of Forest Report; the Ministry of Environment's protected-area lists; Neev's Environment chapters.",
-        "hi": "एनसीईआरटी कक्षा 12 जीव विज्ञान की पारिस्थितिकी इकाइयाँ; भारत वन स्थिति रिपोर्ट; पर्यावरण मंत्रालय की संरक्षित क्षेत्र सूचियाँ; नींव के पर्यावरण अध्याय।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
-      "sequence_no": 8,
+      "sequence_no": 10,
       "entry_kind": "sectional",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-10-04",
+      "question_type": "mcq",
+      "opens_on": "2026-10-18",
       "open_days": 7,
       "question_count": 50,
       "duration_minutes": 60,
       "composition": {
-        "pyq": 55,
-        "ca": 15,
+        "pyq": 60,
+        "ca": 10,
         "qgen": 30
       },
       "node_targets": [
         "general-science"
       ],
       "syllabus_note_i18n": {
-        "en": "General science and technology — physics, chemistry and biology at the everyday-application level, plus science and technology developments: space, nuclear energy, defence technology, biotechnology, information technology and health technology.",
-        "hi": "सामान्य विज्ञान एवं प्रौद्योगिकी — भौतिकी, रसायन एवं जीव विज्ञान दैनिक-अनुप्रयोग स्तर पर, साथ ही विज्ञान एवं प्रौद्योगिकी के विकास: अंतरिक्ष, परमाणु ऊर्जा, रक्षा प्रौद्योगिकी, जैव प्रौद्योगिकी, सूचना प्रौद्योगिकी एवं स्वास्थ्य प्रौद्योगिकी।"
+        "en": "General science and technology — physics, chemistry, biology and science in the news.",
+        "hi": "सामान्य विज्ञान एवं प्रौद्योगिकी — भौतिकी, रसायन, जीव विज्ञान तथा समाचारों में विज्ञान।"
       },
       "sources_i18n": {
-        "en": "NCERT Science Classes VI to X; NCERT Class XI and XII Biology for human physiology and genetics; ISRO and DRDO mission pages; Neev's General Science chapters.",
-        "hi": "एनसीईआरटी विज्ञान कक्षा 6 से 10; मानव शरीर क्रिया एवं आनुवंशिकी हेतु एनसीईआरटी कक्षा 11 एवं 12 जीव विज्ञान; इसरो एवं डीआरडीओ मिशन पृष्ठ; नींव के सामान्य विज्ञान अध्याय।"
-      }
-    },
-    {
-      "sequence_no": 9,
-      "entry_kind": "current_affairs",
-      "paper_code": "PRE_GS1",
-      "opens_on": "2026-10-11",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": {
-        "pyq": 0,
-        "ca": 100,
-        "qgen": 0
-      },
-      "node_targets": [],
-      "ca_window": [
-        "2026-07-01",
-        "2026-09-30"
-      ],
-      "syllabus_note_i18n": {
-        "en": "Current affairs, July to September 2026, across every General Studies section — national and international events, government schemes and policy, the economy, environment and climate, science and technology, reports and indices, and awards and appointments.",
-        "hi": "करेंट अफेयर्स, जुलाई से सितम्बर 2026, सभी सामान्य अध्ययन खंडों में — राष्ट्रीय एवं अंतर्राष्ट्रीय घटनाएँ, सरकारी योजनाएँ एवं नीति, अर्थव्यवस्था, पर्यावरण एवं जलवायु, विज्ञान एवं प्रौद्योगिकी, रिपोर्ट एवं सूचकांक, तथा पुरस्कार एवं नियुक्तियाँ।"
-      },
-      "sources_i18n": {
-        "en": "Neev's daily current-affairs briefs and monthly magazine editions for July to September 2026; PIB releases; reports and indices released in that window.",
-        "hi": "जुलाई से सितम्बर 2026 के लिए नींव के दैनिक करेंट अफेयर्स सारांश एवं मासिक पत्रिका संस्करण; पीआईबी विज्ञप्तियाँ; उस अवधि में जारी रिपोर्ट एवं सूचकांक।"
-      }
-    },
-    {
-      "sequence_no": 10,
-      "entry_kind": "state_special",
-      "paper_code": "PRE_GS1",
-      "opens_on": "2026-10-18",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": {
-        "pyq": 0,
-        "ca": 100,
-        "qgen": 0
-      },
-      "node_targets": [],
-      "syllabus_note_i18n": {
-        "en": "Uttar Pradesh special — the state's polity and administration, economy and industrial policy, geography and rivers, agriculture, schemes and welfare programmes, history, art and culture, and UP-specific current affairs. UPPSC asks a UP-focused slice in every Prelims paper; this is that slice, concentrated.",
-        "hi": "उत्तर प्रदेश विशेष — राज्य की राजव्यवस्था एवं प्रशासन, अर्थव्यवस्था एवं औद्योगिक नीति, भूगोल एवं नदियाँ, कृषि, योजनाएँ एवं कल्याण कार्यक्रम, इतिहास, कला एवं संस्कृति, तथा यूपी-विशिष्ट करेंट अफेयर्स। यूपीपीएससी प्रत्येक प्रारंभिक पेपर में यूपी-केंद्रित भाग पूछता है; यह वही भाग है, एकत्रित रूप में।"
-      },
-      "sources_i18n": {
-        "en": "Neev's UP-focused current-affairs briefs; the Uttar Pradesh Budget and state portal; UP government scheme pages; the state's own economic survey.",
-        "hi": "नींव के यूपी-केंद्रित करेंट अफेयर्स सारांश; उत्तर प्रदेश बजट एवं राज्य पोर्टल; यूपी सरकार की योजना पृष्ठ; राज्य का अपना आर्थिक सर्वेक्षण।"
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 11,
       "entry_kind": "current_affairs",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-10-25",
+      "question_type": "mcq",
+      "opens_on": "2026-10-21",
       "open_days": 7,
       "question_count": 100,
       "duration_minutes": 120,
@@ -282,46 +297,158 @@
         "qgen": 0
       },
       "node_targets": [],
-      "ca_window": [
-        "2026-07-01",
-        "2026-10-24"
-      ],
       "syllabus_note_i18n": {
-        "en": "Current affairs, the full run from July to late October 2026 — a cumulative sweep across every General Studies section, weighted toward the months since test 9, with the monsoon session of Parliament, the period’s major summits and reports, and the schemes and appointments announced in it.",
-        "hi": "करेंट अफेयर्स, जुलाई से अक्टूबर 2026 के अंत तक का सम्पूर्ण क्रम — सभी सामान्य अध्ययन खंडों में संचयी समीक्षा, टेस्ट 9 के बाद के महीनों पर अधिक बल के साथ, संसद के मानसून सत्र, इस अवधि के प्रमुख शिखर सम्मेलनों एवं रिपोर्टों, तथा घोषित योजनाओं एवं नियुक्तियों सहित।"
+        "en": "Current affairs, July to September 2026, across every General Studies section.",
+        "hi": "करेंट अफेयर्स, जुलाई से सितम्बर 2026, सभी सामान्य अध्ययन खंडों में।"
       },
       "sources_i18n": {
-        "en": "Neev's daily current-affairs briefs and monthly magazine editions for July to October 2026; PIB releases; Parliament session summaries; reports and indices released in that window.",
-        "hi": "जुलाई से अक्टूबर 2026 के लिए नींव के दैनिक करेंट अफेयर्स सारांश एवं मासिक पत्रिका संस्करण; पीआईबी विज्ञप्तियाँ; संसद सत्र सारांश; उस अवधि में जारी रिपोर्ट एवं सूचकांक।"
-      }
+        "en": "Neev's daily briefs and monthly magazine editions for that window.",
+        "hi": "उस अवधि के नींव के दैनिक सारांश एवं मासिक पत्रिका संस्करण।"
+      },
+      "ca_window": [
+        "2026-07-01",
+        "2026-09-30"
+      ]
     },
     {
       "sequence_no": 12,
-      "entry_kind": "full_length",
+      "entry_kind": "state_special",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-11-01",
+      "question_type": "mcq",
+      "opens_on": "2026-10-24",
       "open_days": 7,
-      "question_count": 150,
+      "question_count": 100,
       "duration_minutes": 120,
       "composition": {
-        "pyq": 30,
-        "ca": 20,
-        "qgen": 50
+        "pyq": 0,
+        "ca": 100,
+        "qgen": 0
       },
       "node_targets": [],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 1 — the complete General Studies Paper I syllabus, 150 questions in two hours with one-third negative marking, weighted across sections the way UPPSC actually asks them.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 1 — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 150 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित, अनुभागों में उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
+        "en": "Uttar Pradesh special — the state's polity, economy, geography, schemes, culture and UP-specific current affairs.",
+        "hi": "उत्तर प्रदेश विशेष — राज्य की राजव्यवस्था, अर्थव्यवस्था, भूगोल, योजनाएँ, संस्कृति तथा यूपी-विशिष्ट करेंट अफेयर्स।"
       },
       "sources_i18n": {
-        "en": "Everything covered in tests 1 to 11. Revise the sectional papers you scored lowest on before attempting.",
-        "hi": "टेस्ट 1 से 11 में सम्मिलित सब कुछ। प्रयास से पूर्व उन सेक्शनल पेपरों को दोहराएँ जिनमें आपके अंक सबसे कम रहे।"
+        "en": "Neev's UP-focused briefs; the UP Budget and state portal.",
+        "hi": "नींव के यूपी-केंद्रित सारांश; यूपी बजट एवं राज्य पोर्टल।"
       }
     },
     {
       "sequence_no": 13,
+      "entry_kind": "applied",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-10-27",
+      "open_days": 7,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 40,
+        "ca": 25,
+        "qgen": 35
+      },
+      "node_targets": [
+        "polity",
+        "economic-social-development"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Revision — Polity and Economy combined, at full-paper pace.",
+        "hi": "पुनरावृत्ति — राजव्यवस्था एवं अर्थव्यवस्था संयुक्त रूप से, पूर्ण-पेपर गति पर।"
+      },
+      "sources_i18n": {
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
+      }
+    },
+    {
+      "sequence_no": 14,
+      "entry_kind": "applied",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-10-30",
+      "open_days": 7,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 40,
+        "ca": 25,
+        "qgen": 35
+      },
+      "node_targets": [
+        "history",
+        "geography"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Revision — History and Geography combined.",
+        "hi": "पुनरावृत्ति — इतिहास एवं भूगोल संयुक्त रूप से।"
+      },
+      "sources_i18n": {
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
+      }
+    },
+    {
+      "sequence_no": 15,
+      "entry_kind": "applied",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-11-02",
+      "open_days": 7,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 40,
+        "ca": 25,
+        "qgen": 35
+      },
+      "node_targets": [
+        "environment-ecology",
+        "general-science",
+        "current-affairs"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Revision — Environment, Science and Current Events combined.",
+        "hi": "पुनरावृत्ति — पर्यावरण, विज्ञान एवं सामयिक घटनाएँ संयुक्त रूप से।"
+      },
+      "sources_i18n": {
+        "en": "NCERT texts for the topic, Neev's chapters for it, and the PYQ archive for this section.",
+        "hi": "विषय की एनसीईआरटी पुस्तकें, उससे सम्बन्धित नींव के अध्याय, तथा इस अनुभाग का पीवाईक्यू संग्रह।"
+      }
+    },
+    {
+      "sequence_no": 16,
+      "entry_kind": "current_affairs",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-11-05",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 0,
+        "ca": 100,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Current affairs, the full run from July to late October 2026 — a cumulative sweep.",
+        "hi": "करेंट अफेयर्स, जुलाई से अक्टूबर 2026 के अंत तक — संचयी समीक्षा।"
+      },
+      "sources_i18n": {
+        "en": "Neev's daily briefs and magazine editions to date.",
+        "hi": "अब तक के नींव के दैनिक सारांश एवं पत्रिका संस्करण।"
+      },
+      "ca_window": [
+        "2026-07-01",
+        "2026-10-24"
+      ]
+    },
+    {
+      "sequence_no": 17,
       "entry_kind": "full_length",
       "paper_code": "PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-11-08",
       "open_days": 7,
       "question_count": 150,
@@ -333,19 +460,92 @@
       },
       "node_targets": [],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 2 — the complete syllabus again, drawn from questions the earlier tests did not use, so your score measures preparation rather than recall of this series.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 2 — पुनः सम्पूर्ण पाठ्यक्रम, उन प्रश्नों से जो पूर्ववर्ती टेस्टों में उपयोग नहीं हुए, ताकि आपका स्कोर इस सीरीज़ की स्मृति नहीं बल्कि तैयारी मापे।"
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
       },
       "sources_i18n": {
-        "en": "Everything covered in tests 1 to 11, plus current affairs through October 2026.",
-        "hi": "टेस्ट 1 से 11 में सम्मिलित सब कुछ, साथ ही अक्टूबर 2026 तक के करेंट अफेयर्स।"
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
       }
     },
     {
-      "sequence_no": 14,
+      "sequence_no": 18,
+      "entry_kind": "full_length",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-11-11",
+      "open_days": 7,
+      "question_count": 150,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 30,
+        "ca": 20,
+        "qgen": 50
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
+      }
+    },
+    {
+      "sequence_no": 19,
+      "entry_kind": "full_length",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-11-14",
+      "open_days": 7,
+      "question_count": 150,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 30,
+        "ca": 20,
+        "qgen": 50
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
+      }
+    },
+    {
+      "sequence_no": 20,
+      "entry_kind": "full_length",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-11-17",
+      "open_days": 7,
+      "question_count": 150,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 30,
+        "ca": 20,
+        "qgen": 50
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
+      }
+    },
+    {
+      "sequence_no": 21,
       "entry_kind": "full_length",
       "paper_code": "PRE_CSAT",
-      "opens_on": "2026-11-15",
+      "question_type": "mcq",
+      "opens_on": "2026-11-20",
       "open_days": 7,
       "question_count": 100,
       "duration_minutes": 120,
@@ -356,58 +556,108 @@
       },
       "node_targets": [],
       "syllabus_note_i18n": {
-        "en": "CSAT full-length — comprehension, English language comprehension, interpersonal and communication skills, logical reasoning and analytical ability, decision making and problem solving, basic numeracy and general mental ability. Qualifying at 33 per cent, but a paper that has ended real candidacies.",
-        "hi": "सीसैट पूर्ण-लंबाई — बोधगम्यता, अंग्रेज़ी भाषा बोधगम्यता, अंतर-वैयक्तिक एवं संचार कौशल, तार्किक तर्कशक्ति एवं विश्लेषणात्मक क्षमता, निर्णयन एवं समस्या समाधान, आधारभूत संख्यात्मकता एवं सामान्य मानसिक योग्यता। 33 प्रतिशत पर अर्हक, किंतु यह पेपर वास्तविक उम्मीदवारी समाप्त कर चुका है।"
+        "en": "CSAT full-length — comprehension, reasoning, numeracy and decision making. Qualifying at 33 per cent.",
+        "hi": "सीसैट पूर्ण-लंबाई — बोधगम्यता, तर्कशक्ति, संख्यात्मकता एवं निर्णयन। 33 प्रतिशत पर अर्हक।"
       },
       "sources_i18n": {
-        "en": "Neev's CSAT chapters and worked problem sets; past-year CSAT papers 2018 to 2026 in the PYQ archive.",
-        "hi": "नींव के सीसैट अध्याय एवं हल किए गए प्रश्न-समूह; पीवाईक्यू संग्रह में 2018 से 2026 तक के सीसैट प्रश्नपत्र।"
+        "en": "Neev's CSAT chapters and the CSAT PYQ archive.",
+        "hi": "नींव के सीसैट अध्याय तथा सीसैट पीवाईक्यू संग्रह।"
       }
     },
     {
-      "sequence_no": 15,
+      "sequence_no": 22,
       "entry_kind": "full_length",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-11-22",
+      "question_type": "mcq",
+      "opens_on": "2026-11-23",
       "open_days": 7,
       "question_count": 150,
       "duration_minutes": 120,
       "composition": {
-        "pyq": 25,
-        "ca": 25,
+        "pyq": 30,
+        "ca": 20,
         "qgen": 50
       },
       "node_targets": [],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 3 — a heavier current-affairs share, matching how the weight of the year's events builds in a paper set close to the exam.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 3 — करेंट अफेयर्स का अधिक भाग, जो परीक्षा के निकट बनाए गए प्रश्नपत्र में वर्ष की घटनाओं के बढ़ते भार के अनुरूप है।"
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
       },
       "sources_i18n": {
-        "en": "The full syllabus plus current affairs through November 2026. Review your test 12 and 13 analyses first.",
-        "hi": "सम्पूर्ण पाठ्यक्रम एवं नवंबर 2026 तक के करेंट अफेयर्स। पहले अपने टेस्ट 12 एवं 13 के विश्लेषण देखें।"
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
       }
     },
     {
-      "sequence_no": 16,
+      "sequence_no": 23,
       "entry_kind": "full_length",
       "paper_code": "PRE_GS1",
-      "opens_on": "2026-11-29",
-      "open_days": 6,
+      "question_type": "mcq",
+      "opens_on": "2026-11-26",
+      "open_days": 7,
       "question_count": 150,
       "duration_minutes": 120,
       "composition": {
-        "pyq": 25,
-        "ca": 25,
+        "pyq": 30,
+        "ca": 20,
         "qgen": 50
       },
       "node_targets": [],
       "syllabus_note_i18n": {
-        "en": "Final simulation — the last full-length before 6 December. Sit it at exam time, in one sitting, with no reference material, and leave the week after it for revision rather than for new questions.",
-        "hi": "अंतिम सिमुलेशन — 6 दिसंबर से पूर्व का अंतिम पूर्ण-लंबाई पेपर। इसे परीक्षा के समय पर, एक ही बैठक में, बिना किसी संदर्भ सामग्री के दें, और इसके बाद का सप्ताह नए प्रश्नों के बजाय पुनरावृत्ति के लिए रखें।"
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
       },
       "sources_i18n": {
-        "en": "No new sources. Revise your own wrong answers from tests 1 to 15 and the current-affairs papers.",
-        "hi": "कोई नया स्रोत नहीं। टेस्ट 1 से 15 तथा करेंट अफेयर्स पेपरों में अपने स्वयं के गलत उत्तर दोहराएँ।"
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
+      }
+    },
+    {
+      "sequence_no": 24,
+      "entry_kind": "full_length",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-11-29",
+      "open_days": 7,
+      "question_count": 150,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 30,
+        "ca": 20,
+        "qgen": 50
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
+      }
+    },
+    {
+      "sequence_no": 25,
+      "entry_kind": "full_length",
+      "paper_code": "PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-12-02",
+      "open_days": 7,
+      "question_count": 150,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 30,
+        "ca": 20,
+        "qgen": 50
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete GS Paper I syllabus, weighted as UPPSC actually asks it.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, उसी भारांक के साथ जैसा यूपीपीएससी वास्तव में पूछता है।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered so far in this series; revise your weakest sectionals first.",
+        "hi": "इस सीरीज़ में अब तक का सम्पूर्ण पाठ्यक्रम; पहले अपने सबसे कमज़ोर सेक्शनल दोहराएँ।"
       }
     }
   ]

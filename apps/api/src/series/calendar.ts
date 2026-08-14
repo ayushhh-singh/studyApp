@@ -54,8 +54,14 @@ const compositionSchema = z
 export const seriesEntrySchema = z.object({
   sequence_no: z.number().int().positive(),
   entry_kind: z.enum(["fundamental", "applied", "sectional", "full_length", "current_affairs", "state_special"]),
-  /** The paper this entry's questions come from. `CURRENT_AFFAIRS` for a pure CA paper. */
+  /** The paper this entry's questions come from. */
   paper_code: z.string().min(1),
+  /**
+   * MCQ (Prelims) or descriptive (Mains). Drives which pool is queried and
+   * which player serves it — a descriptive paper goes through
+   * `answer_test_sessions`, not `attempts`.
+   */
+  question_type: z.enum(["mcq", "descriptive"]).default("mcq"),
   /** IST calendar date the test opens (time of day comes from the series' `opens_time_ist`). */
   opens_on: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "opens_on must be YYYY-MM-DD"),
   /**

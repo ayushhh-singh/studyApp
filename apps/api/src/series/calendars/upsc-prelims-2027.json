@@ -6,316 +6,911 @@
   "target_exam_year": 2027,
   "opens_time_ist": "09:00",
   "title_i18n": {
-    "en": "UPSC Prelims 2027 — Foundation Test Series (GS Paper I)",
-    "hi": "यूपीएससी प्रारंभिक 2027 — फाउंडेशन टेस्ट सीरीज़ (सामान्य अध्ययन प्रथम प्रश्नपत्र)"
+    "en": "UPSC Prelims 2027 — Test Series (GS Paper I)",
+    "hi": "यूपीएससी प्रारंभिक 2027 — टेस्ट सीरीज़ (सामान्य अध्ययन प्रथम प्रश्नपत्र)"
   },
   "description_i18n": {
-    "en": "Sixteen tests to 23 May 2027: eight subject foundations covering the syllabus once, two current-affairs consolidations, and six full-length simulations in the final stretch. General Studies Paper I only — CSAT is a separate product. One test opens every scheduled Sunday at 9 AM and stays open a week; you may take it late, never early.",
-    "hi": "23 मई 2027 तक सोलह टेस्ट: पाठ्यक्रम को एक बार पूर्ण करने वाले आठ विषय-आधार, दो करेंट अफेयर्स समेकन, तथा अंतिम चरण में छह पूर्ण-लंबाई सिमुलेशन। केवल सामान्य अध्ययन प्रथम प्रश्नपत्र — सीसैट एक पृथक उत्पाद है। प्रत्येक निर्धारित रविवार सुबह 9 बजे एक टेस्ट खुलता है और एक सप्ताह खुला रहता है; आप इसे देर से दे सकते हैं, समय से पहले नहीं।"
+    "en": "Thirty-five papers to 23 May 2027, in the three-pass spiral the market's premium series use: eight subject foundations, seventeen applied papers that re-run the same subjects at depth, then ten full-length simulations. General Studies Paper I only — CSAT is a separate product. Papers are assembled shortly before they open, so each draws on the freshest question bank.",
+    "hi": "23 मई 2027 तक पैंतीस पेपर, उसी त्रि-चक्र संरचना में जिसका उपयोग बाज़ार की प्रमुख सीरीज़ करती हैं: आठ विषय-आधार, सत्रह व्यावहारिक पेपर जो उन्हीं विषयों को अधिक गहराई से दोहराते हैं, फिर दस पूर्ण-लंबाई सिमुलेशन। केवल सामान्य अध्ययन प्रथम प्रश्नपत्र — सीसैट पृथक उत्पाद है। पेपर खुलने से कुछ समय पूर्व तैयार किए जाते हैं।"
   },
   "entries": [
     {
       "sequence_no": 1,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2026-09-06",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["polity/constitution"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "polity/constitution"
+      ],
       "syllabus_note_i18n": {
-        "en": "Indian Constitution — historical underpinnings, evolution, features, amendments, significant provisions and basic structure; Fundamental Rights, Directive Principles and Fundamental Duties.",
-        "hi": "भारतीय संविधान — ऐतिहासिक आधार, विकास, विशेषताएँ, संशोधन, महत्वपूर्ण प्रावधान एवं आधारभूत संरचना; मौलिक अधिकार, नीति-निदेशक तत्व एवं मौलिक कर्तव्य।"
+        "en": "Indian Constitution — historical underpinnings, evolution, features, amendments, significant provisions, basic structure.",
+        "hi": "भारतीय संविधान — ऐतिहासिक आधार, विकास, विशेषताएँ, संशोधन, महत्वपूर्ण प्रावधान, आधारभूत संरचना।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Indian Constitution at Work; the Constitution's own text; Neev's Constitution chapter.",
-        "hi": "एनसीईआरटी कक्षा 11 भारतीय संविधान सिद्धांत और व्यवहार; संविधान का मूल पाठ; नींव का संविधान अध्याय।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 2,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-09-20",
+      "question_type": "mcq",
+      "opens_on": "2026-09-13",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["polity/political-system", "polity/panchayati-raj", "polity/public-policy", "polity/rights-issues"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "polity/political-system",
+        "polity/panchayati-raj",
+        "polity/public-policy",
+        "polity/rights-issues"
+      ],
       "syllabus_note_i18n": {
-        "en": "The working of the polity — Union and State executive, Parliament and State legislatures, the judiciary, federalism, Panchayati Raj, public policy, and rights issues including the constitutional bodies that protect them.",
-        "hi": "राजव्यवस्था का कार्यकरण — संघ एवं राज्य कार्यपालिका, संसद एवं राज्य विधानमंडल, न्यायपालिका, संघवाद, पंचायती राज, लोक नीति, तथा अधिकार सम्बन्धी मुद्दे एवं उनकी रक्षा करने वाले संवैधानिक निकाय।"
+        "en": "The working of the polity — executive, legislature, judiciary, federalism, Panchayati Raj, public policy and rights issues.",
+        "hi": "राजव्यवस्था का कार्यकरण — कार्यपालिका, विधायिका, न्यायपालिका, संघवाद, पंचायती राज, लोक नीति एवं अधिकार सम्बन्धी मुद्दे।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Indian Constitution at Work; NCERT Class XII Politics in India Since Independence; Neev's governance chapters.",
-        "hi": "एनसीईआरटी कक्षा 11 भारतीय संविधान सिद्धांत और व्यवहार; एनसीईआरटी कक्षा 12 स्वतंत्र भारत में राजनीति; नींव के शासन अध्याय।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 3,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-10-04",
+      "question_type": "mcq",
+      "opens_on": "2026-09-20",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["geography/physical-geography", "geography/world-geography"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "geography/physical-geography",
+        "geography/world-geography"
+      ],
       "syllabus_note_i18n": {
-        "en": "Geography I, physical — geomorphology, climatology, oceanography and biogeography, plus world physical geography: continents, major landforms, ocean currents and climatic regions.",
-        "hi": "भूगोल I, भौतिक — भू-आकृति विज्ञान, जलवायु विज्ञान, समुद्र विज्ञान एवं जैव-भूगोल, साथ ही विश्व भौतिक भूगोल: महाद्वीप, प्रमुख स्थलरूप, महासागरीय धाराएँ एवं जलवायु प्रदेश।"
+        "en": "Geography I — physical geography of the world and India.",
+        "hi": "भूगोल I — विश्व एवं भारत का भौतिक भूगोल।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Fundamentals of Physical Geography; Oxford School Atlas; Neev's Physical Geography chapter.",
-        "hi": "एनसीईआरटी कक्षा 11 भौतिक भूगोल के मूल सिद्धांत; ऑक्सफोर्ड स्कूल एटलस; नींव का भौतिक भूगोल अध्याय।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 4,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-10-18",
+      "question_type": "mcq",
+      "opens_on": "2026-09-27",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["geography/indian-geography", "geography/economic-geography", "geography/social-geography"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "geography/indian-geography",
+        "geography/economic-geography",
+        "geography/social-geography"
+      ],
       "syllabus_note_i18n": {
-        "en": "Geography II — the geography of India, and economic and social geography: mineral and energy resources, agriculture and cropping patterns, industrial location, transport, population and settlement.",
-        "hi": "भूगोल II — भारत का भूगोल, तथा आर्थिक एवं सामाजिक भूगोल: खनिज एवं ऊर्जा संसाधन, कृषि एवं फसल प्रतिरूप, औद्योगिक अवस्थिति, परिवहन, जनसंख्या एवं अधिवास।"
+        "en": "Geography II — Indian, economic and social geography.",
+        "hi": "भूगोल II — भारत का, आर्थिक एवं सामाजिक भूगोल।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI India Physical Environment; NCERT Class XII India People and Economy and Fundamentals of Human Geography; Oxford School Atlas.",
-        "hi": "एनसीईआरटी कक्षा 11 भारत भौतिक पर्यावरण; एनसीईआरटी कक्षा 12 भारत लोग और अर्थव्यवस्था तथा मानव भूगोल के मूल सिद्धांत; ऑक्सफोर्ड स्कूल एटलस।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 5,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-11-01",
+      "question_type": "mcq",
+      "opens_on": "2026-10-04",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 95, "ca": 0, "qgen": 5 },
-      "node_targets": ["history/ancient-india", "history/medieval-india"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "history/ancient-india",
+        "history/medieval-india"
+      ],
       "syllabus_note_i18n": {
-        "en": "Ancient and Medieval India with art and culture — the Harappan civilisation, Vedic society, Mahajanapadas, Mauryan and Gupta polity, southern dynasties; the Sultanate and Mughal periods; Bhakti and Sufi movements; architecture, sculpture, painting and the classical performing arts.",
-        "hi": "प्राचीन एवं मध्यकालीन भारत, कला एवं संस्कृति सहित — हड़प्पा सभ्यता, वैदिक समाज, महाजनपद, मौर्य एवं गुप्त राजव्यवस्था, दक्षिण के राजवंश; सल्तनत एवं मुगल काल; भक्ति एवं सूफी आंदोलन; स्थापत्य, मूर्तिकला, चित्रकला एवं शास्त्रीय प्रदर्शनकारी कलाएँ।"
+        "en": "Ancient and Medieval India with art and culture.",
+        "hi": "प्राचीन एवं मध्यकालीन भारत, कला एवं संस्कृति सहित।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XII Themes in Indian History Parts I and II; NCERT Class XI An Introduction to Indian Art; Neev's History chapters.",
-        "hi": "एनसीईआरटी कक्षा 12 भारतीय इतिहास के कुछ विषय भाग 1 एवं 2; एनसीईआरटी कक्षा 11 भारतीय कला का परिचय; नींव के इतिहास अध्याय।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 6,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-11-15",
+      "question_type": "mcq",
+      "opens_on": "2026-10-11",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 95, "ca": 0, "qgen": 5 },
-      "node_targets": ["history/modern-india", "history/national-movement"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "history/modern-india",
+        "history/national-movement"
+      ],
       "syllabus_note_i18n": {
-        "en": "Modern India and the freedom struggle — colonial expansion and land revenue systems, 1857, socio-religious reform, the Congress and its phases, Swadeshi and revolutionary movements, the Gandhian era, and Partition, integration and the years after independence.",
-        "hi": "आधुनिक भारत एवं स्वतंत्रता संग्राम — औपनिवेशिक विस्तार एवं भू-राजस्व व्यवस्थाएँ, 1857, सामाजिक-धार्मिक सुधार, कांग्रेस एवं उसके चरण, स्वदेशी एवं क्रांतिकारी आंदोलन, गांधी युग, तथा विभाजन, एकीकरण एवं स्वतंत्रता के बाद के वर्ष।"
+        "en": "Modern India and the freedom struggle, with post-independence consolidation.",
+        "hi": "आधुनिक भारत एवं स्वतंत्रता संग्राम, स्वतंत्रता-पश्चात् सुदृढ़ीकरण सहित।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XII Themes in Indian History Part III; Neev's Modern India and National Movement chapters.",
-        "hi": "एनसीईआरटी कक्षा 12 भारतीय इतिहास के कुछ विषय भाग 3; नींव के आधुनिक भारत एवं राष्ट्रीय आंदोलन अध्याय।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 7,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-11-29",
+      "question_type": "mcq",
+      "opens_on": "2026-10-18",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["economic-social-development"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "economic-social-development"
+      ],
       "syllabus_note_i18n": {
-        "en": "Economic and social development — growth and development, national income, money, banking and inflation, the budget and fiscal policy, poverty and inclusion, demographics, social sector initiatives, and sustainable development.",
-        "hi": "आर्थिक एवं सामाजिक विकास — संवृद्धि एवं विकास, राष्ट्रीय आय, मुद्रा, बैंकिंग एवं मुद्रास्फीति, बजट एवं राजकोषीय नीति, गरीबी एवं समावेशन, जनांकिकी, सामाजिक क्षेत्र की पहलें, तथा सतत विकास।"
+        "en": "Economic and social development — growth, inclusion, demographics, social sector initiatives, sustainable development.",
+        "hi": "आर्थिक एवं सामाजिक विकास — संवृद्धि, समावेशन, जनांकिकी, सामाजिक क्षेत्र की पहलें, सतत विकास।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XI Indian Economic Development; NCERT Class XII Introductory Macroeconomics; the latest Economic Survey; NITI Aayog's SDG India Index.",
-        "hi": "एनसीईआरटी कक्षा 11 भारतीय अर्थव्यवस्था का विकास; एनसीईआरटी कक्षा 12 समष्टि अर्थशास्त्र एक परिचय; नवीनतम आर्थिक सर्वेक्षण; नीति आयोग का एसडीजी इंडिया इंडेक्स।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 8,
       "entry_kind": "fundamental",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2026-12-13",
+      "question_type": "mcq",
+      "opens_on": "2026-10-25",
       "open_days": 14,
       "question_count": 50,
       "duration_minutes": 60,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["environment-ecology", "general-science"],
+      "composition": {
+        "pyq": 90,
+        "ca": 5,
+        "qgen": 5
+      },
+      "node_targets": [
+        "environment-ecology",
+        "general-science"
+      ],
       "syllabus_note_i18n": {
-        "en": "Environment and general science — ecology and ecosystems, biodiversity and conservation, climate change and the international conventions; and physics, chemistry and biology at the level UPSC asks them, with science and technology in the news.",
-        "hi": "पर्यावरण एवं सामान्य विज्ञान — पारिस्थितिकी एवं पारितंत्र, जैव-विविधता एवं संरक्षण, जलवायु परिवर्तन एवं अंतर्राष्ट्रीय अभिसमय; तथा भौतिकी, रसायन एवं जीव विज्ञान उस स्तर पर जिस पर यूपीएससी पूछता है, समाचारों में विज्ञान एवं प्रौद्योगिकी सहित।"
+        "en": "Environment, ecology, biodiversity, climate change and general science.",
+        "hi": "पर्यावरण, पारिस्थितिकी, जैव-विविधता, जलवायु परिवर्तन एवं सामान्य विज्ञान।"
       },
       "sources_i18n": {
-        "en": "NCERT Class XII Biology ecology units; NCERT Science Classes VI to X; India State of Forest Report; ISRO mission pages.",
-        "hi": "एनसीईआरटी कक्षा 12 जीव विज्ञान की पारिस्थितिकी इकाइयाँ; एनसीईआरटी विज्ञान कक्षा 6 से 10; भारत वन स्थिति रिपोर्ट; इसरो मिशन पृष्ठ।"
+        "en": "NCERTs and standard references for the topic, plus Neev's chapters and the PYQ archive.",
+        "hi": "विषय की एनसीईआरटी एवं मानक संदर्भ पुस्तकें, साथ ही नींव के अध्याय तथा पीवाईक्यू संग्रह।"
       }
     },
     {
       "sequence_no": 9,
       "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-01-10",
+      "question_type": "mcq",
+      "opens_on": "2026-11-01",
       "open_days": 14,
       "question_count": 75,
       "duration_minutes": 90,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["polity", "economic-social-development"],
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "polity"
+      ],
       "syllabus_note_i18n": {
-        "en": "Applied revision I — polity and economy together, at the depth UPSC actually tests: constitutional provisions applied to live governance questions, and macroeconomic concepts applied to policy.",
-        "hi": "व्यावहारिक पुनरावृत्ति I — राजव्यवस्था एवं अर्थव्यवस्था एक साथ, उस गहराई पर जिस पर यूपीएससी वास्तव में परीक्षण करता है: जीवंत शासन प्रश्नों पर लागू संवैधानिक प्रावधान, तथा नीति पर लागू समष्टि-आर्थिक संकल्पनाएँ।"
+        "en": "Polity Applied I — the Constitution tested at depth.",
+        "hi": "राजव्यवस्था व्यावहारिक I — संविधान का गहन परीक्षण।"
       },
       "sources_i18n": {
-        "en": "Revise tests 1, 2 and 7 first. Add the Economic Survey's policy chapters and the year's major governance reports.",
-        "hi": "पहले टेस्ट 1, 2 एवं 7 दोहराएँ। आर्थिक सर्वेक्षण के नीति अध्याय तथा वर्ष की प्रमुख शासन रिपोर्ट जोड़ें।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 10,
       "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-02-07",
+      "question_type": "mcq",
+      "opens_on": "2026-11-08",
       "open_days": 14,
       "question_count": 75,
       "duration_minutes": 90,
-      "composition": { "pyq": 90, "ca": 5, "qgen": 5 },
-      "node_targets": ["history", "geography", "environment-ecology"],
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "polity"
+      ],
       "syllabus_note_i18n": {
-        "en": "Applied revision II — history, geography and environment together, emphasising the map-and-place questions and the ecology-in-the-news questions that decide a UPSC Prelims score.",
-        "hi": "व्यावहारिक पुनरावृत्ति II — इतिहास, भूगोल एवं पर्यावरण एक साथ, उन मानचित्र-एवं-स्थान प्रश्नों तथा समाचारों-में-पारिस्थितिकी प्रश्नों पर बल देते हुए जो यूपीएससी प्रारंभिक का स्कोर तय करते हैं।"
+        "en": "Polity Applied II — governance and public policy at depth.",
+        "hi": "राजव्यवस्था व्यावहारिक II — शासन एवं लोक नीति का गहन परीक्षण।"
       },
       "sources_i18n": {
-        "en": "Revise tests 3 to 6 and 8. Keep the atlas open; most losses here are locational.",
-        "hi": "टेस्ट 3 से 6 एवं 8 दोहराएँ। एटलस खुला रखें; यहाँ अधिकांश हानि स्थान-सम्बन्धी होती है।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 11,
-      "entry_kind": "full_length",
+      "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-03-21",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": { "pyq": 95, "ca": 5, "qgen": 0 },
-      "node_targets": [],
+      "question_type": "mcq",
+      "opens_on": "2026-11-15",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "geography"
+      ],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 1 — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking, weighted across sections the way UPSC actually asks them.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 1 — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित, अनुभागों में उसी भारांक के साथ जैसा यूपीएससी वास्तव में पूछता है।"
+        "en": "Geography Applied I — physical processes at depth.",
+        "hi": "भूगोल व्यावहारिक I — भौतिक प्रक्रियाओं का गहन परीक्षण।"
       },
       "sources_i18n": {
-        "en": "Everything covered in tests 1 to 10. Attempt at exam time, in one sitting.",
-        "hi": "टेस्ट 1 से 10 में सम्मिलित सब कुछ। परीक्षा के समय पर, एक ही बैठक में प्रयास करें।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 12,
-      "entry_kind": "full_length",
+      "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-03-28",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": { "pyq": 95, "ca": 5, "qgen": 0 },
-      "node_targets": [],
+      "question_type": "mcq",
+      "opens_on": "2026-11-22",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "geography"
+      ],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 2 — the complete syllabus again, drawn where possible from questions the earlier tests did not use.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 2 — पुनः सम्पूर्ण पाठ्यक्रम, जहाँ सम्भव हो उन प्रश्नों से जो पूर्ववर्ती टेस्टों में उपयोग नहीं हुए।"
+        "en": "Geography Applied II — India and economic geography at depth.",
+        "hi": "भूगोल व्यावहारिक II — भारत एवं आर्थिक भूगोल का गहन परीक्षण।"
       },
       "sources_i18n": {
-        "en": "Review your test 11 analysis before attempting. Work on the two weakest sections only.",
-        "hi": "प्रयास से पूर्व अपना टेस्ट 11 विश्लेषण देखें। केवल दो सबसे कमज़ोर अनुभागों पर कार्य करें।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 13,
-      "entry_kind": "full_length",
+      "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-04-04",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": { "pyq": 95, "ca": 5, "qgen": 0 },
-      "node_targets": [],
+      "question_type": "mcq",
+      "opens_on": "2026-11-29",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "history"
+      ],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 3 — full syllabus. By now your section-wise accuracy should be stable; treat the variance between tests as the thing to fix.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 3 — सम्पूर्ण पाठ्यक्रम। अब तक आपकी अनुभागवार सटीकता स्थिर होनी चाहिए; टेस्टों के बीच के उतार-चढ़ाव को ही सुधारने योग्य मानें।"
+        "en": "Ancient and Medieval Applied — sources, chronology and culture at depth.",
+        "hi": "प्राचीन एवं मध्यकालीन व्यावहारिक — स्रोत, कालक्रम एवं संस्कृति का गहन परीक्षण।"
       },
       "sources_i18n": {
-        "en": "No new sources. Your own wrong answers from tests 1 to 12.",
-        "hi": "कोई नया स्रोत नहीं। टेस्ट 1 से 12 में आपके स्वयं के गलत उत्तर।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 14,
-      "entry_kind": "full_length",
+      "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-04-11",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": { "pyq": 95, "ca": 5, "qgen": 0 },
-      "node_targets": [],
+      "question_type": "mcq",
+      "opens_on": "2026-12-06",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "history"
+      ],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 4 — full syllabus, with attention to attempt strategy: how many questions you leave, and whether your guesses are net-positive under one-third negative marking.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 4 — सम्पूर्ण पाठ्यक्रम, प्रयास रणनीति पर ध्यान देते हुए: आप कितने प्रश्न छोड़ते हैं, और क्या एक-तिहाई ऋणात्मक अंकन के अंतर्गत आपके अनुमान शुद्ध-धनात्मक हैं।"
+        "en": "Modern and Post-Independence Applied.",
+        "hi": "आधुनिक एवं स्वतंत्रता-पश्चात् व्यावहारिक।"
       },
       "sources_i18n": {
-        "en": "No new sources. Compare your attempt count across tests 11 to 13.",
-        "hi": "कोई नया स्रोत नहीं। टेस्ट 11 से 13 में अपनी प्रयास संख्या की तुलना करें।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 15,
-      "entry_kind": "full_length",
+      "entry_kind": "applied",
       "paper_code": "UPSC_PRE_GS1",
-      "opens_on": "2027-04-18",
-      "open_days": 7,
-      "question_count": 100,
-      "duration_minutes": 120,
-      "composition": { "pyq": 95, "ca": 5, "qgen": 0 },
-      "node_targets": [],
+      "question_type": "mcq",
+      "opens_on": "2026-12-13",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "economic-social-development"
+      ],
       "syllabus_note_i18n": {
-        "en": "Full-length simulation 5 — full syllabus, penultimate paper.",
-        "hi": "पूर्ण-लंबाई सिमुलेशन 5 — सम्पूर्ण पाठ्यक्रम, उपान्त्य प्रश्नपत्र।"
+        "en": "Economy Applied I — macro concepts applied to policy.",
+        "hi": "अर्थव्यवस्था व्यावहारिक I — नीति पर लागू समष्टि-आर्थिक संकल्पनाएँ।"
       },
       "sources_i18n": {
-        "en": "No new sources. Consolidate current affairs from the past twelve months.",
-        "hi": "कोई नया स्रोत नहीं। पिछले बारह महीनों के करेंट अफेयर्स समेकित करें।"
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
       }
     },
     {
       "sequence_no": 16,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-12-20",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "economic-social-development"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Economy Applied II — poverty, inclusion and welfare architecture.",
+        "hi": "अर्थव्यवस्था व्यावहारिक II — गरीबी, समावेशन एवं कल्याण संरचना।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 17,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2026-12-27",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "environment-ecology"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Environment Applied — conventions, institutions and the year's ecology news.",
+        "hi": "पर्यावरण व्यावहारिक — अभिसमय, संस्थाएँ तथा वर्ष की पारिस्थितिकी सम्बन्धी घटनाएँ।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 18,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-01-03",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "general-science"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Science and Technology Applied — space, nuclear, biotech, digital.",
+        "hi": "विज्ञान एवं प्रौद्योगिकी व्यावहारिक — अंतरिक्ष, परमाणु, जैव प्रौद्योगिकी, डिजिटल।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 19,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-01-10",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "economic-social-development",
+        "polity"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Governance and Social Justice.",
+        "hi": "शासन एवं सामाजिक न्याय।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 20,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-01-17",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "current-affairs",
+        "polity"
+      ],
+      "syllabus_note_i18n": {
+        "en": "International Relations and India's engagements.",
+        "hi": "अंतर्राष्ट्रीय सम्बन्ध एवं भारत की भागीदारी।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 21,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-01-24",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "current-affairs"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Internal Security and contemporary national issues.",
+        "hi": "आंतरिक सुरक्षा एवं समकालीन राष्ट्रीय मुद्दे।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 22,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-01-31",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "history"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Art and Culture deep dive.",
+        "hi": "कला एवं संस्कृति का गहन अध्ययन।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 23,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-02-07",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "current-affairs"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Current Affairs Consolidation I.",
+        "hi": "करेंट अफेयर्स समेकन I।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 24,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-02-14",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [
+        "current-affairs"
+      ],
+      "syllabus_note_i18n": {
+        "en": "Current Affairs Consolidation II.",
+        "hi": "करेंट अफेयर्स समेकन II।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 25,
+      "entry_kind": "applied",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-02-21",
+      "open_days": 14,
+      "question_count": 75,
+      "duration_minutes": 90,
+      "composition": {
+        "pyq": 85,
+        "ca": 10,
+        "qgen": 5
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Mixed revision across the whole syllabus.",
+        "hi": "सम्पूर्ण पाठ्यक्रम की मिश्रित पुनरावृत्ति।"
+      },
+      "sources_i18n": {
+        "en": "Adds the 2nd ARC reports, Yojana, PIB, the Economic Survey and the year's major reports.",
+        "hi": "इसमें द्वितीय प्रशासनिक सुधार आयोग की रिपोर्ट, योजना, पीआईबी, आर्थिक सर्वेक्षण तथा वर्ष की प्रमुख रिपोर्ट जुड़ती हैं।"
+      }
+    },
+    {
+      "sequence_no": 26,
       "entry_kind": "full_length",
       "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-03-07",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 27,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-03-14",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 28,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-03-21",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 29,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-03-28",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 30,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-04-04",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 31,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-04-11",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 32,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-04-18",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 33,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
       "opens_on": "2027-04-25",
       "open_days": 7,
       "question_count": 100,
       "duration_minutes": 120,
-      "composition": { "pyq": 95, "ca": 5, "qgen": 0 },
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
       "node_targets": [],
       "syllabus_note_i18n": {
-        "en": "Final simulation — the last full-length before 23 May. Four clear weeks follow it for revision; do not add new material in them.",
-        "hi": "अंतिम सिमुलेशन — 23 मई से पूर्व का अंतिम पूर्ण-लंबाई पेपर। इसके बाद पुनरावृत्ति हेतु चार स्पष्ट सप्ताह हैं; उनमें नई सामग्री न जोड़ें।"
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
       },
       "sources_i18n": {
-        "en": "No new sources. Your own wrong answers, and the sections your rank trajectory says are still moving.",
-        "hi": "कोई नया स्रोत नहीं। आपके स्वयं के गलत उत्तर, तथा वे अनुभाग जिनके बारे में आपकी रैंक प्रवृत्ति कहती है कि वे अब भी परिवर्तनशील हैं।"
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 34,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-05-02",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
+      }
+    },
+    {
+      "sequence_no": 35,
+      "entry_kind": "full_length",
+      "paper_code": "UPSC_PRE_GS1",
+      "question_type": "mcq",
+      "opens_on": "2027-05-09",
+      "open_days": 7,
+      "question_count": 100,
+      "duration_minutes": 120,
+      "composition": {
+        "pyq": 90,
+        "ca": 10,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Full-length simulation — the complete General Studies Paper I syllabus, 100 questions in two hours with one-third negative marking.",
+        "hi": "पूर्ण-लंबाई सिमुलेशन — सम्पूर्ण सामान्य अध्ययन प्रथम प्रश्नपत्र पाठ्यक्रम, दो घंटे में 100 प्रश्न, एक-तिहाई ऋणात्मक अंकन सहित।"
+      },
+      "sources_i18n": {
+        "en": "Everything covered in the Fundamental and Applied passes.",
+        "hi": "फाउंडेशन एवं व्यावहारिक चरणों में सम्मिलित सब कुछ।"
       }
     }
   ]

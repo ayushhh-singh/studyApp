@@ -1,0 +1,546 @@
+{
+  "slug": "uppsc-mains-2027",
+  "exam_code": "uppsc",
+  "stage": "mains",
+  "paper_scope": null,
+  "target_exam_year": 2027,
+  "opens_time_ist": "09:00",
+  "title_i18n": {
+    "en": "UPPSC Mains 2027 — Test Series",
+    "hi": "यूपीपीएससी मुख्य परीक्षा 2027 — टेस्ट सीरीज़"
+  },
+  "description_i18n": {
+    "en": "Twenty-two papers after the Prelims result: six GS sectionals, two complete cycles of GS I–VI, and two Essay and two General Hindi papers. Every paper is drawn from real past-year questions. ⚠ The UPPSC Mains date is not yet announced by the commission, so these dates follow the previous cycle and will be re-anchored when it is.",
+    "hi": "प्रारंभिक परिणाम के बाद बाईस पेपर: छह सामान्य अध्ययन सेक्शनल, सामान्य अध्ययन I–VI के दो पूर्ण चक्र, तथा दो निबंध एवं दो सामान्य हिन्दी प्रश्नपत्र। हर पेपर वास्तविक विगत वर्ष प्रश्नों से बनता है। ⚠ यूपीपीएससी मुख्य परीक्षा की तिथि आयोग द्वारा अभी घोषित नहीं है, इसलिए ये तिथियाँ पिछले चक्र पर आधारित हैं और घोषणा होने पर पुनर्निर्धारित होंगी।"
+  },
+  "entries": [
+    {
+      "sequence_no": 1,
+      "entry_kind": "sectional",
+      "paper_code": "MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-01-24",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-I sectional — History, art and culture, and geography.",
+        "hi": "GS-I सेक्शनल — इतिहास, कला एवं संस्कृति, तथा भूगोल।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 2,
+      "entry_kind": "sectional",
+      "paper_code": "MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-01-28",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-II sectional — Constitution, polity, governance, social justice and international relations.",
+        "hi": "GS-II सेक्शनल — संविधान, राजव्यवस्था, शासन, सामाजिक न्याय एवं अंतर्राष्ट्रीय सम्बन्ध।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 3,
+      "entry_kind": "sectional",
+      "paper_code": "MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-01",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-III sectional — Economy, science and technology, environment, security and disaster management.",
+        "hi": "GS-III सेक्शनल — अर्थव्यवस्था, विज्ञान एवं प्रौद्योगिकी, पर्यावरण, सुरक्षा एवं आपदा प्रबंधन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 4,
+      "entry_kind": "sectional",
+      "paper_code": "MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-05",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-IV sectional — Ethics, integrity and aptitude, including case studies.",
+        "hi": "GS-IV सेक्शनल — नीतिशास्त्र, सत्यनिष्ठा एवं अभिरुचि, केस स्टडी सहित।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 5,
+      "entry_kind": "sectional",
+      "paper_code": "MAINS_GS5",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-09",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-V sectional — Uttar Pradesh — history, culture, economy and administration.",
+        "hi": "GS-V सेक्शनल — उत्तर प्रदेश — इतिहास, संस्कृति, अर्थव्यवस्था एवं प्रशासन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 6,
+      "entry_kind": "sectional",
+      "paper_code": "MAINS_GS6",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-13",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-VI sectional — Uttar Pradesh — contemporary issues, schemes and development.",
+        "hi": "GS-VI सेक्शनल — उत्तर प्रदेश — समकालीन मुद्दे, योजनाएँ एवं विकास।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 7,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_ESSAY",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-17",
+      "open_days": 14,
+      "question_count": 3,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Essay Paper I — three essays across the UPPSC sections.",
+        "hi": "निबंध प्रश्नपत्र I — यूपीपीएससी के खंडों में तीन निबंध।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 8,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GH",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-21",
+      "open_days": 14,
+      "question_count": 8,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "General Hindi Paper I — comprehension, precis, letter writing and grammar.",
+        "hi": "सामान्य हिन्दी प्रश्नपत्र I — बोध, संक्षेपण, पत्र लेखन एवं व्याकरण।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 9,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-02-25",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-I full paper, cycle 1 — History, art and culture, and geography.",
+        "hi": "GS-I पूर्ण प्रश्नपत्र, चक्र 1 — इतिहास, कला एवं संस्कृति, तथा भूगोल।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 10,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-01",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-II full paper, cycle 1 — Constitution, polity, governance, social justice and international relations.",
+        "hi": "GS-II पूर्ण प्रश्नपत्र, चक्र 1 — संविधान, राजव्यवस्था, शासन, सामाजिक न्याय एवं अंतर्राष्ट्रीय सम्बन्ध।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 11,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-05",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-III full paper, cycle 1 — Economy, science and technology, environment, security and disaster management.",
+        "hi": "GS-III पूर्ण प्रश्नपत्र, चक्र 1 — अर्थव्यवस्था, विज्ञान एवं प्रौद्योगिकी, पर्यावरण, सुरक्षा एवं आपदा प्रबंधन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 12,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-09",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-IV full paper, cycle 1 — Ethics, integrity and aptitude, including case studies.",
+        "hi": "GS-IV पूर्ण प्रश्नपत्र, चक्र 1 — नीतिशास्त्र, सत्यनिष्ठा एवं अभिरुचि, केस स्टडी सहित।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 13,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS5",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-13",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-V full paper, cycle 1 — Uttar Pradesh — history, culture, economy and administration.",
+        "hi": "GS-V पूर्ण प्रश्नपत्र, चक्र 1 — उत्तर प्रदेश — इतिहास, संस्कृति, अर्थव्यवस्था एवं प्रशासन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 14,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS6",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-17",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-VI full paper, cycle 1 — Uttar Pradesh — contemporary issues, schemes and development.",
+        "hi": "GS-VI पूर्ण प्रश्नपत्र, चक्र 1 — उत्तर प्रदेश — समकालीन मुद्दे, योजनाएँ एवं विकास।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 15,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_ESSAY",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-21",
+      "open_days": 14,
+      "question_count": 3,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "Essay Paper II — three essays, full simulation.",
+        "hi": "निबंध प्रश्नपत्र II — तीन निबंध, पूर्ण सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 16,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GH",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-25",
+      "open_days": 14,
+      "question_count": 8,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "General Hindi Paper II — full simulation.",
+        "hi": "सामान्य हिन्दी प्रश्नपत्र II — पूर्ण सिमुलेशन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 17,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS1",
+      "question_type": "descriptive",
+      "opens_on": "2027-03-29",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-I full paper, cycle 2 — History, art and culture, and geography.",
+        "hi": "GS-I पूर्ण प्रश्नपत्र, चक्र 2 — इतिहास, कला एवं संस्कृति, तथा भूगोल।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 18,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS2",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-02",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-II full paper, cycle 2 — Constitution, polity, governance, social justice and international relations.",
+        "hi": "GS-II पूर्ण प्रश्नपत्र, चक्र 2 — संविधान, राजव्यवस्था, शासन, सामाजिक न्याय एवं अंतर्राष्ट्रीय सम्बन्ध।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 19,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS3",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-06",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-III full paper, cycle 2 — Economy, science and technology, environment, security and disaster management.",
+        "hi": "GS-III पूर्ण प्रश्नपत्र, चक्र 2 — अर्थव्यवस्था, विज्ञान एवं प्रौद्योगिकी, पर्यावरण, सुरक्षा एवं आपदा प्रबंधन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 20,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS4",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-10",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-IV full paper, cycle 2 — Ethics, integrity and aptitude, including case studies.",
+        "hi": "GS-IV पूर्ण प्रश्नपत्र, चक्र 2 — नीतिशास्त्र, सत्यनिष्ठा एवं अभिरुचि, केस स्टडी सहित।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 21,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS5",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-14",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-V full paper, cycle 2 — Uttar Pradesh — history, culture, economy and administration.",
+        "hi": "GS-V पूर्ण प्रश्नपत्र, चक्र 2 — उत्तर प्रदेश — इतिहास, संस्कृति, अर्थव्यवस्था एवं प्रशासन।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    },
+    {
+      "sequence_no": 22,
+      "entry_kind": "full_length",
+      "paper_code": "MAINS_GS6",
+      "question_type": "descriptive",
+      "opens_on": "2027-04-18",
+      "open_days": 14,
+      "question_count": 20,
+      "duration_minutes": 180,
+      "composition": {
+        "pyq": 100,
+        "ca": 0,
+        "qgen": 0
+      },
+      "node_targets": [],
+      "syllabus_note_i18n": {
+        "en": "GS-VI full paper, cycle 2 — Uttar Pradesh — contemporary issues, schemes and development.",
+        "hi": "GS-VI पूर्ण प्रश्नपत्र, चक्र 2 — उत्तर प्रदेश — समकालीन मुद्दे, योजनाएँ एवं विकास।"
+      },
+      "sources_i18n": {
+        "en": "Your own chapters and notes for this paper, plus every past-year question for it in the PYQ archive.",
+        "hi": "इस प्रश्नपत्र के लिए आपके अपने अध्याय एवं नोट्स, साथ ही पीवाईक्यू संग्रह में इसके सभी विगत वर्ष प्रश्न।"
+      }
+    }
+  ]
+}

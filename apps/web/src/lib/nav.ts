@@ -13,6 +13,7 @@ import {
   MessagesSquare,
   StickyNote,
   Compass,
+  CalendarDays,
   type LucideIcon,
 } from "lucide-react";
 
@@ -39,6 +40,16 @@ export const NAV_ITEMS: NavItem[] = [
     mobilePrimary: true,
   },
   { id: "practice", to: "practice", labelKey: "Nav.practice", icon: PenSquare, mobilePrimary: true },
+  // Its own top-level surface, immediately after Practice — a scheduled series
+  // with a published calendar, a shared cohort and a ranked window is a
+  // different product from ad-hoc practice, and burying it inside a tab there
+  // read as "just another mock".
+  //
+  // Deliberately NOT `flagship: true` and NOT `mobilePrimary`. Flagship is
+  // Answers' identity in this design system (it carries the gauge/gold accent),
+  // and the mobile bar is a documented 4-primary + More layout that a fifth
+  // primary would break.
+  { id: "test-series", to: "test-series", labelKey: "Nav.testSeries", icon: CalendarDays },
   { id: "scoreboard", to: "scoreboard", labelKey: "Nav.scoreboard", icon: Trophy },
   { id: "current-affairs", to: "current-affairs", labelKey: "Nav.currentAffairs", icon: Newspaper },
   { id: "doubts", to: "doubts", labelKey: "Nav.doubts", icon: Sparkles },

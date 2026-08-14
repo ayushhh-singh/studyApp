@@ -5,7 +5,6 @@ import type { ExamCode } from "@neev/shared";
 import { examCodeSchema } from "@neev/shared";
 import { PageHeader } from "@/components/ui-x/page-header";
 import { SectionCard } from "@/components/ui-x/section-card";
-import { SeriesEntryPoint } from "@/components/practice/series-entry-point";
 import { EmptyState } from "@/components/ui-x/empty-state";
 import { ListRowSkeleton } from "@/components/ui-x/skeleton";
 import { ExamFilter } from "@/components/ui-x/exam-filter";
@@ -293,12 +292,9 @@ export function Component() {
           </SectionCard>
         </TabsContent>
         <TabsContent value="mock">
-          <div className="space-y-4">
-            <SeriesEntryPoint />
-            <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription", { exam: examName })}>
-              <MockTestsPanel stage="prelims" />
-            </SectionCard>
-          </div>
+          <SectionCard title={t("Practice.mockTitle")} description={t("Practice.mockDescription", { exam: examName })}>
+            <MockTestsPanel stage="prelims" />
+          </SectionCard>
         </TabsContent>
         <TabsContent value="timeattack">
           <TimeAttackPanel />

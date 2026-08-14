@@ -115,10 +115,15 @@ function statusFilter(admin: boolean): { col: "status"; op: "eq" | "neq"; val: s
  * needs no scheduled job to open a test; §7.1.
  */
 export function entryStateFor(
-  entry: { opens_at: string; ranked_until: string | null },
+  entry: { opens_at: string; ranked_until: string | null; test_id?: string | null },
   attempt: { submitted_at: string | null } | undefined,
   now: Date,
 ): SeriesEntryState {
+  // "scheduled" outranks "locked": both are unstartable, but only one of them is
+  // a promise the operator still has to keep. Reported separately so a calendar
+  // whose papers are not being built shows up as such instead of looking merely
+  // early.
+  if (entry.test_id === null) return "scheduled";
   if (now < new Date(entry.opens_at)) return "locked";
   if (!attempt) return "open";
   if (!attempt.submitted_at) return "in_progress";
@@ -145,9 +150,9 @@ export async function listSeries(userId: string): Promise<TestSeriesSummary[]> {
     .select("series_id, test_id, opens_at, ranked_until")
     .in("series_id", ids);
   if (entErr) throw new HttpError(500, `series entries lookup failed: ${entErr.message}`);
-  const entryRows = (entries ?? []) as { series_id: string; test_id: string; opens_at: string; ranked_until: string | null }[];
+  const entryRows = (entries ?? []) as { series_id: string; test_id: string | null; opens_at: string; ranked_until: string | null }[];
 
-  const attempts = await attemptsByTest(userId, entryRows.map((e) => e.test_id));
+  const attempts = await attemptsByTest(userId, entryRows.flatMap((e) => (e.test_id ? [e.test_id] : [])));
   const now = new Date();
 
   return rows.map((s) => {
@@ -155,7 +160,7 @@ export async function listSeries(userId: string): Promise<TestSeriesSummary[]> {
     let open = 0;
     let done = 0;
     for (const e of mine) {
-      const st = entryStateFor(e, attempts.get(e.test_id), now);
+      const st = entryStateFor(e, e.test_id ? attempts.get(e.test_id) : undefined, now);
       if (st === "open" || st === "in_progress") open += 1;
       if (st === "submitted" || st === "submitted_late") done += 1;
     }
@@ -221,7 +226,9 @@ export async function getSeriesBySlug(userId: string, slug: string): Promise<Tes
 
   const { data: entries, error: entErr } = await supabase()
     .from("test_series_entries")
-    .select(`${ENTRY_COLUMNS}, tests!inner(title_i18n, paper_code, duration_minutes, total_marks, test_questions(count))`)
+    // LEFT join (no !inner): an unassembled entry has no test yet and must
+    // still appear on the published calendar.
+    .select(`${ENTRY_COLUMNS}, tests(title_i18n, paper_code, duration_minutes, total_marks, test_questions(count))`)
     .eq("series_id", s.id)
     .order("sequence_no", { ascending: true });
   if (entErr) throw new HttpError(500, `series entries lookup failed: ${entErr.message}`);
@@ -233,24 +240,24 @@ export async function getSeriesBySlug(userId: string, slug: string): Promise<Tes
       duration_minutes: number | null;
       total_marks: number | null;
       test_questions: { count: number }[];
-    };
+    } | null;
   })[];
 
-  const attempts = await attemptsByTest(userId, rows.map((r) => r.test_id));
+  const attempts = await attemptsByTest(userId, rows.flatMap((r) => (r.test_id ? [r.test_id] : [])));
   const now = new Date();
 
   const mapped: TestSeriesEntry[] = rows.map((r) => {
-    const a = attempts.get(r.test_id);
+    const a = r.test_id ? attempts.get(r.test_id) : undefined;
     return {
       id: r.id,
       test_id: r.test_id,
       sequence_no: r.sequence_no,
       entry_kind: r.entry_kind as TestSeriesEntry["entry_kind"],
-      title_i18n: r.tests.title_i18n,
-      paper_code: r.tests.paper_code,
-      duration_minutes: r.tests.duration_minutes,
-      total_marks: r.tests.total_marks,
-      question_count: r.tests.test_questions[0]?.count ?? 0,
+      title_i18n: r.tests?.title_i18n ?? null,
+      paper_code: r.tests?.paper_code ?? null,
+      duration_minutes: r.tests?.duration_minutes ?? null,
+      total_marks: r.tests?.total_marks ?? null,
+      question_count: r.tests?.test_questions[0]?.count ?? 0,
       opens_at: r.opens_at,
       closes_at: r.closes_at,
       ranked_until: r.ranked_until,

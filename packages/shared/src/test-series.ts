@@ -18,7 +18,15 @@ import { bilingualTextSchema, examStageSchema } from "./types";
  *   submitted_late  submitted after ranked_until — counts for practice and for
  *                   the student's own analytics, but does not place on the board
  */
-export const seriesEntryStateSchema = z.enum(["locked", "open", "in_progress", "submitted", "submitted_late"]);
+export const seriesEntryStateSchema = z.enum([
+  /** On the calendar, paper not assembled yet — see build.ts's --window mode. */
+  "scheduled",
+  "locked",
+  "open",
+  "in_progress",
+  "submitted",
+  "submitted_late",
+]);
 export type SeriesEntryState = z.infer<typeof seriesEntryStateSchema>;
 
 export const seriesEntryKindSchema = z.enum([
@@ -33,10 +41,12 @@ export type SeriesEntryKind = z.infer<typeof seriesEntryKindSchema>;
 
 export const testSeriesEntrySchema = z.object({
   id: z.string().uuid(),
-  test_id: z.string().uuid(),
+  /** Null until the paper is assembled (the calendar is published first). */
+  test_id: z.string().uuid().nullable(),
   sequence_no: z.number().int(),
   entry_kind: seriesEntryKindSchema,
-  title_i18n: bilingualTextSchema,
+  /** Null while unassembled — the entry's own syllabus note is the label then. */
+  title_i18n: bilingualTextSchema.nullable(),
   paper_code: z.string().nullable(),
   duration_minutes: z.number().int().nullable(),
   total_marks: z.number().nullable(),
