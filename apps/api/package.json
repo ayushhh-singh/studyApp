@@ -74,7 +74,8 @@
     "ca:deepdive": "tsx --env-file-if-exists=.env src/ca/deepdive-run.ts",
     "ca:verify-mcqs": "tsx --env-file-if-exists=.env src/ca/verify-mcqs-run.ts",
     "guest:rls": "tsx --env-file-if-exists=.env --env-file=../web/.env.local scripts/guest-rls-check.ts",
-    "guests:prune": "tsx --env-file-if-exists=.env scripts/prune-guests.ts"
+    "guests:prune": "tsx --env-file-if-exists=.env scripts/prune-guests.ts",
+    "series:build": "tsx --env-file-if-exists=.env src/series/cli.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.110.0",

@@ -618,6 +618,15 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     spec: { value: ["exam"] },
     documented: [[], ["--exam", "upsc"]],
   },
+  {
+    // A BARE run is legitimate and must keep parsing: with no --slug it lists
+    // the available calendars and exits without touching the database. The
+    // --dry-run form is the one an operator uses to check a calendar's pools
+    // before a real build writes `tests` rows to the production project.
+    script: "series:build",
+    spec: { value: ["slug"], boolean: ["dry-run"] },
+    documented: [[], ["--slug", "uppsc-prelims-2026"], ["--slug", "upsc-prelims-2027", "--dry-run"]],
+  },
 ];
 
 for (const { script, spec, documented } of SHIPPED) {

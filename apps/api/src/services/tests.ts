@@ -102,6 +102,24 @@ export async function listTests(filters: TestListFilters): Promise<TestSummary[]
     query = query.neq("paper_code", CURRENT_AFFAIRS_PAPER_CODE);
   }
 
+  // A scheduled test-series paper is reachable through its SERIES — where it has
+  // an open/locked state, a published syllabus note and a ranked window — and
+  // must not also appear loose in the Practice tabs, where it would be
+  // startable before it opens and would read as just another mock.
+  //
+  // This is the same leak this function already carries a comment about: Mains
+  // mocks appeared in the MCQ Practice tab "the moment they were built".
+  // A series build writes tests with kind mock/sectional (deliberately — see
+  // series/build.ts's testKindFor and §5.3, a new test_kind would silently cost
+  // them their leaderboard), so without this they would surface identically.
+  //
+  // ⚑ The null-safe form is required, not defensive. `not("meta->>source",
+  // "eq", "series")` compares NULL != 'series' → NULL → the row is dropped, and
+  // MEASURED on live data 38 tests (all `custom`) carry no `meta.source` at all.
+  // The obvious filter would silently delete a user's own custom sets from
+  // their Custom tab.
+  query = query.or("meta->>source.is.null,meta->>source.neq.series");
+
   const { data, error } = await query;
   if (error) throw new HttpError(500, `tests query failed: ${error.message}`);
 
