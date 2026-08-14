@@ -1008,11 +1008,6 @@
     "tierLabel": "टियर",
     "confirmDowngrade": "{{email}} {{from}} पर हैं, जो {{tier}} से ऊँचा है। {{tier}} देना एक डाउनग्रेड है — वे टेस्ट सीरीज़ खो देंगे। जारी रखें?"
   },
-  "Exam": {
-    "filterLabel": "परीक्षा फ़िल्टर",
-    "allExams": "सभी परीक्षाएँ",
-    "examOnly": "केवल {{exam}}"
-  },
   "ExamPicker": {
     "groupLabel": "अपनी परीक्षा चुनें",
     "comingSoon": "जल्द आ रहा है",
