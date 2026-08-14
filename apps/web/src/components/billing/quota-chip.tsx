@@ -35,6 +35,8 @@ export function EvaluationQuotaChip({ className }: { className?: string }) {
 
   // A trial user is plan==='pro' but has a real, tighter daily cap — show the
   // count, never "Unlimited". Only a PAID Pro is truly unlimited-ish here.
+  // Max reports a real annual/monthly allowance, so it shows a count like the
+  // others — only a PAID Pro gets the "Unlimited" treatment.
   const unlimited = data.plan === "pro" && !data.is_on_trial;
   const remaining = data.evaluations.remaining;
   const empty = !unlimited && remaining <= 0;

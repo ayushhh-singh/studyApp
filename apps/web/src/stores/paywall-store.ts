@@ -8,6 +8,7 @@ export type PaywallFeature =
   | "micro_drills"
   | "all_notes"
   | "magazine_pdf"
+  | "test_series"
   | "generic";
 
 interface PaywallState {
@@ -33,6 +34,7 @@ export function toPaywallFeature(feature: string | undefined): PaywallFeature {
     case "micro_drills":
     case "all_notes":
     case "magazine_pdf":
+    case "test_series":
       return feature;
     default:
       return "generic";

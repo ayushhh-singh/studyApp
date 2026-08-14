@@ -3,7 +3,7 @@ import { z } from "zod";
 import {
   adminStatusResponseSchema,
   adminGrantLogResponseSchema,
-  adminGrantProBodySchema,
+  adminGrantPlanBodySchema,
   adminUserActionResponseSchema,
   adminUserAttemptsQuerySchema,
   adminUserAttemptsResponseSchema,
@@ -85,11 +85,11 @@ import {
   getUserCost,
   getUserStats,
   grantAdmin,
-  grantPro,
+  grantPlan,
   listUserAttempts,
   listUsers,
   revokeAdmin,
-  revokePro,
+  revokePlan,
 } from "../services/admin-users.js";
 import { ATTEMPTS_PAGE_SIZE } from "../services/attempts.js";
 
@@ -514,8 +514,8 @@ adminRouter.post(
   "/admin/users/:id/grant-pro",
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
-    const { days } = parse(adminGrantProBodySchema, req.body ?? {});
-    res.json(adminUserActionResponseSchema.parse({ data: await grantPro(currentUserId(), id, days ?? null), error: null }));
+    const { days, tier } = parse(adminGrantPlanBodySchema, req.body ?? {});
+    res.json(adminUserActionResponseSchema.parse({ data: await grantPlan(currentUserId(), id, tier, days ?? null), error: null }));
   }),
 );
 
@@ -523,7 +523,7 @@ adminRouter.post(
   "/admin/users/:id/revoke-pro",
   asyncHandler(async (req, res) => {
     const { id } = parse(idParams, req.params);
-    res.json(adminUserActionResponseSchema.parse({ data: await revokePro(currentUserId(), id), error: null }));
+    res.json(adminUserActionResponseSchema.parse({ data: await revokePlan(currentUserId(), id), error: null }));
   }),
 );
 

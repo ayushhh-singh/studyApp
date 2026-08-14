@@ -43,8 +43,14 @@ export function Component() {
   const [activePlan, setActivePlan] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  const isPro = !!session && subscription.data?.entitlements.plan === "pro";
+  const currentTier = (session && subscription.data?.entitlements.plan) || "free";
+  const isPro = currentTier === "pro" || currentTier === "max";
   const proUntil = subscription.data?.entitlements.plan_expires_at ?? null;
+  // Rank, never a string compare: "max" < "pro" lexically in JS, so `>=` would
+  // silently let a Max user "upgrade" to Pro. Mirrors entitlements.ts's planRank.
+  const RANK: Record<string, number> = { free: 0, pro: 1, max: 2 };
+  /** A plan is already covered if the user is on that tier or a higher one. */
+  const owned = (tier: string) => RANK[currentTier] >= RANK[tier];
 
   // While confirming a fresh payment, poll the subscription until the webhook
   // flips the plan to Pro (the webhook is the source of truth, not checkout.js).
@@ -59,8 +65,8 @@ export function Component() {
   }, [status, subscription]);
 
   useEffect(() => {
-    if (status === "activating" && isPro) setStatus("done");
-  }, [status, isPro]);
+    if (status === "activating" && currentTier !== "free") setStatus("done");
+  }, [status, currentTier]);
 
   async function choose(plan: Plan) {
     // Checkout itself stays auth-gated — bounce through sign-in and back.
@@ -175,9 +181,19 @@ export function Component() {
       {plans.isError ? (
         <QueryErrorState onRetry={() => void plans.refetch()} />
       ) : (
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {plans.isLoading && [0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
-        {plans.data?.plans.map((plan) => {
+      <div className="flex flex-col gap-8">
+        {plans.isLoading && (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-64 rounded-2xl" />)}
+          </div>
+        )}
+        {tierGroups(plans.data?.plans ?? []).map(({ tier, plans: tierPlans }) => (
+        <section key={tier} className="flex flex-col gap-3">
+          <h2 className="font-heading text-xl font-bold tracking-tight">
+            {pick(locale, tier === "max" ? c.max : c.pro)}
+          </h2>
+          <div className={cn("grid gap-4 sm:grid-cols-2", tierPlans.length > 2 && "lg:grid-cols-4")}>
+        {tierPlans.map((plan) => {
           const highlight = plan.is_intro; // yearly = best value
           const per = planPeriodLabel(plan);
           const months = planMonths(plan);
@@ -233,14 +249,17 @@ export function Component() {
                 size="lg"
                 variant={highlight ? "default" : "outline"}
                 className="mt-auto w-full"
-                disabled={busy || isPro || status === "activating" || (!!session && profileQuery.isLoading)}
+                disabled={busy || owned(plan.tier) || status === "activating" || (!!session && profileQuery.isLoading)}
                 onClick={() => choose(plan)}
               >
-                {busy ? pick(locale, c.processing) : isPro ? pick(locale, c.currentPlan) : pick(locale, c.choosePlan)}
+                {busy ? pick(locale, c.processing) : owned(plan.tier) ? pick(locale, c.currentPlan) : pick(locale, c.choosePlan)}
               </Button>
             </div>
           );
         })}
+          </div>
+        </section>
+        ))}
       </div>
       )}
 
@@ -256,32 +275,60 @@ export function Component() {
   );
 }
 
+/**
+ * Split the flat `plans` list into one group per tier, cheapest tier first.
+ *
+ * Six plans (four Pro cadences + two Max) do not read in a single 4-up grid —
+ * the cards stop being comparable because adjacent ones are different products.
+ * Grouping also makes each tier's `is_intro` "Best value" pill mean "best value
+ * WITHIN this tier", which is the only reading that is actually true.
+ *
+ * Derived from the data rather than hardcoded, so a future tier appears without
+ * touching this file. Order comes from the tier rank, not the string.
+ */
+function tierGroups(plans: Plan[]): { tier: string; plans: Plan[] }[] {
+  const RANK: Record<string, number> = { free: 0, pro: 1, max: 2 };
+  const byTier = new Map<string, Plan[]>();
+  for (const p of plans) {
+    const list = byTier.get(p.tier) ?? [];
+    list.push(p);
+    byTier.set(p.tier, list);
+  }
+  return [...byTier.entries()]
+    .sort((a, b) => (RANK[a[0]] ?? 99) - (RANK[b[0]] ?? 99))
+    .map(([tier, list]) => ({ tier, plans: list }));
+}
+
 function ComparisonTable({ locale }: { locale: ReturnType<typeof useLocale> }) {
-  const rows: { label: { en: string; hi: string }; free: { en: string; hi: string } | boolean; pro: { en: string; hi: string } | boolean }[] = [
-    { label: c.featPYQ, free: true, pro: true },
-    { label: c.featDaily, free: true, pro: true },
-    { label: c.featEval, free: c.featEvalFree, pro: c.featEvalPro },
-    { label: c.featNotes, free: c.featNotesFree, pro: c.featNotesPro },
-    { label: c.featMentor, free: c.featMentorFree, pro: c.featMentorPro },
-    { label: c.featOcr, free: false, pro: true },
-    { label: c.featDrills, free: false, pro: true },
-    { label: c.featMocks, free: false, pro: true },
-    { label: c.featAnalytics, free: false, pro: true },
-    { label: c.featMagazine, free: false, pro: true },
+  type Cell = { en: string; hi: string } | boolean;
+  const rows: { label: { en: string; hi: string }; free: Cell; pro: Cell; max: Cell }[] = [
+    { label: c.featPYQ, free: true, pro: true, max: true },
+    { label: c.featDaily, free: true, pro: true, max: true },
+    { label: c.featEval, free: c.featEvalFree, pro: c.featEvalPro, max: c.featEvalMax },
+    { label: c.featNotes, free: c.featNotesFree, pro: c.featNotesPro, max: c.featNotesPro },
+    { label: c.featMentor, free: c.featMentorFree, pro: c.featMentorPro, max: c.featMentorPro },
+    { label: c.featOcr, free: false, pro: true, max: true },
+    { label: c.featDrills, free: false, pro: true, max: true },
+    { label: c.featMocks, free: false, pro: true, max: true },
+    { label: c.featAnalytics, free: false, pro: true, max: true },
+    { label: c.featMagazine, free: false, pro: true, max: true },
+    // The one row that separates the tiers — last, so it reads as the payoff.
+    { label: c.featSeries, free: false, pro: false, max: true },
   ];
-  const cell = (v: { en: string; hi: string } | boolean) => {
+  const cell = (v: Cell) => {
     if (v === true) return <Check className="mx-auto size-4 text-tulsi" aria-hidden />;
     if (v === false) return <X className="mx-auto size-4 text-muted-foreground/50" aria-hidden />;
     return <span className="block text-xs leading-[1.75]">{pick(locale, v)}</span>;
   };
   return (
     <div className="overflow-x-auto rounded-xl border border-border">
-      <table className="w-full min-w-[28rem] text-sm">
+      <table className="w-full min-w-[34rem] text-sm">
         <thead>
           <tr className="border-b border-border bg-muted/50">
             <th className="px-4 py-3 text-left font-medium"> </th>
             <th className="px-4 py-3 text-center font-medium">{pick(locale, c.free)}</th>
-            <th className="px-4 py-3 text-center font-semibold text-primary">{pick(locale, c.pro)}</th>
+            <th className="px-4 py-3 text-center font-semibold text-marigold-foreground">{pick(locale, c.pro)}</th>
+            <th className="px-4 py-3 text-center font-semibold text-primary">{pick(locale, c.max)}</th>
           </tr>
         </thead>
         <tbody>
@@ -290,6 +337,7 @@ function ComparisonTable({ locale }: { locale: ReturnType<typeof useLocale> }) {
               <td className="px-4 py-3">{pick(locale, r.label)}</td>
               <td className="px-4 py-3 text-center text-muted-foreground">{cell(r.free)}</td>
               <td className="px-4 py-3 text-center">{cell(r.pro)}</td>
+              <td className="px-4 py-3 text-center">{cell(r.max)}</td>
             </tr>
           ))}
         </tbody>

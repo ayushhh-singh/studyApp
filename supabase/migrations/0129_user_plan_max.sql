@@ -1,5 +1,5 @@
 -- =============================================================================
--- 0128_user_plan_max.sql — add the 'max' tier to the user_plan enum.
+-- 0129_user_plan_max.sql — add the 'max' tier to the user_plan enum.
 --
 -- This is the WHOLE schema delta for the Max tier. That is not an oversight —
 -- it is the payoff of the exam-interaction decision recorded in
@@ -72,6 +72,6 @@ begin
      where t.typname = 'user_plan'
        and e.enumlabel = 'max'
   ) then
-    raise exception '0128: user_plan is missing the ''max'' value';
+    raise exception '0129: user_plan is missing the ''max'' value';
   end if;
 end $$;

@@ -16,8 +16,22 @@ import { attemptListItemSchema } from "./tests";
  * adds a UI + audit trail on top of those existing fields.
  */
 
-export const adminGrantActionSchema = z.enum(["grant_pro", "revoke_pro", "grant_admin", "revoke_admin"]);
+export const adminGrantActionSchema = z.enum([
+  "grant_pro",
+  "revoke_pro",
+  "grant_max",
+  "revoke_max",
+  "grant_admin",
+  "revoke_admin",
+]);
 export type AdminGrantAction = z.infer<typeof adminGrantActionSchema>;
+
+/**
+ * The tiers an admin can grant. Excludes 'free' by construction — dropping to
+ * free is `revoke`, not a grant, so this cannot be called with a nonsense tier.
+ */
+export const paidTierSchema = z.enum(["pro", "max"]);
+export type PaidTier = z.infer<typeof paidTierSchema>;
 
 /** One account's access-relevant profile, as the admin Users page renders it. */
 export const adminUserSummarySchema = z.object({
@@ -218,10 +232,16 @@ export type AdminUserStatsResponse = z.infer<typeof adminUserStatsResponseSchema
  * without touching that logic — so the admin-users UI shows a warning at the
  * moment it applies rather than letting a time-boxed grant silently under-serve.
  */
-export const adminGrantProBodySchema = z.object({
+export const adminGrantPlanBodySchema = z.object({
   days: z.number().int().positive().max(3650).nullable().optional(),
+  /**
+   * Which paid tier to grant. Defaults to 'pro' so an older client that predates
+   * the Max tier keeps its exact previous behaviour rather than silently
+   * granting the wrong (higher) tier.
+   */
+  tier: paidTierSchema.default("pro"),
 });
-export type AdminGrantProBody = z.infer<typeof adminGrantProBodySchema>;
+export type AdminGrantPlanBody = z.infer<typeof adminGrantPlanBodySchema>;
 
 /** One row of the audit trail, with the acting admin's email resolved for display. */
 export const adminGrantLogEntrySchema = z.object({

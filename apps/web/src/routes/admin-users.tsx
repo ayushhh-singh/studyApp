@@ -80,10 +80,15 @@ export function Component() {
   const pending = grantPro.isPending || revokePro.isPending || grantAdmin.isPending || revokeAdmin.isPending;
   const actionError = (grantPro.error || revokePro.error || grantAdmin.error || revokeAdmin.error) as Error | null;
 
-  function onTogglePro(days: number | null) {
+  /**
+   * Grant `tier`, or revoke when the user is already ON that tier. Revoke always
+   * drops to free regardless of tier, so a Max user's "Revoke" and a Pro user's
+   * do the same thing — the server records WHICH tier was taken away.
+   */
+  function onTogglePlan(tier: "pro" | "max", days: number | null) {
     if (!selectedUser || pending) return;
     const email = selectedUser.email ?? selectedUser.id;
-    if (selectedUser.plan === "pro") {
+    if (selectedUser.plan === tier) {
       if (!window.confirm(t("AdminUsers.confirmRevokePro", { email }))) return;
       revokePro.mutate(selectedUser.id);
     } else {
@@ -95,7 +100,7 @@ export function Component() {
           })
         : t("AdminUsers.confirmGrantPro", { email });
       if (!window.confirm(message)) return;
-      grantPro.mutate({ userId: selectedUser.id, days });
+      grantPro.mutate({ userId: selectedUser.id, days, tier });
     }
   }
 
@@ -197,10 +202,18 @@ export function Component() {
                         <span
                           className={cn(
                             "rounded-full px-2 py-0.5 text-xs font-semibold",
-                            u.plan === "pro" ? "bg-tulsi/15 text-tulsi-foreground" : "bg-muted text-muted-foreground",
+                            u.plan === "max"
+                              ? "bg-primary/15 text-primary"
+                              : u.plan === "pro"
+                                ? "bg-tulsi/15 text-tulsi-foreground"
+                                : "bg-muted text-muted-foreground",
                           )}
                         >
-                          {u.plan === "pro" ? t("AdminUsers.planPro") : t("AdminUsers.planFree")}
+                          {u.plan === "max"
+                            ? t("AdminUsers.planMax")
+                            : u.plan === "pro"
+                              ? t("AdminUsers.planPro")
+                              : t("AdminUsers.planFree")}
                         </span>
                         {u.is_admin && (
                           <span className="rounded-full bg-marigold/15 px-2 py-0.5 text-xs font-semibold text-marigold-foreground">
@@ -225,7 +238,7 @@ export function Component() {
                         <UserManagePanel
                           user={u}
                           pending={pending}
-                          onTogglePro={onTogglePro}
+                          onTogglePlan={onTogglePlan}
                           onToggleAdmin={onToggleAdmin}
                         />
                       </>
@@ -305,12 +318,12 @@ const PRO_GRANT_DURATIONS = [
 function UserManagePanel({
   user,
   pending,
-  onTogglePro,
+  onTogglePlan,
   onToggleAdmin,
 }: {
   user: AdminUserSummary;
   pending: boolean;
-  onTogglePro: (days: number | null) => void;
+  onTogglePlan: (tier: "pro" | "max", days: number | null) => void;
   onToggleAdmin: () => void;
 }) {
   const { t } = useTranslation();
@@ -376,12 +389,21 @@ function UserManagePanel({
       <div className="flex flex-wrap gap-2 border-t border-border pt-4">
         <Button
           type="button"
-          onClick={() => onTogglePro(user.plan === "pro" ? null : selectedDays)}
+          onClick={() => onTogglePlan("pro", user.plan === "pro" ? null : selectedDays)}
           disabled={pending}
           variant={user.plan === "pro" ? "destructive" : "default"}
           className={user.plan === "pro" ? undefined : "bg-tulsi text-white hover:bg-tulsi/90"}
         >
           <Sparkles className="size-4" /> {user.plan === "pro" ? t("AdminUsers.revokePro") : t("AdminUsers.grantPro")}
+        </Button>
+        <Button
+          type="button"
+          onClick={() => onTogglePlan("max", user.plan === "max" ? null : selectedDays)}
+          disabled={pending}
+          variant={user.plan === "max" ? "destructive" : "default"}
+          className={user.plan === "max" ? undefined : "bg-primary text-primary-foreground hover:bg-primary/90"}
+        >
+          <Sparkles className="size-4" /> {user.plan === "max" ? t("AdminUsers.revokeMax") : t("AdminUsers.grantMax")}
         </Button>
         <Button type="button" onClick={onToggleAdmin} disabled={pending} variant={user.is_admin ? "destructive" : "outline"}>
           {user.is_admin ? <ShieldOff className="size-4" /> : <ShieldCheck className="size-4" />}

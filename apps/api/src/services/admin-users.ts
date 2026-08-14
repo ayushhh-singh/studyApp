@@ -30,6 +30,7 @@ import type {
   AdminUserListRow,
   AdminUserStats,
   AdminUserSummary,
+  PaidTier,
   TargetExamCode,
 } from "@neev/shared";
 import { DEFAULT_EXAM_CODE } from "@neev/shared";
@@ -421,18 +422,34 @@ async function updateProfileOrNotFound(targetUserId: string, patch: Record<strin
  * grant expires that many days from now. Never touches `has_used_trial`
  * either way, matching the module's core invariant.
  */
-export async function grantPro(adminUserId: string, targetUserId: string, days: number | null = null): Promise<AdminUserSummary> {
+export async function grantPlan(
+  adminUserId: string,
+  targetUserId: string,
+  tier: PaidTier,
+  days: number | null = null,
+): Promise<AdminUserSummary> {
   const before = await requireUserSummary(targetUserId);
   const planExpiresAt = days ? new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString() : null;
-  await updateProfileOrNotFound(targetUserId, { plan: "pro", plan_expires_at: planExpiresAt }, "grant pro");
-  await logGrant(adminUserId, targetUserId, "grant_pro", { previous_plan: before.plan, days, expires_at: planExpiresAt });
+  await updateProfileOrNotFound(targetUserId, { plan: tier, plan_expires_at: planExpiresAt }, `grant ${tier}`);
+  await logGrant(adminUserId, targetUserId, tier === "max" ? "grant_max" : "grant_pro", {
+    previous_plan: before.plan,
+    days,
+    expires_at: planExpiresAt,
+  });
   return requireUserSummary(targetUserId);
 }
 
-export async function revokePro(adminUserId: string, targetUserId: string): Promise<AdminUserSummary> {
+/**
+ * Drop a paid account back to free. One action for both tiers — the end state is
+ * identical — but the AUDIT records which tier was taken away, read from the row
+ * before the write, so the trail stays honest about what the user actually lost.
+ */
+export async function revokePlan(adminUserId: string, targetUserId: string): Promise<AdminUserSummary> {
   const before = await requireUserSummary(targetUserId);
-  await updateProfileOrNotFound(targetUserId, { plan: "free", plan_expires_at: null }, "revoke pro");
-  await logGrant(adminUserId, targetUserId, "revoke_pro", { previous_plan: before.plan });
+  await updateProfileOrNotFound(targetUserId, { plan: "free", plan_expires_at: null }, "revoke plan");
+  await logGrant(adminUserId, targetUserId, before.plan === "max" ? "revoke_max" : "revoke_pro", {
+    previous_plan: before.plan,
+  });
   return requireUserSummary(targetUserId);
 }
 

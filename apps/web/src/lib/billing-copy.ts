@@ -45,6 +45,7 @@ export const billingCopy = {
   choosePlan: { en: "Choose this plan", hi: "यह प्लान चुनें" } as T,
   currentPlan: { en: "Your current plan", hi: "आपका वर्तमान प्लान" } as T,
   youArePro: { en: "You're on Pro", hi: "आप प्रो पर हैं" } as T,
+  youAreMax: { en: "You're on Max", hi: "आप मैक्स पर हैं" } as T,
   proUntil: { en: "Pro until", hi: "प्रो इस तिथि तक" } as T,
   processing: { en: "Opening checkout…", hi: "चेकआउट खुल रहा है…" } as T,
   activating: { en: "Confirming your payment…", hi: "आपका भुगतान सत्यापित हो रहा है…" } as T,
@@ -69,13 +70,17 @@ export const billingCopy = {
   featMocks: { en: "Full-length mock test series", hi: "पूर्ण-लंबाई मॉक टेस्ट श्रृंखला" } as T,
   featAnalytics: { en: "Advanced analytics + improvement proof", hi: "उन्नत विश्लेषण + सुधार प्रमाण" } as T,
   featMagazine: { en: "Monthly magazine PDF download", hi: "मासिक पत्रिका PDF डाउनलोड" } as T,
+  featSeries: { en: "Scheduled test series (all-India rank)", hi: "निर्धारित टेस्ट सीरीज़ (अखिल भारतीय रैंक)" } as T,
+  featEvalMax: { en: "600/year (200/mo)", hi: "600/वर्ष (200/माह)" } as T,
   free: { en: "Free", hi: "मुफ़्त" } as T,
   pro: { en: "Pro", hi: "प्रो" } as T,
+  max: { en: "Max", hi: "मैक्स" } as T,
   included: { en: "Included", hi: "शामिल" } as T,
   notIncluded: { en: "—", hi: "—" } as T,
 
   // Paywall
   upgradeToPro: { en: "Upgrade to Pro", hi: "प्रो में अपग्रेड करें" } as T,
+  upgradeToMax: { en: "Upgrade to Max", hi: "मैक्स में अपग्रेड करें" } as T,
   maybeLater: { en: "Maybe later", hi: "बाद में" } as T,
   seePlans: { en: "See plans", hi: "प्लान देखें" } as T,
   paywallEvalTitle: { en: "You've used all 3 free evaluations", hi: "आपने तीनों मुफ़्त मूल्यांकन उपयोग कर लिए" } as T,
@@ -104,6 +109,11 @@ export const billingCopy = {
     hi: "मुफ़्त में प्रति पेपर 5 सर्वाधिक-वेटेज विषय शामिल हैं। प्रो के साथ हर नोट अनलॉक करें।",
   } as T,
   paywallMagazineTitle: { en: "Magazine PDF download is a Pro feature", hi: "मैगज़ीन PDF डाउनलोड एक प्रो सुविधा है" } as T,
+  paywallSeriesTitle: { en: "The test series is a Max feature", hi: "टेस्ट सीरीज़ एक मैक्स सुविधा है" } as T,
+  paywallSeriesBody: {
+    en: "Sit the full scheduled calendar — papers that open on a fixed date, ranked against everyone who took them in the same window.",
+    hi: "संपूर्ण निर्धारित कैलेंडर दें — निश्चित तिथि पर खुलने वाले पेपर, उसी अवधि में देने वाले सभी के मुक़ाबले रैंक के साथ।",
+  } as T,
   paywallMagazineBody: {
     en: "Read both monthly editions free online. Printing/downloading a clean PDF is a Pro feature.",
     hi: "दोनों मासिक संस्करण मुफ़्त ऑनलाइन पढ़ें। स्वच्छ PDF प्रिंट/डाउनलोड करना एक प्रो सुविधा है।",

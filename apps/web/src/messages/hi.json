@@ -851,7 +851,8 @@
     "badgesEarnedOf": "{{total}} में से {{earned}}",
     "badgesNextUp": "अगला लक्ष्य:",
     "badgesShowAll_one": "1 और बैज देखें",
-    "badgesShowAll_other": "{{count}} और बैज देखें"
+    "badgesShowAll_other": "{{count}} और बैज देखें",
+    "planMax": "मैक्स"
   },
   "Review": {
     "title": "समीक्षा सूची",
@@ -998,7 +999,11 @@
       "revoke_pro": "Pro वापस लिया गया",
       "grant_admin": "एडमिन बनाया गया",
       "revoke_admin": "एडमिन हटाया गया"
-    }
+    },
+    "planMax": "मैक्स",
+    "grantMax": "मैक्स दें",
+    "revokeMax": "प्लान वापस लें",
+    "tierLabel": "टियर"
   },
   "Exam": {
     "filterLabel": "परीक्षा फ़िल्टर",

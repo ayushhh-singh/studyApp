@@ -1,9 +1,17 @@
 # Max tier — research, exam-interaction decision, and schema
 
-**Status: DESIGN + SCHEMA. No price is chosen and no price is live.** This
-session commits one migration (`0128_user_plan_max.sql`, provably inert) and
-this document. Billing UI, the entitlement code changes (§6) and the priced
-`plans` rows are a follow-up, gated on a price being signed off (§7).
+**Status: SHIPPED (2026-08-14).** Price signed off by the product owner —
+**option A: ₹749/month · ₹5,999/year** (§7). The tier is live end to end: the
+enum (`0129_user_plan_max.sql`, renumbered from 0128 by a concurrent session to
+resolve a collision), the priced rows (`0130_seed_max_plans.sql`, applied), the
+entitlement fixes (§6.2), the series gate (§6.3), the pricing page, the paywall,
+and admin grant/revoke for both tiers.
+
+⚑ **Both a monthly and a yearly option ship, on the owner's explicit call.** §7
+recommended annual-only for option A because its monthly is loss-making at a
+full three-month Mains burn. That exposure is real but bounded — see the
+`LIMITS.max` comment in `entitlements.ts` for the exact arithmetic and why the
+annual cap caps it at ~3 such months.
 
 Every platform number was measured against the live cloud DB on **2026-08-14**
 and is dated. Every market figure is attributed. Currency conversions use
@@ -38,8 +46,7 @@ and is dated. Every market figure is attributed. Currency conversions use
    a live leak.**
 7. **⚑ Two entitlement bugs fail silently the moment `plan='max'` exists**, and
    one is a permanent revenue leak. §6.2.
-8. **Three price points in §7.** None is recommended for auto-adoption; the
-   structural recommendation (annual-first) matters more than the number.
+8. **Price chosen: option A, ₹749/mo · ₹5,999/yr, both cadences shipped.** §7.
 
 ---
 
@@ -353,7 +360,7 @@ by explicit decision**, and Q3 should be marked as answered.
 
 ### 6.1 The schema delta: one enum value
 
-`supabase/migrations/0128_user_plan_max.sql`:
+`supabase/migrations/0129_user_plan_max.sql`:
 
 ```sql
 alter type user_plan add value if not exists 'max';
@@ -388,19 +395,15 @@ write string literals (`'pro'`/`'free'`), and no `plans` row carries
 `tier='max'`, so `createOrder` → `planByCode` (which filters `is_active = true`)
 cannot mint an order for one either.
 
-**Not applied to the cloud DB, and the reason changed mid-session.** The
-original reason was that `0127_test_series.sql` was untracked and unapplied, so
-pushing `0128` ahead of it risked the ledger-ordering blockage this repo has
-suffered once already (`docs/OUTSTANDING.md` §0c / M10). **That blocker has
-cleared** — a concurrent session committed 0127 during this session and it is
-applied (`test_series` is reachable through the API, verified 2026-08-14).
+**Applied.** Both migrations are in the ledger: `0129` was applied by the
+concurrent session when it renumbered the file to resolve a `0128` collision,
+and `0130` was applied here after a dry run that proved it applies AND replays
+idempotently (M14) inside a rolled-back transaction.
 
-The remaining reason is different and still holds: **`0128` currently exists only
-on the unmerged branch `feat/max-tier-design`.** Applying it now would put
-version 0128 in the remote ledger with no corresponding migration file on `main`
-— which is §0c's blockage in the other direction, and is exactly how this repo
-lost `db push` for a fortnight. **Apply it after the branch merges**, with
-`supabase db push`.
+⚑ **A residual worth knowing:** `0129`/`0130` are in the remote ledger while the
+files live only on the unmerged branch `feat/max-tier-design`. That is §0c's
+blockage shape — a recorded version with no file on `main` — so **merge the
+branch**; do not let it linger.
 
 ### 6.2 ⚑ Two entitlement bugs that fail silently
 
@@ -546,9 +549,9 @@ to the generic paywall).
 
 ---
 
-## 7. Price points — for sign-off, not for adoption
+## 7. Price points — ✅ A CHOSEN (₹749/mo · ₹5,999/yr)
 
-**No number is chosen. Nothing here is live.** All three clear the ₹1,028/month
+**Chosen: A, with BOTH cadences.** All three clear the ₹1,028/month
 cost ceiling of a 200/month cap (§4.3). "Realistic annual burn" assumes ~3 heavy
 Mains months at 160 evaluations plus 9 lighter months at ~30 ≈ 750/year ≈
 **₹3,854** of AI cost.
@@ -652,11 +655,31 @@ Whatever number is chosen, pick one of:
 
 ---
 
-## 8. What this session changed
+## 8. What shipped
 
-- `supabase/migrations/0128_user_plan_max.sql` — the enum value, with its
-  assertion. Verified apply + replay + negative control; **not applied to the
-  cloud DB** (§6.1).
-- This document.
+| Layer | Change |
+|---|---|
+| Schema | `0129` enum value · `0130` priced rows (`max_monthly` ₹749, `max_yearly` ₹5,999), both applied |
+| Shared | `userPlanSchema` +`max` (with the ordering warning) · `quotaSchema.period` +`year` · `features.test_series` · `paidTierSchema` |
+| Entitlements | `LIMITS.max` (dual cap) · `planRank`/`planAtLeast` · `assertPro` fixed · lazy downgrade fixed · `assertTestSeries` · year-period quota |
+| Billing | webhook `activate`/`renew` write `plan.tier`, not the literal `'pro'` |
+| Series | `assertSeriesAttemptAllowed` now calls the entitlement (admins bypass) |
+| Web | pricing grouped by tier + upgrade path unblocked · 4-column comparison · Max paywall variant · plan banner / quota chip / profile chip · admin grant/revoke Max |
 
-Nothing else. No code, no prices, no `plans` rows, no `plan='max'` on any user.
+**Verified live, 18/18**, against a real published throwaway series with an open
+entry — including the case that matters most, **a Pro user rejected with 402
+`test_series` at the real gate**, and a non-series test confirmed untouched.
+Also confirmed: a lapsed Max downgrades durably, Max passes every Pro gate, and
+the entitlements snapshot reports `test_series` true for Max and false for Pro.
+Every throwaway row deleted by captured id; 0 stray users, 179 profiles
+unchanged, all 4 real series still `draft`.
+
+### Still open
+
+- **The series is still `draft`.** Publishing one is the remaining step to put
+  the tier in front of users — a status change, now that the entitlement exists.
+- **Landing-page teaser** (`landing.tsx`) still hardcodes a two-card
+  `["free","pro"]` split and does not mention Max.
+- **`docs/test-series-design.md` Q3/Q10** should be marked answered by §4/§5.
+- Whether the 60/month **Pro** evaluation cap should move, given §3's finding
+  that Pro's own ceiling is loss-making.

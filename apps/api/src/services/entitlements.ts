@@ -47,7 +47,59 @@ export const LIMITS = {
     evaluationsPerDay: 2,
     mentorPerDay: 15,
   },
+  max: {
+    /**
+     * ⚑ A DUAL bound, and both halves are load-bearing. See
+     * docs/max-tier-design.md §7.1.
+     *
+     * `evaluationsPerYear` exists because a MONTHLY cap does not bound an
+     * ANNUAL subscription: 200/month over twelve months is ~₹12,336 of AI cost
+     * against a ₹5,999 plan. 600/year ≈ ₹3,084 — comfortably inside the annual
+     * price, and enough for one exam's full 440-evaluation Mains series plus
+     * ~160 of ad-hoc practice on top.
+     *
+     * `evaluationsPerMonth` exists because the annual cap alone would let a
+     * ₹749 MONTHLY subscriber spend the whole year's allowance in one month.
+     * 200 is set by what the product needs, not by what the month earns: a
+     * 22-paper Mains series over 11 weeks peaks at ~160 evaluations/month, so a
+     * lower cap would stop the tier delivering the thing it is sold for.
+     *
+     * DISCLOSED CONSEQUENCE: at 200 in a month the AI cost (~₹1,028) exceeds
+     * the ₹749 monthly price. That is a deliberate, bounded exposure — the
+     * annual cap limits it to at most three such months (600/200), i.e. a worst
+     * case of ~₹3,084 cost against ~₹2,247 revenue. Nothing in the platform's
+     * behaviour data suggests this user exists (the busiest real human has done
+     * 5 evaluations, ever), but the bound is there so it cannot run away.
+     */
+    evaluationsPerYear: 600,
+    evaluationsPerMonth: 200,
+    /**
+     * Deliberately the SAME as Pro. Nobody has come close to 100/day, so
+     * inflating it would be a bigger number that buys the user nothing — the
+     * "discount theatre" this repo's pricing decision explicitly rejects
+     * (docs/OUTSTANDING.md §7). Max is sold on the test series, not on a
+     * mentor limit that never binds.
+     */
+    mentorPerDay: 100,
+  },
 } as const;
+
+/**
+ * Tier ordering for "at least this tier" checks.
+ *
+ * ⚑ This exists because STRING COMPARISON IS WRONG HERE. Postgres orders the
+ * user_plan enum by declaration so `'max' > 'pro'` holds in SQL, but in
+ * JavaScript `"max" < "pro"` lexically (m < p) — so `plan >= "pro"` would
+ * silently EXCLUDE Max, the tier above it. Always compare ranks, never strings.
+ */
+const PLAN_RANK: Record<UserPlan, number> = { free: 0, pro: 1, max: 2 };
+export function planRank(plan: UserPlan): number {
+  return PLAN_RANK[plan];
+}
+/** True if `plan` is at least `atLeast` in the tier order. */
+export function planAtLeast(plan: UserPlan, atLeast: UserPlan): boolean {
+  return planRank(plan) >= planRank(atLeast);
+}
 
 /** A 402 the UI reads as "show the upgrade paywall for `feature`". */
 export function paywall(feature: string, message: string): HttpError {
@@ -105,13 +157,19 @@ export async function getPlanFor(
   const row = (data as PlanRow | null) ?? { plan: "free", plan_expires_at: null, has_used_trial: false };
   const hasUsedTrial = row.has_used_trial;
 
-  if (row.plan === "pro" && row.plan_expires_at && new Date(row.plan_expires_at) <= new Date()) {
+  // ⚑ `!== "free"`, NOT `=== "pro"`. This guard and the `.eq("plan", ...)` below
+  // were both pinned to 'pro' before the Max tier existed, which meant a lapsed
+  // MAX would never downgrade — full access forever, no error, no cron to catch
+  // it (docs/max-tier-design.md §6.2). Any future paid tier is covered by
+  // construction now. The `.eq` still carries the plan we actually read, so a
+  // concurrent webhook that upgraded the row mid-request cannot be clobbered.
+  if (row.plan !== "free" && row.plan_expires_at && new Date(row.plan_expires_at) <= new Date()) {
     // Lapsed — downgrade lazily.
     const { error: dErr } = await supabase()
       .from("users_profile")
       .update({ plan: "free" })
       .eq("id", userId)
-      .eq("plan", "pro");
+      .eq("plan", row.plan);
     if (dErr) logger.warn({ err: dErr, userId }, "lazy plan downgrade failed");
     return { plan: "free", expiresAt: row.plan_expires_at, hasUsedTrial };
   }
@@ -170,6 +228,12 @@ function monthStartUtc(): string {
   return istDayRangeUtc(`${y}-${m}-01`).startUtc;
 }
 
+/** Start of the current IST calendar year — the window Max's annual allowance resets on. */
+function yearStartUtc(): string {
+  const [y] = istToday().split("-");
+  return istDayRangeUtc(`${y}-01-01`).startUtc;
+}
+
 /**
  * Count answer evaluations "spent". A submission counts once it has ENTERED
  * evaluation, so the credit can't be refunded by abandoning it:
@@ -210,6 +274,30 @@ export async function getEvaluationQuota(
     limit = LIMITS.trial.evaluationsPerDay;
     period = "day";
     since = istDayRangeUtc(istToday()).startUtc;
+  } else if (plan === "max") {
+    // Max carries TWO bounds (see LIMITS.max): an annual allowance that keeps
+    // the yearly plan profitable, and a monthly one that stops a monthly
+    // subscriber spending the whole year's budget in one go. Report whichever
+    // is closer to biting, so the chip never promises credit the other cap
+    // would refuse.
+    const [usedYear, usedMonth] = await Promise.all([
+      countEvaluations(userId, yearStartUtc()),
+      countEvaluations(userId, monthStartUtc()),
+    ]);
+    const yearLeft = LIMITS.max.evaluationsPerYear - usedYear;
+    const monthLeft = LIMITS.max.evaluationsPerMonth - usedMonth;
+    const binding =
+      monthLeft < yearLeft
+        ? { limit: LIMITS.max.evaluationsPerMonth, used: usedMonth, period: "month" as const }
+        : { limit: LIMITS.max.evaluationsPerYear, used: usedYear, period: "year" as const };
+    return {
+      plan,
+      isOnTrial,
+      used: binding.used,
+      limit: binding.limit,
+      remaining: Math.max(0, binding.limit - binding.used),
+      period: binding.period,
+    };
   } else if (plan === "pro") {
     limit = LIMITS.pro.evaluations;
     period = "month";
@@ -232,6 +320,11 @@ export async function assertEvaluationCredit(userId: string): Promise<void> {
       // Distinct from the free "upgrade" and the paid "next month" messages:
       // a trial user already HAS Pro features — theirs resets at midnight.
       message = `You've used both of today's trial evaluations. They reset at midnight IST — or go Pro for more.`;
+    } else if (q.plan === "max") {
+      message =
+        q.period === "month"
+          ? `You've reached this month's cap of ${q.limit} evaluations. It resets on the 1st.`
+          : `You've reached your annual allowance of ${q.limit} evaluations.`;
     } else if (q.plan === "pro") {
       message = `You've reached the fair-use cap of ${q.limit} evaluations this month.`;
     } else {
@@ -248,9 +341,11 @@ export async function getMentorQuota(userId: string): Promise<Quota & { plan: Us
   const { plan, isOnTrial } = await getTrialContext(userId);
   const limit = isOnTrial
     ? LIMITS.trial.mentorPerDay
-    : plan === "pro"
-      ? LIMITS.pro.mentorPerDay
-      : LIMITS.free.mentorPerDay;
+    : plan === "max"
+      ? LIMITS.max.mentorPerDay
+      : plan === "pro"
+        ? LIMITS.pro.mentorPerDay
+        : LIMITS.free.mentorPerDay;
   const { startUtc } = istDayRangeUtc(istToday());
   // Sum meta.quota_cost (default 1) rather than count rows, so an in-depth
   // teacher lesson correctly costs 2 messages. Bounded by the day's cap, so
@@ -272,9 +367,35 @@ export async function getMentorQuota(userId: string): Promise<Quota & { plan: Us
 // ---------------------------------------------------------------------------
 // Pro-only feature gates
 // ---------------------------------------------------------------------------
+/**
+ * Gate a feature at Pro-or-above.
+ *
+ * ⚑ `planAtLeast`, NOT `plan !== "pro"`. The old form locked a MAX user out of
+ * every Pro feature — OCR, micro-drills, mocks, magazine PDF — so the higher
+ * tier bought strictly less than the lower one (docs/max-tier-design.md §6.2).
+ * Any tier added above Pro is now admitted by construction.
+ */
 async function assertPro(userId: string, feature: string, message: string): Promise<void> {
   const { plan } = await getPlanFor(userId);
-  if (plan !== "pro") throw paywall(feature, message);
+  if (!planAtLeast(plan, "pro")) throw paywall(feature, message);
+}
+
+/**
+ * Gate the scheduled test series at Max. Called from `assertSeriesAttemptAllowed`
+ * (services/test-series.ts) — the ONE place that already knows a test belongs to
+ * a series, via the `test_series_entries` join. Deliberately not called from the
+ * two start paths separately: `startAttempt` (MCQ) and `startAnswerSession`
+ * (descriptive) would then have to be kept in step by hand, which is the
+ * "one path fixed, sibling missed" failure that gate exists to prevent.
+ */
+export async function assertTestSeries(userId: string): Promise<void> {
+  const { plan } = await getPlanFor(userId);
+  if (!planAtLeast(plan, "max")) {
+    throw paywall(
+      "test_series",
+      "The scheduled test series is a Max feature. Upgrade to sit the full calendar with an all-India rank.",
+    );
+  }
 }
 
 export function assertHandwrittenOcr(userId: string): Promise<void> {
@@ -377,7 +498,11 @@ export async function canReadFullNote(userId: string, nodeId: string): Promise<b
 // ---------------------------------------------------------------------------
 export async function getEntitlements(userId: string): Promise<Entitlements> {
   const { plan, expiresAt, isOnTrial } = await getTrialContext(userId);
-  const isPro = plan === "pro";
+  // Pro-or-above, so a Max user reports every Pro feature as available too.
+  // `plan === "pro"` here would have shown Max users a locked padlock on the
+  // features they pay the most for.
+  const isPro = planAtLeast(plan, "pro");
+  const isMax = planAtLeast(plan, "max");
   const [evaluations, mentor] = await Promise.all([getEvaluationQuota(userId), getMentorQuota(userId)]);
   return {
     plan,
@@ -393,6 +518,7 @@ export async function getEntitlements(userId: string): Promise<Entitlements> {
       all_notes: isPro,
       advanced_analytics: isPro,
       magazine_pdf: isPro,
+      test_series: isMax,
     },
   };
 }

@@ -31,12 +31,17 @@ function featureCopy(feature: PaywallFeature) {
       return { title: c.paywallNotesTitle, body: c.paywallNotesBody };
     case "magazine_pdf":
       return { title: c.paywallMagazineTitle, body: c.paywallMagazineBody };
+    case "test_series":
+      return { title: c.paywallSeriesTitle, body: c.paywallSeriesBody };
     default:
       return { title: c.paywallGenericTitle, body: c.pricingSubtitle };
   }
 }
 
 const PRO_BULLETS = [c.featEvalPro, c.featNotesPro, c.featOcr, c.featMocks, c.featAnalytics];
+// The series paywall is the one that sells MAX, not Pro — leading with Pro
+// bullets there would pitch a tier that does not include the thing being asked for.
+const MAX_BULLETS = [c.featSeries, c.featEvalMax, c.featOcr, c.featMocks, c.featAnalytics];
 
 export function PaywallModal() {
   const locale = useLocale();
@@ -44,6 +49,8 @@ export function PaywallModal() {
   const location = useLocation();
   const { isGuest } = useAuth();
   const { open, feature, close } = usePaywallStore();
+  /** The series is the only Max-tier gate, so it sells a different tier. */
+  const isSeries = feature === "test_series";
   // Only the eval paywall needs the gains data — fetch lazily, only when shown
   // (and never for a guest, who has no analytics and sees the signup variant).
   const analytics = useProfileAnalytics({ enabled: open && !isGuest && feature === "evaluation" });
@@ -55,7 +62,7 @@ export function PaywallModal() {
   const entitlements = useEntitlements({ enabled: open && !isGuest && feature === "evaluation" });
   const ent = entitlements.data;
   const evalState: "free" | "trial" | "proCap" | null =
-    feature !== "evaluation" ? null : ent?.is_on_trial ? "trial" : ent?.plan === "pro" ? "proCap" : "free";
+    feature !== "evaluation" ? null : ent?.is_on_trial ? "trial" : ent?.plan === "pro" || ent?.plan === "max" ? "proCap" : "free";
 
   // A paid Pro at the monthly cap has nothing to upgrade to — drop the sales CTA.
   const hideUpgrade = evalState === "proCap";
@@ -93,7 +100,7 @@ export function PaywallModal() {
             </div>
           </div>
           <ul className="grid gap-2">
-            {PRO_BULLETS.map((b, i) => (
+            {(isSeries ? MAX_BULLETS : PRO_BULLETS).map((b, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
                 <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
                 <span>{pick(locale, b)}</span>
@@ -115,7 +122,7 @@ export function PaywallModal() {
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && close()}>
-      <SheetContent side="bottom" title={pick(locale, c.upgradeToPro)} className="mx-auto max-w-lg gap-5">
+      <SheetContent side="bottom" title={pick(locale, isSeries ? c.upgradeToMax : c.upgradeToPro)} className="mx-auto max-w-lg gap-5">
         <div className="flex items-start gap-3">
           <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
             <Sparkles className="size-5" aria-hidden />
@@ -141,7 +148,7 @@ export function PaywallModal() {
 
         {!hideUpgrade && (
           <ul className="grid gap-2">
-            {PRO_BULLETS.map((b, i) => (
+            {(isSeries ? MAX_BULLETS : PRO_BULLETS).map((b, i) => (
               <li key={i} className="flex items-center gap-2 text-sm">
                 <Check className="size-4 shrink-0 text-tulsi" aria-hidden />
                 <span>{pick(locale, b)}</span>
@@ -159,7 +166,7 @@ export function PaywallModal() {
           ) : (
             <>
               <Button size="lg" className="w-full sm:flex-1" onClick={goPricing}>
-                {pick(locale, c.upgradeToPro)}
+                {pick(locale, isSeries ? c.upgradeToMax : c.upgradeToPro)}
               </Button>
               <Button size="lg" variant="ghost" className="w-full sm:w-auto" onClick={close}>
                 {pick(locale, c.maybeLater)}

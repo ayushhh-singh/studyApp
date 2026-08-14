@@ -217,12 +217,18 @@ async function activate(sub: SubRow, paymentId: string | undefined, now: Date): 
   const existing = prof?.plan_expires_at ? new Date(prof.plan_expires_at as string) : null;
   const grantUntil = existing && existing > periodEnd ? existing : periodEnd;
 
+  // ⚑ The tier comes from the PLAN, never a literal. This was hardcoded 'pro',
+  // which would have silently granted Pro to someone who paid for Max.
+  // `plan` is already resolved above via planByCode(sub.plan_code); the ?? 'pro'
+  // only covers a plan row that has since been deleted, where the old behaviour
+  // is the safe fallback.
+  const tier = plan?.tier ?? "pro";
   const { error: profErr } = await supabase()
     .from("users_profile")
-    .update({ plan: "pro", plan_expires_at: grantUntil.toISOString() })
+    .update({ plan: tier, plan_expires_at: grantUntil.toISOString() })
     .eq("id", sub.user_id);
   if (profErr) throw new HttpError(500, `plan flip failed: ${profErr.message}`);
-  logger.info({ userId: sub.user_id, subId: sub.id, until: grantUntil.toISOString() }, "billing: activated Pro");
+  logger.info({ userId: sub.user_id, subId: sub.id, tier, until: grantUntil.toISOString() }, "billing: activated");
 }
 
 /** Renewal: extend the period from its current end and push Pro expiry out. */
@@ -233,8 +239,10 @@ async function renew(sub: SubRow, now: Date): Promise<void> {
   const from = base > now ? base : now;
   const periodEnd = addInterval(from, plan?.interval ?? "month", plan?.interval_count ?? 1);
   await supabase().from("subscriptions").update({ status: "active", current_period_end: periodEnd.toISOString() }).eq("id", sub.id);
-  await supabase().from("users_profile").update({ plan: "pro", plan_expires_at: periodEnd.toISOString() }).eq("id", sub.user_id);
-  logger.info({ userId: sub.user_id, subId: sub.id, until: periodEnd.toISOString() }, "billing: renewed Pro");
+  // Same reason as activate(): the tier is the plan's, not a literal.
+  const tier = plan?.tier ?? "pro";
+  await supabase().from("users_profile").update({ plan: tier, plan_expires_at: periodEnd.toISOString() }).eq("id", sub.user_id);
+  logger.info({ userId: sub.user_id, subId: sub.id, tier, until: periodEnd.toISOString() }, "billing: renewed");
 }
 
 /** Cancellation: stop future renewals, keep access until period end (lazy downgrade). */

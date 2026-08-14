@@ -99,8 +99,8 @@ function useAdminUserAction(action: "revoke-pro" | "grant-admin" | "revoke-admin
 export function useGrantPro() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: ({ userId, days }: { userId: string; days: number | null }) =>
-      api.post(`/api/v1/admin/users/${userId}/grant-pro`, adminUserActionResponseSchema, { days }),
+    mutationFn: ({ userId, days, tier }: { userId: string; days: number | null; tier: "pro" | "max" }) =>
+      api.post(`/api/v1/admin/users/${userId}/grant-pro`, adminUserActionResponseSchema, { days, tier }),
     onSuccess: (_data, { userId }) => invalidateAfterAction(queryClient, userId),
   });
 }

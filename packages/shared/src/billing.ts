@@ -60,8 +60,15 @@ export const quotaSchema = z.object({
   used: z.number().int(),
   limit: z.number().int(),
   remaining: z.number().int(),
-  /** billing window the counter resets on */
-  period: z.enum(["lifetime", "month", "day"]),
+  /**
+   * Billing window the counter resets on. 'year' exists for Max: its
+   * evaluation allowance is ANNUAL, not monthly, because a monthly cap does not
+   * bound an annual subscription — 200/month over twelve months costs more than
+   * the plan's own price (docs/max-tier-design.md §7.1). An annual allowance
+   * also matches how a test series is really consumed: one seasonal burst, not
+   * an even spread.
+   */
+  period: z.enum(["lifetime", "month", "day", "year"]),
 });
 export type Quota = z.infer<typeof quotaSchema>;
 
@@ -82,7 +89,7 @@ export const entitlementsSchema = z.object({
   is_guest: z.boolean(),
   evaluations: quotaSchema,
   mentor_messages: quotaSchema,
-  /** Boolean feature flags (Pro-only surfaces). */
+  /** Boolean feature flags. All but `test_series` are Pro-and-above. */
   features: z.object({
     handwritten_ocr: z.boolean(),
     micro_drills: z.boolean(),
@@ -90,6 +97,8 @@ export const entitlementsSchema = z.object({
     all_notes: z.boolean(),
     advanced_analytics: z.boolean(),
     magazine_pdf: z.boolean(),
+    /** The scheduled test series — Max only. */
+    test_series: z.boolean(),
   }),
 });
 export type Entitlements = z.infer<typeof entitlementsSchema>;

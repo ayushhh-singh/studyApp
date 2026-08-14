@@ -4,7 +4,16 @@ import { dashboardNextExamSchema } from "./dashboard";
 import { tourStateSchema } from "./tour";
 import { targetExamCodeSchema } from "./exams";
 
-export const userPlanSchema = z.enum(["free", "pro"]);
+/**
+ * Subscription tiers, ascending. 'max' adds the scheduled test series on top of
+ * everything Pro has (docs/max-tier-design.md).
+ *
+ * ⚑ NEVER compare these as strings to express "at least this tier". Postgres
+ * orders an enum by declaration, so `'max' > 'pro'` is true in SQL — but in
+ * JavaScript `"max" < "pro"` lexically (m < p), so `plan >= "pro"` silently
+ * EXCLUDES the tier above it. Use entitlements.ts's `planRank` instead.
+ */
+export const userPlanSchema = z.enum(["free", "pro", "max"]);
 export type UserPlan = z.infer<typeof userPlanSchema>;
 
 /** A community handle: 3–20 chars, lowercase alphanumerics + underscore. */

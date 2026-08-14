@@ -35,14 +35,14 @@ export function PlanBanner() {
     );
   }
 
-  if (data.plan === "pro") {
+  if (data.plan === "pro" || data.plan === "max") {
     return (
       <div className="flex items-center gap-3 rounded-xl border border-primary/30 bg-primary/10 p-4">
         <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary">
           <Crown className="size-5" aria-hidden />
         </span>
         <div className="text-sm">
-          <p className="font-semibold text-primary">{pick(locale, c.youArePro)}</p>
+          <p className="font-semibold text-primary">{pick(locale, data.plan === "max" ? c.youAreMax : c.youArePro)}</p>
           {data.plan_expires_at && (
             <p
               // --muted-foreground is calibrated for the card, and on this

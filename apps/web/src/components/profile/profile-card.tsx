@@ -90,12 +90,23 @@ export function ProfileCard({ profile, isLoading }: { profile: Profile | undefin
               <span
                 className={cn(
                   "inline-flex h-9 items-center rounded-full px-3 text-xs font-bold uppercase tracking-wide",
-                  profile.plan === "pro"
-                    ? "bg-marigold/15 text-marigold-foreground"
-                    : "bg-muted text-muted-foreground",
+                  // Max gets the primary treatment and Pro keeps marigold, so
+                  // the two paid tiers are distinguishable at a glance rather
+                  // than Max silently rendering as "Free".
+                  profile.plan === "max"
+                    ? "bg-primary/15 text-primary"
+                    : profile.plan === "pro"
+                      ? "bg-marigold/15 text-marigold-foreground"
+                      : "bg-muted text-muted-foreground",
                 )}
               >
-                {t(profile.plan === "pro" ? "Profile.planPro" : "Profile.planFree")}
+                {t(
+                  profile.plan === "max"
+                    ? "Profile.planMax"
+                    : profile.plan === "pro"
+                      ? "Profile.planPro"
+                      : "Profile.planFree",
+                )}
               </span>
             </div>
           )}

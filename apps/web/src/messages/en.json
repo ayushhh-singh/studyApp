@@ -851,7 +851,8 @@
     "badgesEarnedOf": "{{earned}} of {{total}}",
     "badgesNextUp": "Next up:",
     "badgesShowAll_one": "Show 1 more badge",
-    "badgesShowAll_other": "Show {{count}} more badges"
+    "badgesShowAll_other": "Show {{count}} more badges",
+    "planMax": "Max"
   },
   "Review": {
     "title": "Review Queue",
@@ -998,7 +999,11 @@
       "revoke_pro": "Revoked Pro",
       "grant_admin": "Granted admin",
       "revoke_admin": "Revoked admin"
-    }
+    },
+    "planMax": "Max",
+    "grantMax": "Grant Max",
+    "revokeMax": "Revoke plan",
+    "tierLabel": "Tier"
   },
   "Exam": {
     "filterLabel": "Filter by exam",
