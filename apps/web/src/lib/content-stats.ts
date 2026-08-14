@@ -31,6 +31,31 @@ export type ContentStat = {
 export const PYQ_YEAR_FROM = 2016;
 export const PYQ_YEAR_TO = 2026;
 
+/**
+ * Per-exam past-year coverage, for the content hub's exam pages.
+ *
+ * MEASURED 2026-08-14 and recorded in `docs/content-strategy.md` §2a (which
+ * carries the full per-year breakdown). To refresh:
+ *   questions where is_published and review_state='approved' and source='pyq'
+ *     group by exam_code, year
+ *
+ * ⚑ THIS IS A RANGE, NOT A COMPLETENESS CLAIM, and the distinction is load-bearing.
+ * §2b records that UPPSC Prelims GS-I 2022 is ingested but effectively
+ * unpublished (1 of 150, no verified answer key for that year) while CSAT 2022
+ * is fine at 100 — so "papers from 2018 to 2025" is true, and "all eight years
+ * of GS-I" would not be. Any page that quotes a per-year SERIES (the weightage
+ * articles, slate #6 and #13) owes the reader that gap next to the chart; a hub
+ * that states the span does not.
+ *
+ * ⚑ And never blur `source='pyq'` with generated practice items (§2a): 622 of
+ * UPPSC's published questions and 66 of UPSC's are AI-generated, concentrated
+ * in exactly the papers a sceptical reader checks first (CSAT, General Hindi).
+ */
+export const EXAM_PYQ_YEARS: Record<"uppsc" | "upsc", { from: number; to: number }> = {
+  uppsc: { from: 2018, to: 2025 },
+  upsc: { from: 2016, to: 2026 },
+};
+
 export const CONTENT_STATS: ContentStat[] = [
   { labelKey: "Landing.statQuestions", value: "7,400+" },
   { labelKey: "Landing.statChapters", value: "362" },

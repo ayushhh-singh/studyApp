@@ -50,6 +50,23 @@ export const router = createBrowserRouter([
       { path: "about", lazy: () => import("@/routes/about") },
       { path: "faq", lazy: () => import("@/routes/faq") },
       { path: "contact", lazy: () => import("@/routes/contact") },
+      // The content hub — one public, indexable hub per exam, with articles
+      // beneath it at <hub>/<category>/<slug>. See lib/articles.ts for the
+      // slate and docs/content-strategy.md §6.2 for why the hubs are
+      // exam-first rather than a flat /blog: the hub is itself a rankable
+      // asset and accumulates link equity from every article under it.
+      //
+      // ⚑ THE HUB SEGMENT IS A LITERAL, NOT `:hub`, ON PURPOSE. A leading
+      // dynamic segment here would match every unmatched one-segment path
+      // under /:locale, so `/en/typo` would resolve to the hub route and rely
+      // on its loader to 404 instead of falling through to the wildcard below
+      // that already does that correctly. Two literal pairs cost four lines
+      // and can shadow nothing; `check:seo` asserts every ARTICLE_HUBS entry
+      // has both of its lines, so a hub added without a route fails the build.
+      { path: "uppsc", lazy: () => import("@/routes/exam-hub") },
+      { path: "uppsc/:category/:slug", lazy: () => import("@/routes/article-detail") },
+      { path: "upsc", lazy: () => import("@/routes/exam-hub") },
+      { path: "upsc/:category/:slug", lazy: () => import("@/routes/article-detail") },
       // Legal pages — public, footer-linked; required for Razorpay live-mode review.
       { path: "terms", lazy: () => import("@/routes/terms") },
       { path: "privacy", lazy: () => import("@/routes/privacy") },

@@ -91,4 +91,20 @@ Allow: /en/features/
 Allow: /hi/features$
 Allow: /hi/features/
 
+# The content hub — one hub per exam plus its articles at
+# <hub>/<category>/<slug>. A prefix rule (like /features/ above) rather than an
+# exact line per article, since this is a directory that grows.
+#
+# ⚑ "upsc" is NOT a prefix of "uppsc" (they diverge at the third character), so
+# these four pairs cannot shadow one another. check:seo asserts the resolution
+# rather than trusting that reading.
+Allow: /en/uppsc$
+Allow: /en/uppsc/
+Allow: /hi/uppsc$
+Allow: /hi/uppsc/
+Allow: /en/upsc$
+Allow: /en/upsc/
+Allow: /hi/upsc$
+Allow: /hi/upsc/
+
 Sitemap: https://neevstudy.com/sitemap.xml

@@ -124,6 +124,19 @@ export interface ArticleDef {
   dataBinding: readonly ArticleDataSource[];
   /** §4 slate number, so a page traces back to the reasoning that commissioned it. */
   slateRef: number;
+  /**
+   * ISO `YYYY-MM-DD`. Absent while `planned`; REQUIRED once `published`, and
+   * `check:seo` enforces that — a BlogPosting with no `datePublished` is a
+   * malformed rich result, and an article with no visible "updated on" line
+   * cannot satisfy §5.2 (a stale prerendered snapshot must read as honestly
+   * dated rather than as wrong).
+   *
+   * Hand-set at publish time rather than derived from the file's git history:
+   * `updatedAt` must move when the PROSE is revised, not when an unrelated
+   * refactor touches the route component that renders every article.
+   */
+  publishedAt?: string;
+  updatedAt?: string;
 }
 
 /**
@@ -174,6 +187,29 @@ export function hubPath(hub: ArticleHub, locale: string): string {
 
 export function isArticleHub(value: string | undefined): value is ArticleHub {
   return ARTICLE_HUBS.includes(value as ArticleHub);
+}
+
+/**
+ * The hub out of a pathname, or undefined if the second segment is not one.
+ *
+ * ⚑ WHY THIS EXISTS RATHER THAN A `:hub` ROUTE PARAM. The router declares the
+ * hubs as LITERAL segments (`uppsc`, `uppsc/:category/:slug`, and the same pair
+ * for `upsc`) instead of one `:hub/:category/:slug`. A leading dynamic segment
+ * would match every unmatched one-segment path under /:locale — so `/en/typo`
+ * would resolve to the hub route and depend on its loader to 404, instead of
+ * falling through to the wildcard that already does that job correctly. Two
+ * literal pairs cost four router lines and cannot shadow anything.
+ *
+ * The cost is that the matched route has no `:hub` param to read, so it is
+ * recovered from the path. That is safe precisely BECAUSE the route only
+ * matches those literals — and `check:seo` asserts every hub in ARTICLE_HUBS
+ * has both of its router lines, so a hub added here without a route fails the
+ * build rather than 404ing silently in production.
+ */
+export function hubFromPathname(pathname: string): ArticleHub | undefined {
+  // "/en/uppsc/analysis/slug" -> ["", "en", "uppsc", ...]
+  const segment = pathname.split("/")[2];
+  return isArticleHub(segment) ? segment : undefined;
 }
 
 /**
