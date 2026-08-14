@@ -8,6 +8,7 @@ import { MarketingHeader } from "@/components/marketing/marketing-header";
 import { Footer } from "@/components/marketing/footer";
 import { PageSeo } from "@/components/seo/page-seo";
 import { ChapterMarkdown } from "@/components/ui-x/chapter-markdown";
+import { ArticleDataBlock } from "@/components/content-hub/article-data-block";
 import { blogPosting, breadcrumbList } from "@/lib/structured-data";
 import {
   articlePath,
@@ -15,6 +16,7 @@ import {
   hubFromPathname,
   hubPath,
   publishedArticlesForHub,
+  type ArticleHub,
 } from "@/lib/articles";
 
 /**
@@ -127,8 +129,13 @@ export function Component() {
             same dependency-light renderer the study chapters use — it already
             handles GFM tables and already applies the Devanagari line-height
             floor its own way, so Hindi prose is typographically correct here
-            independent of the app-wide fix. */}
-        <ChapterMarkdown className="mt-8" content={t(`${k}.bodyMd`)} locale={locale} />
+            independent of the app-wide fix.
+
+            Interleaved with live data blocks at each `[[data:…]]` marker (§5):
+            prose asserts what does not drift, blocks carry what does. See
+            `article-data-block.tsx` for why a block rather than an interpolated
+            value inside a sentence. */}
+        <ArticleBody markdown={t(`${k}.bodyMd`)} locale={locale} hub={hub} />
       </article>
 
       {related.length > 0 && (
@@ -165,6 +172,42 @@ export function Component() {
       </section>
 
       <Footer />
+    </div>
+  );
+}
+
+/**
+ * The article body: markdown prose with live data blocks spliced in at each
+ * `[[data:<name>]]` line.
+ *
+ * ⚑ THE MARKER MUST BE ITS OWN LINE, which the anchors enforce. Splitting on a
+ * pattern that could match mid-paragraph would let a marker inside a sentence
+ * tear a paragraph in half and render the remainder as a separate block of
+ * prose — silently, and differently per locale, since the two translations wrap
+ * differently. `^…$` with the `m` flag means a marker is either a whole line or
+ * it is ordinary text that renders literally, and a literal `[[data:x]]` in the
+ * output is a visible authoring error rather than an invisible one.
+ *
+ * A segment that is only whitespace renders nothing, so a marker surrounded by
+ * blank lines (which is how it reads naturally in the source) does not emit an
+ * empty `<ChapterMarkdown>`.
+ */
+function ArticleBody({ markdown, locale, hub }: { markdown: string; locale: "hi" | "en"; hub: ArticleHub }) {
+  // The capture group makes `split` interleave: [prose, marker, prose, …].
+  const parts = markdown.split(/^\[\[data:([a-zA-Z0-9:,_-]+)\]\]$/m);
+  return (
+    <div className="mt-8">
+      {parts.map((part, i) =>
+        i % 2 === 1 ? (
+          <ArticleDataBlock key={`block-${part}-${i}`} marker={part} hub={hub} />
+        ) : part.trim() ? (
+          // `document` scale: this markdown IS the page, so its `##` are real
+          // h2s. The default (`sub`) is calibrated for a study chapter's body,
+          // where the surrounding section already owns h2/h3 — under it an
+          // article renders with no h2 at all.
+          <ChapterMarkdown key={`prose-${i}`} content={part} locale={locale} headingScale="document" />
+        ) : null,
+      )}
     </div>
   );
 }

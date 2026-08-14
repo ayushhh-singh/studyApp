@@ -48,16 +48,41 @@ function splitCells(line: string): string[] {
   return line.trim().replace(/^\||\|$/g, "").split("|").map((c) => c.trim());
 }
 
+/**
+ * How this markdown's `##`/`###`/`####` map onto real heading elements.
+ *
+ * ⚑ `"sub"` IS THE DEFAULT AND MUST STAY THE DEFAULT. A study chapter's body is
+ * rendered INSIDE a section that already owns the page's h2/h3, so every heading
+ * inside that body is a sub-heading and flattening them all to a small `h4` is
+ * correct there — 362 published chapters render this way.
+ *
+ * `"document"` is for the case where this markdown IS the document: a content-hub
+ * article, whose `bodyMd` carries the page's actual section structure beneath a
+ * single `h1`. Under `"sub"` such a page renders with ZERO `h2` elements — it
+ * throws away the heading outline a crawler reads, and visually gives a
+ * 7,000-character article no section hierarchy at all. Found by the browser pass
+ * on the first published article, not by review.
+ */
+export type MarkdownHeadingScale = "sub" | "document";
+
+const DOCUMENT_HEADINGS: Record<number, { Tag: "h2" | "h3" | "h4"; className: string }> = {
+  2: { Tag: "h2", className: "mt-10 scroll-mt-24 text-2xl font-bold tracking-tight first:mt-0" },
+  3: { Tag: "h3", className: "mt-8 text-lg font-bold tracking-tight first:mt-0" },
+  4: { Tag: "h4", className: "mt-6 text-base font-semibold first:mt-0" },
+};
+
 export function ChapterMarkdown({
   content,
   locale,
   sources,
   className,
+  headingScale = "sub",
 }: {
   content: string;
   locale: "hi" | "en";
   sources?: NoteSource[];
   className?: string;
+  headingScale?: MarkdownHeadingScale;
 }) {
   const lines = (content ?? "").replace(/\r\n/g, "\n").split("\n");
   const blocks: ReactNode[] = [];
@@ -70,14 +95,25 @@ export function ChapterMarkdown({
     const trimmed = lines[i].trim();
     if (!trimmed) { i += 1; continue; }
 
-    // Heading (### inside a body; the section already owns h2/h3)
+    // Heading. Under "sub" every level flattens to a small h4 (the section
+    // around this body already owns h2/h3); under "document" the levels are
+    // real, because this markdown IS the document. See MarkdownHeadingScale.
     const heading = /^(#{2,4})\s+(.*)$/.exec(trimmed);
     if (heading) {
-      blocks.push(
-        <h4 key={key++} className="mt-4 text-[0.95rem] font-semibold text-foreground first:mt-0">
-          {renderInline(heading[2], `h${key}`, sources)}
-        </h4>,
-      );
+      if (headingScale === "document") {
+        const { Tag, className: headingClass } = DOCUMENT_HEADINGS[heading[1].length] ?? DOCUMENT_HEADINGS[4];
+        blocks.push(
+          <Tag key={key++} className={`${headingClass} text-foreground`}>
+            {renderInline(heading[2], `h${key}`, sources)}
+          </Tag>,
+        );
+      } else {
+        blocks.push(
+          <h4 key={key++} className="mt-4 text-[0.95rem] font-semibold text-foreground first:mt-0">
+            {renderInline(heading[2], `h${key}`, sources)}
+          </h4>,
+        );
+      }
       i += 1;
       continue;
     }

@@ -40,6 +40,7 @@ import { scoreboardRouter } from "./routes/scoreboard.js";
 import { billingPublicRouter, billingRouter, billingWebhookRouter } from "./routes/billing.js";
 import { guestAuthPublicRouter, guestAuthRouter } from "./routes/auth.js";
 import { examsPublicRouter } from "./routes/exams.js";
+import { contentHubPublicRouter } from "./routes/content-hub.js";
 import { pushRouter } from "./routes/push.js";
 import { tourRouter } from "./routes/tour.js";
 import { startDevCaScheduler } from "./ca/scheduler.js";
@@ -132,6 +133,12 @@ app.use("/api/v1", guestAuthPublicRouter);
 // Public — the exam registry (paper structures, display names, launch scope).
 // Reference data about the product, identical for every caller; see the router.
 app.use("/api/v1", examsPublicRouter);
+
+// Public — the content hub's read surface (exam calendar, per-paper weightage).
+// The articles at /:locale/<exam>/<category>/<slug> read their dates and
+// percentages from here rather than freezing them into an i18n string
+// (docs/content-strategy.md §5), and their reader is signed out by definition.
+app.use("/api/v1", contentHubPublicRouter);
 
 // Everything below requires a valid Supabase session. requireAuth verifies the
 // JWT, derives the user id, and binds it to the request's async context.

@@ -3,6 +3,8 @@ import type { Difficulty, ExamCode, ExamStage, QuestionType } from "@neev/shared
 export const queryKeys = {
   /** The exam registry — one global list, identical for every user (no key input). */
   exams: () => ["exams"] as const,
+  examCalendar: () => ["content-hub", "exam-calendar"] as const,
+  paperWeightage: (papers: readonly string[]) => ["content-hub", "weightage", [...papers].sort().join(",")] as const,
   syllabusTree: (stage?: ExamStage) => ["syllabus", "tree", stage ?? "all"] as const,
   /**
    * Central search. Keyed by locale as well as query because the server resolves
