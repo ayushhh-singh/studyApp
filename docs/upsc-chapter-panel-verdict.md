@@ -391,7 +391,7 @@ definition; a hit in overview or fact-audit metadata does not count):
 | World Geography (continents) | **REAL** | Great Plains / Prairie / Pampas / Sahel all 0 hits |
 | Rights Issues (human rights + commissions) | **REAL → CLOSED 2026-08-15** | UDHR / ICCPR / NCSC / NCBC / Art 338 all 0 hits. Closed by a 1191w section "Human Rights as a Concept, and the Constitutional Commissions That Safeguard Them" added to `Social Justice` (v1→v2). The same pass also acted on this chapter's two depth checks: Health 527→950w, Education 892→1132w. |
 | Environmental Pollution (soil + MSW) | **REAL → CLOSED 2026-08-15** | soil pollution / SWM Rules / waste-to-energy / source segregation / sanitary landfill all 0 hits. Closed by two sections in `Environmental Ecology` (v1→v2): soil pollution + land degradation (730w) and municipal solid-waste management (678w). ⚑ **The research corrected the brief:** the SWM Rules **2016** are superseded by the **SWM Rules 2026** (S.O. 388(E), 27 Jan 2026; in force 1 Apr 2026), which move segregation from three streams to four. |
-| Statutory-Regulatory (regulatory limb) | **REAL → CLOSED 2026-08-15** | TRAI / CERC / TDSAT / appellate tribunal all 0 hits. Closed by a 694w section "The Regulatory State: Sectoral Regulators and Their Appellate Architecture" in `Public Policy` (v1→v2). |
+| Statutory-Regulatory (regulatory limb) | **REAL → CLOSED 2026-08-15** | TRAI / CERC / TDSAT all 0 hits. (⚑ my scan also claimed "appellate tribunal" was 0-hit — **wrong**, see trap 4 below; one pre-existing hit exists in `Indian Polity`, but it is constitutional-law framing of tribunal independence, not the sectoral-regulator appellate architecture, so the gap verdict is unaffected.) Closed by a 694w section "The Regulatory State: Sectoral Regulators and Their Appellate Architecture" in `Public Policy` (v1→v2). |
 | Executive machinery (ministries) | **REAL → CLOSED 2026-08-15** | Allocation of Business / Transaction of Business / Article 77 all 0 hits. Closed by an 884w section "The Executive Machinery: Ministries, Departments and the Business Rules" in `Indian Polity` (v1→v2). |
 | RPA (qualification + disputes) | **REAL → CLOSED 2026-08-15** | election petition / Art 84 / Art 102 / Art 191 all 0 hits. Closed by a 925w section "The Representation of the People Act: Qualification, Disqualification and Election Petitions" in `Indian Polity` (v1→v2). The same pass expanded Separation of Powers 620→1295w (its Part-2 depth check). |
 | Planning & Mobilization (savings) | **REAL** | domestic/household/gross savings, savings rate all 0 hits |
@@ -415,6 +415,12 @@ must handle all three:
 3. **False negative — plurals, introduced by the fix for (1).** Tightening to
    `(?![A-Za-z])` then made `"Aspirational District"` miss **"Aspirational Districts Programme"**.
    A word-boundary assertion and a plural are in direct tension; check both forms.
+4. **⚑ The plural trap AGAIN, hours after documenting it, on a different term — and it reached a
+   commit message.** The same `(?![A-Za-z])` boundary made `"appellate tribunal"` miss
+   **"appellate tribunals"**, which pre-existed in `Indian Polity`. I recorded that gap as 0-hit in
+   the table above and in commit `68bbe61` before an authoring agent's own paginated re-scan caught
+   it. **Writing a trap down does not stop you walking into it; only searching for the plural does.**
+   The safe form is a stem match (`appellate[\s-]+tribunals?`), not an exact-phrase boundary.
 
 ### ⚑ And the trap that only reading catches: a trap-table is not teaching
 
