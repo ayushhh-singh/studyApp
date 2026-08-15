@@ -15,6 +15,7 @@ import { getUserExam, questionExamScopeFilter } from "../lib/exams.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from "../lib/fsrs.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
+import { selectAll } from "../lib/paginate.js";
 import { addNoteDeckToRevision } from "./notes.js";
 
 interface SrsCardRow {
@@ -107,6 +108,35 @@ interface QuestionForRevisionRow {
 }
 
 /**
+ * The ONE place a question card's back is composed — "Answer: X. <option>" then
+ * the explanation, blank-separated, in both locales.
+ *
+ * Shared between `addQuestionToRevision` (which snapshots it at add time) and
+ * `refreshQuestionCardBacks` (which re-derives it later). A second copy is
+ * exactly how the refresher would silently stop matching what the generator
+ * writes — it would then either rewrite every card on every run, or none.
+ *
+ * `explanation` is a parameter rather than read off the row so the refresher can
+ * ask the counterfactual it needs: "what would this card have looked like when
+ * the question had NO explanation?" — see `refreshQuestionCardBacks`.
+ */
+function buildQuestionCardBack(
+  options: { key: string; text_i18n: BilingualText }[] | null,
+  correctOptionKey: string | null,
+  explanation: BilingualText | null,
+): BilingualText {
+  const correctOption = options?.find((o) => o.key === correctOptionKey) ?? null;
+  return {
+    en: [correctOption ? `Answer: ${correctOptionKey}. ${correctOption.text_i18n.en}` : null, explanation?.en]
+      .filter((part): part is string => !!part)
+      .join("\n\n"),
+    hi: [correctOption ? `उत्तर: ${correctOptionKey}. ${correctOption.text_i18n.hi}` : null, explanation?.hi]
+      .filter((part): part is string => !!part)
+      .join("\n\n"),
+  };
+}
+
+/**
  * Add a practice question to revision from the attempt-result review list.
  * front = the question stem, back = the correct option + explanation (both
  * bilingual) so a later FSRS review reads standalone, without the original
@@ -136,21 +166,7 @@ export async function addQuestionToRevision(userId: string, questionId: string):
   if (!question) throw notFound("Question not found");
 
   const row = question as unknown as QuestionForRevisionRow;
-  const correctOption = row.options_i18n?.find((o) => o.key === row.correct_option_key) ?? null;
-  const back_i18n: BilingualText = {
-    en: [
-      correctOption ? `Answer: ${row.correct_option_key}. ${correctOption.text_i18n.en}` : null,
-      row.explanation_i18n?.en,
-    ]
-      .filter((part): part is string => !!part)
-      .join("\n\n"),
-    hi: [
-      correctOption ? `उत्तर: ${row.correct_option_key}. ${correctOption.text_i18n.hi}` : null,
-      row.explanation_i18n?.hi,
-    ]
-      .filter((part): part is string => !!part)
-      .join("\n\n"),
-  };
+  const back_i18n = buildQuestionCardBack(row.options_i18n, row.correct_option_key, row.explanation_i18n);
 
   const { data: card, error } = await supabase()
     .from("srs_cards")
@@ -169,6 +185,103 @@ export async function addQuestionToRevision(userId: string, questionId: string):
     .single();
   if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
   return card as unknown as SrsCardRow;
+}
+
+/**
+ * Re-derive `back_i18n` for `source_type='question'` cards from their question's
+ * CURRENT explanation.
+ *
+ * ⚑ WHY THIS EXISTS, and what it does NOT fix. `addQuestionToRevision` snapshots
+ * the explanation at add time, so a card is frozen at whatever the question said
+ * then. That is a real one-way gap, because **76% of the published bank has no
+ * explanation at all** (measured 2026-08-16: 6,422 of 8,401 published+approved
+ * questions have `explanation_i18n IS NULL`) — those are written LAZILY on first
+ * view (`routes/stream.ts` -> `persistQuestionExplanation`). So the common path
+ * is: add a card while the question is bare, someone views that question later,
+ * the question gains a real explanation, and the card stays answer-only forever.
+ * Measured on the same day, 27 of the 29 live question cards were answer-only —
+ * backs as short as `"Answer: D. 9"` (12 chars). That, not staleness, is why
+ * cards read as too basic.
+ *
+ * ⚑ IT REFRESHED 0 CARDS ON ITS FIRST RUN, and that is the expected result, not
+ * a failure: a card is only stale once its question has GAINED an explanation,
+ * and today those 27 questions are still bare. This is a mechanism that makes
+ * cards self-heal from here on, not a repair of existing damage. The repair
+ * would be generating those explanations, which is billed work the owner has
+ * already declined once for the wider bank (see CLAUDE.md's explanation-depth
+ * session) — so it is deliberately NOT done here.
+ *
+ * SAFETY — only a card whose back is EXACTLY the answer-only generated form is
+ * rewritten. That exact string is reachable only by the generator running with a
+ * null explanation, so matching it proves the card is generator-owned and has
+ * never been hand-edited via the Manage tab's `updateCard` (which can rewrite
+ * any card's back, including this one's). The deliberately-skipped case is a
+ * card generated from an explanation that was LATER rewritten: that back is
+ * indistinguishable from a user's own edit without a provenance column, and
+ * clobbering someone's edited card is worse than leaving one stale. It is also
+ * not currently reachable — `writeExplanation` guards on `explanation_i18n IS
+ * NULL`, so nothing rewrites an existing explanation without `--force`.
+ */
+export async function refreshQuestionCardBacks(
+  opts: { apply?: boolean; userId?: string } = {},
+): Promise<{ scanned: number; refreshed: number; skippedEdited: number; danglingSource: number }> {
+  const cards = await selectAll<{ id: string; source_id: string; back_i18n: BilingualText }>(() => {
+    let q = supabase()
+      .from("srs_cards")
+      .select("id, source_id, back_i18n")
+      .eq("source_type", "question")
+      .not("source_id", "is", null)
+      // A deterministic sort key is required for paging to be stable: `id` is the
+      // primary key, so it is a total order and no row can be skipped or repeated
+      // across pages even while another request is inserting cards.
+      .order("id", { ascending: true });
+    if (opts.userId) q = q.eq("user_id", opts.userId);
+    return q;
+  });
+  if (cards.length === 0) return { scanned: 0, refreshed: 0, skippedEdited: 0, danglingSource: 0 };
+
+  // Chunked at 100 — an `.in()` with several hundred uuids exceeds PostgREST's
+  // URL length and fails outright ("fetch failed"), which this repo has hit before.
+  const questionIds = [...new Set(cards.map((c) => c.source_id))];
+  const byId = new Map<string, QuestionForRevisionRow>();
+  for (let i = 0; i < questionIds.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select("id, stem_i18n, options_i18n, correct_option_key, explanation_i18n")
+      .in("id", questionIds.slice(i, i + 100));
+    if (error) throw new HttpError(500, `question lookup failed: ${error.message}`);
+    for (const row of data ?? []) byId.set(row.id as string, row as unknown as QuestionForRevisionRow);
+  }
+
+  let refreshed = 0;
+  let skippedEdited = 0;
+  let danglingSource = 0;
+  for (const card of cards) {
+    const question = byId.get(card.source_id);
+    // The source question was deleted or rejected since the card was added. The
+    // card is deliberately LEFT ALONE rather than repaired or removed: it is the
+    // user's own deck, and deleting someone's revision card because our bank
+    // changed is not this job's call.
+    if (!question) {
+      danglingSource += 1;
+      continue;
+    }
+    const fresh = buildQuestionCardBack(question.options_i18n, question.correct_option_key, question.explanation_i18n);
+    if (fresh.en === card.back_i18n?.en && fresh.hi === card.back_i18n?.hi) continue; // already current
+
+    const answerOnly = buildQuestionCardBack(question.options_i18n, question.correct_option_key, null);
+    if (card.back_i18n?.en !== answerOnly.en || card.back_i18n?.hi !== answerOnly.hi) {
+      skippedEdited += 1;
+      continue;
+    }
+
+    if (opts.apply) {
+      const { error } = await supabase().from("srs_cards").update({ back_i18n: fresh }).eq("id", card.id);
+      if (error) throw new HttpError(500, `srs card back refresh failed: ${error.message}`);
+    }
+    refreshed += 1;
+  }
+  return { scanned: cards.length, refreshed, skippedEdited, danglingSource };
 }
 
 interface SubmissionForRevisionRow {

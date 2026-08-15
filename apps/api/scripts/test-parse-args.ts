@@ -514,6 +514,16 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
     documented: [[], ["--days", "30"]],
   },
   {
+    // Writes to `srs_cards`, so it is DRY-RUN by default and `--apply` is the
+    // only thing that writes. A valueless `--user` would collapse to boolean
+    // `true`, which the script reads as "no user filter" — i.e. it would silently
+    // WIDEN a one-account run to every card in the bank. That is the §0d shape,
+    // and the parser refuses it.
+    script: "srs:refresh-cards",
+    spec: { boolean: ["apply"], value: ["user"] },
+    documented: [[], ["--apply"], ["--user", "00000000-0000-4000-8000-000000000001"]],
+  },
+  {
     // ⚑ `--days 0` is MEANINGFUL here ("everyone", per the file's own comment),
     // which is why this is nonNegativeNumber and NOT positiveInt. The `--days 0`
     // case below is the assertion that stops someone "tightening" it later.

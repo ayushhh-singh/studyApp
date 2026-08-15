@@ -19,6 +19,7 @@ import { computeLearnerProfile } from "../src/services/learner-profile.js";
 import { generateMentorInsights } from "../src/services/mentor-insights.js";
 import { refreshScoreboardViews } from "../src/services/scoreboard.js";
 import { pruneAbandonedGuests } from "../src/services/guest-cleanup.js";
+import { refreshQuestionCardBacks } from "../src/services/srs.js";
 
 async function main() {
   // Scoreboard: one global refresh (not per-user), same as scheduler.ts's dev cron.
@@ -33,6 +34,22 @@ async function main() {
   } catch (err) {
     // Non-fatal: never let guest cleanup block the streak/mastery settle below.
     console.error("guests: prune failed (non-fatal):", err instanceof Error ? err.message : err);
+  }
+
+  // Revision cards snapshot their question's explanation at add time, and most of
+  // the bank has no explanation until someone first views the question — so a card
+  // added while its question was bare stays answer-only unless something re-derives
+  // it. Global (one pass over all question cards), not per-user, since it reads the
+  // shared question bank once. Same "nightly net for what gets forgotten" role as
+  // ingest:embed --missing-only, and non-fatal for the same reason as the prune.
+  try {
+    const r = await refreshQuestionCardBacks({ apply: true });
+    console.log(
+      `srs: refreshed ${r.refreshed} card back(s) of ${r.scanned} scanned ` +
+        `(${r.skippedEdited} hand-edited, ${r.danglingSource} with a deleted source question)`,
+    );
+  } catch (err) {
+    console.error("srs: card-back refresh failed (non-fatal):", err instanceof Error ? err.message : err);
   }
 
   await forEachUser(

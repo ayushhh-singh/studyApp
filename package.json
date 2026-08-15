@@ -19,6 +19,7 @@
     "ingest:embed": "pnpm --filter api ingest:embed",
     "ingest:embed:verify": "pnpm --filter api ingest:embed:verify",
     "ingest:verify": "pnpm --filter api ingest:verify",
+    "srs:refresh-cards": "pnpm --filter api srs:refresh-cards",
     "eval:answers": "pnpm --filter api eval:answers",
     "cost:report": "pnpm --filter api cost:report",
     "feature-discovery:report": "pnpm --filter api feature-discovery:report",
