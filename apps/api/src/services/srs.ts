@@ -17,6 +17,7 @@ import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
 import { selectAll } from "../lib/paginate.js";
 import { addNoteDeckToRevision } from "./notes.js";
+import { generateGroundedExplanation } from "./question-explanation.js";
 
 interface SrsCardRow {
   id: string;
@@ -137,6 +138,57 @@ function buildQuestionCardBack(
 }
 
 /**
+ * Questions currently having an explanation generated in THIS process, so two
+ * near-simultaneous adds of the same bare question don't both pay for one.
+ *
+ * `writeExplanation` already guards on `explanation_i18n IS NULL`, so a race
+ * could never CORRUPT anything — the loser's write is simply a no-op. What it
+ * could not prevent is paying for the model call twice. Per-instance only, which
+ * is the honest bound: a multi-instance deploy could still double-generate once,
+ * the same caveat lib/rate-limit.ts carries.
+ */
+const explanationInFlight = new Set<string>();
+
+/**
+ * Fill in a question's missing explanation, then re-derive the card that was
+ * just created from it.
+ *
+ * ⚑ WHY THIS EXISTS. 76% of the published bank has no explanation, and one is
+ * written ONLY when a user explicitly clicks "Generate explanation" on the
+ * result review list (`routes/stream.ts`). Adding a question to revision does
+ * not go through that button — so without this, a card added from a bare
+ * question is saved as `"Answer: D. 9"` and stays that way forever, because
+ * nothing else would ever generate the explanation for that question.
+ *
+ * COST — one `claude-haiku-4-5` call per genuinely-new question, and only when a
+ * real user actually adds a card. It is NOT a backfill: nothing is generated for
+ * questions nobody has put in their deck. The result is persisted to `questions`,
+ * so it is paid once ever and every other surface (result review, PYQ browse,
+ * search, magazine) gets it too — the same call the user would have paid for by
+ * clicking the button, moved to the moment it is actually needed.
+ *
+ * Fire-and-forget: the caller must NOT await this. Adding a card is a fast,
+ * user-facing write and must never block on (or fail because of) a model call —
+ * the same `void screenPost(...)` shape community moderation uses. If it fails,
+ * the card simply keeps its answer-only back and the nightly refresh will pick
+ * the explanation up later if any other path writes one.
+ */
+async function backfillExplanationForNewCard(userId: string, questionId: string): Promise<void> {
+  if (explanationInFlight.has(questionId)) return;
+  explanationInFlight.add(questionId);
+  try {
+    await generateGroundedExplanation(questionId);
+    // Re-derive this user's question cards so the one just created picks up the
+    // explanation. Scoped to the caller (a handful of rows), and it reuses the
+    // same tested refresher the nightly runs rather than a second copy of the
+    // "is this card safe to rewrite?" rule.
+    await refreshQuestionCardBacks({ userId, apply: true });
+  } finally {
+    explanationInFlight.delete(questionId);
+  }
+}
+
+/**
  * Add a practice question to revision from the attempt-result review list.
  * front = the question stem, back = the correct option + explanation (both
  * bilingual) so a later FSRS review reads standalone, without the original
@@ -184,6 +236,22 @@ export async function addQuestionToRevision(userId: string, questionId: string):
     .select(SRS_CARD_COLUMNS)
     .single();
   if (error) throw new HttpError(500, `srs card upsert failed: ${error.message}`);
+
+  // The card was just saved answer-only because the question has no explanation
+  // yet. Generate one in the background so the card is actually worth reviewing
+  // — see backfillExplanationForNewCard for the cost rationale. Requires a
+  // correct_option_key: the explanation prompt argues FOR the stored key, so
+  // there is nothing to write without one.
+  const hasExplanation = !!(row.explanation_i18n?.en || row.explanation_i18n?.hi);
+  if (!hasExplanation && row.correct_option_key) {
+    void backfillExplanationForNewCard(userId, questionId).catch((err) => {
+      console.error(
+        `srs: explanation generation failed for question ${questionId} (non-fatal):`,
+        err instanceof Error ? err.message : err,
+      );
+    });
+  }
+
   return card as unknown as SrsCardRow;
 }
 
