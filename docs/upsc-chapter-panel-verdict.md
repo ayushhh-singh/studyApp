@@ -481,3 +481,85 @@ without a natural home…". A keyword heuristic is a candidate generator, not an
 
 These are scratch paths and are **not** committed. The seed (`20260807`) plus the arm-membership
 derivation (coverage-doc diff, above) is sufficient to rebuild the sample exactly.
+
+---
+
+## ⚑ ADDENDUM 2026-08-16 — PYQ-weighted sub-topic depth, and three ways a coverage metric lies
+
+Part 3 classified 101 nodes `redundant` on a **≥20-word verbatim passage**. That bar proves coverage
+**exists**; it does not prove the coverage is proportionate to what the exam **asks**. This round applied a
+measured depth standard to the redundant set, and the durable output is not the content — it is that the
+obvious metric was wrong **three separate times, always in the direction of inventing work**.
+
+### The standard (both sides derived from the bank, not chosen)
+
+- **Criterion A — node weight.** Own real PYQ counts of nodes that already have their own chapter. Split by
+  shape first, because the halves are not comparable: chaptered **parents** hold their PYQs on their
+  children (median **0** own PYQs), so only the **45 leaves** are like-for-like — min 1, p25 **5**,
+  median 26, max 269. Floor = **own PYQ ≥ 5** → 66 of 117 nodes.
+- **Criterion B — depth vs weight.** A node with its own chapter receives a median **203 words of prose per
+  real PYQ**, p25 **104**. Below p25 = less prose per PYQ than 75% of nodes already judged chapter-worthy.
+
+### The three lies, each caught by reading before dispatching
+
+1. **"No matching section" was a title-token artifact in 7 of 8 cases.** Content sat under headings sharing
+   no words with the node — *Statutory, Regulatory and Quasi-Judicial Bodies* is taught in *"The Regulatory
+   State: Sectoral Regulators and Their Appellate Architecture"* [1077w]. Acting on it = 7 duplicate sections.
+2. **The matcher never looked cross-paper.** `Major Crops and Cropping Patterns` measured **0 w/PYQ** and is
+   in fact covered by `Agriculture, Food Security and Land Reforms` → *"Cropping Systems and Patterns Across
+   India"* [942w] (kharif×11, rabi×10, cropping intensity×3). The 2026-08-15 round had already recorded this;
+   re-deriving it independently is what confirmed it.
+3. **⚑ Crediting only the single best-matching section systematically undercounts.** A node's territory is
+   usually taught across several sections. Recounting every matching section moved **25 of 38 nodes above the
+   line**: Physical Geography **32 → 196** (6 sections), World Geography **37.6 → 402** (10), Salient Features
+   of Indian Society **60.4 → 562** (11), Infrastructure **96.5 → 478** (5).
+
+**So `words_per_pyq` is a LOWER BOUND, not an allocation, and the all-sections recount is an UPPER bound
+(loose heading tokens pull in tangential sections). Neither settles anything on its own.**
+
+### ⚑ And the finding that justifies the whole round: an aggregate hides a starved sub-area
+
+Physical Geography was the motivating example, and on the corrected count (196 w/PYQ, at the bank median) it
+agrees with 2026-08-15's qualitative *"compact but genuinely dense — needs nothing"*. Two independent signals
+agreeing — **the case looked closed.**
+
+It was not. The thing neither pass had done is **bucket the node's real PYQs by sub-area**. Doing that found
+clusters with **zero words anywhere in the chapter or its three siblings** (~21,000 words searched):
+`solstice`, `equinox`, `Tropic of Cancer`, `Arctic Circle`, `day length` — **0 occurrences each**, against
+**4 real PYQs**; `isotherm`, `specific heat` — **0 each**, against **3**; UNCLOS absent entirely.
+
+**A healthy average and a starved sub-area are perfectly compatible.** The sub-area PYQ table is the only
+instrument that separates them — not word counts, not term scans, not a reviewer's overall impression.
+This is the **Demographics heading-scan trap** and the **Data Interpretation trap-table trap** one level
+deeper again: a matching heading is not coverage, matching body terms are not coverage, and now **a healthy
+words-per-PYQ average is not coverage either.**
+
+### The genuine worklist — 13 nodes / 8 chapters
+
+Survives both bounds: each has exactly **one** dedicated section and no cross-paper reinforcement.
+
+| node | PYQ | w/PYQ | covering chapter |
+|---|---:|---:|---|
+| India and its Neighborhood — Relations | 10 | 51.1 | International Relations |
+| Communalism, Regionalism & Secularism | 9 | 65.2 | Indian Society |
+| Linkages Between Development and Spread of Extremism | 8 | 66.9 | Internal Security |
+| Rights Issues | 20 | 75.5 | Social Justice |
+| Statutory, Regulatory and Quasi-Judicial Bodies | 13 | 82.8 | Public Policy |
+| Urbanization, its Problems and their Remedies | 10 | 84.5 | Indian Society |
+| Role of Women and Women's Organization | 7 | 86.1 | Indian Society |
+| Effect of Policies of Developed/Developing Countries | 7 | 87.6 | International Relations |
+| Population, Poverty and Developmental Issues | 8 | 88.1 | Indian Society |
+| Basics of Cyber Security and Money-Laundering Prevention | 9 | 91.1 | Internal Security |
+| Irrigation, Storage, Transport and Marketing of Produce | 10 | 93.8 | Agriculture, Food Security |
+| E-Governance and Citizens Charters | 9 | 97.8 | Governance |
+| Problem Solving | 22 | 100 | Decision Making and Problem Solving |
+
+**Four of Indian Society's six members are on it.** That chapter was already the thinnest per unit of
+coverage load and was already expanded once on 2026-08-15 — and it is still the thinnest.
+
+### Corrections to earlier records
+
+- **Physical Geography is 27 real PYQs, not 30.** The "30" in the Part 3 table and in the 2026-08-15 entry is
+  stale; 27 is the published+approved count.
+- `Authoring_brief.md` **does not exist** anywhere in the repo or on the machine. The standing authoring rule
+  is `docs/multi-exam.md` §5.

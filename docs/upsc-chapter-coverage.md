@@ -6,7 +6,7 @@
 > pnpm notes:coverage --exam upsc --out docs/upsc-chapter-coverage.md
 > ```
 >
-> Read live from the database on **2026-08-15** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
+> Read live from the database on **2026-08-16** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
 **78 of 195 chapterable nodes have a published chapter (40%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
@@ -31,7 +31,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 
 | # | Weight | Paper | D | Node | Chapter | node_id |
 | ---: | ---: | --- | ---: | --- | --- | --- |
-| 1 | 292 | `UPSC_PRE_CSAT` | 1 | Basic Numeracy and Data Interpretation | published · chapter v2 | `c42d6a11-b800-4703-ae2d-eaed69b45b7f` |
+| 1 | 292 | `UPSC_PRE_CSAT` | 1 | Basic Numeracy and Data Interpretation | published · chapter v3 | `c42d6a11-b800-4703-ae2d-eaed69b45b7f` |
 | 2 | 269 | `UPSC_PRE_CSAT` | 2 | Basic Numeracy | published · chapter v1 | `f902af4d-8db5-4fa4-af60-8aacdb0b8efd` |
 | 3 | 258 | `UPSC_PRE_CSAT` | 1 | Logical Reasoning and Analytical Ability | published · chapter v1 | `bac0e217-1cfe-4f8d-8c7e-1db4e3f570c6` |
 | 4 | 246 | `UPSC_PRE_CSAT` | 1 | Comprehension | published · chapter v1 | `e61f39da-fcbb-4672-a9fd-ede60695a730` |
@@ -42,7 +42,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 9 | 144 | `UPSC_PRE_GS1` | 1 | General Science | published · chapter v1 | `699d0aad-59ed-4beb-9c36-e66ae244a2f5` |
 | 10 | 132 | `UPSC_PRE_GS1` | 1 | Environmental Ecology, Bio-diversity and Climate Change | published · chapter v1 | `9387bf60-969e-4992-8e76-ebdb2e5d2cde` |
 | 11 | 116 | `UPSC_PRE_GS1` | 1 | Current Events of National and International Importance | published · chapter v1 | `650d3c8d-37e8-4be0-a240-0f297fb52a1a` |
-| 12 | 102 | `UPSC_PRE_GS1` | 1 | Indian and World Geography | published · chapter v3 | `52dfb281-a98c-4741-8749-3872cf523ac9` |
+| 12 | 102 | `UPSC_PRE_GS1` | 1 | Indian and World Geography | published · chapter v4 | `52dfb281-a98c-4741-8749-3872cf523ac9` |
 | 13 | 90 | `UPSC_PRE_CSAT` | 2 | Analytical Ability | published · chapter v1 | `a5296db4-7445-4edb-9b27-bf9029706fb3` |
 | 14 | 78 | `UPSC_PRE_GS1` | 2 | Constitution of India | published · chapter v1 | `7b761a98-aaae-4aaa-9b12-2f7e88de6a6b` |
 | 15 | 71 | `UPSC_MAINS_GS2` | 1 | Indian Polity | published · chapter v2 | `28b8c42f-01ed-4408-8b80-790dddde8103` |
