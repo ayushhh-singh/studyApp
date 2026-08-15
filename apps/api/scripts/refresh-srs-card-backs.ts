@@ -16,7 +16,7 @@
  * out-of-band run rather than the normal path.
  */
 import { parseArgs } from "../src/ingest/_shared.js";
-import { refreshQuestionCardBacks } from "../src/services/srs.js";
+import { backfillCardOriginNodes, refreshQuestionCardBacks } from "../src/services/srs.js";
 
 async function main() {
   const args = parseArgs(
@@ -29,11 +29,20 @@ async function main() {
 
   const result = await refreshQuestionCardBacks({ apply, userId });
   console.log(
-    `srs:refresh-cards${apply ? "" : " (dry run)"}${userId ? ` user=${userId}` : ""}: ` +
+    `card backs${apply ? "" : " (dry run)"}${userId ? ` user=${userId}` : ""}: ` +
       `scanned ${result.scanned}, ${apply ? "refreshed" : "would refresh"} ${result.refreshed}, ` +
       `skipped ${result.skippedEdited} hand-edited, ${result.danglingSource} with a deleted source question`,
   );
-  if (!apply && result.refreshed > 0) console.log("Re-run with --apply to write.");
+
+  const origins = await backfillCardOriginNodes({ apply, userId });
+  console.log(
+    `card origins${apply ? "" : " (dry run)"}: ${origins.missing} without one, ` +
+      `${apply ? "resolved" : "would resolve"} ${origins.resolved} ` +
+      `(question ${origins.byRoute.question}, node ${origins.byRoute.node}, ` +
+      `evaluation ${origins.byRoute.evaluation}, note ${origins.byRoute.note})`,
+  );
+
+  if (!apply && (result.refreshed > 0 || origins.resolved > 0)) console.log("Re-run with --apply to write.");
 }
 
 main()

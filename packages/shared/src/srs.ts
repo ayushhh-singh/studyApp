@@ -75,10 +75,45 @@ export const srsIntervalPreviewSchema = z.object({
   4: srsRatingPreviewSchema,
 });
 
+/**
+ * Where a card came from, resolved for display (0132).
+ *
+ * Present only when `origin_node_id` resolves to a live syllabus topic — a
+ * hand-written card, a current-affairs fact and a card whose topic was retired
+ * all legitimately have none, and the UI renders no link rather than a broken one.
+ */
+export const srsCardSourceSchema = z.object({
+  node_id: z.string().uuid(),
+  paper_code: z.string(),
+  title_i18n: bilingualTextSchema,
+  /** Whether a published study chapter exists to send the reader to. */
+  has_chapter: z.boolean(),
+});
+export type SrsCardSource = z.infer<typeof srsCardSourceSchema>;
+
+/**
+ * How much this card's topic is actually worth — "asked 27x, last 2026".
+ *
+ * The real study signal a bare flashcard cannot give: it tells the learner
+ * whether the thing they just failed to recall is a recurring exam topic or a
+ * one-off. Read from `mv_node_weightage`, rolled up over the topic's SUBTREE so a
+ * parent section reflects its children (matching /learn), and null when the topic
+ * has never been examined.
+ */
+export const srsCardWeightageSchema = z.object({
+  /** Total questions asked on this topic across all ingested years. */
+  asked: z.number().int(),
+  /** Most recent year it appeared. */
+  last_year: z.number().int(),
+});
+export type SrsCardWeightage = z.infer<typeof srsCardWeightageSchema>;
+
 /** A due card as returned by the review queue — includes scheduler state + a preview of all four ratings. */
 export const srsQueueCardSchema = srsCardSchema.extend({
   fsrs_state: srsCardStateSchema,
   preview: srsIntervalPreviewSchema,
+  source: srsCardSourceSchema.nullable(),
+  weightage: srsCardWeightageSchema.nullable(),
 });
 export type SrsQueueCard = z.infer<typeof srsQueueCardSchema>;
 

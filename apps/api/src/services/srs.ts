@@ -8,16 +8,29 @@ import type {
   SrsCardListItem,
   SrsQueueCard,
   SrsSourceType,
+  SrsCardSource,
+  SrsCardWeightage,
   SrsStats,
 } from "@neev/shared";
+import { noteRevisionBodySchema } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { getUserExam, questionExamScopeFilter } from "../lib/exams.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from "../lib/fsrs.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
 import { selectAll } from "../lib/paginate.js";
-import { addNoteDeckToRevision } from "./notes.js";
+import { logger } from "../lib/logger.js";
+import { addNoteDeckToRevision, noteSourceId } from "./notes.js";
 import { generateGroundedExplanation } from "./question-explanation.js";
+
+/**
+ * The per-block "add to revision" keys, taken from the SHARED schema rather than
+ * retyped — `noteRevisionBodySchema.shape.block` is the one definition of which
+ * blocks exist, so this cannot fall out of step when a block is added.
+ */
+const NOTE_BLOCK_KEYS = noteRevisionBodySchema.shape.block.options;
+/** How far to search per block when recovering a note card's origin. */
+const NOTE_BLOCK_MAX_INDEX = 60;
 
 interface SrsCardRow {
   id: string;
@@ -92,6 +105,8 @@ export async function addNodeToRevision(userId: string, nodeId: string): Promise
         source_type: "manual",
         source_id: nodeId,
         exam_code: nodeExam,
+        // The node IS the origin — this card is revision for exactly this topic.
+        origin_node_id: nodeId,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -103,6 +118,7 @@ export async function addNodeToRevision(userId: string, nodeId: string): Promise
 
 interface QuestionForRevisionRow {
   stem_i18n: BilingualText;
+  syllabus_node_id: string | null;
   options_i18n: { key: string; text_i18n: BilingualText }[] | null;
   correct_option_key: string | null;
   explanation_i18n: BilingualText | null;
@@ -209,7 +225,7 @@ export async function addQuestionToRevision(userId: string, questionId: string):
   const questionExam = await getUserExam(userId);
   const { data: question, error: questionError } = await supabase()
     .from("questions")
-    .select("stem_i18n, options_i18n, correct_option_key, explanation_i18n")
+    .select("stem_i18n, syllabus_node_id, options_i18n, correct_option_key, explanation_i18n")
     .eq("id", questionId)
     .eq("is_published", true)
     .or(await questionExamScopeFilter(questionExam))
@@ -230,6 +246,9 @@ export async function addQuestionToRevision(userId: string, questionId: string):
         source_type: "question",
         source_id: questionId,
         exam_code: questionExam,
+        // 0132 — so the review player can offer "re-read this chapter". Null when
+        // the question is unmapped; the UI then shows no link rather than a bad one.
+        origin_node_id: row.syllabus_node_id ?? null,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -352,11 +371,145 @@ export async function refreshQuestionCardBacks(
   return { scanned: cards.length, refreshed, skippedEdited, danglingSource };
 }
 
+/**
+ * Fill in `origin_node_id` (0132) for cards that predate it or whose write path
+ * could not resolve one at the time.
+ *
+ * Four recovery routes, in the order they can be resolved cheaply:
+ *   (a) question card      -> questions.syllabus_node_id
+ *   (b) node card          -> source_id IS the node
+ *   (c) evaluation card    -> submission -> question -> node
+ *   (d) note deck/block    -> RECOMPUTE the sha256-derived source_id
+ *
+ * (a) and (b) are also done in 0132's SQL; they are repeated here so a card
+ * created between the migration and the deploy still converges, and so the CLI
+ * is a complete repair on its own.
+ *
+ * (d) is the interesting one and why this is TypeScript rather than SQL: a note
+ * card's `source_id` is `sha256("note:<id>:<key>")`, which cannot be reversed.
+ * The only way back is to re-derive every id a published note COULD have
+ * produced and match — using notes.ts's own `noteSourceId` and the shared block
+ * enum, never a hand-copied list, because a drifted copy would match nothing and
+ * be indistinguishable from "there was nothing to recover".
+ *
+ * Deliberately does NOT resolve current-affairs facts: a CA item's
+ * `syllabus_node_ids` is an ARRAY (an item legitimately spans several topics),
+ * so picking one would be a guess, and a CA fact's natural "read more" target is
+ * the current-affairs item, not a chapter. Those keep a NULL origin, which the
+ * UI renders as no link rather than a wrong one.
+ */
+export async function backfillCardOriginNodes(
+  opts: { apply?: boolean; userId?: string } = {},
+): Promise<{ missing: number; resolved: number; byRoute: Record<string, number> }> {
+  const cards = await selectAll<{ id: string; source_type: SrsSourceType; source_id: string | null }>(() => {
+    let q = supabase()
+      .from("srs_cards")
+      .select("id, source_type, source_id")
+      .is("origin_node_id", null)
+      .not("source_id", "is", null)
+      .order("id", { ascending: true });
+    if (opts.userId) q = q.eq("user_id", opts.userId);
+    return q;
+  });
+  const byRoute: Record<string, number> = { question: 0, node: 0, evaluation: 0, note: 0 };
+  if (cards.length === 0) return { missing: 0, resolved: 0, byRoute };
+
+  const resolved = new Map<string, string>(); // cardId -> nodeId
+
+  // (a) question cards
+  const qCards = cards.filter((c) => c.source_type === "question");
+  const qIds = [...new Set(qCards.map((c) => c.source_id!))];
+  const qNode = new Map<string, string | null>();
+  for (let i = 0; i < qIds.length; i += 100) {
+    const { data, error } = await supabase().from("questions").select("id, syllabus_node_id").in("id", qIds.slice(i, i + 100));
+    if (error) throw new HttpError(500, `question node lookup failed: ${error.message}`);
+    for (const r of data ?? []) qNode.set(r.id as string, r.syllabus_node_id as string | null);
+  }
+  for (const c of qCards) {
+    const n = qNode.get(c.source_id!);
+    if (n) { resolved.set(c.id, n); byRoute.question += 1; }
+  }
+
+  const manual = cards.filter((c) => c.source_type === "manual");
+  const mIds = [...new Set(manual.map((c) => c.source_id!))];
+
+  // (b) node cards — source_id IS a syllabus node.
+  const realNodes = new Set<string>();
+  for (let i = 0; i < mIds.length; i += 100) {
+    const { data, error } = await supabase().from("syllabus_nodes").select("id").in("id", mIds.slice(i, i + 100));
+    if (error) throw new HttpError(500, `node lookup failed: ${error.message}`);
+    for (const r of data ?? []) realNodes.add(r.id as string);
+  }
+  for (const c of manual) {
+    if (!resolved.has(c.id) && realNodes.has(c.source_id!)) { resolved.set(c.id, c.source_id!); byRoute.node += 1; }
+  }
+
+  // (c) evaluation cards — source_id is a submission.
+  const unres = manual.filter((c) => !resolved.has(c.id)).map((c) => c.source_id!);
+  const subQuestion = new Map<string, string | null>();
+  for (let i = 0; i < unres.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("answer_submissions")
+      .select("id, questions(syllabus_node_id)")
+      .in("id", unres.slice(i, i + 100));
+    if (error) throw new HttpError(500, `submission lookup failed: ${error.message}`);
+    for (const r of data ?? []) {
+      // PostgREST returns a to-one embed as an object, but defensively accept an
+      // array too — the same shape guard getPaperSummaries already carries.
+      const q = (r as { questions?: { syllabus_node_id?: string | null } | { syllabus_node_id?: string | null }[] }).questions;
+      const node = Array.isArray(q) ? q[0]?.syllabus_node_id : q?.syllabus_node_id;
+      subQuestion.set(r.id as string, node ?? null);
+    }
+  }
+  for (const c of manual) {
+    if (resolved.has(c.id)) continue;
+    const n = subQuestion.get(c.source_id!);
+    if (n) { resolved.set(c.id, n); byRoute.evaluation += 1; }
+  }
+
+  // (d) note deck/block cards — recompute the derived ids and match.
+  const stillUnresolved = new Set(manual.filter((c) => !resolved.has(c.id)).map((c) => c.source_id!));
+  if (stillUnresolved.size > 0) {
+    const notes = await selectAll<{ id: string; syllabus_node_id: string | null; srs_candidates: unknown[] | null }>(() =>
+      supabase()
+        .from("notes")
+        .select("id, syllabus_node_id, srs_candidates")
+        .not("syllabus_node_id", "is", null)
+        .order("id", { ascending: true }),
+    );
+    const derived = new Map<string, string>();
+    for (const n of notes) {
+      if (!n.syllabus_node_id) continue;
+      const candidateCount = Array.isArray(n.srs_candidates) ? n.srs_candidates.length : 0;
+      for (let i = 0; i < candidateCount; i++) derived.set(noteSourceId(n.id, `card:${i}`), n.syllabus_node_id);
+      // Per-block cards. The index is unbounded in principle; NOTE_BLOCK_MAX_INDEX
+      // bounds the search. A block card beyond it simply stays unresolved (no
+      // link) rather than causing a wrong one — the honest failure direction.
+      for (const block of NOTE_BLOCK_KEYS) {
+        for (let i = 0; i <= NOTE_BLOCK_MAX_INDEX; i++) derived.set(noteSourceId(n.id, `${block}:${i}`), n.syllabus_node_id);
+      }
+    }
+    for (const c of manual) {
+      if (resolved.has(c.id)) continue;
+      const n = derived.get(c.source_id!);
+      if (n) { resolved.set(c.id, n); byRoute.note += 1; }
+    }
+  }
+
+  if (opts.apply) {
+    for (const [cardId, nodeId] of resolved) {
+      const { error } = await supabase().from("srs_cards").update({ origin_node_id: nodeId }).eq("id", cardId);
+      if (error) throw new HttpError(500, `origin_node_id update failed: ${error.message}`);
+    }
+  }
+  return { missing: cards.length, resolved: resolved.size, byRoute };
+}
+
 interface SubmissionForRevisionRow {
   user_id: string;
   language: Locale;
   custom_question_text_i18n: BilingualText | null;
-  questions: { stem_i18n: BilingualText } | null;
+  questions: { stem_i18n: BilingualText; syllabus_node_id: string | null } | null;
 }
 
 interface EvaluationForRevisionRow {
@@ -375,7 +528,7 @@ interface EvaluationForRevisionRow {
 export async function addEvaluationToRevision(userId: string, submissionId: string): Promise<SrsCard> {
   const { data: submission, error: subError } = await supabase()
     .from("answer_submissions")
-    .select("user_id, language, custom_question_text_i18n, questions(stem_i18n)")
+    .select("user_id, language, custom_question_text_i18n, questions(stem_i18n, syllabus_node_id)")
     .eq("id", submissionId)
     .maybeSingle();
   if (subError) throw new HttpError(500, `submission lookup failed: ${subError.message}`);
@@ -417,6 +570,9 @@ export async function addEvaluationToRevision(userId: string, submissionId: stri
         source_type: "manual",
         source_id: submissionId,
         exam_code: submissionExam,
+        // 0132 — a catalogued question's own topic; null for a custom prompt,
+        // which has no syllabus node to send the user back to.
+        origin_node_id: (row.questions as { syllabus_node_id?: string | null } | null)?.syllabus_node_id ?? null,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
@@ -532,6 +688,105 @@ async function headCount(
 }
 
 /**
+ * Resolve the display enrichment for a batch of cards' origin topics: where the
+ * card came from, and how heavily that topic is examined.
+ *
+ * Batched over the whole queue (never per card) — a 30-card session would
+ * otherwise fire ~90 round trips. Everything is best-effort: a topic that has
+ * never been examined simply has no weightage, and a card whose topic was
+ * retired resolves to no source, both of which the UI renders as "no chip"
+ * rather than an error. The enrichment is decoration on a working review
+ * session; it must never be able to take the session down.
+ *
+ * Weightage is rolled up over the topic's SUBTREE, matching what /learn shows
+ * for the same node — a section's number must not disagree between two screens.
+ */
+async function resolveCardEnrichment(
+  nodeIds: string[],
+): Promise<Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null }>> {
+  const out = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null }>();
+  const ids = [...new Set(nodeIds)];
+  if (ids.length === 0) return out;
+
+  const [nodesResult, chaptersResult] = await Promise.all([
+    supabase().from("syllabus_nodes").select("id, paper_code, title_i18n, path, exam_code").in("id", ids),
+    supabase()
+      .from("notes")
+      .select("syllabus_node_id, chapter_version")
+      .in("syllabus_node_id", ids)
+      .eq("status", "published"),
+  ]);
+  if (nodesResult.error) throw new HttpError(500, `card source lookup failed: ${nodesResult.error.message}`);
+  const nodes = (nodesResult.data ?? []) as {
+    id: string;
+    paper_code: string;
+    title_i18n: BilingualText;
+    path: string;
+    exam_code: string;
+  }[];
+  if (nodes.length === 0) return out;
+
+  // A note row without a chapter is a digest-only note — real content, but not
+  // the chapter the "re-read" link promises, so it does not count as one.
+  const withChapter = new Set(
+    ((chaptersResult.data ?? []) as { syllabus_node_id: string; chapter_version: number | null }[])
+      .filter((n) => (n.chapter_version ?? 0) > 0)
+      .map((n) => n.syllabus_node_id),
+  );
+
+  // Subtree rollup. `path` is a materialized path, so a node's descendants are
+  // exactly the rows whose path is prefixed by it within the same paper — one
+  // query for every card in the queue rather than one per card.
+  const papers = [...new Set(nodes.map((n) => n.paper_code))];
+  const treeRows = await selectAll<{ id: string; paper_code: string; path: string }>(() =>
+    supabase().from("syllabus_nodes").select("id, paper_code, path").in("paper_code", papers).order("id", { ascending: true }),
+  );
+  // Chunked at 100 ids: a whole paper's tree runs to a few hundred nodes, and an
+  // `.in()` that long exceeds PostgREST's URL limit and fails outright.
+  const weightByNode = new Map<string, { asked: number; last: number }>();
+  const treeIds = treeRows.map((r) => r.id);
+  for (let i = 0; i < treeIds.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("mv_node_weightage")
+      .select("node_id, year, q_count")
+      .in("node_id", treeIds.slice(i, i + 100));
+    if (error) throw new HttpError(500, `weightage lookup failed: ${error.message}`);
+    for (const r of (data ?? []) as { node_id: string; year: number; q_count: number }[]) {
+      const cur = weightByNode.get(r.node_id) ?? { asked: 0, last: 0 };
+      cur.asked += r.q_count;
+      cur.last = Math.max(cur.last, r.year);
+      weightByNode.set(r.node_id, cur);
+    }
+  }
+
+  for (const node of nodes) {
+    // Self + descendants. An empty path is a paper root, whose descendants are
+    // the whole paper; `startsWith("")` is true for every row, which is correct.
+    let asked = 0;
+    let last = 0;
+    for (const row of treeRows) {
+      if (row.paper_code !== node.paper_code) continue;
+      const isSelfOrDescendant = row.id === node.id || row.path === node.path || row.path.startsWith(`${node.path}/`);
+      if (!isSelfOrDescendant) continue;
+      const w = weightByNode.get(row.id);
+      if (!w) continue;
+      asked += w.asked;
+      last = Math.max(last, w.last);
+    }
+    out.set(node.id, {
+      source: {
+        node_id: node.id,
+        paper_code: node.paper_code,
+        title_i18n: node.title_i18n,
+        has_chapter: withChapter.has(node.id),
+      },
+      weightage: asked > 0 && last > 0 ? { asked, last_year: last } : null,
+    });
+  }
+  return out;
+}
+
+/**
  * Cards due today — fsrs_state->>due_at before the end of the IST calendar
  * day, the SAME cutoff getStats' `due_today`/day-0 forecast bucket uses (not
  * a strict `<= now`). Keeping these aligned matters: the "Start review (N
@@ -559,7 +814,7 @@ export async function getDueQueue(
 
   const { data, error } = await supabase()
     .from("srs_cards")
-    .select(SRS_CARD_COLUMNS_WITH_STATE)
+    .select(`${SRS_CARD_COLUMNS_WITH_STATE}, origin_node_id`)
     .eq("user_id", userId)
     .or(examFilter)
     .lt("fsrs_state->>due_at", todayEndUtc)
@@ -567,11 +822,30 @@ export async function getDueQueue(
     .limit(limit);
   if (error) throw new HttpError(500, `srs due queue failed: ${error.message}`);
 
+  const rows = (data ?? []) as unknown as (SrsCardRow & {
+    fsrs_state: FsrsStateJson;
+    origin_node_id: string | null;
+  })[];
+
+  // Best-effort enrichment: a failure here must never cost the user their review
+  // session, so it degrades to unenriched cards (no chips) rather than throwing.
+  let enrichment = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null }>();
+  try {
+    enrichment = await resolveCardEnrichment(rows.map((r) => r.origin_node_id).filter((id): id is string => !!id));
+  } catch (err) {
+    logger.warn({ err }, "srs: card enrichment failed, serving plain cards");
+  }
+
   const now = new Date();
-  const cards = ((data ?? []) as unknown as (SrsCardRow & { fsrs_state: FsrsStateJson })[]).map((row) => ({
-    ...row,
-    preview: previewIntervals(row.fsrs_state, now),
-  })) as unknown as SrsQueueCard[];
+  const cards = rows.map((row) => {
+    const e = row.origin_node_id ? enrichment.get(row.origin_node_id) : undefined;
+    return {
+      ...row,
+      preview: previewIntervals(row.fsrs_state, now),
+      source: e?.source ?? null,
+      weightage: e?.weightage ?? null,
+    };
+  }) as unknown as SrsQueueCard[];
 
   return { cards, due_count: dueCount };
 }

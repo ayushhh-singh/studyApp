@@ -19,7 +19,7 @@ import { computeLearnerProfile } from "../src/services/learner-profile.js";
 import { generateMentorInsights } from "../src/services/mentor-insights.js";
 import { refreshScoreboardViews } from "../src/services/scoreboard.js";
 import { pruneAbandonedGuests } from "../src/services/guest-cleanup.js";
-import { refreshQuestionCardBacks } from "../src/services/srs.js";
+import { backfillCardOriginNodes, refreshQuestionCardBacks } from "../src/services/srs.js";
 
 async function main() {
   // Scoreboard: one global refresh (not per-user), same as scheduler.ts's dev cron.
@@ -48,6 +48,11 @@ async function main() {
       `srs: refreshed ${r.refreshed} card back(s) of ${r.scanned} scanned ` +
         `(${r.skippedEdited} hand-edited, ${r.danglingSource} with a deleted source question)`,
     );
+    // Repairs `origin_node_id` (0132) for cards whose write path could not
+    // resolve one, and recovers the sha256-derived note-card ids SQL cannot
+    // reverse. Idempotent — it only ever looks at cards that still have none.
+    const o = await backfillCardOriginNodes({ apply: true });
+    console.log(`srs: resolved ${o.resolved} card origin(s) of ${o.missing} missing`);
   } catch (err) {
     console.error("srs: card-back refresh failed (non-fatal):", err instanceof Error ? err.message : err);
   }

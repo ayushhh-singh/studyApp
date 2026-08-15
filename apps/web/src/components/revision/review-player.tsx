@@ -6,6 +6,7 @@ import type { Locale, SrsQueueCard, SrsRating } from "@neev/shared";
 import { Button } from "@/components/ui/button";
 import { formatSrsInterval } from "@/lib/srs-format";
 import { useSrsReviewQueue } from "@/hooks/use-srs-review-queue";
+import { CardMeta } from "./card-meta";
 import { SessionSummary } from "./session-summary";
 
 const RATING_CONFIG: Record<SrsRating, { labelKey: string; className: string }> = {
@@ -79,21 +80,32 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
 
   return (
     <div className="flex h-dvh flex-col bg-background">
-      <header className="flex shrink-0 items-center justify-between gap-3 border-b border-border px-4 py-3">
-        <Button variant="ghost" size="icon-sm" onClick={onExit} aria-label={t("Revision.exit")}>
-          <X aria-hidden />
-        </Button>
-        <span className="text-sm font-semibold text-muted-foreground tabular-nums">
-          {t("Revision.cardOf", { current: index + 1, total: cards.length })}
-        </span>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={() => setDisplayLocale((l) => (l === "en" ? "hi" : "en"))}
-          aria-label={t("Revision.toggleLanguage")}
-        >
-          <Languages aria-hidden />
-        </Button>
+      <header className="flex shrink-0 flex-col gap-2 border-b border-border px-4 py-3">
+        <div className="flex items-center justify-between gap-3">
+          <Button variant="ghost" size="icon-sm" onClick={onExit} aria-label={t("Revision.exit")}>
+            <X aria-hidden />
+          </Button>
+          <span className="text-sm font-semibold text-muted-foreground tabular-nums">
+            {t("Revision.cardOf", { current: index + 1, total: cards.length })}
+          </span>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={() => setDisplayLocale((l) => (l === "en" ? "hi" : "en"))}
+            aria-label={t("Revision.toggleLanguage")}
+          >
+            <Languages aria-hidden />
+          </Button>
+        </div>
+        {/* Glanceable progress. The "N of M" above is the precise reading; this is
+            the one you can take in without reading — worth having in a session you
+            work through head-down. aria-hidden because the counter already says it. */}
+        <div className="h-1 w-full overflow-hidden rounded-full bg-secondary" aria-hidden>
+          <div
+            className="h-full rounded-full bg-action transition-[width] duration-300 motion-reduce:transition-none"
+            style={{ width: `${(index / cards.length) * 100}%` }}
+          />
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
@@ -106,36 +118,52 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
             transition={{ duration: 0.2 }}
             className="flex w-full max-w-lg flex-col gap-4"
           >
-            <button
-              type="button"
-              onClick={() => !revealed && setRevealed(true)}
-              // Once revealed this button no longer does anything (rating happens via
-              // the buttons below) — take it out of the tab order rather than leave a
-              // focusable no-op control.
-              tabIndex={revealed ? -1 : 0}
-              aria-disabled={revealed}
-              className="flex min-h-64 w-full flex-col items-center justify-center gap-4 rounded-2xl border border-border bg-card p-6 text-center shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <p className="text-lg leading-relaxed font-medium text-card-foreground" data-locale={displayLocale}>
-                {card.front_i18n[displayLocale] || card.front_i18n.en || card.front_i18n.hi}
-              </p>
-              <AnimatePresence>
-                {revealed && (
-                  <motion.div
-                    initial={reduceMotion ? false : { opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    transition={{ duration: 0.2 }}
-                    className="w-full overflow-hidden border-t border-border pt-4"
+            {/* ⚑ The reveal control and the revealed content are SIBLINGS, never
+                nested. The revealed side contains a real link ("read the chapter"),
+                and an <a> inside a <button> is invalid HTML whose click the button
+                swallows — the link would render and do nothing. So the card is a
+                plain container: an unrevealed card puts a full-size button inside
+                it, a revealed one puts static content. */}
+            <div className="flex max-h-[70dvh] min-h-64 w-full flex-col overflow-y-auto rounded-2xl border border-border bg-card shadow-sm">
+              {revealed ? (
+                <div className="flex flex-1 flex-col gap-4 p-6">
+                  <p
+                    className="text-lg leading-relaxed font-medium text-card-foreground"
+                    data-locale={displayLocale}
                   >
-                    <p className="text-sm leading-relaxed whitespace-pre-line text-muted-foreground" data-locale={displayLocale}>
+                    {card.front_i18n[displayLocale] || card.front_i18n.en || card.front_i18n.hi}
+                  </p>
+                  <motion.div
+                    initial={reduceMotion ? false : { opacity: 0, y: -4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="flex flex-col gap-3 border-t border-border pt-4"
+                  >
+                    {/* text-foreground, not muted: this is the thing being learned.
+                        Muted on a card reads weaker than the prompt above it, which
+                        makes the answer look like a footnote to the question. */}
+                    <p
+                      className="text-sm leading-relaxed whitespace-pre-line text-foreground"
+                      data-locale={displayLocale}
+                    >
                       {card.back_i18n[displayLocale] || card.back_i18n.en || card.back_i18n.hi}
                     </p>
+                    <CardMeta source={card.source} weightage={card.weightage} displayLocale={displayLocale} />
                   </motion.div>
-                )}
-              </AnimatePresence>
-              {!revealed && <span className="text-xs text-muted-foreground">{t("Revision.tapToReveal")}</span>}
-            </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setRevealed(true)}
+                  className="flex flex-1 flex-col items-center justify-center gap-4 p-6 text-center outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+                >
+                  <p className="text-lg leading-relaxed font-medium text-card-foreground" data-locale={displayLocale}>
+                    {card.front_i18n[displayLocale] || card.front_i18n.en || card.front_i18n.hi}
+                  </p>
+                  <span className="text-xs text-muted-foreground">{t("Revision.tapToReveal")}</span>
+                </button>
+              )}
+            </div>
 
             {revealed ? (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">

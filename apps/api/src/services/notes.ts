@@ -131,7 +131,15 @@ export async function getNoteForNode(userId: string, nodeId: string): Promise<No
 const SRS_CARD_COLUMNS = "id, user_id, front_i18n, back_i18n, source_type, source_id";
 
 /** Deterministic uuid-shaped source_id so re-adds are idempotent (see srs.ts). */
-function noteSourceId(noteId: string, key: string): string {
+/**
+ * Exported so `backfillCardOriginNodes` (services/srs.ts) can RECOVER which note
+ * a card came from by recomputing the same ids — the hash is one-way, so the
+ * only way back is to re-derive the candidate set and match. It reuses this
+ * function rather than reimplementing the digest-and-format in SQL or a second
+ * TS copy, because a copy that drifted by one character would match nothing and
+ * fail silently (it would look exactly like "no cards were recoverable").
+ */
+export function noteSourceId(noteId: string, key: string): string {
   const h = createHash("sha256").update(`note:${noteId}:${key}`).digest("hex");
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20, 32)}`;
 }
@@ -178,6 +186,11 @@ export async function addNoteDeckToRevision(
     source_type: "manual" as const,
     source_id: noteSourceId(noteId, `card:${i}`),
     exam_code: noteExam,
+    // 0132 — the chapter's own node, so the review player can offer
+    // "re-read this chapter" instead of the card being a dead end. Recorded at
+    // write time because `source_id` here is a one-way hash: recovering it later
+    // means re-deriving every id the note could produce (backfillCardOriginNodes).
+    origin_node_id: row.syllabus_node_id,
   }));
   const ids = rows.map((r) => r.source_id);
 
@@ -209,7 +222,7 @@ export async function addNoteBlockToRevision(
   const blockExam = await getUserExam(userId);
   const { data: note, error } = await supabase()
     .from("notes")
-    .select("id, syllabus_nodes!inner(exam_code)")
+    .select("id, syllabus_node_id, syllabus_nodes!inner(exam_code)")
     .eq("id", noteId)
     .eq("status", "published")
     .eq("syllabus_nodes.exam_code", blockExam)
@@ -236,6 +249,9 @@ export async function addNoteBlockToRevision(
         source_type: "manual",
         source_id: sourceId,
         exam_code: blockExam,
+        // 0132 — same as the deck path: recorded now because `source_id` is a
+        // one-way hash and cannot be resolved back to the chapter later.
+        origin_node_id: (note as { syllabus_node_id?: string | null }).syllabus_node_id ?? null,
       },
       { onConflict: "user_id,source_type,source_id" },
     )
