@@ -387,7 +387,7 @@ definition; a hit in overview or fact-audit metadata does not count):
 | World Wars (WWII + settlement) | **CLOSED** | 6/6 present in a 1321w "The Second World War and the 1945 Settlement" |
 | Colonization (the colonization half) | **CLOSED** | 3/3 present in a 1365w "Colonization: The New Imperialism, 1870-1914" |
 | Inclusion (regional balance) | **CLOSED** | dedicated section-title clause + a substantive income-distance/backward-region-grant passage |
-| Data Interpretation (charts + graphs) | **REAL** | words present, technique absent — see the trap note below |
+| Data Interpretation (charts + graphs) | **REAL → CLOSED 2026-08-15** | words present, technique absent — see the trap note below. Closed by a 1185w section "Charts and Graphs: Bar, Pie, Line and the Histogram Family" added to `Basic Numeracy and Data Interpretation` (v1→v2), with a fully worked item per family. |
 | World Geography (continents) | **REAL** | Great Plains / Prairie / Pampas / Sahel all 0 hits |
 | Rights Issues (human rights + commissions) | **REAL** | UDHR / ICCPR / NCSC / NCBC / Art 338 all 0 hits |
 | Environmental Pollution (soil + MSW) | **REAL** | soil pollution / SWM Rules / waste-to-energy / source segregation / sanitary landfill all 0 hits |
