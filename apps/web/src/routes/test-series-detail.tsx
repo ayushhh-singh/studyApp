@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Link, useParams } from "react-router";
+import { useParams } from "react-router";
 import { useTranslation } from "react-i18next";
 import { CalendarDays } from "lucide-react";
 import { PageHeader } from "@/components/ui-x/page-header";
@@ -7,9 +7,8 @@ import { SectionCard } from "@/components/ui-x/section-card";
 import { ProgressRing } from "@/components/ui-x/progress-ring";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { EmptyState } from "@/components/ui-x/empty-state";
-import { Button } from "@/components/ui/button";
-import { SeriesCalendar } from "@/components/practice/series-calendar";
-import { useTestSeriesDetail } from "@/hooks/use-test-series";
+import { SeriesCalendar, SeriesMaxNotice, SeriesStartButton } from "@/components/practice/series-calendar";
+import { useSeriesEntitlement, useTestSeriesDetail } from "@/hooks/use-test-series";
 import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "TestSeries.title" };
@@ -31,6 +30,8 @@ export function Component() {
   const locale = useLocale();
   const query = useTestSeriesDetail(slug);
   const series = query.data;
+  // The calendar itself is free to read; only sitting a paper is Max.
+  const entitled = useSeriesEntitlement();
 
   const progress = useMemo(() => {
     if (!series) return { done: 0, total: 0, open: 0 };
@@ -122,16 +123,21 @@ export function Component() {
                 </span>
               </p>
               {next.test_id ? (
-                <Button asChild size="sm" className="min-h-11 shrink-0">
-                  <Link to={`/${locale}/practice/test/${next.test_id}`}>
-                    {next.state === "in_progress" ? t("TestSeries.resume") : t("TestSeries.start")}
-                  </Link>
-                </Button>
+                <SeriesStartButton
+                  testId={next.test_id}
+                  locale={locale}
+                  resume={next.state === "in_progress"}
+                  entitled={entitled}
+                  className="shrink-0"
+                />
               ) : null}
             </div>
           ) : null}
 
           <p className="text-muted-foreground text-sm">{t("TestSeries.windowRule")}</p>
+          {/* Same rule as the index: an empty calendar has nothing to browse, so
+              the "free to browse" line would contradict its own empty state. */}
+          {series.entries.length > 0 && <SeriesMaxNotice entitled={entitled} />}
         </div>
       </SectionCard>
 
@@ -142,7 +148,7 @@ export function Component() {
           description={t("TestSeries.emptyDescription")}
         />
       ) : (
-        <SeriesCalendar entries={series.entries} locale={locale} />
+        <SeriesCalendar entries={series.entries} locale={locale} entitled={entitled} />
       )}
     </div>
   );

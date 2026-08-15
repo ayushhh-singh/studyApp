@@ -5,7 +5,8 @@ import { PageHeader } from "@/components/ui-x/page-header";
 import { ProgressBar } from "@/components/ui-x/progress-bar";
 import { QueryErrorState } from "@/components/ui-x/query-error-state";
 import { EmptyState } from "@/components/ui-x/empty-state";
-import { useTestSeriesList } from "@/hooks/use-test-series";
+import { SeriesMaxNotice } from "@/components/practice/series-calendar";
+import { useSeriesEntitlement, useTestSeriesList } from "@/hooks/use-test-series";
 import { useLocale } from "@/hooks/use-locale";
 
 export const handle = { titleKey: "TestSeries.title" };
@@ -15,6 +16,9 @@ export function Component() {
   const { t } = useTranslation();
   const locale = useLocale();
   const query = useTestSeriesList();
+  // Reading the calendars is free for every tier — this only decides whether to
+  // say so. Never `false` until known, so a Max user sees no upgrade line flash.
+  const entitled = useSeriesEntitlement();
 
   if (query.isError) {
     return (
@@ -30,6 +34,10 @@ export function Component() {
   return (
     <div className="space-y-6">
       <PageHeader title={t("TestSeries.title")} description={t("TestSeries.indexDescription")} />
+      {/* Only once there is something to browse. Rendered unconditionally it
+          pairs "the full calendar is free to browse" with "no test series yet"
+          — two sentences that contradict each other on the same screen. */}
+      {series.length > 0 && <SeriesMaxNotice entitled={entitled} />}
 
       {query.isPending ? (
         <div className="space-y-3" aria-busy="true">

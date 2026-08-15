@@ -2434,7 +2434,10 @@
     "statDone": "पूर्ण",
     "statOpen": "अभी खुले",
     "statTotal": "पेपर",
-    "nextUp": "अगला"
+    "nextUp": "अगला",
+    "unlockWithMax": "मैक्स से अनलॉक करें",
+    "browseFreeNotice": "पूरा कैलेंडर निःशुल्क देखा जा सकता है। इन पेपरों को अखिल भारतीय रैंक के साथ हल करना मैक्स सुविधा है।",
+    "unlockSignUp": "अनलॉक करने के लिए साइन अप करें"
   },
   "Articles": {
     "breadcrumbHome": "होम",

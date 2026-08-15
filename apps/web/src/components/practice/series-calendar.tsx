@@ -5,6 +5,8 @@ import { BookOpen, CalendarClock, CalendarDays, CheckCircle2, Clock, Lock, PlayC
 import type { LucideIcon } from "lucide-react";
 import type { TestSeriesEntry } from "@neev/shared";
 import { Button } from "@/components/ui/button";
+import { usePaywallStore } from "@/stores/paywall-store";
+import { useAuth } from "@/providers/auth-provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -65,12 +67,105 @@ function Pill({ className, children }: { className?: string; children: React.Rea
   );
 }
 
+/**
+ * The start affordance for one series paper, with the Max gate made visible
+ * BEFORE the click.
+ *
+ * ⚑ BROWSING A SERIES IS DELIBERATELY FREE and must stay that way. The calendar
+ * is a published study plan — `listSeries`/`getSeriesBySlug` apply no
+ * entitlement, only the viewer's own live exam plus `status='published'`. The
+ * ONLY Max gate is SITTING a paper, enforced server-side by
+ * `assertSeriesAttemptAllowed` → `assertTestSeries` (see
+ * docs/max-tier-design.md §5). This component is the client's half of that same
+ * rule; do not "tidy it up" by hiding the calendar from non-Max users.
+ *
+ * Without it a free user meets the gate as a 402 AFTER navigating into the test
+ * page, which reads as a broken link rather than as a locked feature.
+ *
+ * `entitled === null` means the entitlement is still LOADING, and it renders a
+ * disabled button rather than guessing either way: "Start test" would send a
+ * free user into that 402, and "Unlock with Max" would flash an upgrade pitch at
+ * someone who is already paying for it. Same both-flags rule as
+ * `lib/query-state.ts` — a still-loading input is not a value.
+ */
+export function SeriesStartButton({
+  testId,
+  locale,
+  resume,
+  entitled,
+  className,
+}: {
+  testId: string;
+  locale: "en" | "hi";
+  resume: boolean;
+  entitled: boolean | null;
+  className?: string;
+}) {
+  const { t } = useTranslation();
+  const openPaywall = usePaywallStore((s) => s.openPaywall);
+  // A guest cannot hold ANY plan, so pitching a paid tier at them is a step out
+  // of order — the paywall sheet itself already branches to "create your free
+  // account" for a guest, and the label has to agree with the sheet it opens.
+  // Same reasoning as the evaluation quota chip's guest state.
+  const { isGuest } = useAuth();
+
+  if (entitled === null) {
+    // Sub-second in practice, and it CANNOT stick: a failed entitlement fetch
+    // resolves to `true` rather than staying unknown (see useSeriesEntitlement).
+    return (
+      <Button disabled aria-busy className={cn("min-h-11", className)}>
+        {resume ? t("TestSeries.resume") : t("TestSeries.start")}
+      </Button>
+    );
+  }
+
+  if (!entitled) {
+    return (
+      <Button variant="secondary" className={cn("min-h-11", className)} onClick={() => openPaywall("test_series")}>
+        <Lock aria-hidden />
+        {isGuest ? t("TestSeries.unlockSignUp") : t("TestSeries.unlockWithMax")}
+      </Button>
+    );
+  }
+
+  return (
+    <Button asChild className={cn("min-h-11", className)}>
+      <Link to={`/${locale}/practice/test/${testId}`}>{resume ? t("TestSeries.resume") : t("TestSeries.start")}</Link>
+    </Button>
+  );
+}
+
+/**
+ * The one-line "you can read all of this, you just cannot sit it yet" notice.
+ * Rendered only when the entitlement has RESOLVED to false — an unresolved
+ * entitlement shows nothing rather than flashing a pitch at a Max user.
+ */
+export function SeriesMaxNotice({ entitled, className }: { entitled: boolean | null; className?: string }) {
+  const { t } = useTranslation();
+  if (entitled !== false) return null;
+  return (
+    <p className={cn("text-muted-foreground flex items-start gap-2 text-sm leading-relaxed", className)}>
+      <Lock className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+      <span>{t("TestSeries.browseFreeNotice")}</span>
+    </p>
+  );
+}
+
 const dayFmt = (locale: string) =>
   new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", { day: "numeric", month: "short" });
 const monthFmt = (locale: string) =>
   new Intl.DateTimeFormat(locale === "hi" ? "hi-IN" : "en-IN", { month: "long", year: "numeric" });
 
-export function SeriesCalendar({ entries, locale }: { entries: TestSeriesEntry[]; locale: "en" | "hi" }) {
+export function SeriesCalendar({
+  entries,
+  locale,
+  entitled,
+}: {
+  entries: TestSeriesEntry[];
+  locale: "en" | "hi";
+  /** Max entitlement — `null` while still loading. See `SeriesStartButton`. */
+  entitled: boolean | null;
+}) {
   const { t } = useTranslation();
   const months = useMemo(() => {
     const out: { key: string; label: string; items: TestSeriesEntry[] }[] = [];
@@ -100,7 +195,7 @@ export function SeriesCalendar({ entries, locale }: { entries: TestSeriesEntry[]
             <ol className="space-y-3">
               {m.items.map((e) => (
                 <li key={e.id}>
-                  <EntryCard entry={e} locale={locale} />
+                  <EntryCard entry={e} locale={locale} entitled={entitled} />
                 </li>
               ))}
             </ol>
@@ -111,7 +206,15 @@ export function SeriesCalendar({ entries, locale }: { entries: TestSeriesEntry[]
   );
 }
 
-function EntryCard({ entry, locale }: { entry: TestSeriesEntry; locale: "en" | "hi" }) {
+function EntryCard({
+  entry,
+  locale,
+  entitled,
+}: {
+  entry: TestSeriesEntry;
+  locale: "en" | "hi";
+  entitled: boolean | null;
+}) {
   const { t } = useTranslation();
   const st = STATE[entry.state];
   const Icon = st.icon;
@@ -183,15 +286,19 @@ function EntryCard({ entry, locale }: { entry: TestSeriesEntry; locale: "en" | "
           // 423 for the same case, so the two agree.
           <p className="text-muted-foreground text-sm">{t("TestSeries.opensOn", { date: opensLabel })}</p>
         ) : done && entry.attempt_id ? (
+          // DELIBERATELY UNGATED. A paper you already sat is your own result;
+          // `getAttemptResult` applies no series gate either, so a plan that
+          // lapses must not retroactively hide work you already did.
           <Button asChild variant="outline" className="min-h-11">
             <Link to={`/${locale}/practice/attempt/${entry.attempt_id}/result`}>{t("TestSeries.viewResult")}</Link>
           </Button>
         ) : entry.test_id ? (
-          <Button asChild className="min-h-11">
-            <Link to={`/${locale}/practice/test/${entry.test_id}`}>
-              {entry.state === "in_progress" ? t("TestSeries.resume") : t("TestSeries.start")}
-            </Link>
-          </Button>
+          <SeriesStartButton
+            testId={entry.test_id}
+            locale={locale}
+            resume={entry.state === "in_progress"}
+            entitled={entitled}
+          />
         ) : null}
       </div>
     </div>

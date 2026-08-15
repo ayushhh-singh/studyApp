@@ -2434,7 +2434,10 @@
     "statDone": "Done",
     "statOpen": "Open now",
     "statTotal": "Papers",
-    "nextUp": "Next up"
+    "nextUp": "Next up",
+    "unlockWithMax": "Unlock with Max",
+    "browseFreeNotice": "The full calendar is free to browse. Sitting these papers — with an all-India rank — is a Max feature.",
+    "unlockSignUp": "Sign up to unlock"
   },
   "Articles": {
     "breadcrumbHome": "Home",

@@ -2073,3 +2073,118 @@ subagents — **$0 of paid `notes:chapter` spend**. Twelve commits, `e2067d7`..`
     out while small per-row queries succeeded, so the final checks were re-cut as targeted queries rather
     than corpus sweeps. The background runner reported `exited with code 0` while the script had thrown,
     which is the D15 false-green in a new place.
+
+## Test series made visible to every tier (2026-08-15): the empty page was `draft`, not the plan
+Reported as "a new user sees an empty Test Series page while an older user sees the schedule", with the
+ask "let users see the series and schedule even if not on Max; only TAKING it is Max".
+  - **⚑ THE PLAN WAS NEVER THE CAUSE, AND THAT MATTERS BECAUSE THE OBVIOUS FIX WOULD HAVE BEEN A NO-OP.**
+    Viewing was ALREADY ungated at every tier — `listSeries`/`getSeriesBySlug` apply no entitlement, and
+    `assertTestSeries` (Max) is called from exactly one place, `assertSeriesAttemptAllowed`, i.e. the take
+    path. The empty page was **`test_series.status = 'draft'` on all four calendars**, which
+    `statusFilter()` hides from everyone except an admin. The "older user" who could see them is an
+    **admin** (8 admin rows; the reporting account is one). Reproduced through the real service before
+    changing anything — `listSeries` returned **0 series for a free non-admin on BOTH exams**, exactly the
+    screenshot — and the file's own hook docstring had said so all along ("today both series are `draft`,
+    so every non-admin correctly gets `[]`").
+  - **DATA: published all four calendars** (uppsc-prelims-2026 25 entries · uppsc-mains-2027 22 ·
+    upsc-prelims-2027 35 · upsc-mains-2027 30). Scoped by **exact slug** and `.eq("status","draft")`, so a
+    re-run touches nothing and a future series cannot be swept in. Revert is the same statement with
+    `'draft'`. **Publishing a calendar before its papers exist is the intended flow, not a shortcut** —
+    `test_id` is nullable (0128), an unassembled entry renders as `scheduled` with its own explainer, and
+    `series:build --window N` materialises each paper shortly before it opens. Today **10 of 112 entries
+    are assembled**, and there is **NO cron for `series:build`** — someone must run it, or the calendar
+    stays a list of promises.
+  - **⚑ ORDER OF EVENTS INSIDE THE TAKE GATE IS LOAD-BEARING and now has a UI half.** The gate runs
+    access → entitlement → window, so a non-Max user is told to upgrade rather than shown a countdown for
+    something they could never open. The client had no matching signal: a free user browsed the calendar,
+    clicked Start, navigated into the test page and only THEN met a 402 — which reads as a broken link.
+    `SeriesStartButton`/`SeriesMaxNotice` (exported from `series-calendar.tsx`, used by both the calendar
+    and the detail page's "Next up") put the lock before the click.
+  - **`entitled` is `boolean | null`, and the third state is the point.** `null` = still loading, and it
+    renders the button DISABLED rather than guessing: "Start test" would send a free user into the 402,
+    and "Unlock with Max" would flash an upgrade pitch at someone already paying for it. Same both-flags
+    rule as `lib/query-state.ts`.
+  - **"View result" is deliberately NOT gated.** A paper you already sat is your own work and
+    `getAttemptResult` applies no series gate either, so a lapsed plan must not retroactively hide it.
+  - **TWO REAL DEFECTS IN MY OWN CHANGE, found by the edge-case pass.** (1) The notice rendered
+    unconditionally, so an exam with no series paired *"the full calendar is free to browse"* with *"no
+    test series yet"* — two sentences contradicting each other on one screen. Now gated on there being
+    something to browse (verified by intercepting the list response client-side, so nothing was
+    unpublished to test it). (2) A **guest** got an upgrade pitch for a tier they cannot hold; the paywall
+    sheet already branches to "create your free account" for a guest, so the label had to agree with the
+    sheet it opens (`unlockSignUp`, matching the eval quota chip's precedent).
+  - **CHECKED AND CLEAN, so it is not re-investigated:** publishing does NOT leak series papers into
+    Practice — all 10 carry `meta.source='series'` and `listTests`' null-safe exclusion holds across both
+    exams × both stages × 5 kinds; cross-exam isolation holds on the now-published rows (a uppsc user gets
+    **404 on the upsc slug, indistinguishable from an unknown slug**, so existence is not disclosed);
+    `assertTestSeries` measures free 402 / pro 402 / **max ALLOWED**; and there is exactly **ONE insert
+    into `attempts` repo-wide**, inside `startAttempt`, with the gate above it AND above the resume
+    short-circuit — ghost battle routes through the same function, so there is no third start path.
+  - **Pre-existing, NOT caused by publishing:** 10 series papers appear on the Scoreboard's *sectional*
+    board menu. That menu filters `tests.is_published`, never the series' own status, so they were already
+    there while every series was `draft` — and it is the intended design (§5.3: series papers reuse
+    mock/sectional precisely so they keep their leaderboard).
+  - **VERIFIED IN A BROWSER, not just typechecked** — free / Max / guest × en+hi × 1440/390: index and
+    calendar render, the notice appears only for a non-entitled viewer with something to browse, the
+    unlock button opens the **Max** paywall without navigating, a Max user sees a real "Start test", a
+    guest sees "Sign up to unlock", Devanagari renders at 390px. **Zero console errors, zero horizontal
+    overflow in every combination.** To exercise the button at all, ONE assembled paper's `opens_at` was
+    briefly moved into the past (nothing is open until 2026-08-16) and restored **byte-equal, verified by
+    re-read** — the only production row this session mutated besides the four status flips.
+  - GOTCHAS: the dev server hit the documented `504 (Outdated Optimize Dep)` and needed
+    `rm -rf apps/web/node_modules/.vite` + a restart; a backgrounded dev server started with `&` inside a
+    Bash call is killed when that call times out, so start it with `nohup … & disown`; and
+    `listScoreboardTests(examCode, kind)` takes a REQUIRED kind — passing `undefined` reaches Postgres as
+    the literal string and 500s on the enum, a harness bug that looked like a product one.
+
+  - Verified: api typecheck · web `tsc -b` · **full production build** · `check:paths` (908) ·
+    `check:cli-args` (258) · `check:seo` · oxlint **49, delta 0** measured against HEAD in a worktree.
+    Every throwaway user deleted by its captured id, including one orphan from a crashed run —
+    `users_profile` back to exactly **185**, the count at session start.
+
+### Second edge-case pass, same day: a dead control I introduced, and a harness that could not measure dark
+  - **⚑ THE DEFECT: on a FAILED `/entitlements` fetch the Start button was disabled FOREVER.** `entitled`
+    was `data ? features.test_series : null`, and `null` renders disabled. `/entitlements` is rate-limited
+    (60/min, the shared per-user bucket this repo trips constantly) and the client retries once — so two
+    failures leave `data` undefined for the life of the page. **A paying Max user would be locked out of
+    their own paper by a secondary, advisory query, with no error and nothing to retry** — the "rendered a
+    failure as nothing" class `query-error-state.tsx` already counts three prior shipments of. Fixed by
+    resolving a failed fetch to **`true`**, which degrades to exactly the pre-gate behaviour: the button
+    navigates and `assertSeriesAttemptAllowed` decides. **The server is the authority; this flag only ever
+    moves the 402 earlier so it reads as a lock rather than a broken link**, and being wrong costs a free
+    user one wasted click and a correct paywall — strictly better than a dead control. It also moved into
+    ONE hook (`useSeriesEntitlement`) so the index and the calendar cannot drift on what "locked" means.
+    Verified live by forcing a 500: both a free AND a Max user get a real `<a>` Start link, not a disabled
+    button.
+  - **DARK MODE HAD NOT BEEN TESTED AT ALL** in the first pass — a DoD miss, and the button I added is the
+    one variant whose treatment INVERTS. Measured: light is a solid brand-gold fill with
+    `--brand-navy` text at **10.74:1**; dark is a gold OUTLINE (1px border at **10.36:1**) with foreground
+    text at **13.75:1** — the reference's own dark treatment, because in dark the *primary* button is
+    itself gold and a solid-gold secondary would be indistinguishable from it. Notice text 4.97 light /
+    7.57 dark. Tap targets **44px in all 8 combinations** (`min-h-11`, never `h-11` — the documented
+    flex-direction trap). Devanagari notice line-height **1.75**, meeting the floor.
+  - **⚑ MY CONTRAST PROBE REPORTED `NaN` FOR THE DARK BUTTON AND I ALMOST FILED IT AS UNMEASURABLE.** The
+    canvas trick returns `#rrggbb` for an opaque colour but **`rgba(r, g, b, a)` for a translucent one**,
+    and the dark secondary's background is transparent — so a `#rrggbb` parse produced NaN. The fix is to
+    handle both forms AND composite the full ancestor stack over the real root background. This is the
+    third distinct way this repo has mis-measured a colour (after the `oklab()` minus-sign parse and the
+    composite-over-white bug): **resolve through canvas, accept rgba, composite over the real backdrop.**
+  - **A CLEAN RUN AND A DIRTY RUN OF THE SAME PAGE, 60 seconds apart.** The all-scheduled calendar
+    (uppsc-mains-2027, 22 entries, 0 assembled) reported **8 console errors** inside a batch of 8 rapid
+    page loads and **0** when re-run in isolation after a cooldown — all 429s from my own harness
+    exhausting the per-user limiter. **A second run that scores worse with identical code is the limiter,
+    not a regression.** Isolated, it renders coherently in both locales: 22 "Scheduled" rows, **zero start
+    buttons** (correct — nothing is assembled), the notice, no empty state, no overflow.
+  - **Confirmed by construction, not by inspection: there is exactly ONE insert into `attempts`
+    repo-wide** and the gate sits above it AND above the resume short-circuit, so no start path bypasses
+    it; ghost battle calls the same `startAttempt`.
+  - **RECORDED, NOT FIXED — a latent PostgREST cap.** `listSeries` fetches every entry for every series of
+    an exam with an unranged `.in("series_id", ids)`. Today that is **47 rows (uppsc) / 65 (upsc)** against
+    the 1000-row cap, so it cannot bite — but a truncated read there would silently under-count
+    `entry_count`/`open_count` on the index cards rather than erroring, which is this repo's most-repeated
+    trap. Page it before a calendar set grows past a few hundred entries.
+
+  - Re-verified after the fix: api typecheck · web `tsc -b` · **full production build** ·
+    `check:paths` (908) · `check:cli-args` (258) · `check:seo` · oxlint **49, delta 0**. Both
+    throwaway users deleted by captured id; `users_profile` back to **185** and the briefly-opened
+    paper restored **byte-equal**, both re-queried rather than assumed.
