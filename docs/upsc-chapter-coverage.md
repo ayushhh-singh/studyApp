@@ -47,7 +47,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 14 | 78 | `UPSC_PRE_GS1` | 2 | Constitution of India | published · chapter v1 | `7b761a98-aaae-4aaa-9b12-2f7e88de6a6b` |
 | 15 | 71 | `UPSC_MAINS_GS2` | 1 | Indian Polity | published · chapter v2 | `28b8c42f-01ed-4408-8b80-790dddde8103` |
 | 16 | 68 | `UPSC_PRE_GS1` | 2 | Ancient India | published · chapter v1 | `a7a37c7e-dde7-4f99-a7be-5634cb432e69` |
-| 17 | 65 | `UPSC_MAINS_GS1` | 1 | Indian Society | published · chapter v2 | `65e153a6-0b25-4904-94ba-9f2277795e02` |
+| 17 | 65 | `UPSC_MAINS_GS1` | 1 | Indian Society | published · chapter v3 | `65e153a6-0b25-4904-94ba-9f2277795e02` |
 | 18 | 64 | `UPSC_PRE_GS1` | 2 | Biology | published · chapter v1 | `bb36c84f-75d7-499d-818a-4fca2a85f9e8` |
 | 19 | 54 | `UPSC_PRE_GS1` | 2 | Public Policy | published · chapter v2 | `decaece5-bf58-4434-863b-a1c08843e4ec` |
 | 20 | 50 | `UPSC_MAINS_ESSAY` | 1 | Essays on Multiple Topics | published · chapter v1 | `0cf7f2bb-6583-4e99-a92a-5d2881816712` |
