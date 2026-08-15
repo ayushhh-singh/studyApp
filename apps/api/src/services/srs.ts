@@ -703,13 +703,13 @@ async function headCount(
  */
 async function resolveCardEnrichment(
   nodeIds: string[],
-): Promise<Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null }>> {
-  const out = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null }>();
+): Promise<Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null; exam_stage: string }>> {
+  const out = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null; exam_stage: string }>();
   const ids = [...new Set(nodeIds)];
   if (ids.length === 0) return out;
 
   const [nodesResult, chaptersResult] = await Promise.all([
-    supabase().from("syllabus_nodes").select("id, paper_code, title_i18n, path, exam_code").in("id", ids),
+    supabase().from("syllabus_nodes").select("id, paper_code, title_i18n, path, exam_code, exam_stage").in("id", ids),
     supabase()
       .from("notes")
       .select("syllabus_node_id, chapter_version")
@@ -723,6 +723,7 @@ async function resolveCardEnrichment(
     title_i18n: BilingualText;
     path: string;
     exam_code: string;
+    exam_stage: string;
   }[];
   if (nodes.length === 0) return out;
 
@@ -743,7 +744,13 @@ async function resolveCardEnrichment(
   );
   // Chunked at 100 ids: a whole paper's tree runs to a few hundred nodes, and an
   // `.in()` that long exceeds PostgREST's URL limit and fails outright.
-  const weightByNode = new Map<string, { asked: number; last: number }>();
+  const weightByNode = new Map<string, number>();
+  // Years are collected per PAPER, not per topic: the rate must mean "questions
+  // per exam", so the denominator is how many exams we hold — a topic that only
+  // appears in 3 of 8 years must read as ~low per year, not as if it were only
+  // examinable in 3.
+  const yearsByPaper = new Map<string, Set<number>>();
+  const paperOfNode = new Map(treeRows.map((r) => [r.id, r.paper_code]));
   const treeIds = treeRows.map((r) => r.id);
   for (let i = 0; i < treeIds.length; i += 100) {
     const { data, error } = await supabase()
@@ -752,10 +759,11 @@ async function resolveCardEnrichment(
       .in("node_id", treeIds.slice(i, i + 100));
     if (error) throw new HttpError(500, `weightage lookup failed: ${error.message}`);
     for (const r of (data ?? []) as { node_id: string; year: number; q_count: number }[]) {
-      const cur = weightByNode.get(r.node_id) ?? { asked: 0, last: 0 };
-      cur.asked += r.q_count;
-      cur.last = Math.max(cur.last, r.year);
-      weightByNode.set(r.node_id, cur);
+      weightByNode.set(r.node_id, (weightByNode.get(r.node_id) ?? 0) + r.q_count);
+      const paper = paperOfNode.get(r.node_id);
+      if (!paper) continue;
+      if (!yearsByPaper.has(paper)) yearsByPaper.set(paper, new Set());
+      yearsByPaper.get(paper)!.add(r.year);
     }
   }
 
@@ -763,16 +771,13 @@ async function resolveCardEnrichment(
     // Self + descendants. An empty path is a paper root, whose descendants are
     // the whole paper; `startsWith("")` is true for every row, which is correct.
     let asked = 0;
-    let last = 0;
     for (const row of treeRows) {
       if (row.paper_code !== node.paper_code) continue;
       const isSelfOrDescendant = row.id === node.id || row.path === node.path || row.path.startsWith(`${node.path}/`);
       if (!isSelfOrDescendant) continue;
-      const w = weightByNode.get(row.id);
-      if (!w) continue;
-      asked += w.asked;
-      last = Math.max(last, w.last);
+      asked += weightByNode.get(row.id) ?? 0;
     }
+    const years = yearsByPaper.get(node.paper_code)?.size ?? 0;
     out.set(node.id, {
       source: {
         node_id: node.id,
@@ -780,8 +785,36 @@ async function resolveCardEnrichment(
         title_i18n: node.title_i18n,
         has_chapter: withChapter.has(node.id),
       },
-      weightage: asked > 0 && last > 0 ? { asked, last_year: last } : null,
+      weightage: asked > 0 && years > 0 ? { asked, years, per_year: asked / years } : null,
+      exam_stage: node.exam_stage,
     });
+  }
+  return out;
+}
+
+/**
+ * "Was this exact question actually asked, and when?"
+ *
+ * ⚑ GATED ON `source = 'pyq'`, which is the whole point. The bank also holds
+ * GENERATED questions — current-affairs MCQs and qgen items — which carry a
+ * `year` (the year they were written about) but were never on any real paper.
+ * Showing "Asked in Prelims 2026" for one of those would be a plain falsehood on
+ * a card a learner is trusting, so the filter is a correctness gate, not a
+ * cosmetic one. Measured: 30 of 31 card-backing questions are real PYQs, 1 is
+ * generated — so the wrong branch is reachable today, not hypothetical.
+ */
+async function resolveQuestionProvenance(questionIds: string[]): Promise<Map<string, { year: number }>> {
+  const out = new Map<string, { year: number }>();
+  const ids = [...new Set(questionIds)];
+  for (let i = 0; i < ids.length; i += 100) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select("id, year, source")
+      .in("id", ids.slice(i, i + 100))
+      .eq("source", "pyq")
+      .not("year", "is", null);
+    if (error) throw new HttpError(500, `question provenance lookup failed: ${error.message}`);
+    for (const r of (data ?? []) as { id: string; year: number }[]) out.set(r.id, { year: r.year });
   }
   return out;
 }
@@ -829,9 +862,17 @@ export async function getDueQueue(
 
   // Best-effort enrichment: a failure here must never cost the user their review
   // session, so it degrades to unenriched cards (no chips) rather than throwing.
-  let enrichment = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null }>();
+  let enrichment = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null; exam_stage: string }>();
+  let provenance = new Map<string, { year: number }>();
   try {
-    enrichment = await resolveCardEnrichment(rows.map((r) => r.origin_node_id).filter((id): id is string => !!id));
+    const [e, p] = await Promise.all([
+      resolveCardEnrichment(rows.map((r) => r.origin_node_id).filter((id): id is string => !!id)),
+      resolveQuestionProvenance(
+        rows.filter((r) => r.source_type === "question" && r.source_id).map((r) => r.source_id!),
+      ),
+    ]);
+    enrichment = e;
+    provenance = p;
   } catch (err) {
     logger.warn({ err }, "srs: card enrichment failed, serving plain cards");
   }
@@ -839,11 +880,15 @@ export async function getDueQueue(
   const now = new Date();
   const cards = rows.map((row) => {
     const e = row.origin_node_id ? enrichment.get(row.origin_node_id) : undefined;
+    const p = row.source_id ? provenance.get(row.source_id) : undefined;
     return {
       ...row,
       preview: previewIntervals(row.fsrs_state, now),
       source: e?.source ?? null,
       weightage: e?.weightage ?? null,
+      // The stage comes from the topic's own paper, so it can only be attached
+      // when BOTH the year and the topic resolved — never half a claim.
+      provenance: p && e ? { year: p.year, exam_stage: e.exam_stage } : null,
     };
   }) as unknown as SrsQueueCard[];
 

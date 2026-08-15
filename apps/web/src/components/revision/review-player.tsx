@@ -108,7 +108,14 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1 items-center justify-center p-4 sm:p-6">
+      {/* ⚑ Scrolling content, PINNED footer. An explanation can run to several
+          hundred words, and when the card itself scrolled, the context strip and
+          the "read the chapter" escape hatch fell below the fold — invisible at
+          exactly the moment a learner has just failed a hard card and needs them.
+          (DOM assertions could not see this; a 390px screenshot did.) So only the
+          question and answer scroll; the context and the ratings never leave the
+          screen. */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-y-auto p-4 sm:p-6">
         <AnimatePresence mode="wait">
           <motion.div
             key={card.id}
@@ -116,40 +123,31 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
             animate={{ opacity: 1, x: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, x: -24 }}
             transition={{ duration: 0.2 }}
-            className="flex w-full max-w-lg flex-col gap-4"
+            // my-auto centres a short card without clipping a tall one the way
+            // justify-center does inside a scroll container.
+            className="my-auto flex w-full max-w-lg flex-col self-center"
           >
-            {/* ⚑ The reveal control and the revealed content are SIBLINGS, never
-                nested. The revealed side contains a real link ("read the chapter"),
-                and an <a> inside a <button> is invalid HTML whose click the button
-                swallows — the link would render and do nothing. So the card is a
-                plain container: an unrevealed card puts a full-size button inside
-                it, a revealed one puts static content. */}
-            <div className="flex max-h-[70dvh] min-h-64 w-full flex-col overflow-y-auto rounded-2xl border border-border bg-card shadow-sm">
+            {/* The reveal control and the revealed content are SIBLINGS, never
+                nested: the revealed side contains a real link, and an <a> inside a
+                <button> is invalid HTML whose click the button swallows. */}
+            <div className="flex min-h-64 w-full flex-col rounded-2xl border border-border bg-card shadow-sm">
               {revealed ? (
                 <div className="flex flex-1 flex-col gap-4 p-6">
-                  <p
-                    className="text-lg leading-relaxed font-medium text-card-foreground"
-                    data-locale={displayLocale}
-                  >
+                  <p className="text-lg leading-relaxed font-medium text-card-foreground" data-locale={displayLocale}>
                     {card.front_i18n[displayLocale] || card.front_i18n.en || card.front_i18n.hi}
                   </p>
-                  <motion.div
+                  <motion.p
                     initial={reduceMotion ? false : { opacity: 0, y: -4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.2 }}
-                    className="flex flex-col gap-3 border-t border-border pt-4"
+                    // text-foreground, not muted: this is the thing being learned.
+                    // Muted read weaker than the prompt above it, which made the
+                    // answer look like a footnote to the question.
+                    className="border-t border-border pt-4 text-sm leading-relaxed whitespace-pre-line text-foreground"
+                    data-locale={displayLocale}
                   >
-                    {/* text-foreground, not muted: this is the thing being learned.
-                        Muted on a card reads weaker than the prompt above it, which
-                        makes the answer look like a footnote to the question. */}
-                    <p
-                      className="text-sm leading-relaxed whitespace-pre-line text-foreground"
-                      data-locale={displayLocale}
-                    >
-                      {card.back_i18n[displayLocale] || card.back_i18n.en || card.back_i18n.hi}
-                    </p>
-                    <CardMeta source={card.source} weightage={card.weightage} displayLocale={displayLocale} />
-                  </motion.div>
+                    {card.back_i18n[displayLocale] || card.back_i18n.en || card.back_i18n.hi}
+                  </motion.p>
                 </div>
               ) : (
                 <button
@@ -164,37 +162,50 @@ export function ReviewPlayer({ cards, locale, onExit }: { cards: SrsQueueCard[];
                 </button>
               )}
             </div>
-
-            {revealed ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                {([1, 2, 3, 4] as SrsRating[]).map((rating) => {
-                  const config = RATING_CONFIG[rating];
-                  const preview = card.preview[rating];
-                  return (
-                    <button
-                      key={rating}
-                      type="button"
-                      onClick={() => rate(rating)}
-                      className={`flex flex-col items-center gap-0.5 rounded-lg border px-2 py-2.5 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${config.className}`}
-                    >
-                      <span>{t(config.labelKey)}</span>
-                      {/* Digits are language-neutral, so this needs no separate hi/en copy. */}
-                      <span className="sr-only"> ({rating})</span>
-                      <span className="text-xs font-normal opacity-80 tabular-nums">
-                        {formatSrsInterval(preview.due_at)}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            ) : (
-              <Button size="lg" className="w-full" onClick={() => setRevealed(true)}>
-                {t("Revision.reveal")}
-                <span className="sr-only"> — {t("Revision.tapToReveal")}</span>
-              </Button>
-            )}
           </motion.div>
         </AnimatePresence>
+      </div>
+
+      <div className="shrink-0 border-t border-border bg-background px-4 pt-3 pb-4 sm:px-6">
+        <div className="mx-auto flex w-full max-w-lg flex-col gap-3">
+          {revealed && (
+            <CardMeta
+              source={card.source}
+              weightage={card.weightage}
+              provenance={card.provenance}
+              lapses={card.fsrs_state.lapses}
+              displayLocale={displayLocale}
+            />
+          )}
+          {revealed ? (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              {([1, 2, 3, 4] as SrsRating[]).map((rating) => {
+                const config = RATING_CONFIG[rating];
+                const preview = card.preview[rating];
+                return (
+                  <button
+                    key={rating}
+                    type="button"
+                    onClick={() => rate(rating)}
+                    className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-lg border px-2 py-2 text-sm font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring ${config.className}`}
+                  >
+                    <span>{t(config.labelKey)}</span>
+                    {/* Digits are language-neutral, so this needs no separate hi/en copy. */}
+                    <span className="sr-only"> ({rating})</span>
+                    <span className="text-xs font-normal opacity-80 tabular-nums">
+                      {formatSrsInterval(preview.due_at)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <Button size="lg" className="w-full" onClick={() => setRevealed(true)}>
+              {t("Revision.reveal")}
+              <span className="sr-only"> — {t("Revision.tapToReveal")}</span>
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

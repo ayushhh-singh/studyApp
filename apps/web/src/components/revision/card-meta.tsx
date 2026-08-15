@@ -1,12 +1,13 @@
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router";
-import { BookOpen, Flame, Layers } from "lucide-react";
-import type { Locale, SrsCardSource, SrsCardWeightage } from "@neev/shared";
+import { BookOpen, CalendarCheck, Layers, RotateCcw } from "lucide-react";
+import type { Locale, SrsCardProvenance, SrsCardSource, SrsCardWeightage } from "@neev/shared";
 import { useLocale } from "@/hooks/use-locale";
 
 /**
- * The context strip under a revealed card: which topic it belongs to, how heavily
- * that topic is examined, and a way out to the chapter.
+ * The context strip under a revealed card: what this question actually IS, how
+ * often its topic is examined, whether you keep forgetting it, and a way out to
+ * the chapter.
  *
  * ⚑ SHOWN ONLY AFTER REVEAL, deliberately. Naming the topic on the FRONT would
  * hand over a large part of the answer — "Indian Polity and Governance" narrows a
@@ -14,18 +15,32 @@ import { useLocale } from "@/hooks/use-locale";
  * attempt. So the front stays a clean prompt and every piece of context lands the
  * moment recall has already been tested.
  *
- * Every element is independently optional: a card with no resolvable origin
- * renders nothing at all, a topic that has never been examined shows no
- * frequency, and a topic with no published chapter shows the topic without a
- * link. An absent chip always beats a broken one.
+ * ⚑ WHY THIS IS NOT "asked 53x" ANY MORE. That chip sat beside a specific
+ * question while describing its TOPIC, so it read as a claim about the question
+ * ("this was asked 53 times" — false), and a bare 53 has no reference frame: out
+ * of what, over how many years? It also could not be acted on mid-review. What
+ * replaced it is a fact about the question itself (it is a real past-year
+ * question, from this year) plus a topic rate whose denominator — one exam a
+ * year — is the unit every aspirant already thinks in, rendered ATTACHED to the
+ * topic name so the referent cannot be misread.
+ *
+ * Every element is independently optional. A generated question has no year; a
+ * never-examined topic has no rate; a card you have never failed has no lapse
+ * chip; a topic with no published chapter shows no link. An absent chip always
+ * beats a wrong one.
  */
 export function CardMeta({
   source,
   weightage,
+  provenance,
+  lapses,
   displayLocale,
 }: {
   source: SrsCardSource | null;
   weightage: SrsCardWeightage | null;
+  provenance: SrsCardProvenance | null;
+  /** FSRS lapse count — how many times this card has been rated "Again" after being learned. */
+  lapses: number;
   /** The card's own language toggle, so the topic name matches the text above it. */
   displayLocale: Locale;
 }) {
@@ -34,26 +49,58 @@ export function CardMeta({
   if (!source) return null;
 
   const title = source.title_i18n[displayLocale] || source.title_i18n.en || source.title_i18n.hi;
+  // Below one a year, "~0 a year" would read as "never asked", which is both
+  // wrong and discouraging — say it plainly instead.
+  const rate =
+    weightage === null
+      ? null
+      : weightage.per_year >= 1
+        ? t("Revision.perYear", { count: Math.round(weightage.per_year) })
+        : t("Revision.rarelyAsked");
 
   return (
-    <div data-slot="card-meta" className="flex flex-col gap-2.5 border-t border-border pt-3">
+    <div data-slot="card-meta" className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        <span data-chip="topic" className="inline-flex min-w-0 items-center gap-1.5 rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground/80">
+        {provenance && (
+          // The headline, and the only chip that is a fact about THIS question:
+          // it really was on that paper, that year.
+          <span
+            data-chip="provenance"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary tabular-nums"
+          >
+            <CalendarCheck className="size-3" aria-hidden />
+            {t(`Revision.askedIn_${provenance.exam_stage === "mains" ? "mains" : "prelims"}`, {
+              year: provenance.year,
+            })}
+          </span>
+        )}
+
+        {lapses > 0 && (
+          // The most actionable per-CARD signal there is: you have already
+          // learned this and lost it. Coral + its PAIRED foreground, never the
+          // raw token as text.
+          <span
+            data-chip="lapses"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-coral/15 px-2.5 py-1 text-xs font-semibold text-coral-foreground tabular-nums"
+          >
+            <RotateCcw className="size-3" aria-hidden />
+            {t("Revision.forgottenTimes", { count: lapses })}
+          </span>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span className="inline-flex min-w-0 items-center gap-1.5">
           <Layers className="size-3 shrink-0" aria-hidden />
-          <span className="truncate" data-locale={displayLocale}>
+          {/* The rate lives on the same line as the topic name, immediately after
+              it, so it can only be read as a property OF the topic. */}
+          <span className="min-w-0 truncate" data-locale={displayLocale}>
             {title}
           </span>
         </span>
-
-        {weightage && (
-          // Frequency is the signal a bare flashcard cannot give: it says whether
-          // the thing you just failed to recall is a recurring exam topic or a
-          // one-off. Marigold + its PAIRED foreground — the raw token as text
-          // measures 1.6:1 on a light card (the design system's most-repeated bug).
-          <span data-chip="weightage" className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-marigold/15 px-2.5 py-1 text-xs font-semibold text-marigold-foreground tabular-nums">
-            <Flame className="size-3" aria-hidden />
-            {t("Revision.askedTimes", { count: weightage.asked })}
-            <span className="font-normal opacity-80">· {t("Revision.lastAsked", { year: weightage.last_year })}</span>
+        {rate && (
+          <span data-chip="rate" className="shrink-0 tabular-nums">
+            · {rate}
           </span>
         )}
       </div>

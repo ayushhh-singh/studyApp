@@ -92,19 +92,44 @@ export const srsCardSourceSchema = z.object({
 export type SrsCardSource = z.infer<typeof srsCardSourceSchema>;
 
 /**
- * How much this card's topic is actually worth — "asked 27x, last 2026".
+ * What THIS question actually is: a real past-year question, and from when.
  *
- * The real study signal a bare flashcard cannot give: it tells the learner
- * whether the thing they just failed to recall is a recurring exam topic or a
- * one-off. Read from `mv_node_weightage`, rolled up over the topic's SUBTREE so a
- * parent section reflects its children (matching /learn), and null when the topic
- * has never been examined.
+ * ⚑ The strongest per-question fact available, and the one that replaced a raw
+ * corpus count. Present ONLY for `source='pyq'` questions carrying a year —
+ * a generated question (a current-affairs MCQ, a qgen item) was never asked in
+ * any real exam, so claiming a year for it would be a plain falsehood.
+ */
+export const srsCardProvenanceSchema = z.object({
+  /** The year this exact question appeared in the real paper. */
+  year: z.number().int(),
+  /** "prelims" | "mains" — which stage's paper it came from. */
+  exam_stage: z.string(),
+});
+export type SrsCardProvenance = z.infer<typeof srsCardProvenanceSchema>;
+
+/**
+ * How often this card's TOPIC is examined, as a RATE.
+ *
+ * ⚑ Deliberately not a raw total. "asked 53x" sat next to a specific question,
+ * so it read as a claim about that question (it is not — it is the topic's
+ * subtree count), and 53 carries no reference frame: 53 out of what, over how
+ * many years? A rate fixes both — the denominator is one exam a year, which
+ * every aspirant already thinks in, and it is rendered attached to the topic
+ * name so the referent cannot be misread.
+ *
+ * MEASURED 2026-08-16, and this is why the rate is attached to the DEEP topic
+ * rather than the section: PRE_GS1's seven depth-1 sections run 182/175/170/163/162
+ * — 14-16% each, i.e. no discriminating signal, because the syllabus is
+ * deliberately balanced. Its depth-2 topics run 14 to 93 (mean 39.5, sd 17.5,
+ * CV 0.44), which genuinely separates a heavy topic from a marginal one.
  */
 export const srsCardWeightageSchema = z.object({
-  /** Total questions asked on this topic across all ingested years. */
+  /** Total questions on this topic's subtree across every ingested year. */
   asked: z.number().int(),
-  /** Most recent year it appeared. */
-  last_year: z.number().int(),
+  /** Distinct exam years in the denominator — the PAPER's span, not the topic's. */
+  years: z.number().int(),
+  /** asked / years: "about N questions a year come from this topic". */
+  per_year: z.number(),
 });
 export type SrsCardWeightage = z.infer<typeof srsCardWeightageSchema>;
 
@@ -114,6 +139,7 @@ export const srsQueueCardSchema = srsCardSchema.extend({
   preview: srsIntervalPreviewSchema,
   source: srsCardSourceSchema.nullable(),
   weightage: srsCardWeightageSchema.nullable(),
+  provenance: srsCardProvenanceSchema.nullable(),
 });
 export type SrsQueueCard = z.infer<typeof srsQueueCardSchema>;
 
