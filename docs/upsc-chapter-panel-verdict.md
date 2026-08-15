@@ -389,7 +389,7 @@ definition; a hit in overview or fact-audit metadata does not count):
 | Inclusion (regional balance) | **CLOSED** | dedicated section-title clause + a substantive income-distance/backward-region-grant passage |
 | Data Interpretation (charts + graphs) | **REAL → CLOSED 2026-08-15** | words present, technique absent — see the trap note below. Closed by a 1185w section "Charts and Graphs: Bar, Pie, Line and the Histogram Family" added to `Basic Numeracy and Data Interpretation` (v1→v2), with a fully worked item per family. |
 | World Geography (continents) | **REAL** | Great Plains / Prairie / Pampas / Sahel all 0 hits |
-| Rights Issues (human rights + commissions) | **REAL** | UDHR / ICCPR / NCSC / NCBC / Art 338 all 0 hits |
+| Rights Issues (human rights + commissions) | **REAL → CLOSED 2026-08-15** | UDHR / ICCPR / NCSC / NCBC / Art 338 all 0 hits. Closed by a 1191w section "Human Rights as a Concept, and the Constitutional Commissions That Safeguard Them" added to `Social Justice` (v1→v2). The same pass also acted on this chapter's two depth checks: Health 527→950w, Education 892→1132w. |
 | Environmental Pollution (soil + MSW) | **REAL** | soil pollution / SWM Rules / waste-to-energy / source segregation / sanitary landfill all 0 hits |
 | Statutory-Regulatory (regulatory limb) | **REAL** | TRAI / CERC / TDSAT / appellate tribunal all 0 hits |
 | Executive machinery (ministries) | **REAL** | Allocation of Business / Transaction of Business / Article 77 all 0 hits |
