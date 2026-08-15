@@ -1961,3 +1961,115 @@ Three asks on one screen, plus two audits. Commits `6b7b66b` (countdown + handle
   - **BOTH CALENDARS ARE GENUINELY DIFFERENT, which is what step 6 warned about** — the two exams' depth-2 paths differ (`poverty`/`inclusion` split on upsc, no `science-technology`, CSAT slugs entirely different), `stateFocusFilterFor("upsc")` is **null** (national exam → no UP-special paper), and the doc ships UPSC CSAT as a separate product so the UPSC calendar has no CSAT paper. **Built live:** uppsc 16 entries / 1400 slots, worst deviation **13.7pp** (the UP-special, inherent to UP news concentration; every other entry ≤1.1pp); upsc 16 entries / 1150 slots, worst **1.5pp**, 188 repeats — the measured form of §6.3's "feasible with reuse" for an exam with 1057 PYQs, 23 CA and **0** generated questions.
   - **HONEST RESIDUALS.** The qgen share is far under requested everywhere (12–13 of 75 on uppsc full-lengths, 0 on upsc) because supply is 17 and 0; `meta.composition_actual` on every test records what was actually achieved, so anyone can tell when the floors have closed the gap. `state_special` narrows only the CA slice — §6.2's "UP-tagged PYQ" has no counterpart tag on `questions`. The UPSC calendar is 16 tests, not §13.3's 35: 10 disjoint full-lengths alone would consume 1000 of 1057 PYQs and leave every sectional a repeat, so it is right-sized to measured supply exactly as §13.1 right-sized UPPSC to the Accelerated 16.
   - Verified: api typecheck, web `tsc -b`, **full production `vite build`** (router.tsx is root-level), `check:paths`, `check:cli-args`, `test:args` (321 — the new CLI's spec is regression-locked), `test:mentor`, `test:tips`, `test:qgen`, `test:balance`, `test:embed-chunk`, `prompts:snapshot` **170 byte-identical**; lint **+2**, both the accepted `export const handle` every route module carries. Browser pass at 1440/en and 390/hi: detail pages 9163/8668 chars with locked chips, sources and dates, zero console errors, zero horizontal overflow. Every throwaway user and row deleted by captured id and re-queried; series back to 2 and entries to 32.
+
+## PRE_GS1 2022 answer key sourced — 1 → 148 questions (2026-08-15)
+Founder reported the Practice PYQ tab showing "UPPSC Prelims — General Studies Paper I — 2022 · 1 question · Marks: 1.33". Full findings in `docs/OUTSTANDING.md` **§1 A5/A12-A15** (note §9a has its own A-series — these are the section-1 ids).
+  - **⚑ THE FAILURE MODE IS SILENT AND LOOKS LIKE ITS OPPOSITE, AND THAT IS THE THING TO REMEMBER.** `ingest/resolve.ts`'s no-key branch does `if (!target.correct_option_key) target.correct_option_key = blind.chosen_key` — so a paper with **no answer key at all** comes out of the resolver with the blind solver's own **proposal** sitting in `correct_option_key`. Measured: **149 of 150 keys were byte-identical to `meta.blind_resolve.proposed_key`**, with `answer_key_verified` **0/150**, `official_answer` **0/150** and `blind_resolve.stored_key` null on every row. The rows *looked* keyed (a key was set, and it named a real option); the gate correctly held 149 of them. **So the symptom a human sees is "the paper shows 1 question", never "the paper has no key" — diagnose by checking `answer_key_verified` and `blind_resolve.stored_key`, not by looking at whether `correct_option_key` is populated.**
+  - **THE REPORT UNDERSTATED THE PROBLEM — measure every year before fixing the one named.** Per-year live/ingested, exact head-counts: GS1 2018 133/150 · 2019-2020 150/150 · 2021 144/150 · **2022 1/150** · 2023 145/145 · 2024 132/150 · 2025 150/150; **CSAT 2018 0/100** · 2019 98/99 · 2020-2024 100/100 · **CSAT 2025 0/100**. This also corrected `docs/OUTSTANDING.md` A5, which named 2023/2025 as the draft-only years — both are fully live; the row had never been re-verified after the Session-27.5 bulk ingest.
+  - **KEY SOURCED, AND ALIGNMENT PROVEN BY CONTENT RATHER THAN ASSUMED** — the A3 2021 GS-I trap (a key applied under an assumed Series A when the paper follows Booklet D, giving ~27% agreement that read as "the key is wrong"). theexampillar's "12 June 2022 (Official Answer Key)", **Booklet Series B**, 150/150, parsed from 8 paginated pages. Two independent checks: stems match **1:1 by q_no**, and **127 of the 141** questions where all four options could be parsed match **option-for-option at the same letter** — so question order AND option order both transfer, which is stronger than blind-agreement alone. Registered `PRE_GS1: 2022` under **`COACHING_REPRODUCED`**, not official (same source class as the 2018 entry), so it routes through gate (B) and every question still needs independent corroboration.
+  - **⚑ MY OWN OPTION-ALIGNMENT PARSER PRODUCED A FALSE MISALIGNMENT FIRST.** It read in-stem numbered statements ("1. Odisha…") as new question markers, so options got attributed to the wrong question and it reported theexampillar's q4 options as our q2's — which looks exactly like a booklet-series shuffle. Re-parsing on `<p>`-block boundaries took the match from 84% to 90.1% with the "shuffles" gone. **Verify the harness before believing it found a misalignment** — this is the third harness-before-code error in this repo's recent history.
+  - **⚑ THE TIE-BREAK RAN ON FREE SUBAGENTS, ON FOUNDER INSTRUCTION MID-TASK ("use your subagents only and don't cost api cost"). Two independent savings, and the first is reusable.** (1) **The blind solve did not need re-running at all**: these rows already carried `blind_resolve.proposed_key` from an earlier session written with `stored_key: null` — produced with no key in context, which *is* a blind solve, and arguably a cleaner one than a re-solve. Reusing it corroborated **105 of 149** for free; only the **44** disagreements plus **1** errored row needed anything. (2) The expensive half — sonnet + web_search per disagreement — was done by **7 parallel free subagents** under instructions mirroring `audit/resolve.ts`'s `interpretResolve` semantics, including the conservative fallback (*cannot establish it → keep the key's value, mark unverified*, which holds rather than publishes). **43 of 45 upheld the key, 2 overturned, 45/45 web-verified.** Verdicts merged into `meta.blind_resolve` in the **exact shape `resolve.ts` writes**, so `ingest:pyq:load` consumed them unchanged — no pipeline code bypassed. A **completeness gate refuses the merge unless every disagreement has a verdict**, because a missing one falls through to `status:'error'` → held, which is safe but indistinguishable from "the adjudication said no" and would silently cost coverage.
+  - **THE 2 OVERTURNED ARE GENUINE KEY ERRORS, and they stay held rather than being rewritten:** q30 (key says *Haemophilus influenzae* causes whooping cough — that is *Bordetella pertussis*; Hib causes meningitis) and q145 (key dates Jal Jeevan Mission's budget to 2021-22; announced July 2019). `resolve.ts` records an escalation verdict without touching `correct_option_key`, and this mirrors that — **an AI adjudication must not silently rewrite a live answer key.**
+  - **THE PRODUCT BUG WAS SEPARATE FROM THE KEY GAP, and is now guarded.** `ingest:tests` already deleted auto-built tests with **zero** members; that guard is extended from "zero" to "degenerate fraction". New `fetchIngestedPyqTotals()` supplies the denominator (all `source='pyq'` rows for that paper-year, whatever their publish state — apples-to-apples, and measured: every row carrying a year is `source='pyq'` today). Below `MIN_FULL_PAPER_COVERAGE` (**0.5**) the test is still **built and its membership refreshed**, but left `is_published:false` with a warn naming the likely key gap, and `meta.coverage` records the decision. **Building-but-unpublishing rather than skipping is what makes it self-healing in both directions** — closing the gap republishes on the next run, and a paper that *regresses* is actively demoted instead of sitting published on stale membership. **0.5 comes from the real distribution, not taste:** across all 151 (exam, paper, year) groups coverage is bimodal with nothing between **0.0-0.7%** and **≥87.5%**, so any threshold in that empty band selects the same groups.
+  - **STILL OPEN, reported not actioned (out of the GS-I scope named):** **CSAT 2018** is the identical defect (100/100 keys are AI proposals) and is fixable by this exact pipeline — a real key page was sanity-checked live and renders in the same format the 2022 key was parsed from. **CSAT 2025** is harder: `correct_option_key` is NULL on all 100 and no blind solve has ever run. **GS1 2018's 17 held rows are NOT a bug** — all 17 were escalated **with web verification** and still disagree with the coaching key; lifting them needs an official commission key, which is not retrievable (dhyeyaias 404s, no Wayback snapshot, the mail subdomain refuses connections).
+  - **`ingest:embed` deliberately NOT run** — it is an OpenAI embeddings call (fractions of a cent, but nonzero) and `nightly-settle`'s `ingest:embed --missing-only` picks the 148 newly-published questions up automatically, so mentor RAG coverage self-heals within 24h at zero spend. `ingest:pyq:load` and `ingest:tests` import neither the Anthropic nor the embeddings client (verified by grep), so the rest of the pipeline is pure DB work.
+  - Verified: **1 → 148 live** (2 held), `pyq:PRE_GS1:2022` **1 q / 1.33 marks → 148 q / 196.84**, confirmed through `listTests` — the service the Practice page actually calls — not just by a DB query; every other paper byte-identical (2018 133, 2019/2020 150, 2021 144, 2023 145, 2024 132, 2025 150); **0 live PRE_GS1 MCQs with a key naming no option** (1173 checked); no `pyq_full` test tripped the thin guard. api typecheck 0 · `check:paths` (908) · `check:cli-args` (258) · `prompts:snapshot` **170 byte-identical** (the 2 WARNs are the documented pre-existing teacher-persona floor, §9b/B14) · all 7 pure suites (args 323 · heuristics 13 · qgen 51 · tips 87 · embed-chunk 24 · topic-balance 40 · ca-rotation 17).
+
+## UPSC coverage gaps closed (2026-08-15): 9 real gaps of a recorded 16, and Part 2's honest answer
+Acted on `docs/upsc-chapter-panel-verdict.md` Part 3's 117-node coverage audit — 16 nodes with named
+content gaps, 101 classified `redundant`. **Every gap was closed by EXPANDING an existing chapter, never
+by authoring a new one**, so `upsc` stays **78/195 published chapters** and all **117 `covered_by`
+pointers** are untouched. `uppsc` **284/284 verifiably unmodified**. All authoring by free coding-agent
+subagents — **$0 of paid `notes:chapter` spend**. Twelve commits, `e2067d7`..`9a72eba`.
+  - **⚑ THE PREMISE WAS STALE AND THAT IS THE HEADLINE. 7 of the 16 gaps were ALREADY CLOSED** by the
+    2026-08-12 remediation round, which superseded six chapters. Reading that table as a worklist would
+    have authored duplicate content into seven chapters — precisely the failure the redundancy discipline
+    exists to prevent. Re-measured against all 78 published chapters, PROSE only (headings + `body_md` +
+    `boxes[].content` + `table`-diagram source; a hit in overview/fact-audit metadata does not count):
+    **7 closed, 9 real.** The 9 survivors match, almost item for item, the "remaining" list the
+    remediation session had recorded for itself — two independent derivations agreeing is why it is
+    trustworthy. **Re-measure a recorded gap list before authoring against it.**
+  - **The 9 closed** (chapter, new/expanded section, embeddings): Data Interpretation → charts/graphs with
+    a worked item per family, 1185w, 40→52 · Rights Issues → human rights + NCSC/NCST/NCBC, 1191w, 54→77 ·
+    soil pollution + MSW → two sections, 730w+678w, 47→67 · executive machinery (Art 77, Business Rules
+    1961) 884w **and** RPA (Art 84/102/191, election petitions) 925w in one chapter, 53→86 · regulatory
+    limb (TDSAT/SAT/APTEL/NCLAT) 694w, 41→53 · world regional geography (Prairies/Pampas/Sahel/Veld/
+    Llanos/Downs) 815w, 70→84 · savings (GDS split, S−I=CAD, ICOR) 1202w, 72→91 · technology transfer
+    (ToT ladder, offsets, DcPP/iDEX/SRIJAN) 1131w, 82→96.
+  - **PART 2's HONEST ANSWER IS "MOSTLY ADEQUATE" — 1 action out of 15 nodes examined.** Ranked the 101
+    redundant nodes by real PYQ weight and READ the covering section for the top 15. Eight need nothing
+    (Physical Geography 30 PYQs, Problem Solving 22, Attitude 14, Economic Geography 14, Border Area
+    Security 13, Bilateral Groupings 11, Infrastructure 11, Case Studies 11 — compact but genuinely
+    dense); five were handled by the Part-1 agent already in the same file; Major Crops is covered
+    cross-paper by `Agriculture, Food Security and Land Reforms`. **Only `Indian Society` was genuinely
+    thin** — 3180w carrying 7 dependants/66 PYQs, its heaviest node (18 PYQs) in the chapter's SHORTEST
+    section (383w) — expanded to 919w, plus Urbanization 444→751w. **The audit's `redundant` verdicts hold
+    up under adversarial re-reading; padding the other fourteen to look productive was the failure mode.**
+  - **PART 3 IS A VERIFIED NO-OP, not an assumed one.** Every gap was a missing SECTION inside an existing
+    chapter, not a missing topic, so nothing warranted promotion (the audit's own recommendation). Proven
+    rather than asserted: chapter count stayed 78 and the `covered_by` digest stayed identical, and **no
+    script this session issued a single write to `covered_by_node_id`**. A separate audit scored all 117
+    pointers — **98 point at the top-scoring chapter, 111 in the top 3, 0 confirmed defects.**
+  - **⚑ THE RESEARCH CORRECTED MY BRIEF THREE TIMES, which is the argument for making agents re-derive
+    the premise instead of trusting the dispatcher.** (1) I instructed "teach the SWM Rules **2016**,
+    three-stream" — **stale law**; the 2016 Rules were replaced by the **SWM Rules 2026** (S.O. 388(E),
+    27 Jan 2026, in force 1 Apr 2026), four-stream. The agent wrote to the live framework instead.
+    (2) I asked for Fifth/Sixth Schedule content in Indian Society; the agent checked first, found it
+    already taught in the Panchayati Raj chapter's PESA section, and redirected the budget — verified,
+    it was right. (3) I recorded "appellate tribunal" as zero-hit; an agent's own paginated re-scan found
+    it pre-existing in Indian Polity.
+  - **⚑ TWO FIGURES SURVIVED AN AGENT'S OWN `verified` MARK AND FAILED INDEPENDENT CHECKING.** Both were
+    caught by re-deriving the specific number, never by reading the surrounding prose for plausibility.
+    (a) The SWM notification date "28 January 2026" — **neither of its two cited sources states any
+    date**; the citable form is S.O. 388(E) **dated 27 January**, gazetted the 28th, which is why both
+    circulate. Re-sourced to PIB, replacing a coaching-site citation with a primary one. (b) A **savings
+    denominator conflation**: two real 5.1% figures merged — 5.1% **of GDP** (FY23, the five-decade low,
+    down from 7.2%) and 5.1% **of GNDI** (FY24, RBI Annual Report). Different years, different
+    denominators. Compounded by a genuine **RBI revision** — FY24 was later restated 5.1% → **5.8% of
+    GNDI**, with FY25 at **7%** — so the published text now states each year with its own denominator
+    AND says the revision exists, because a student meeting either number is meeting a real RBI figure.
+  - **⚑ THE PUBLISH GATE FIRED EXACTLY ONCE AND WAS RIGHT TO.** Science and Technology's agent flagged its
+    own claim about the **draft DAP 2026** — specific figures from a law-firm blog about a document still
+    under consultation. Judged rather than waved through: PIB confirms release 10 Feb 2026 (comments to 3
+    Mar) and the offsets→Indigenous-Content shift with the **50%→60%** threshold is independently
+    corroborated; the five-to-four category count and the ~30% Buy (Global) floor remain single-sourced
+    and are labelled **reported, not settled**, with DAP 2020 named as the operative procedure. **There is
+    deliberately no blanket resolve in the tooling, and this is why.**
+  - **⚑ PUBLISHING FROM A SNAPSHOT WHILE ITS AUTHOR IS STILL RUNNING SHIPS A SUPERSEDED VERSION — twice.**
+    Indian Economy's agent kept editing after I published (it describes my own patch as "a concurrent
+    process") and produced better, more current data; Geography's agent **trimmed** 936→815w after I
+    published. **The drift is invisible in both the database and git** — only a disk-vs-live diff or the
+    agent's own report surfaces it. Swept all nine by content hash, reconciled both (v3), re-verified
+    **ALL NINE IN SYNC**. And I had the evidence for Geography and dismissed it: the agent reported 815w
+    against my gate's 936w and I wrote it off as counting methodology — **936−815=121 is exactly the
+    divergence.** A number that does not reconcile is a fact, not a rounding difference.
+  - **A PRE-ASSEMBLE GATE, negative-controlled three times, is what made "don't rewrite the chapter"
+    checkable rather than hopeful.** It canonical-diffs every retained section against a pristine
+    pre-edit copy (key order deep-sorted, since JSON key order is not a content change) and fails on a
+    dropped or SHRUNK section, an unresolved `[S#]`, a foreign-exam `pyq_id`, an empty-language body or an
+    orphaned fact. **My first version was wrong before any agent output existed** — it compared the
+    zod-parsed copy against raw JSON, so every identical section read as mutated. Result across nine
+    chapters: **every retained section byte-identical, 7-gram overlap 0–2 everywhere, 0 foreign-exam
+    chunks.** Its one real blind spot — `overview_i18n`/`quick_revision_i18n` — was closed by a
+    retroactive check: **7 of 9 byte-identical, the 1 that changed disclosed it and was correct**
+    (renumbering a roadmap the new section had made wrong).
+  - **⚑ EIGHT INSTRUMENT ERRORS, EVERY ONE MINE, AND THE CODE WAS FINE EVERY TIME.** Recorded because the
+    running theme is that measurement failed far more often than content did. `/TRAI/i` matched
+    "cons**TRAI**nt" (the exact trap CLAUDE.md already documents, same acronym) · `"backward region"`
+    missed `"backward-region"` · the word-boundary FIX for the first then made `"Aspirational District"`
+    miss `"Districts"` — **and I then repeated that same plural trap hours later on `"appellate
+    tribunal(s)"`, into a commit message** · a `covered_by` scorer flagged Demographics as a dead end that
+    reading disproved · a comma-in-mermaid-label rule flagged 4 diagrams including 2 pre-existing ones
+    (commas are legal; **parentheses** break a label — re-run clean: 15 diagrams, 0 problems) · an
+    acronym-only search missed `PVTG` spelled out as "Particularly Vulnerable Tribal Groups" · a
+    reversed-word-order probe reported "transfer of technology" absent while "technology transfer"
+    appears 9× and "ToT" 11× · and `o.en` instead of `o.text_i18n.en` made real option text look blank.
+    **Verify the harness before believing it found a bug.**
+  - Verified: all 9 published at `chapter_version>=2`; **0 uppsc notes modified today** (a cheaper and
+    stronger control than a digest diff — it rules out incidental modification by ANY path); every gap's
+    terms present in the live published text; coverage doc regenerated **78/195 with exactly 9 version
+    bumps and nothing else**; 15 diagrams valid with no empty-Hindi source. GOTCHA: Supabase hit a
+    **Cloudflare 522 / "Partially Degraded Service"** window mid-verification — heavy paged scans timed
+    out while small per-row queries succeeded, so the final checks were re-cut as targeted queries rather
+    than corpus sweeps. The background runner reported `exited with code 0` while the script had thrown,
+    which is the D15 false-green in a new place.
