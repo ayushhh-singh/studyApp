@@ -436,6 +436,37 @@ This is the same family as the **Demographics heading-scan trap** recorded above
 there, a matching *heading* was not coverage; here, matching *body terms* are not coverage either.
 For a skills node, the unit of evidence is **a worked item with the arithmetic shown**, not a mention.
 
+### ⚑ Post-round audit (2026-08-15): a PRE-EXISTING duplication found, and one measurement lesson
+
+The gap-closure round ran a per-chapter gate that measured 7-gram overlap of new prose against **its own
+chapter only**. A post-round audit extended that to the **whole 78-chapter corpus** — the check the
+per-chapter gate structurally could not do, and the one this work's purpose depends on.
+
+**14 of 16 new/expanded sections are clean corpus-wide** (max cluster 0-6, well under the 8 threshold).
+**Two are not, and the duplication is PRE-EXISTING — this round introduced none of it:**
+
+| section | cluster | against |
+|---|---:|---|
+| `Social Justice` → Health as a Social Sector Priority | **52** | `Social Sector Initiatives` → Health Insurance, Digital Health Infrastructure |
+| `Social Justice` → Education, Skilling and HRD | **54** | `Social Sector Initiatives` → Education Reform: NEP 2020, Samagra Shiksha |
+
+Attributed paragraph by paragraph rather than assumed. In the Health section **all 50 overlapping n-grams
+sit in one pre-existing paragraph** (Ayushman Bharat / Ayushman Arogya Mandirs / the OOPE fall from 62.6%
+to 39.4%); the two paragraphs added in this round contribute **0**. In the Education section the 51 sit in
+the pre-existing RTE (18) and NEP-2020 (33) paragraphs; the paragraph this round actually added — declining
+government-school enrolment and closures — contributes **0**. A control confirms the chapter *pair*
+overlaps structurally: an **untouched** section (`nutrition-and-the-poverty-malnutrition-cycle`) scores 21.
+
+**So this is a real finding for a future round, not a defect of this one:** `Social Justice` and
+`Social Sector Initiatives` duplicate substantial teaching on Ayushman Bharat/OOPE and on NEP 2020/RTE.
+Deduplicating them is its own change — it means deciding which chapter OWNS each topic and cross-referencing
+from the other — and was deliberately not attempted here.
+
+**Measurement lesson.** The first attribution used keyword markers to guess which paragraphs were new, and
+**mis-flagged the RTE paragraph as added** because it happens to contain "enrolment". Reading the paragraphs
+settled it — the genuinely added one opens "Two further Social Sector/Services PYQs sit alongside this theme
+without a natural home…". A keyword heuristic is a candidate generator, not an attribution.
+
 ---
 
 ## Reproducing this
