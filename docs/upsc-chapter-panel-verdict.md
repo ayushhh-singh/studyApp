@@ -367,6 +367,71 @@ clause each; and **"Objectivity and Dedication"** is the thinnest foundational-v
 
 ---
 
+## ⚑ ADDENDUM 2026-08-15 — 7 of the 16 gaps were already closed. Re-measure before authoring.
+
+The 16-gap table above is a snapshot of **2026-08-07**. The 2026-08-12 remediation round superseded
+six chapters, and closed seven of these gaps as a side effect of doing so. **A session that reads that
+table as a worklist will author content that already exists** — the exact duplication the redundancy
+discipline exists to prevent.
+
+Re-measured 2026-08-15 against all 78 published `upsc` chapters, PROSE only (headings + `body_md` +
+`boxes[].content` + `table`-kind diagram source — the `notes:chapter:checkpoint --stage scope`
+definition; a hit in overview or fact-audit metadata does not count):
+
+| gap | 2026-08-15 verdict | evidence |
+|---|---|---|
+| Salient Aspects of Indian Art Forms | **CLOSED** | 8/8 terms present in a dedicated 1471w section "Theatre and Folk Traditions" |
+| Salient Aspects of Indian Architecture | **CLOSED** | 6/6 present; 1181w Delhi Sultanate + 1703w Modern Indian Architecture sections |
+| Poverty (alleviation programmes) | **CLOSED** | 5/5 present in "Poverty Alleviation: The Programme Architecture" (Economic and Social Development) |
+| Demographics (age structure) | **CLOSED** | 4/4 present in "Age Structure, the Demographic Dividend, and Regional Balance" |
+| World Wars (WWII + settlement) | **CLOSED** | 6/6 present in a 1321w "The Second World War and the 1945 Settlement" |
+| Colonization (the colonization half) | **CLOSED** | 3/3 present in a 1365w "Colonization: The New Imperialism, 1870-1914" |
+| Inclusion (regional balance) | **CLOSED** | dedicated section-title clause + a substantive income-distance/backward-region-grant passage |
+| Data Interpretation (charts + graphs) | **REAL** | words present, technique absent — see the trap note below |
+| World Geography (continents) | **REAL** | Great Plains / Prairie / Pampas / Sahel all 0 hits |
+| Rights Issues (human rights + commissions) | **REAL** | UDHR / ICCPR / NCSC / NCBC / Art 338 all 0 hits |
+| Environmental Pollution (soil + MSW) | **REAL** | soil pollution / SWM Rules / waste-to-energy / source segregation / sanitary landfill all 0 hits |
+| Statutory-Regulatory (regulatory limb) | **REAL** | TRAI / CERC / TDSAT / appellate tribunal all 0 hits |
+| Executive machinery (ministries) | **REAL** | Allocation of Business / Transaction of Business / Article 77 all 0 hits |
+| RPA (qualification + disputes) | **REAL** | election petition / Art 84 / Art 102 / Art 191 all 0 hits |
+| Planning & Mobilization (savings) | **REAL** | domestic/household/gross savings, savings rate all 0 hits |
+| Indigenization (technology transfer) | **REAL** | transfer of technology / defence offset / offset policy / indigenous content all 0 hits |
+
+**Net: 7 closed, 9 real.** The 9 survivors match, almost item for item, the "remaining" list the
+2026-08-12 remediation session recorded for itself in `CLAUDE.md` — two independent derivations
+agreeing is the reason to trust this.
+
+### ⚑ Three matching traps, all hit during this single re-measurement
+
+Every one produced a wrong verdict before being caught, in both directions. Any future coverage scan
+must handle all three:
+
+1. **False positive — substring inside a longer word.** `/TRAI/i` matched "cons**trai**nt" in the
+   General Mental Ability chapter and reported TRAI as covered. It is absent corpus-wide. Use word
+   boundaries. (`CLAUDE.md` already records this exact trap with this exact acronym; it still caught
+   this session.)
+2. **False negative — punctuation between words.** `"backward region"` missed **"backward-region
+   grant lineage"**, which is exactly the content being searched for. Match hyphen-or-space tolerantly.
+3. **False negative — plurals, introduced by the fix for (1).** Tightening to
+   `(?![A-Za-z])` then made `"Aspirational District"` miss **"Aspirational Districts Programme"**.
+   A word-boundary assertion and a plural are in direct tension; check both forms.
+
+### ⚑ And the trap that only reading catches: a trap-table is not teaching
+
+`Data Interpretation` is the sharpest case, and no term scan of any sophistication would have got it
+right. "bar chart", "bar graph", "line graph", "pie chart" and "central angle" are **all present** —
+so a term scan scores it covered. Reading the section shows what they are: one row each in a
+*table of common traps*, one formula in a facts box, and one caution not to read a graph by its
+visual height. The two worked examples in that section are both over **tables**. So of the four
+presentation forms the syllabus names, tables and data sufficiency are taught with worked items, and
+charts and graphs have no worked item and no reading technique at all.
+
+This is the same family as the **Demographics heading-scan trap** recorded above, one level deeper:
+there, a matching *heading* was not coverage; here, matching *body terms* are not coverage either.
+For a skills node, the unit of evidence is **a worked item with the arithmetic shown**, not a mention.
+
+---
+
 ## Reproducing this
 
 | artefact | path |
