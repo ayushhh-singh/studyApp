@@ -49,6 +49,13 @@ export function CardMeta({
   if (!source) return null;
 
   const title = source.title_i18n[displayLocale] || source.title_i18n.en || source.title_i18n.hi;
+  // Only stages we hold copy for. The previous form was
+  // `stage === "mains" ? mains : prelims`, which would silently label a THIRD
+  // stage (an interview paper, say) "Prelims" — a confident wrong claim on the
+  // one chip whose whole job is being factual. Measured today the column only
+  // holds prelims/mains, so this is a guard against a future value, not a live bug.
+  const stageKey =
+    provenance?.exam_stage === "prelims" || provenance?.exam_stage === "mains" ? provenance.exam_stage : null;
   // Below one a year, "~0 a year" would read as "never asked", which is both
   // wrong and discouraging — say it plainly instead.
   const rate =
@@ -61,7 +68,7 @@ export function CardMeta({
   return (
     <div data-slot="card-meta" className="flex flex-col gap-2">
       <div className="flex flex-wrap items-center gap-1.5">
-        {provenance && (
+        {provenance && stageKey && (
           // The headline, and the only chip that is a fact about THIS question:
           // it really was on that paper, that year.
           <span
@@ -69,9 +76,7 @@ export function CardMeta({
             className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-semibold text-primary tabular-nums"
           >
             <CalendarCheck className="size-3" aria-hidden />
-            {t(`Revision.askedIn_${provenance.exam_stage === "mains" ? "mains" : "prelims"}`, {
-              year: provenance.year,
-            })}
+            {t(`Revision.askedIn_${stageKey}`, { year: provenance.year })}
           </span>
         )}
 

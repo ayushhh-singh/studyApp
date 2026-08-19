@@ -15,6 +15,7 @@ import type {
 import { noteRevisionBodySchema } from "@neev/shared";
 import { supabase } from "../lib/supabase.js";
 import { getUserExam, questionExamScopeFilter } from "../lib/exams.js";
+import { currentUserIsAnonymous } from "../lib/user-context.js";
 import { badRequest, HttpError, notFound } from "../lib/http-error.js";
 import { previewIntervals, reviewCard, type FsrsStateJson, type SrsRating } from "../lib/fsrs.js";
 import { istDayRangeUtc, istToday, shiftDate } from "../lib/ist.js";
@@ -183,22 +184,34 @@ const explanationInFlight = new Set<string>();
  * search, magazine) gets it too — the same call the user would have paid for by
  * clicking the button, moved to the moment it is actually needed.
  *
+ * ⚑ NOT RUN FOR GUESTS. Every other AI-spend surface in this app already refuses
+ * an anonymous user — evaluation, OCR, mentor, study plan all call
+ * `assertNotGuest` — so leaving this one open was inconsistent with the app's own
+ * policy, and it is genuinely reachable: measured 2026-08-16 there are 3,681 bare
+ * published questions with a key, and `srsRouter` allows 120 requests a minute,
+ * so one anonymous session could drive thousands of billable calls. A guest still
+ * gets a working card; it simply stays answer-only until a real user (or any
+ * other path) generates that question's explanation, at which point the nightly
+ * refresh upgrades it.
+ *
  * Fire-and-forget: the caller must NOT await this. Adding a card is a fast,
  * user-facing write and must never block on (or fail because of) a model call —
  * the same `void screenPost(...)` shape community moderation uses. If it fails,
  * the card simply keeps its answer-only back and the nightly refresh will pick
  * the explanation up later if any other path writes one.
  */
-async function backfillExplanationForNewCard(userId: string, questionId: string): Promise<void> {
+async function backfillExplanationForNewCard(cardId: string, questionId: string): Promise<void> {
   if (explanationInFlight.has(questionId)) return;
   explanationInFlight.add(questionId);
   try {
     await generateGroundedExplanation(questionId);
-    // Re-derive this user's question cards so the one just created picks up the
-    // explanation. Scoped to the caller (a handful of rows), and it reuses the
-    // same tested refresher the nightly runs rather than a second copy of the
-    // "is this card safe to rewrite?" rule.
-    await refreshQuestionCardBacks({ userId, apply: true });
+    // Re-derive JUST the card that was created, not the caller's whole deck.
+    // `seedWrongAnswers` calls the parent in a loop up to 15 times, so a
+    // deck-wide scan here would re-read every one of that user's question cards
+    // (and every backing question) fifteen times over for one new row each.
+    // Reuses the same tested refresher — and therefore the same "is this card
+    // safe to rewrite?" rule — rather than a second copy of it.
+    await refreshQuestionCardBacks({ cardId, apply: true });
   } finally {
     explanationInFlight.delete(questionId);
   }
@@ -261,9 +274,14 @@ export async function addQuestionToRevision(userId: string, questionId: string):
   // — see backfillExplanationForNewCard for the cost rationale. Requires a
   // correct_option_key: the explanation prompt argues FOR the stored key, so
   // there is nothing to write without one.
+  // ⚑ The guest flag MUST be read here, synchronously, not inside the background
+  // task: `currentUserIsAnonymous()` reads AsyncLocalStorage and returns FALSE
+  // outside a request context — so checking it after the response has gone would
+  // fail OPEN and treat every guest as a paying user.
+  const isGuest = currentUserIsAnonymous();
   const hasExplanation = !!(row.explanation_i18n?.en || row.explanation_i18n?.hi);
-  if (!hasExplanation && row.correct_option_key) {
-    void backfillExplanationForNewCard(userId, questionId).catch((err) => {
+  if (!hasExplanation && row.correct_option_key && !isGuest) {
+    void backfillExplanationForNewCard((card as { id: string }).id, questionId).catch((err) => {
       console.error(
         `srs: explanation generation failed for question ${questionId} (non-fatal):`,
         err instanceof Error ? err.message : err,
@@ -310,7 +328,7 @@ export async function addQuestionToRevision(userId: string, questionId: string):
  * NULL`, so nothing rewrites an existing explanation without `--force`.
  */
 export async function refreshQuestionCardBacks(
-  opts: { apply?: boolean; userId?: string } = {},
+  opts: { apply?: boolean; userId?: string; cardId?: string } = {},
 ): Promise<{ scanned: number; refreshed: number; skippedEdited: number; danglingSource: number }> {
   const cards = await selectAll<{ id: string; source_id: string; back_i18n: BilingualText }>(() => {
     let q = supabase()
@@ -323,6 +341,7 @@ export async function refreshQuestionCardBacks(
       // across pages even while another request is inserting cards.
       .order("id", { ascending: true });
     if (opts.userId) q = q.eq("user_id", opts.userId);
+    if (opts.cardId) q = q.eq("id", opts.cardId);
     return q;
   });
   if (cards.length === 0) return { scanned: 0, refreshed: 0, skippedEdited: 0, danglingSource: 0 };
@@ -703,13 +722,26 @@ async function headCount(
  */
 async function resolveCardEnrichment(
   nodeIds: string[],
+  examCode: string,
 ): Promise<Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null; exam_stage: string }>> {
   const out = new Map<string, { source: SrsCardSource; weightage: SrsCardWeightage | null; exam_stage: string }>();
   const ids = [...new Set(nodeIds)];
   if (ids.length === 0) return out;
 
   const [nodesResult, chaptersResult] = await Promise.all([
-    supabase().from("syllabus_nodes").select("id, paper_code, title_i18n, path, exam_code, exam_stage").in("id", ids),
+    // ⚑ EXAM-SCOPED, and this is a real leak guard rather than belt-and-braces.
+    // A card with `exam_code IS NULL` is due under EVERY exam (0124 — legacy
+    // shared-deck rows), but its `origin_node_id` points at ONE exam's tree.
+    // Measured 2026-08-16: 4 such cards exist, all with uppsc origins — so
+    // without this filter a UPSC user reviewing one would be shown a UPPSC topic
+    // name and a "read the chapter" link into a syllabus they are not sitting.
+    // Filtering here (rather than after) means the whole enrichment for a foreign
+    // node is simply absent, which the UI already renders as no chips.
+    supabase()
+      .from("syllabus_nodes")
+      .select("id, paper_code, title_i18n, path, exam_code, exam_stage")
+      .in("id", ids)
+      .eq("exam_code", examCode),
     supabase()
       .from("notes")
       .select("syllabus_node_id, chapter_version")
@@ -866,7 +898,7 @@ export async function getDueQueue(
   let provenance = new Map<string, { year: number }>();
   try {
     const [e, p] = await Promise.all([
-      resolveCardEnrichment(rows.map((r) => r.origin_node_id).filter((id): id is string => !!id)),
+      resolveCardEnrichment(rows.map((r) => r.origin_node_id).filter((id): id is string => !!id), examCode),
       resolveQuestionProvenance(
         rows.filter((r) => r.source_type === "question" && r.source_id).map((r) => r.source_id!),
       ),
