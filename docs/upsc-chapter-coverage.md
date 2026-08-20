@@ -69,7 +69,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 36 | 32 | `UPSC_PRE_GS1` | 2 | Medieval India | published · chapter v1 | `b1ebdbcd-71fe-4e53-a5a6-f6729f9cf7d0` |
 | 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | published · chapter v1 | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
 | 38 | 31 | `UPSC_MAINS_GS4` | 2 | Attitude, Integrity and Problem-Solving Approach in Public Life | published · chapter v1 | `f92cd2e1-95db-4df6-9c0c-d9d590c00b4f` |
-| 39 | 30 | `UPSC_PRE_CSAT` | 1 | Decision Making and Problem Solving | published · chapter v1 | `739d1434-f1b9-4e60-a33b-b4322783db65` |
+| 39 | 30 | `UPSC_PRE_CSAT` | 1 | Decision Making and Problem Solving | published · chapter v2 | `739d1434-f1b9-4e60-a33b-b4322783db65` |
 | 40 | 29 | `UPSC_PRE_GS1` | 2 | Physics | published · chapter v1 | `55c52be0-c5fd-4353-901e-3ec9eacba746` |
 | 41 | 28 | `UPSC_MAINS_GS3` | 1 | Science and Technology | published · chapter v2 | `788bfc11-18a6-45da-8e4b-a2892898839a` |
 | 42 | 27 | `UPSC_PRE_GS1` | 2 | Physical Geography | — none | `3cd18fd8-284a-4291-b4c5-6bcda4280185` |
