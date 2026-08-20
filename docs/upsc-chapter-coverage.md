@@ -54,7 +54,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 21 | 46 | `UPSC_PRE_GS1` | 2 | Bio-diversity | published · chapter v1 | `d2c80e73-41a1-4f3b-8b18-8a5675a0cdc9` |
 | 22 | 45 | `UPSC_PRE_GS1` | 2 | Political System | published · chapter v2 | `3c726bd5-677c-492d-bb8d-912d05f4c383` |
 | 23 | 42 | `UPSC_MAINS_GS4` | 1 | Case Studies and Problem-Solving Approach | published · chapter v1 | `0eac697f-be19-4b56-99c3-094a0e5f8af0` |
-| 24 | 40 | `UPSC_MAINS_GS2` | 1 | International Relations | published · chapter v1 | `2666ca30-51b6-4709-9c98-3c93fa631ea0` |
+| 24 | 40 | `UPSC_MAINS_GS2` | 1 | International Relations | published · chapter v2 | `2666ca30-51b6-4709-9c98-3c93fa631ea0` |
 | 25 | 40 | `UPSC_PRE_GS1` | 2 | Geography of India | published · chapter v1 | `b8728072-5de6-405a-91b3-8fd6c7460c47` |
 | 26 | 39 | `UPSC_MAINS_GS3` | 1 | Internal Security | published · chapter v1 | `0b4b24f5-134b-4532-9b42-9fe2daef321d` |
 | 27 | 39 | `UPSC_PRE_GS1` | 2 | Climate Change | published · chapter v1 | `1803cd3f-cf00-4ae7-8127-4162a5c33aae` |
