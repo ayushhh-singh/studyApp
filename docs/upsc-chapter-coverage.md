@@ -6,7 +6,7 @@
 > pnpm notes:coverage --exam upsc --out docs/upsc-chapter-coverage.md
 > ```
 >
-> Read live from the database on **2026-08-16** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
+> Read live from the database on **2026-08-20** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
 **78 of 195 chapterable nodes have a published chapter (40%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
@@ -65,7 +65,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 32 | 33 | `UPSC_PRE_GS1` | 2 | Environmental Ecology | published · chapter v2 | `6531ab4b-3707-4dff-af27-4dbe6f2880d6` |
 | 33 | 33 | `UPSC_PRE_GS1` | 2 | Indian National Movement | published · chapter v2 | `449d1034-2fe7-4a1f-9a0e-6dd8db47e686` |
 | 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | published · chapter v1 | `e18c8af8-b014-41e8-b683-0b55306f47df` |
-| 35 | 32 | `UPSC_MAINS_GS2` | 1 | Social Justice | published · chapter v2 | `e20280a3-87e3-41ac-b2d7-ac4ee5609f3e` |
+| 35 | 32 | `UPSC_MAINS_GS2` | 1 | Social Justice | published · chapter v3 | `e20280a3-87e3-41ac-b2d7-ac4ee5609f3e` |
 | 36 | 32 | `UPSC_PRE_GS1` | 2 | Medieval India | published · chapter v1 | `b1ebdbcd-71fe-4e53-a5a6-f6729f9cf7d0` |
 | 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | published · chapter v1 | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
 | 38 | 31 | `UPSC_MAINS_GS4` | 2 | Attitude, Integrity and Problem-Solving Approach in Public Life | published · chapter v1 | `f92cd2e1-95db-4df6-9c0c-d9d590c00b4f` |
