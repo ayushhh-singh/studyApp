@@ -57,6 +57,7 @@ import { mainsPaperCodesFor } from "../ca/exam-fanout.js";
 import { loadNodeWeightage, hotnessRaw, currentExamYear } from "../lib/weightage.js";
 import { loadNodeContext, generateBatch, type GeneratePlan, type NodeGenerationResult } from "./generate.js";
 import { loadRecentDemand, onDemandReserveAdditive, ON_DEMAND_WINDOW_DAYS, type DemandRow } from "./on-demand-reserve.js";
+import { seriesShortfallsFor } from "./series-demand.js";
 
 /** A weightage-scaled coverage floor: `min` for the least-asked top node, `max` for the busiest. */
 export interface FloorBand {
@@ -210,8 +211,11 @@ export const FRESH_DESCRIPTIVE_FLOOR: FloorBand = { min: 3, max: 10 };
  * Lowering this is cheap (a longer fill) and raising it is not (worse questions,
  * wasted spend), so the asymmetry decides it. If it is ever revisited, re-run
  * that measurement rather than reasoning from the fill duration alone.
+ *
+ * Exported so `series-demand.ts` shares this ONE clamp rather than carrying a
+ * second copy that could silently drift from it.
  */
-const MAX_PER_NODE = 20;
+export const MAX_PER_NODE = 20;
 
 /** The two passes this planner makes, named by exam stage rather than by a paper-code pattern. */
 export type TopupStage = "prelims" | "mains";
@@ -840,4 +844,56 @@ export async function runTopup(
 
   const results = kept.length ? await generateBatch(kept, log) : [];
   return { planned: merged.length, requested, dropped, results };
+}
+
+/**
+ * `--series <slug>` mode — docs/test-series-design.md §6.6's recommendation,
+ * built 2026-08-19. Generates ONLY against the named series' real, upcoming
+ * demand (`series-demand.ts`'s `seriesShortfallsFor`), never the uniform
+ * per-leaf floor `runTopup` uses. Deliberately a SEPARATE entry point rather
+ * than a third pass folded into `runTopup`: it is explicitly human-invoked
+ * (per the doc's own "Recommend a `--series <slug>` mode" phrasing) and its
+ * demand function throws loudly on a malformed calendar entry — appropriate
+ * for a targeted, human-run tool, wrong for a step inside the always-on
+ * nightly cron that must never let one bad calendar row take down the whole
+ * run.
+ *
+ * Shares `trimToBudget`/`generateBatch`/`TopupResult` with `runTopup` so the
+ * `--max-usd`/`--dry-run` behaviour is identical either way — only WHAT gets
+ * planned differs, not how a budget or a dry run is honoured.
+ *
+ * `MAX_PER_NODE` is passed IN to `seriesShortfallsFor` (not applied here
+ * afterwards) so its own per-leaf log line reflects the SAME clamped number
+ * that actually gets generated — see that function's own note on the earlier
+ * two-different-numbers bug this avoids.
+ */
+export async function runSeriesTopup(
+  opts: { maxUsd: number; seriesSlug: string; lookaheadDays: number; dryRun?: boolean },
+  log: (msg: string) => void = () => {},
+): Promise<TopupResult> {
+  const plans = await seriesShortfallsFor({
+    seriesSlug: opts.seriesSlug,
+    lookaheadDays: opts.lookaheadDays,
+    maxPerNode: MAX_PER_NODE,
+    log,
+  });
+
+  const totalRequested = plans.reduce((s, p) => s + p.count, 0);
+  log(`Series "${opts.seriesSlug}" shortfall: ${plans.length} node(s) need generation (${totalRequested} questions total).`);
+
+  const { kept, dropped } = trimToBudget(plans, opts.maxUsd);
+  if (dropped > 0) {
+    log(`Budget $${opts.maxUsd.toFixed(2)}: running ${kept.length} nodes, DEFERRING ${dropped} to a later run.`);
+  }
+  const requested = kept.reduce((s, p) => s + p.count, 0);
+
+  if (opts.dryRun) {
+    for (const p of kept) {
+      log(`  would generate ${p.count} ${p.kind} for "${(p.node.title_i18n as { en: string }).en}" (${p.node.examCode})`);
+    }
+    return { planned: plans.length, requested, dropped, results: [] };
+  }
+
+  const results = kept.length ? await generateBatch(kept, log) : [];
+  return { planned: plans.length, requested, dropped, results };
 }

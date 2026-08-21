@@ -374,9 +374,9 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
   {
     script: "qgen",
     spec: {
-      value: ["node", "kind", "difficulty", "exam"],
+      value: ["node", "kind", "difficulty", "exam", "series"],
       boolean: ["topup", "batch", "dry-run"],
-      positiveInt: ["count"],
+      positiveInt: ["count", "lookahead-days"],
       positiveNumber: ["max-usd"],
     },
     documented: [
@@ -390,6 +390,12 @@ const SHIPPED: { script: string; spec: FlagSpec; documented: string[][] }[] = [
       ["--topup", "--exam", "upsc", "--dry-run"],
       ["--node", "PRE_GS1", "--kind", "mcq", "--count", "10", "--batch"],
       ["--difficulty", "3:5:2"], // NOT a number — positiveInt would wrongly reject it
+      // 2026-08-19: docs/test-series-design.md §6.6's `--series <slug>` mode.
+      // `--exam` and `--kind` are deliberately absent — the CALENDAR names its
+      // own exam and each entry names its own question_type (`cli.ts` rejects
+      // the combination outright rather than silently ignoring either flag).
+      ["--topup", "--series", "uppsc-prelims-2026", "--dry-run"],
+      ["--topup", "--series", "upsc-prelims-2027", "--max-usd", "2.5", "--lookahead-days", "60"],
     ],
   },
 

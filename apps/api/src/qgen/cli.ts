@@ -3,10 +3,17 @@
  *
  *   pnpm qgen --node <uuid|PAPER_CODE> --count N --kind mcq|descriptive [--batch] [--difficulty e:m:h]
  *   pnpm qgen:topup [--max-usd N] [--kind mcq|descriptive] [--exam <code>] [--dry-run]
+ *   pnpm qgen:topup --series <slug> [--lookahead-days N] [--max-usd N] [--dry-run]
  *
  * Single-node runs are synchronous (structuredJson). --batch and the nightly
  * top-up use the Message-Batches path (50% cheaper). Survivors land as
  * review_state='needs_review' for the Review Queue (/:locale/review).
+ *
+ * `--series` targets ONE named test-series calendar's real upcoming demand
+ * (docs/test-series-design.md §6.6) instead of the uniform per-leaf floor —
+ * see `topup.ts`'s `runSeriesTopup`/`series-demand.ts` for why. `--exam` is
+ * NOT read in this mode: the calendar file itself declares its exam, so there
+ * is nothing to default and nothing to pass.
  */
 import { parseArgs } from "../ingest/_shared.js";
 import { supabase } from "../lib/supabase.js";
@@ -19,7 +26,8 @@ import {
   type GeneratePlan,
   type NodeGenerationResult,
 } from "./generate.js";
-import { runTopup } from "./topup.js";
+import { runTopup, runSeriesTopup } from "./topup.js";
+import { listCalendarSlugs } from "../series/calendar.js";
 
 /**
  * Every flag this CLI reads, surveyed from the actual `args.*` accesses in
@@ -34,15 +42,20 @@ import { runTopup } from "./topup.js";
 const QGEN_FLAGS = {
   // `--exam` is TOPUP-ONLY (see `resolveTopupExams`); a single-node run takes its
   // exam from the node itself, so passing both is rejected rather than ignored.
-  value: ["node", "kind", "difficulty", "exam"],
+  // `--series` is ALSO topup-only, and mutually exclusive with `--exam` — see
+  // `main()`'s `--series` branch for why.
+  value: ["node", "kind", "difficulty", "exam", "series"],
   // `--topup` is PRE-SUPPLIED by the `qgen:topup` pnpm script, so it must stay
   // declared here or that scheduled/CI entry point breaks immediately.
   boolean: ["topup", "batch", "dry-run"],
-  positiveInt: ["count"],
+  positiveInt: ["count", "lookahead-days"],
   // A dollar budget — fractional values like `--max-usd 2.5` are valid, so this
   // must NOT be positiveInt.
   positiveNumber: ["max-usd"],
 } as const;
+
+/** Default lookahead for `--series`: §6.6's own "check the next 4 weeks' entries" ops-loop recommendation. */
+const DEFAULT_SERIES_LOOKAHEAD_DAYS = 28;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -127,6 +140,45 @@ async function main(): Promise<void> {
 
   if (args.topup) {
     const maxUsd = typeof args["max-usd"] === "string" ? Number(args["max-usd"]) : Number(process.env.QGEN_BATCH_MAX_USD ?? 5);
+
+    if (typeof args.series === "string") {
+      // `--exam` genuinely does not apply here (the calendar file declares its
+      // own exam) — but a SILENTLY ignored flag is the same failure class as a
+      // silently defaulted one (this file's own `--exam` rejection above makes
+      // the same call for --node), so reject the combination outright rather
+      // than let someone believe they scoped a run that ignored their flag.
+      if (typeof args.exam === "string") {
+        throw new Error("--exam does not apply to --series — the calendar file itself declares which exam it belongs to.");
+      }
+      if (typeof args.kind === "string") {
+        throw new Error("--kind does not apply to --series — each entry's own question_type decides mcq vs descriptive.");
+      }
+      const lookaheadDays =
+        typeof args["lookahead-days"] === "string" ? Number(args["lookahead-days"]) : DEFAULT_SERIES_LOOKAHEAD_DAYS;
+      console.log(
+        `qgen:topup --series ${args.series} — budget $${maxUsd.toFixed(2)}, lookahead ${lookaheadDays}d${args["dry-run"] ? " [dry run]" : ""}`,
+      );
+      let res;
+      try {
+        res = await runSeriesTopup(
+          { maxUsd, seriesSlug: args.series, lookaheadDays, dryRun: !!args["dry-run"] },
+          (m) => console.log(m),
+        );
+      } catch (err) {
+        // `loadCalendar` already lists the available slugs in its own error for
+        // an unknown one; only add the hint when that is NOT what failed, so
+        // the message is not repeated twice.
+        const msg = err instanceof Error ? err.message : String(err);
+        if (!msg.includes("available:")) {
+          console.error(`Available calendars: ${listCalendarSlugs().join(", ") || "(none)"}`);
+        }
+        throw err;
+      }
+      if (!args["dry-run"]) reportResults(res.results);
+      console.log(`\nPlanned ${res.planned} shortfall nodes; ran ${res.requested} questions; deferred ${res.dropped} nodes to budget.`);
+      return;
+    }
+
     const only = args.kind === "mcq" || args.kind === "descriptive" ? (args.kind as "mcq" | "descriptive") : undefined;
     const examCodes = await resolveTopupExams(args.exam, (m) => console.log(m));
     // ⚑ ONE budget for the WHOLE run, not one per exam — `runTopup` plans every
@@ -145,6 +197,9 @@ async function main(): Promise<void> {
     // one: the operator believes they scoped the run and nothing did. A
     // single-node run's exam is a property of the node, not a choice.
     throw new Error("--exam applies to --topup only; a single-node run takes its exam from the node itself.");
+  }
+  if (typeof args.series === "string") {
+    throw new Error("--series applies to --topup only (pnpm qgen:topup --series <slug>).");
   }
   if (typeof args.node !== "string") {
     throw new Error("Usage: pnpm qgen --node <uuid|PAPER_CODE> --count N --kind mcq|descriptive [--batch] [--difficulty e:m:h]");
