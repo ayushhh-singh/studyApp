@@ -2298,3 +2298,134 @@ coding-agent subagents — **$0 of paid `notes:chapter` spend**. Ten commits, `1
     `pnpm dev` running. `cd` does not persist between Bash calls here, so two heredocs landed in the repo root
     (moved, not left). And `PIPESTATUS`/`| tail` returned an empty exit status once — the documented D15
     false-green; **check exit codes directly, never through a pipe**.
+
+## Revision cards: explanations that reach the card, and an insight about the question (2026-08-16)
+Founder report: SRS cards "feel too basic". Five commits, `6449572`..`4eb5908` (they are NOT at HEAD — a
+concurrent qgen/chapter session has committed on top; all five are verified ancestors). Migration `0132`.
+Every synthetic row deleted by an id captured at insert time and re-queried to prove it.
+  - **⚑ THE BRIEF'S PREMISE WAS FALSE, AND MEASURING IT FIRST IS WHAT MADE THE SESSION USEFUL.** The ask was
+    to re-fetch each `source_type='question'` card's CURRENT explanation, on the theory that the
+    explanation-depth work (2026-08-13) had left stale snapshots behind. It had not: **all 29 live question
+    cards that resolve to a question are BYTE-IDENTICAL to what the generator would produce now**, and the
+    shipped CLI's dry run agrees — `scanned 37, would refresh 0`. Nothing rewrites an existing explanation
+    (`writeExplanation` guards on `IS NULL` and the owner declined the bank-wide backfill), so there was no
+    staleness to repair.
+  - **THE REAL CAUSE, and it is worse.** 27 of those 29 cards are ANSWER-ONLY — backs as short as
+    `"Answer: D. 9"` (12 chars) — because **6,422 of 8,401 published+approved questions (76%) have NO
+    explanation at all**. Those are written LAZILY, and only when a user clicks "Generate explanation" on
+    the result review list. "Add to revision" is a DIFFERENT button that never goes through it, so the
+    ordinary path was: add a card while the question is bare → nothing ever generates that explanation →
+    the card stays bare forever. Across all 132 cards the median back was 72 chars and 72 were under 80.
+  - **What shipped for that:** `refreshQuestionCardBacks` (nightly + `pnpm srs:refresh-cards`, dry-run by
+    default) so a card self-heals the moment its question gains an explanation, AND — on the founder's
+    "make sure these changes are there going forward" — generation ON ADD when the question is bare.
+    **Deliberately not a backfill** (the owner declined that): one `claude-haiku-4-5` call per genuinely-new
+    question, only when a real user puts it in their deck, persisted to `questions` so it is paid once ever
+    and every other surface gets it too. Fire-and-forget, so adding a card never blocks on a model call.
+    Verified end-to-end on a bare published MCQ: POST returned in **665ms**, and ~12s later the card read a
+    full worked solution — **15 → 553 chars**, both locales. The maths was checked BY HAND rather than
+    trusted (first 10 primes 2,3,5,7,11,13,17,19,23,29, median (11+13)/2 = 12 — which is what it says).
+  - **SAFETY RULE for the refresher:** only a card whose back is EXACTLY the answer-only generated form is
+    rewritten. That string is reachable only by the generator running with a null explanation, so matching
+    it proves the card is generator-owned and was never hand-edited via the Manage tab (`updateCard` can
+    rewrite any back). The deliberately-skipped case — generated from an explanation later rewritten — is
+    indistinguishable from a user's own edit without a provenance column, and clobbering an edited card is
+    worse than leaving one stale. `buildQuestionCardBack` is extracted so generator and refresher cannot
+    drift; a second copy is exactly how the refresher would start rewriting every card, or none.
+  - **⚑ `source_id` IS OVERLOADED, AND THAT — NOT THE UI — WAS THE BLOCKER FOR "re-read the chapter".** It is
+    a real id for question/node/evaluation cards but a **sha256-DERIVED uuid** for note deck/block cards and
+    current-affairs facts (the one-card-per-fact idempotency key). A hash resolves back to nothing, so "where
+    did this card come from?" was unanswerable for most cards: **only 37 of 132 (28%)** could name an origin.
+    Hence `0132`'s `origin_node_id` — nullable, best-effort, `ON DELETE SET NULL` so retiring a topic never
+    deletes a user's card.
+  - **Recovering the hashed ones:** the migration joins the two cases SQL can (question→node, node card→
+    itself); the rest are recovered in TypeScript by `backfillCardOriginNodes`, which re-derives every id a
+    published note could have produced and matches — reusing notes.ts's OWN `noteSourceId` and the SHARED
+    block enum (`noteRevisionBodySchema.shape.block.options`), never a hand-copied list. That mattered: my
+    first probe guessed PLURAL block names (`key_facts`, `mnemonics`) where the real enum is singular
+    (`key_fact`, `mnemonic`) and undercounted by 4. **28% → 73% (98/134), 0 cross-exam mismatches.** Current
+    affairs is left null on purpose — an item's `syllabus_node_ids` is an ARRAY, so picking one is a guess.
+  - **THE CARD'S INSIGHT WAS THE SECOND ROUND, and the founder was right to reject the first.** "asked 53×"
+    sat beside a SPECIFIC question while describing its TOPIC, so it read as a claim about the question
+    (false); a bare 53 has no reference frame; and it could not be acted on mid-review. **Two measurements
+    decided the replacement and the first nearly killed the feature:** PRE_GS1's seven depth-1 sections run
+    182/175/170/163/162 — **14-16% each, zero discriminating signal**, because the syllabus is deliberately
+    balanced. But its depth-2 topics run **14 to 93 (mean 39.5, sd 17.5, CV 0.44)**, which genuinely
+    separates a heavy topic from a marginal one. The signal was real at the grain cards carry; the
+    presentation was not.
+  - **A card now says:** `Asked in Prelims 2021` (the strongest per-question fact in the bank, and it was
+    sitting unused) · `Medieval India · about 7 questions a year` (a RATE, whose denominator — one exam a
+    year — is the unit aspirants already think in, rendered ATTACHED to the topic name so the referent
+    cannot be misread; under 1/yr it says "rarely asked", since "~0 a year" reads as never) ·
+    `forgotten 2×` when `fsrs_state.lapses > 0` (the most actionable per-CARD signal, and already on the
+    wire) · `Read the chapter`. **All of it only AFTER reveal** — naming the topic on the front hands over a
+    large part of the answer, and the unaided retrieval attempt is the whole point.
+  - **⚑ PROVENANCE IS GATED ON `source = 'pyq'`, and that is a correctness gate, not polish.** The bank holds
+    GENERATED questions (CA MCQs, qgen items) that carry a `year` they were written ABOUT but were never on
+    any real paper — claiming "Asked in Prelims 2026" for one would be a plain falsehood on a card a learner
+    is trusting. Measured 30 of 31 card-backing questions are real PYQs and 1 is generated, so the wrong
+    branch is reachable today. Verified in-browser that the generated card renders its strip with NO year.
+  - **REAL BUG AVOIDED:** the card was a `<button>` and the chapter link is an `<a>`. An `<a>` inside a
+    `<button>` is invalid HTML whose click the button swallows — the link would have rendered and done
+    nothing. Reveal control and revealed content are now siblings.
+  - **⚑ A LAYOUT BUG DOM ASSERTIONS COULD NOT SEE, AND A 390px SCREENSHOT COULD.** With a long explanation the
+    card scrolled and the whole context strip — including the "read the chapter" escape hatch — fell below
+    the fold: present in the DOM, every query green, invisible to a real user at exactly the moment they had
+    just failed a hard card. Only the question and answer scroll now; context and ratings are pinned, and
+    the sweep asserts **in-viewport geometry**, not presence.
+  - **EDGE-CASE AUDIT — 6 findings, 4 fixed, 2 recorded with reasons.**
+    - **⚑ GUEST-TRIGGERED LLM SPEND.** Generation-on-add was reachable by an ANONYMOUS user while every other
+      AI-spend surface already refuses one (`assertNotGuest` on evaluation, OCR, mentor, study plan) — so it
+      was inconsistent with the app's own policy, not merely unguarded. Measured **3,681 bare questions with
+      a key** against a **120/min** router limit. The flag is read SYNCHRONOUSLY in the request path, and
+      that detail IS the fix: `currentUserIsAnonymous()` reads AsyncLocalStorage and returns FALSE outside a
+      request, so checking it inside the fire-and-forget task would have **failed OPEN**.
+    - **⚑ A CROSS-EXAM LEAK THE ENRICHMENT ITSELF CREATED.** A card with `exam_code IS NULL` is due under
+      EVERY exam (0124, legacy shared-deck rows) but its origin points at ONE exam's tree — 4 such cards
+      exist, all uppsc. A UPSC user was shown a UPPSC topic and a link into a syllabus they are not sitting.
+      Those cards showed nothing before, so this was mine. `resolveCardEnrichment` now takes the querying
+      exam and filters the node fetch by it.
+    - A **15× amplification**: `seedWrongAnswers` loops the add path up to 15 times and each new card kicked
+      off a deck-WIDE refresh (15 re-reads of a 53-card deck for one new row each) — now scoped by `cardId`.
+      And the provenance chip mapped any non-"mains" stage to "Prelims", a confident wrong label on the one
+      chip whose job is being factual — now renders only for a stage we hold copy for.
+    - **Recorded, NOT fixed:** the nightly rebuilds a note-hash map over 362 notes for 9 permanently
+      unresolvable cards (one query + a transient map, once a night — negligible for a batch job, not worth
+      a provenance column); and "Read the chapter" can land on a paywalled chapter for a free user, which is
+      how every chapter link in the app already behaves and whose locked view is a real preview.
+  - **⚑ MY OWN TEST PASSED FOR THE WRONG REASON, and the negative control is what caught it.** The guest
+    assertion slept a flat **12s** — but the observed generation latency IS ~12s, so it would have gone green
+    whether or not the guard existed. With the guard deliberately disabled the test STILL passed; only after
+    switching to a poll did the control fire, observing generation at **18s**. **A timing assertion set AT
+    the thing's own latency measures nothing.** Both guards are now negative-controlled (disabling either
+    fails exactly its own assertions), `srs.ts` restored and **sha256-verified byte-identical** (never
+    `git checkout`), and the 8/8 pass re-established with the corrected harness.
+  - **SIX HARNESS BUGS, ZERO PRODUCT BUGS, across the browser sweeps** — the first run "found" 13 failures,
+    all mine: the Hindi reveal label is `उत्तर दिखाएं` not `दिखाएँ`; "good" is `ठीक` not `अच्छा`; a
+    hand-written topic keyword list missed "Modern India"; **dark mode silently rendered LIGHT** because
+    `theme-store` writes a PLAIN STRING while I wrote zustand's JSON envelope (so dark, and every contrast
+    number in it, was never actually being tested); a later run reported Hindi/390 as broken because **the
+    sweep RATES each card to walk the deck**, scheduling them forward so the next context opened an empty
+    queue (a test that consumes its own fixture reports the fixture running out as a failure); and a
+    hardcoded `.pnpm` playwright path matched a stale `1.61.1` dir when the installed one is `1.62.0`
+    (resolve with `createRequire` from the package that declares it). **Verify the harness before believing
+    it found a bug.**
+  - Verified: 8/8 service-level + **58/58 then 30/30 then 18/18** browser checks across en/hi × 390/1440 ×
+    light/dark (chips render, the chapter link navigates to a genuine 18,853-char chapter page, Devanagari
+    line-height 1.75, canvas-measured contrast **5.71-8.56:1** against a 4.5 floor, zero console errors,
+    zero overflow); live API across BOTH exams (27/30 and 2/2 cards enriched, every link's paper_code
+    matching its node, response satisfying the shared schema). Gates each round: api typecheck (src +
+    scripts), web `tsc -b`, **full production vite build**, seven pure suites, `prompts:snapshot` 170
+    byte-identical, `check:paths`, `check:cli-args`, `check:seo`, oxlint **49 — delta 0** against a
+    worktree-measured HEAD baseline.
+  - **GOTCHAS worth keeping:** `pnpm --filter web lint`/`tsc` hit the documented iCloud `.bin` corruption —
+    use `apps/*/node_modules/typescript/bin/tsc` directly, and **never read an exit code through a pipe**
+    (`tsc | head` printed `TSC_WEB=0` from `head` while node had failed — the D15 trap, hit twice here).
+    zsh does not word-split an unquoted `$FILES`, so `git commit -- $FILES` failed loudly with one giant
+    pathspec — use an array. A scratch script importing `apps/api/src/**` must use ABSOLUTE paths and cannot
+    resolve `@neev/shared`; point it at `packages/shared/src/*.js` directly.
+  - **CONCURRENT PROCESS throughout:** a qgen/chapter session held `_tmp_depth_*`/`_tmp_g4_*`, `qgen/*`,
+    `key-provenance.ts`, `tests.ts` and `docs/OUTSTANDING.md`, and grew `test:args` 328→330 and
+    `test:qgen` 51→70 mid-session (re-measured, not assumed mine). Every commit staged by explicit path via
+    `git commit -- <paths>` and re-checked with `git show --stat`; its untracked files were left untouched
+    rather than swept by a cleanup glob.
