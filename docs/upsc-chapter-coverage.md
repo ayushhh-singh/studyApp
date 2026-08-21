@@ -6,7 +6,7 @@
 > pnpm notes:coverage --exam upsc --out docs/upsc-chapter-coverage.md
 > ```
 >
-> Read live from the database on **2026-08-20** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
+> Read live from the database on **2026-08-21** (IST). Every query is paged (`selectAll`) — PostgREST truncates a bare select at 1000 rows and this report would silently UNDER-report coverage rather than fail.
 
 **78 of 195 chapterable nodes have a published chapter (40%).** The exam has **202** syllabus nodes in total; the **7** depth-0 paper roots are excluded from every denominator here because a chapter is authored per topic, not per paper (`notes/generate.ts::topWeightageNodes` filters `depth >= 1`, and `uppsc`'s complete rollout is 284 chapters over 294 nodes — exactly its 10 roots short).
 
@@ -49,7 +49,7 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 16 | 68 | `UPSC_PRE_GS1` | 2 | Ancient India | published · chapter v1 | `a7a37c7e-dde7-4f99-a7be-5634cb432e69` |
 | 17 | 65 | `UPSC_MAINS_GS1` | 1 | Indian Society | published · chapter v3 | `65e153a6-0b25-4904-94ba-9f2277795e02` |
 | 18 | 64 | `UPSC_PRE_GS1` | 2 | Biology | published · chapter v1 | `bb36c84f-75d7-499d-818a-4fca2a85f9e8` |
-| 19 | 54 | `UPSC_PRE_GS1` | 2 | Public Policy | published · chapter v2 | `decaece5-bf58-4434-863b-a1c08843e4ec` |
+| 19 | 54 | `UPSC_PRE_GS1` | 2 | Public Policy | published · chapter v3 | `decaece5-bf58-4434-863b-a1c08843e4ec` |
 | 20 | 50 | `UPSC_MAINS_ESSAY` | 1 | Essays on Multiple Topics | published · chapter v1 | `0cf7f2bb-6583-4e99-a92a-5d2881816712` |
 | 21 | 46 | `UPSC_PRE_GS1` | 2 | Bio-diversity | published · chapter v1 | `d2c80e73-41a1-4f3b-8b18-8a5675a0cdc9` |
 | 22 | 45 | `UPSC_PRE_GS1` | 2 | Political System | published · chapter v2 | `3c726bd5-677c-492d-bb8d-912d05f4c383` |
@@ -59,12 +59,12 @@ This ordering **is the worklist**: the next node to author is the topmost row wh
 | 26 | 39 | `UPSC_MAINS_GS3` | 1 | Internal Security | published · chapter v1 | `0b4b24f5-134b-4532-9b42-9fe2daef321d` |
 | 27 | 39 | `UPSC_PRE_GS1` | 2 | Climate Change | published · chapter v1 | `1803cd3f-cf00-4ae7-8127-4162a5c33aae` |
 | 28 | 39 | `UPSC_PRE_GS1` | 2 | Modern India | published · chapter v1 | `ec19feac-5476-4c1d-bd3d-81a03e704870` |
-| 29 | 38 | `UPSC_MAINS_GS3` | 1 | Agriculture, Food Security and Land Reforms | published · chapter v1 | `2bf48454-967e-4059-9016-9b4d72eacc92` |
+| 29 | 38 | `UPSC_MAINS_GS3` | 1 | Agriculture, Food Security and Land Reforms | published · chapter v2 | `2bf48454-967e-4059-9016-9b4d72eacc92` |
 | 30 | 37 | `UPSC_PRE_GS1` | 2 | Sustainable Development | published · chapter v1 | `034280e8-47a8-44e4-98bc-455060a2b3b5` |
 | 31 | 33 | `UPSC_MAINS_GS3` | 1 | Indian Economy, Planning and Investment | published · chapter v3 | `cab7e1de-abe2-460e-bea9-f1e0e1386ca6` |
 | 32 | 33 | `UPSC_PRE_GS1` | 2 | Environmental Ecology | published · chapter v2 | `6531ab4b-3707-4dff-af27-4dbe6f2880d6` |
 | 33 | 33 | `UPSC_PRE_GS1` | 2 | Indian National Movement | published · chapter v2 | `449d1034-2fe7-4a1f-9a0e-6dd8db47e686` |
-| 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | published · chapter v1 | `e18c8af8-b014-41e8-b683-0b55306f47df` |
+| 34 | 32 | `UPSC_MAINS_GS2` | 1 | Governance | published · chapter v2 | `e18c8af8-b014-41e8-b683-0b55306f47df` |
 | 35 | 32 | `UPSC_MAINS_GS2` | 1 | Social Justice | published · chapter v3 | `e20280a3-87e3-41ac-b2d7-ac4ee5609f3e` |
 | 36 | 32 | `UPSC_PRE_GS1` | 2 | Medieval India | published · chapter v1 | `b1ebdbcd-71fe-4e53-a5a6-f6729f9cf7d0` |
 | 37 | 32 | `UPSC_PRE_GS1` | 2 | Social Sector Initiatives | published · chapter v1 | `31297df0-0d55-4365-b6d3-ff459c15fc03` |
