@@ -2188,3 +2188,113 @@ ask "let users see the series and schedule even if not on Max; only TAKING it is
     `check:paths` (908) · `check:cli-args` (258) · `check:seo` · oxlint **49, delta 0**. Both
     throwaway users deleted by captured id; `users_profile` back to **185** and the briefly-opened
     paper restored **byte-equal**, both re-queried rather than assumed.
+## PYQ-weighted sub-topic depth (2026-08-16 → 08-22): 13 nodes deepened, and three ways a coverage metric lies
+`docs/upsc-chapter-panel-verdict.md` Part 3 classified 101 UPSC nodes `redundant` on a **≥20-word verbatim
+passage**. That bar proves coverage EXISTS; it does not prove the coverage is proportionate to what the exam
+ASKS. This round applied a measured depth standard to the redundant set. **13/13 worklist nodes done across
+9 chapters, every one below the p25 line at the start and above it at the end.** `upsc` stays **78 published
+chapters** — every change growth in place, no promotions, no new chapters, all **117 `covered_by` pointers
+untouched**; `uppsc` **284 byte-identical, verified after every single publish**. All authoring by free
+coding-agent subagents — **$0 of paid `notes:chapter` spend**. Ten commits, `131a198`..`876ac1a`.
+  - **THE STANDARD, both sides derived from the bank rather than chosen.** (A) **node weight**: own real PYQ
+    counts of nodes that already have their own chapter — split by shape first, because the halves are not
+    comparable (chaptered PARENTS hold their PYQs on their children, median **0** own PYQs), so only the **45
+    leaves** are like-for-like: min 1, p25 **5**, median 26, max 269 → floor **own PYQ ≥ 5**, 66 of 117 nodes.
+    (B) **depth vs weight**: a node with its own chapter receives a median **203 words of prose per real PYQ**,
+    p25 **104**. Below p25 = less prose per PYQ than 75% of nodes already judged chapter-worthy → **38 nodes /
+    18 chapters**, later narrowed to a genuine **13**.
+  - **⚑ THE METRIC LIED THREE TIMES, ALWAYS TOWARD INVENTING WORK — each caught by READING before dispatching,
+    and each would have produced duplicate content.** (1) **"No matching section" was a title-token artifact in
+    7 of 8 cases** — content sat under headings sharing no words with the node (*Statutory, Regulatory and
+    Quasi-Judicial Bodies* is taught in *"The Regulatory State: Sectoral Regulators and Their Appellate
+    Architecture"*, 1077w). (2) **The matcher never looked CROSS-PAPER** — `Major Crops and Cropping Patterns`
+    measured **0 w/PYQ** and is covered by `Agriculture, Food Security and Land Reforms` → *"Cropping Systems
+    and Patterns Across India"* [942w] (kharif×11, rabi×10). **Withdrawn, not a gap.** (3) **Crediting only the
+    single best-matching section systematically undercounts** — a node's territory is usually taught across
+    several. Recounting every matching section moved **25 of 38 nodes above the line**: Physical Geography
+    **32 → 196** (6 sections), World Geography **37.6 → 402** (10), Salient Features of Indian Society
+    **60.4 → 562** (11), Infrastructure **96.5 → 478** (5).
+    **So `words_per_pyq` is a LOWER BOUND and the all-sections recount an UPPER bound (loose heading tokens
+    pull in tangential sections). Neither settles anything alone.**
+  - **⚑ WHAT SETTLES IT — AND THE FINDING THAT JUSTIFIES THE WHOLE ROUND: an aggregate hides a starved
+    sub-area.** Physical Geography is the case. The corrected measurement put it at **196 w/PYQ (the bank
+    median)** and the 2026-08-15 reviewer had independently called it *"compact but genuinely dense — needs
+    nothing"*. **Two independent signals agreeing normally closes a case.** Bucketing its **27** real PYQs by
+    the sub-areas its OWN description names reopened it: `solstice`, `equinox`, `Tropic of Cancer`,
+    `Arctic Circle`, `day length` → **0 occurrences each** across the chapter and its three siblings
+    (~21,000 words searched) against **4 real PYQs**; `isotherm`, `specific heat` → **0** against 3; UNCLOS
+    absent entirely. Landforms (6 PYQs), oceans (5), drainage (3), soils (1) were measured adequate and **left
+    untouched**. This is the **Demographics heading-scan trap** and the **Data Interpretation trap-table trap**
+    one level deeper again: a matching heading is not coverage, matching body terms are not coverage, **and a
+    healthy words-per-PYQ average is not coverage either. Only the sub-area PYQ table separates them.**
+  - **TWO ERRORS FOUND IN ALREADY-PUBLISHED CONTENT**, both by research for an expansion rather than by any
+    audit. (a) `International Relations` called the Maldives episode a *"partially reversed troop-withdrawal
+    dispute"* — **it was not reversed**: the withdrawal completed in full by **10 May 2024** and the military
+    personnel were replaced by **civilian HAL crews while the aircraft stayed** — a SUBSTITUTION, and the
+    sentence also stopped in 2024, missing the recovery (first-ever rupee-denominated LoC, 40% cut in annual
+    debt repayment, FTA talks launched-not-signed). (b) **Sri Lanka and China-as-neighbour were taught nowhere
+    in the bank** — `Katchatheevu`, `13th Amendment`, `bottom trawling`, `Hambantota`, `Trincomalee`, `Ditwah`,
+    `Extended Fund Facility`, `debt restructuring` **all 0** across all 77 published siblings against a 2022
+    PYQ; `String of Pearls`, `Galwan`, `Depsang`, `Demchok`, `Gwadar`, `CPEC` **all 0** against a 2017 PYQ.
+    ("Sri Lanka" returned 3 in-chapter hits — every one a bare membership list.)
+  - **THE OUTCOME** (before → after w/PYQ): Role of Women 86.1→**201.4** · Cyber Security 91.1→**185.8** ·
+    Population/Poverty 88.1→**181.4** · Communalism 65.2→**174.6** · Irrigation 93.8→**172.1** · E-Governance
+    97.8→**171.7** · Linkages/Extremism 66.9→**155.6** · Statutory-Regulatory 82.8→**~151**¹ · Urbanization
+    84.5→**145.6** · India+Neighborhood 51.1→**139.8** · Rights Issues 75.5→**137.4** · Effect of Policies
+    87.6→**130.1** · Problem Solving 100→**111.6**. ¹the automated recount scores it **0** — the same
+    title-token artifact as (1), since no heading shares two tokens with the node title; its section went
+    1077→1962w. **Three chapters ABOVE the line were also deepened** — Data Interpretation, Physical Geography,
+    World Geography — because their sub-area tables found starved clusters the average concealed.
+  - **⚑ THE JUDGMENT CALL WORTH KEEPING — Internal Security.** The government declared LWE eliminated in 2026
+    and MHA's classification reads **zero** LWE-affected districts; but **CPI (Maoist) has not announced
+    dissolution** and a statement attributed to its North Coordination Committee dated **26 June 2026** denies
+    the organisation is in crisis, while a tracker still recorded incidents through July 2026. Writing
+    "eliminated" as settled fact is wrong; dismissing the declaration as propaganda is also wrong, because the
+    fall in violence behind it is real and multi-source corroborated. The chapter's shipped formulation:
+    *"organised violence has collapsed and the administrative category has been retired, while the organisation
+    itself has not been declared dissolved"* — with a note that saying so is what separates a strong answer from
+    a press-release summary. **CyberDome** is taught from the **primary Kerala G.O.** (sanctioned 22 Aug 2014 by
+    G.O.(Ms.) No.167/2014/Home at ₹2 crore; inaugurated **Feb 2016**) — **the widely circulated "January 2017"
+    launch is corroborated by NO source and does not appear**; the brief's four binding "must not assert" items
+    (Jan 2017, replication in other states, volunteer headcounts, a CCSE founding date) were checked
+    mechanically post-write, all clean.
+  - **⚑ PROCESS: AGENTS DIED IN RESEARCH, NEVER IN WRITING — and the fix is the reusable finding.** Six
+    authoring attempts died mid-research having written **nothing**, while their research sub-agents kept
+    completing successfully. The fix: **bank the verified research to a file, then dispatch a LEAN author
+    forbidden from spawning sub-agents or searching, told to write a first version to disk immediately and
+    refine in place.** Every agent that survived did exactly that. One died having correctly judged its own
+    draft 3.5× too long and restored the file to fix it — which is precisely what writing-early prevents.
+  - **⚑ A "FAILED" AGENT IS NOT PROOF NOTHING LANDED — SIX TIMES this round.** Rights Issues, Public Policy,
+    Governance, Agriculture and Internal Security were all written by agents that died before reporting (last
+    words variously "Now writing the file", "Writing v1 to disk now", "All green… tightening it"). **Check the
+    output path before concluding a failure produced nothing.** Consequence worth stating: **five of the nine
+    chapters have no author's report at all**, so their commits rest entirely on independent validation, and
+    each commit says so. Agriculture's commit records that what shipped is the agent's **v1, not the refined
+    version it intended**.
+  - **THE PRE-ASSEMBLE SCHEMA CHECK EARNED ITS PLACE.** One agent invented `status: "contested"`, which is not
+    in the enum (`verified`|`flagged`|`unverifiable`). **Assemble would have failed on it AFTER taking the
+    chapter off the live site** — which is exactly why that check runs first. Each claim as written was
+    confirmed by a real source (its own evidence text opens "Verified…"), so all three were recorded `verified`
+    with the nuance kept in `evidence` and the prose. Separately, `International Relations` raised 2 genuine
+    `flagged` facts (FY26 trade figures ahead of the primary release; ₹7,300cr/₹1,500cr as reported not
+    confirmed) — **judged individually and resolved with the reason recorded, never blanket-resolved**.
+  - **VERIFICATION, independent of every agent's self-report**: schema parse, citation-marker resolution
+    (uppercase `[S<n>]` only), pyq_id existence AND scope, structural retention (no dropped section/source/fact
+    id), bilingual, and 7-gram sibling overlap. **Worst sibling overlap across the whole round was 4 shared
+    7-grams against a ~15 bar; most were 0–2.** Every chapter: 0 foreign-exam chunks. Gates at close: api
+    typecheck **0**, `check:paths` **911 files**, `check:cli-args` **259 files**.
+  - **⚑ MY OWN VALIDATOR WAS WRONG TWICE, both caught before acting on it.** (a) Its pyq_id scope was
+    `[covering node + this round's targets]`, but a chapter legitimately teaches ALL its member nodes — it
+    flagged 13 pre-existing citations as "foreign". Fixed to check only ids the agent ADDED, against the
+    chapter's full member set. (b) A duplicate-pyq_id alarm turned out to be the **normal** section-plus-box
+    pattern (other chapters carry 10–18 of them) and unchanged from baseline; the genuine cross-section
+    duplicate an agent self-reported creating was real and it fixed it, but its claim that "all 7 chapters have
+    zero" was wrong — `International Relations` carries one **pre-existing**.
+  - **GOTCHAS.** The **scratch directory was deleted mid-round** — nothing lost, because the worklist lived in
+    a **committed** doc and packs/dumps/fingerprints all regenerate from the DB in one script; treat session
+    scratch as disposable and commit anything load-bearing. **esbuild lost its platform binary** to the
+    documented iCloud numbered-duplicate corruption (D14) — the real binary displaced by a file named
+    `esbuild 2`; fixed by copying it back rather than reinstalling, because a concurrent session had
+    `pnpm dev` running. `cd` does not persist between Bash calls here, so two heredocs landed in the repo root
+    (moved, not left). And `PIPESTATUS`/`| tail` returned an empty exit status once — the documented D15
+    false-green; **check exit codes directly, never through a pipe**.
