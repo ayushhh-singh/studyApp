@@ -557,6 +557,83 @@ Survives both bounds: each has exactly **one** dedicated section and no cross-pa
 **Four of Indian Society's six members are on it.** That chapter was already the thinnest per unit of
 coverage load and was already expanded once on 2026-08-15 — and it is still the thinnest.
 
+
+### OUTCOME — round complete, 13/13
+
+Nine chapters, all growth in place. **upsc stays 78 published chapters — no promotions, no new chapters,
+all 117 `covered_by` pointers untouched.** `uppsc` **284 byte-identical, verified after every single
+publish.** All authoring by free coding-agent subagents; **$0 of paid `notes:chapter` spend.**
+
+| node | PYQ | before | after | chapter |
+|---|---:|---:|---:|---|
+| Role of Women and Women's Organization | 7 | 86.1 | **201.4** | Indian Society v3 |
+| Basics of Cyber Security and Money-Laundering Prevention | 9 | 91.1 | **185.8** | Internal Security v2 |
+| Population, Poverty and Developmental Issues | 8 | 88.1 | **181.4** | Indian Society v3 |
+| Communalism, Regionalism & Secularism | 9 | 65.2 | **174.6** | Indian Society v3 |
+| Irrigation, Storage, Transport and Marketing | 10 | 93.8 | **172.1** | Agriculture v2 |
+| E-Governance and Citizens Charters | 9 | 97.8 | **171.7** | Governance v2 |
+| Linkages Between Development and Spread of Extremism | 8 | 66.9 | **155.6** | Internal Security v2 |
+| Statutory, Regulatory and Quasi-Judicial Bodies | 13 | 82.8 | **~151**¹ | Public Policy v3 |
+| Urbanization, its Problems and their Remedies | 10 | 84.5 | **145.6** | Indian Society v3 |
+| India and its Neighborhood — Relations | 10 | 51.1 | **139.8** | International Relations v2 |
+| Rights Issues | 20 | 75.5 | **137.4** | Social Justice v3 |
+| Effect of Policies of Developed/Developing Countries | 7 | 87.6 | **130.1** | International Relations v2 |
+| Problem Solving | 22 | 100 | **111.6** | Decision Making v2 |
+
+¹ the automated recount scores it 0 — the same title-token artifact as correction 1, since no heading
+shares two tokens with the node title. Its section went 1077 → 1962w, i.e. ~151 w/PYQ.
+
+Three chapters were also deepened that the corrected measurement had placed ABOVE the line — Data
+Interpretation, Physical Geography and World Geography — because their sub-area tables found starved
+clusters the average concealed. That is the round's central finding, below.
+
+### ⚑ What the round actually proved
+
+**An aggregate hides a starved sub-area, and only a sub-area PYQ table separates them.**
+
+Physical Geography is the case that settles it. The corrected measurement put it at 196 w/PYQ (the bank
+median) and an independent human reviewer had called it *"compact but genuinely dense — needs nothing"*.
+**Two independent signals agreeing normally closes a case.** Bucketing its 27 real PYQs by sub-area
+reopened it: `solstice`, `equinox`, `Tropic of Cancer`, `Arctic Circle`, `day length` returned **0
+occurrences** across the chapter and its three siblings (~21,000 words) against **4 real PYQs**; `isotherm`
+and `specific heat` **0** against 3. Landforms, oceans, drainage and soils were measured adequate and left
+alone.
+
+This is the same trap family one level deeper again: a matching **heading** is not coverage (Demographics),
+matching **body terms** are not coverage (Data Interpretation), and now **a healthy words-per-PYQ average
+is not coverage either.**
+
+### Two errors found in already-published content
+
+- **International Relations** described the Maldives episode as a *"partially reversed troop-withdrawal
+  dispute"*. It was not reversed — the withdrawal completed in full by 10 May 2024 and the military
+  personnel were replaced by **civilian HAL crews while the aircraft stayed**. Substitution, not reversal.
+- **Sri Lanka and China-as-neighbour were taught nowhere in the bank.** Katchatheevu, 13th Amendment,
+  bottom trawling, Hambantota, Trincomalee, Ditwah, debt restructuring — all **0** across all 77 published
+  siblings, against a 2022 PYQ. String of Pearls, Galwan, Depsang, Demchok, Gwadar, CPEC — all **0**,
+  against a 2017 PYQ.
+
+### Process findings worth keeping
+
+- **Agents kept dying in RESEARCH, never in writing.** Six authoring attempts died mid-research having
+  written nothing, while their research sub-agents completed successfully. The fix was to separate the
+  phases: bank the verified research to a file, then dispatch a lean author forbidden from searching and
+  told to write a first version to disk immediately and refine in place. Every agent that survived did
+  exactly that.
+- **A "failed" agent is not proof nothing landed — this happened SIX times.** Rights Issues, Public Policy,
+  Governance, Agriculture and Internal Security were all written by agents that died before reporting.
+  Check the output path before concluding a failure produced nothing.
+- **Five of the nine chapters have no author's report at all**, so their commits rest entirely on
+  independent validation — schema, citation-marker resolution, pyq_id existence and scope, structural
+  retention, bilingual, and n-gram overlap. Worst sibling overlap across the whole round was **4 shared
+  7-grams against a ~15 bar**; most were 0–2.
+- **The schema check earned its place.** One agent invented `status: "contested"`, which is not in the enum.
+  Assemble would have failed on it *after* taking the chapter off the live site, which is why that check
+  runs before assemble rather than after.
+- **The scratch directory was deleted mid-round.** Nothing was lost, because the worklist lived in this
+  committed file rather than in scratch, and packs/dumps/fingerprints all regenerate from the DB in one
+  script.
+
 ### Corrections to earlier records
 
 - **Physical Geography is 27 real PYQs, not 30.** The "30" in the Part 3 table and in the 2026-08-15 entry is
