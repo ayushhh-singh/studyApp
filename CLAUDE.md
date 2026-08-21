@@ -2429,3 +2429,133 @@ Every synthetic row deleted by an id captured at insert time and re-queried to p
     `test:qgen` 51→70 mid-session (re-measured, not assumed mine). Every commit staged by explicit path via
     `git commit -- <paths>` and re-checked with `git show --stat`; its untracked files were left untouched
     rather than swept by a cleanup glob.
+
+## Series-aware qgen: `--series <slug>` mode (2026-08-19), and the edge-case audit that fixed two real bugs in it (2026-08-22)
+Live investigation into "why does the qgen fresh-supply fill status include CSAT" surfaced that
+`docs/test-series-design.md` §6.6's own recommendation — *"Recommend a `--series <slug>` mode that reads
+the upcoming entries' syllabus_note nodes and biases targets toward them"* — had never been built. The
+uniform `FRESH_MCQ_FLOOR` was asking for ~105 fresh CSAT questions per exam on measurement, when the REAL
+scheduled demand was ~30 (uppsc's one CSAT full-length series entry) and **zero** (upsc has no CSAT series
+at all — `upsc-prelims-2027`'s `paper_scope` is `UPSC_PRE_GS1`, so no series entry's `node_targets` ever
+names a CSAT node). Built and shipped the mode, then ran a self-directed edge-case audit that found and
+fixed two real defects in it.
+  - **⚑ BUILDABLE WITHOUT A SCHEMA CHANGE — the exact information the doc asked for already existed.**
+    `test_series_entries.meta.node_targets` (syllabus path prefixes, `[]` = whole paper) and
+    `meta.composition` (the real pyq/ca/qgen percentage split per §6.2) are populated on **every** entry at
+    series-creation time, assembled or not — but that's a SNAPSHOT copy for display/audit
+    (`services/test-series.ts`), not the source of truth. The real source is the calendar JSON file
+    (`series/calendar.ts`'s `loadCalendar`), which `series/build.ts` re-reads on EVERY assembly run. New
+    `src/qgen/series-demand.ts` reads the SAME file the SAME way, so there is zero risk of the two drifting
+    apart — a demand computed by topup and an assembly computed by `series:build` can never disagree about
+    what an entry needs.
+  - **THE MECHANISM**: for a named series, find entries that are (a) unassembled (`test_id is null` — once
+    assembled, its pool is already drawn/backfilled, topping it up further helps nothing), (b) open within
+    the lookahead window (default 28 days, matching §6.6's own "check the next 4 weeks" ops-loop
+    recommendation), and (c) declare a nonzero `composition.qgen` (current_affairs/state_special entries are
+    qgen:0 by convention, so this filter alone handles them with no entry_kind special-casing). Resolve each
+    qualifying entry's `node_targets` to real leaf nodes (mirroring `series/build.ts`'s `buildAxis`
+    prefix-matching rule verbatim — the two MUST agree, since one decides what topup generates and the other
+    decides what an assembled test draws from), distribute the entry's qgen count across those leaves by
+    hotness, aggregate additively across every qualifying entry, and diff against currently-APPROVED
+    generated supply (never `needs_review`, matching `freshTargetsFor`'s own definition). A NEW
+    `runSeriesTopup` in `topup.ts` shares `trimToBudget`/`generateBatch`/`TopupResult` with the existing
+    `runTopup` so `--max-usd`/`--dry-run` behave identically — only WHAT gets planned differs. Deliberately a
+    SEPARATE opt-in CLI mode (`pnpm qgen:topup --series <slug> [--lookahead-days N]`), not folded into the
+    always-on nightly cron's default path: the demand function throws loudly on a malformed calendar entry
+    (a stale `node_targets` path, a `current_affairs` entry with the wrong paper_code), which is correct for
+    an explicitly human-invoked tool and wrong for a step that must never let one bad calendar row take down
+    the whole nightly run.
+  - **`--series`/`--exam`/`--kind` are mutually exclusive, rejected rather than silently ignored** — the
+    calendar file itself declares its exam and each entry its own `question_type`, so passing either
+    alongside `--series` would make the operator believe they scoped something that was actually ignored
+    (the exact class M24 already names). `--series` without `--topup` is rejected too, for the identical
+    reason. An unknown slug's error already lists every available calendar (from `loadCalendar` itself); the
+    CLI's own catch avoids printing a duplicate hint by checking for that.
+  - **VERIFIED AGAINST REAL DATA, both halves of the hypothesis.** `upsc-prelims-2027` at a 250-day
+    lookahead: **zero CSAT mentions anywhere in the output** — structurally impossible for it to differ,
+    since no entry's `paper_code` in that calendar ever references `UPSC_PRE_CSAT`, so it is never even
+    queried. `uppsc-prelims-2026` at a 120-day lookahead: CSAT leaves show genuinely small demand (1-6
+    questions each, summing to ~19 of the ~30 the one scheduled CSAT test needs, the rest already covered by
+    existing approved supply) — a real reduction from the uniform floor's ~105-question ask for the same
+    topics. The default (non-`--series`) uniform-floor path is completely untouched — `runTopup` itself was
+    never modified, only imported from.
+  - **NO CIRCULAR IMPORT**: `series-demand.ts` is a clean leaf module (imports nothing from `topup.ts`,
+    matching the existing `on-demand-reserve.ts` pattern) that `topup.ts` imports FROM. `MAX_PER_NODE` is
+    exported from `topup.ts` rather than duplicated.
+  - Pure functions (`matchingLeaves`, `distributeByHotness`) extended into `scripts/test-qgen-plan.ts`
+    (the existing `test:qgen` file, per convention — no rogue parallel test file), including a **negative
+    control proving the trailing-slash path-matching guard is load-bearing**: deliberately reverted it to a
+    naive `startsWith` with no boundary check, confirmed the test catches the exact false-positive
+    (`"polity"` wrongly matching `"polity-extra"`), then restored via `cp` + sha256 verification (never
+    `git checkout`, per this repo's own standing rule).
+
+### Edge-case audit, 2026-08-22 — two real bugs found and fixed, both in the code shipped three days earlier
+Asked to "check all edge cases" on the just-shipped mode. Reasoned through failure paths (precision loss,
+log/output consistency, operational visibility) rather than re-confirming the happy path already verified
+above.
+  - **⚑ BUG 1, THE SERIOUS ONE — `distributeByHotness` could silently lose an entry's ENTIRE demand to
+    rounding, not just drift.** It used a plain per-leaf `Math.round(count * share)`. Proven with a direct
+    calculation before touching any code: 2 questions spread across 9 equal-hotness leaves gives every leaf
+    a raw share of 2/9≈0.22, which rounds to **0 everywhere** — the whole `count` vanishes, nothing generated
+    on any leaf, no error raised anywhere in the pipeline. This is not a hypothetical edge case: a real
+    sectional entry's qgen share is commonly just 2-6 questions (§6.2's own mix table), and a CSAT-sized
+    5-9-leaf set with no single dominant hotness is exactly the shape that triggers it. Fixed with the
+    identical **largest-remainder** technique `series/build.ts`'s `sliceTargets` already uses for the same
+    reason (documented there: *"so the parts sum to exactly `count` rather than to 99 or 101 after
+    rounding"*) — floor each leaf's exact share, then hand the leftover one unit at a time to the leaves with
+    the largest fractional remainder, guaranteeing the output always sums to exactly `count` (for
+    `count > 0` and a non-empty leaf set) while the integer part still tracks hotness proportionally.
+  - **Verified three ways, not just the one hand-picked case**: a direct repro of the old bug (`node -e`,
+    confirmed 0 allocated for count=2/n=9 before touching the fix); a **property test** across a spread of
+    count/leaf-count shapes including primes (1/5, 2/9, 3/7, 5/13, 7/3, 15/8, 30/9, 100/33 — none divide
+    evenly) asserting the sum equals `count` exactly in every case; and a **negative control** — reverted
+    `distributeByHotness` to the plain-`Math.round` version, confirmed the two new tests fail naming exactly
+    the two properties they're meant to guard, restored via `cp` + sha256 match (never `git checkout`),
+    re-confirmed 74/74 passing. All pre-existing tests (proportional split, equal split, zero-hotness
+    exclusion) still passed unmodified under the fix — they happened to divide evenly, which is precisely
+    why they never exposed the rounding-loss defect and a dedicated test was needed.
+  - **⚑ BUG 2 — the per-node `MAX_PER_NODE` clamp was applied by the CALLER, after the demand function had
+    already logged the UNCLAMPED number, so one run's own output could disagree with itself.** Real example
+    from live data: the per-leaf log line read `"Biology" wanted=32 approved=6 → generate 26`, while the
+    same run's final `would generate 20 mcq for "Biology"` line (the number actually used) showed 20 — two
+    different "generate N" claims for the same node in one run, because `runSeriesTopup` clamped the plans
+    it received from `seriesShortfallsFor` AFTER that function had already printed its own log line. The
+    existing uniform-floor passes (`shortfallsFor`/`freshShortfallsFor`) clamp BEFORE logging, so their two
+    numbers always agree — this broke that established invariant. Fixed by threading `maxPerNode` INTO
+    `seriesShortfallsFor` as a caller-supplied **parameter** (not an import, which would have re-created the
+    circular-dependency problem the leaf-module split was built to avoid) and clamping at the exact point the
+    shortfall is computed, before the log line — matching the uniform pipeline's pattern exactly rather than
+    inventing a second one. Re-verified against real data: `"Biology"`/`"Chemistry"`/`"Medieval India"` (the
+    three nodes whose true shortfall exceeded 20) now show `→ generate 20` in BOTH places, in agreement.
+  - **Also added, a cheap and safe observability fix, not a behaviour change**: a loud `⚠` warning when a
+    series entry has already opened and is STILL unassembled. The lookahead window has no LOWER bound by
+    design (an overdue entry is even more urgent than an upcoming one, so it was already always included) —
+    but that also made it silently indistinguishable from a normal upcoming entry in the log, which would
+    quietly bury a real operational failure (nobody ran `series:build` before the entry's own opening date)
+    inside an ordinary-looking run. Checked against all four real calendars (`uppsc-prelims-2026`,
+    `uppsc-mains-2027`, `upsc-prelims-2027`, `upsc-mains-2027`) — **zero entries are currently overdue**, so
+    this is prevention rather than a live fix, verified to add no unexpected `⚠` lines to any real dry-run.
+  - **Confirmed NOT bugs, checked rather than assumed**: the Mains series (`composition.qgen=0` on every
+    entry, per §6.5's PYQ-only design decision baked into the calendar spec) produces a clean, correct empty
+    result at a 400-day lookahead covering the whole series — no crash, no confusing partial output. A
+    theoretical TOCTOU race (someone runs `series:build` on an entry between this tool reading its assembled
+    status and finishing its own computation) is accepted as a low-probability, harmless race rather than
+    engineered against — `--series` is an explicitly human-invoked, occasional tool, and `series:build` has
+    no cron of its own per the design doc, so a tight race between the two is implausible; the worst outcome
+    is generating slightly more supply than strictly needed for that one entry, which every other tolerance
+    in this pipeline already treats as harmless. Repeat-invocation double-counting (running `--series` twice
+    before reviewing between runs would ask for the same shortfall again, since new output lands in
+    `needs_review` and stays invisible to the approved-only supply check) is an inherited property of the
+    WHOLE qgen pipeline — the uniform floor has the identical characteristic — not something this mode
+    introduces, and Stage-D dedup is the existing mitigation for it across the board.
+  - Re-verified end to end after both fixes: `check:cli-args`, `check:paths`, full api typecheck, a real
+    emit build, and all seven pure suites (`test:qgen` 74/74, `test:args` 330/330, `test:mentor`,
+    `test:tips`, `test:embed-chunk`, `test:ca-rotation`, `test:balance`) all clean. Both real series
+    re-verified against live data one final time: `uppsc-prelims-2026`'s CSAT-leaf shortfall and
+    `upsc-prelims-2027`'s zero-CSAT-mentions property both hold unchanged after the fixes; the default
+    uniform-floor path re-confirmed untouched.
+  - **CONCURRENT PROCESS throughout**: another session actively held `apps/api/src/ingest/key-provenance.ts`,
+    `src/ingest/tests.ts`, `docs/OUTSTANDING.md`, and several `_tmp_g4_*`/`_tmp_g9_*` scratch files across
+    both the build and the audit — confirmed disjoint from this work at every commit via `git status`/`git
+    show --stat`, none of it touched, and only this session's own `_tmp_check_*`/`_tmp_project_after_approval`/
+    `_tmp_audit_overdue` scratch files were removed (by explicit name, never a glob).
