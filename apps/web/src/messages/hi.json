@@ -1034,6 +1034,11 @@
     "confirmCancel": "रद्द करें",
     "confirmSwitch": "परीक्षा बदलें"
   },
+  "Exam": {
+    "examOnly": "केवल {{exam}}",
+    "allExams": "सभी परीक्षाएँ",
+    "filterLabel": "परीक्षा के अनुसार फ़िल्टर करें"
+  },
   "OnDemand": {
     "newSet": "मुझे नया सेट दिखाएँ",
     "newMock": "नया मॉक",

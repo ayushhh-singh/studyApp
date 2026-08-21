@@ -74,8 +74,36 @@ const OFFICIAL_COMMISSION: Record<string, number[]> = {
   UPSC_PRE_GS1: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
   UPSC_PRE_CSAT: [2016, 2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025],
 };
+/**
+ * PRE_GS1 2022 added 2026-08-15. Before it, this (paper, year) had NO sourced key
+ * at all — and the failure mode is worth recording, because it is silent and it
+ * looks like the opposite of what it is. `ingest:resolve`'s no-key branch does
+ * `if (!target.correct_option_key) target.correct_option_key = blind.chosen_key`,
+ * i.e. an UNKEYED paper comes out of the resolver with the blind solver's own
+ * PROPOSAL sitting in `correct_option_key`. So all 150 rows looked keyed
+ * (`correct_option_key` set, and it named a real option) while carrying zero
+ * `answer_key_verified` and a `blind_resolve.status='no_key'` with
+ * `stored_key: null`. The gate did its job — 149 of 150 were held out of the live
+ * bank — but the symptom a human sees is "the 2022 paper shows 1 question", not
+ * "the 2022 paper has no answer key".
+ *
+ * The key now applied is theexampillar's "UPPSC Pre Exam Paper I (General Studies)
+ * 12 June 2022 (Official Answer Key)", Booklet Series B, 150/150. Coaching-
+ * reproduced tier (same source class as this map's 2018 entry), so it deliberately
+ * routes through gate (B): each question still needs an independent blind re-solve
+ * to agree before it may auto-publish.
+ *
+ * Series alignment was VERIFIED by content, never assumed — the 2021 GS-I incident
+ * (a key applied under an assumed Series A when the paper follows Booklet D, giving
+ * ~27% agreement that read as "the key is wrong") is exactly what this guards
+ * against. Two independent checks: question stems match 1:1 by q_no, and 127 of the
+ * 141 questions where all four options could be parsed match option-for-option at
+ * the SAME letter (the rest are OCR garbling of identical text, not a shuffle) —
+ * so both the question order and the option order transfer, which is a stronger
+ * proof than blind-agreement alone.
+ */
 const COACHING_REPRODUCED: Record<string, number[]> = {
-  PRE_GS1: [2018, 2025],
+  PRE_GS1: [2018, 2022, 2025],
   PRE_CSAT: [2022],
 };
 

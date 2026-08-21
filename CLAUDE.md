@@ -2559,3 +2559,57 @@ above.
     both the build and the audit — confirmed disjoint from this work at every commit via `git status`/`git
     show --stat`, none of it touched, and only this session's own `_tmp_check_*`/`_tmp_project_after_approval`/
     `_tmp_audit_overdue` scratch files were removed (by explicit name, never a glob).
+
+## Catching up git history to what was already live (2026-08-22)
+Asked to push the accumulated local work, then to check what remained in `git status` afterward. Two
+genuinely different pieces of other sessions' in-progress work were sitting uncommitted — one a completed
+fix whose code had never been committed, one a real but unfinished component — audited both, closed a real
+gap found in the second, and committed both.
+  - **The PRE_GS1 2022 answer-key fix (`key-provenance.ts` + `tests.ts` + `OUTSTANDING.md` rows A5/A12-A15,
+    originally the 2026-08-15 session already narrated earlier in this file) had never been committed.**
+    CLAUDE.md's own write-up of that session was committed; the CODE that produced it was not — three files
+    sat modified in the working tree this whole time, surfaced only because they showed up in a routine
+    `git status` check. **Verified this was not speculative, untested code before committing it**: queried
+    the live `tests` row for `pyq:PRE_GS1:2022` directly and found `meta.coverage: {live:148, thin:false,
+    ingested:150}` — a field shape that only the NEW code writes, proving the session had actually EXECUTED
+    this exact code against the live DB and gotten the documented result. So committing it changes nothing
+    live; it only catches git history up to what production already is. **The real, disclosed consequence
+    of the gap**: since it was never pushed either, the code now DEPLOYED (until this commit) had neither
+    the 2022 key registration nor the new general-purpose "thin paper" guard (`MIN_FULL_PAPER_COVERAGE=0.5`
+    in `tests.ts` — the reusable fix for the underlying bug class, not just this one paper) — so a future
+    re-run of `ingest:tests` from the deployed environment would have silently lost that protection.
+  - **Traced the thin-paper guard's interactions with existing logic rather than trusting the diff's own
+    comments at face value.** Confirmed `upsertTest`'s `.upsert(row, {onConflict:"slug"})` genuinely
+    overwrites `is_published` on every run (not just insert), so the documented "self-healing in both
+    directions" claim — a closing gap republishes, a regression demotes — actually holds; confirmed
+    `setMembership` runs UNCONDITIONALLY regardless of `thin` status, so a thin test's `test_questions` stay
+    accurate even while unpublished; traced the interaction with the pre-existing zero-member cleanup at the
+    end of the file and confirmed a genuinely-empty (0-coverage) paper still gets built-then-immediately-
+    deleted in the same run exactly as before this change, with no new dangling row ever visible to a user.
+    Confirmed the file imports neither the Anthropic nor the embeddings client (the A15 claim, re-verified
+    by grep on the actual committed files, not assumed from the changelog).
+  - **⚑ `apps/web/src/components/ui-x/exam-filter.tsx` — a real, unfinished new component, not scratch —
+    referenced THREE i18n keys that did not exist in either message file** (`Exam.examOnly`, `Exam.allExams`,
+    `Exam.filterLabel`). An earlier grep for `"filterLabel"` had found a hit and looked satisfied by it; a
+    closer check showed that hit belonged to the unrelated `Resources.filterLabel` ("Filter by subject") —
+    there was no top-level `"Exam"` key in the messages file at all. Since this was going to be committed
+    (not just left as in-progress work), added all three keys to BOTH `en.json` and `hi.json`, placed beside
+    the existing `ExamSwitcher`/`ExamPicker` keys for the same reason those two are already grouped there,
+    phrased to match `useCurrentExam`'s `shortExamName()` output (a short form like "UPPSC", so
+    `"{{exam}} only"` reads naturally) and the sibling `Resources.filterLabel` Hindi phrasing pattern.
+    Verified both files stay valid JSON and the three new keys have exact en/hi parity (no dedicated i18n
+    parity script exists in this repo, so this was checked by hand). Confirmed `useCurrentExam` and the bare
+    `ExamCode` type (distinct from the narrower `TargetExamCode`) both genuinely exist, so the component's
+    remaining imports were never actually broken — only the copy was missing.
+  - **`oxlint` re-run specifically for the new file: zero warnings attributed to `exam-filter.tsx`**, total
+    unchanged from the established 49-warning baseline. The component is still unreferenced by any page (no
+    edge case to exercise beyond compiling and having real copy), and that is recorded rather than treated
+    as a defect — it reads as a primitive built ahead of the page that will consume it, a normal build order
+    in this codebase, not a suspicious orphan.
+  - Removed the four `_tmp_g4_*`/`_tmp_g9_*` scripts (all pure `.select()` read-only investigation tooling —
+    grepping published UPSC chapters for coverage of specific legal/constitutional terms like *mandamus*,
+    *habeas corpus*, the Forest Rights Act, Aadhaar — used to decide what a chapter-deepening pass still
+    needed to write, disposable by the `_tmp_` convention and containing no DB writes to lose).
+  - Verified the full COMBINED state (these six files together, not each in isolation): api typecheck, full
+    api emit build, **full production web build** (the message-file change counts as shared per this repo's
+    own hard rule), and both CI-enforced guards (`check:cli-args`, `check:paths`) all clean.

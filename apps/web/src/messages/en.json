@@ -1034,6 +1034,11 @@
     "confirmCancel": "Cancel",
     "confirmSwitch": "Switch exam"
   },
+  "Exam": {
+    "examOnly": "{{exam}} only",
+    "allExams": "All exams",
+    "filterLabel": "Filter by exam"
+  },
   "OnDemand": {
     "newSet": "Show me a new set",
     "newMock": "Fresh mock",

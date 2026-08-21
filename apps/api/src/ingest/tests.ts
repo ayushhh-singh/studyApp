@@ -87,6 +87,61 @@ async function fetchPublished(): Promise<QRow[]> {
   return out;
 }
 
+/**
+ * (paper_code::year) -> how many PYQs were INGESTED for that paper-year, whatever
+ * their publish state. This is the denominator for the thin-paper guard below; the
+ * numerator is the same population with the publish filter applied, so the ratio is
+ * apples-to-apples. Restricted to source='pyq' because a `pyq_full` test claims to
+ * BE that year's paper — measured live: every question carrying a year is source
+ * 'pyq' today, so this filter changes nothing now and keeps the ratio honest if
+ * generated content ever starts carrying one.
+ */
+async function fetchIngestedPyqTotals(): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase()
+      .from("questions")
+      .select("paper_code, year")
+      .eq("source", "pyq")
+      .in("exam_code", TARGET_EXAM_CODES)
+      .not("year", "is", null)
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`fetch ingested totals: ${error.message}`);
+    const rows = (data ?? []) as { paper_code: string; year: number }[];
+    for (const r of rows) {
+      const k = `${r.paper_code}::${r.year}`;
+      out.set(k, (out.get(k) ?? 0) + 1);
+    }
+    if (rows.length < PAGE) break;
+  }
+  return out;
+}
+
+/**
+ * A `pyq_full` test is a claim: "this IS the <paper>, <year> paper". Below this
+ * fraction of the paper's own ingested questions it is not that paper, and listing
+ * it in Practice misrepresents the bank — the symptom that surfaced this was the
+ * 2022 GS-I paper sitting in the PYQ Papers tab reading "1 question, Marks: 1.33"
+ * because 149 of its 150 questions were (correctly) held behind the answer-key
+ * gate. A near-empty paper is worse than an absent one: absent reads as "not
+ * ingested yet", near-empty reads as "this is all UPPSC asked".
+ *
+ * 0.5 is chosen from the real distribution, not taste. Measured across all 151
+ * (exam, paper, year) groups at the time this landed, coverage is bimodal with
+ * nothing in between: the thin groups sit at 0.0-0.7% and every healthy paper is
+ * >=87.5%. So any threshold in that whole empty band picks out exactly the same
+ * groups, and half-the-paper is the value that states the intent ("most of the
+ * paper") rather than fitting the data.
+ *
+ * The test is still BUILT and its membership still refreshed when the guard fires —
+ * it is only left unpublished. That is what makes it self-healing in both
+ * directions: closing the gap republishes it on the next run, and a paper that
+ * REGRESSES gets actively demoted instead of staying published on stale membership.
+ */
+const MIN_FULL_PAPER_COVERAGE = 0.5;
+
 /** node_id -> top-level path slug (for sectional grouping). */
 async function topLevelByNode(): Promise<Map<string, { paperCode: string; top: string; titleEn: string }>> {
   const { data, error } = await supabase()
@@ -148,6 +203,7 @@ async function setMembership(testId: string, questionIds: string[]): Promise<voi
 async function main(): Promise<void> {
   report.section("ingest:tests");
   const published = await fetchPublished();
+  const ingestedTotals = await fetchIngestedPyqTotals();
   report.step(`published questions available: ${published.length}`);
   if (published.length === 0) {
     report.warn("no published questions yet — load PYQs first (ingest:pyq:load). Nothing to assemble.");
@@ -205,6 +261,19 @@ async function main(): Promise<void> {
           ? { type: `${paper.exam}_prelims`, negative_marking: prelimsMarking!.negativeMarking, note: "one-third (1/3) negative marking" }
           : { type: "descriptive", negative_marking: 0 },
     };
+    // Thin-paper guard — see MIN_FULL_PAPER_COVERAGE. `ingested` is 0 only if a
+    // paper-year somehow has published rows but no source='pyq' rows at all; treat
+    // that as "no denominator, don't second-guess" rather than as 0% coverage.
+    const ingested = ingestedTotals.get(key) ?? 0;
+    const coverage = ingested > 0 ? qs.length / ingested : 1;
+    const thin = coverage < MIN_FULL_PAPER_COVERAGE;
+    if (thin) {
+      report.warn(
+        `${slug}: only ${qs.length}/${ingested} (${(100 * coverage).toFixed(1)}%) of this paper's ingested questions are live — ` +
+          `built but left UNPUBLISHED so it is not listed as the full paper. ` +
+          `Usually an answer-key gap: check key_provenance + meta.blind_resolve for ${paperCode} ${year}.`,
+      );
+    }
     const testId = await upsertTest({
       slug,
       title_i18n: title,
@@ -221,15 +290,17 @@ async function main(): Promise<void> {
       exam_code: paper.exam,
       duration_minutes: durationFor(stage),
       total_marks: totalMarks,
-      is_published: true,
-      meta,
+      is_published: !thin,
+      meta: { ...meta, coverage: { live: qs.length, ingested, thin } },
     });
     await setMembership(
       testId,
       qs.sort((a, b) => a.id.localeCompare(b.id)).map((q) => q.id),
     );
-    report.ok(`${slug}: ${qs.length} questions`);
-    fullCount++;
+    if (!thin) {
+      report.ok(`${slug}: ${qs.length} questions`);
+      fullCount++;
+    }
   }
 
   // --- 2. Sectional tests (published MCQs per top-level syllabus node) ---
